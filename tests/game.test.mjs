@@ -206,6 +206,7 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   assert.ok(manifest.abyssKillShipPool.length >= manifest.killShipPool.length);
   for (const shipId of manifest.killShipPool) assert.ok(catalog.some((ship) => ship.id === shipId));
   assert.equal(manifest.counts.modules, Object.keys(refs.modules).length);
+  assert.ok(refs.modules[3186]?.chargeGroups?.includes(377));
   assert.ok(manifest.images.baseUrl);
   assert.ok(manifest.zkillboard.baseUrl);
   assert.ok(manifest.links.repo);
@@ -486,8 +487,64 @@ test('unique weapon ammunition inherits unique weight', () => {
   const probe = built.clues.find((clue) => clue.k === 'equipment' && clue.v.module === 22778);
   assert.ok(launcher && probe);
   assert.equal(launcher.tag, 'unique');
-  assert.equal(probe.tag, 'unique');
+  assert.equal(probe.tag, null);
+  assert.deepEqual(probe.tags, []);
   assert.equal(probe.w, 10);
+});
+
+test('utility high-slot modules do not make ammunition unique', () => {
+  const marauder = catalog.find((entry) => entry.groupID === 900);
+  const losses = [{
+    killmail_id: 139932720,
+    zkb: { totalValue: 1000 },
+    victim: {
+      items: [
+        { flag: 27, item_type_id: 3186, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 31, item_type_id: 94009, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 28, item_type_id: 12791, quantity_destroyed: 46, quantity_dropped: 0 },
+      ],
+    },
+  }];
+  const built = buildClues({
+    ship: marauder, catalog, refs, stats: null, losses, dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion,
+  });
+  const weapon = built.clues.find((clue) => clue.k === 'equipment' && clue.v.module === 3186);
+  const bastion = built.clues.find((clue) => clue.k === 'equipment' && clue.v.module === 94009);
+  const ammo = built.clues.find((clue) => clue.k === 'equipment' && clue.v.module === 12791);
+  assert.ok(weapon && bastion && ammo);
+  assert.equal(bastion.tags.includes('unique'), true);
+  assert.deepEqual(ammo.tags, []);
+  assert.equal(ammo.tag, null);
+  assert.equal(ammo.w, weapon.w);
+});
+
+test('officer, abyssal and PLEX items expose their own markers', () => {
+  const battleship = catalog.find((entry) => entry.groupID === 27);
+  const officer = Object.entries(refs.modules).find(([, module]) => Number(module.metaGroupID) === 5);
+  const abyssal = Object.entries(refs.modules).find(([, module]) => Number(module.metaGroupID) === 15);
+  assert.ok(officer && abyssal);
+  const losses = [{
+    killmail_id: 424251,
+    zkb: { totalValue: 1000 },
+    victim: {
+      items: [
+        { flag: 27, item_type_id: Number(officer[0]), quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 28, item_type_id: Number(abyssal[0]), quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 5, item_type_id: 44992, quantity_destroyed: 1, quantity_dropped: 0 },
+      ],
+    },
+  }];
+  const built = buildClues({
+    ship: battleship, catalog, refs, stats: null, losses, dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion,
+  });
+  const officerClue = built.clues.find((clue) => clue.v?.module === Number(officer[0]));
+  const abyssalClue = built.clues.find((clue) => clue.v?.module === Number(abyssal[0]));
+  const plexClue = built.clues.find((clue) => clue.v?.module === 44992);
+  assert.ok(officerClue.tags.includes('officer'));
+  assert.ok(abyssalClue.tags.includes('abyss'));
+  assert.ok(plexClue.tags.includes('plex'));
 });
 
 test('abyss weights use base stats instead of fitted values', () => {

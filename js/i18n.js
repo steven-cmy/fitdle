@@ -1849,6 +1849,21 @@ Object.assign(RENAMES, {
   },
 });
 
+Object.assign(RENAMES, {
+  'dossier.officer': {
+    en: 'OFFICER', de: 'OFFIZIER', es: 'OFICIAL', fr: 'OFFICIER',
+    ja: 'オフィサー', ko: '오피서', ru: 'ОФИЦЕР', zh: '官员',
+  },
+  'dossier.abyss': {
+    en: 'ABYSSAL', de: 'ABGRUND', es: 'ABISAL', fr: 'ABYSSAL',
+    ja: 'アビサル', ko: '어비설', ru: 'АБИССАЛЬНЫЙ', zh: '深渊',
+  },
+  'dossier.plex': {
+    en: 'PLEX ???', de: 'PLEX ???', es: 'PLEX ???', fr: 'PLEX ???',
+    ja: 'PLEX ???', ko: 'PLEX ???', ru: 'PLEX ???', zh: 'PLEX ???',
+  },
+});
+
 for (const [key, values] of Object.entries(RENAMES)) {
   for (const [lang, value] of Object.entries(values)) {
     if (MESSAGES[lang]) MESSAGES[lang][key] = value;

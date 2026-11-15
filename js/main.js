@@ -1134,18 +1134,28 @@ function slotLabel(slot) {
   return t(key) || t('cat.equipment');
 }
 
+function moduleBadge(tag) {
+  const badges = {
+    limited: { cls: 'badge-limited', icon: 'lock', label: t('dossier.limited') },
+    unique: { cls: 'badge-unique', icon: 'lock', label: t('dossier.unique') },
+    officer: { cls: 'badge-officer', icon: 'star', label: t('dossier.officer') },
+    abyss: { cls: 'badge-abyss', icon: 'radar', label: t('dossier.abyss') },
+    plex: { cls: 'badge-plex', icon: 'star', label: t('dossier.plex') },
+  };
+  const badge = badges[tag];
+  if (!badge) return '';
+  return `<span class="badge-hull ${badge.cls}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
+}
+
 function renderModuleLine(clue) {
   const module = state.refs.modules?.[clue.v.module];
   const name = module?.name || state.extraTypeNames?.[clue.v.module] || `Type #${clue.v.module}`;
+  const tags = [...new Set(clue.tags?.length ? clue.tags : clue.tag ? [clue.tag] : [])];
   return `<span class="module-line">
     ${moduleThumb(clue.v.module, clue.v.slot)}
     <span class="module-line-body">
       <span class="module-line-name">${esc(name)}</span>
-      ${clue.tag === 'unique'
-        ? `<span class="badge-hull badge-unique">${icon('lock')} ${esc(t('dossier.unique'))}</span>`
-        : clue.tag === 'limited'
-          ? `<span class="badge-hull badge-limited">${icon('lock')} ${esc(t('dossier.limited'))}</span>`
-          : ''}
+      ${tags.map(moduleBadge).join('')}
     </span>
     <span class="module-count">×${int(clue.v.count)}</span>
   </span>`;

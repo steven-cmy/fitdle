@@ -2118,8 +2118,9 @@ html[data-game-mode="abyss"] {
 .module-line .module-count {
   flex: 0 0 auto;
   margin-left: auto;
-  padding: 3px 5px;
-  font-size: 9px;
+  padding: 2px 5px;
+  font-size: 12.5px;
+  line-height: 1.3;
 }
 
 .clue-grid {
@@ -2443,15 +2444,69 @@ html[data-game-mode="abyss"] {
   color: var(--dim);
   font-style: normal;
 }
+.badge-hull {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
 .badge-hull.badge-limited {
-  color: var(--amber);
-  border-color: rgba(242, 166, 59, 0.32);
-  background: rgba(242, 166, 59, 0.07);
+  color: #edf3f7;
+  border-color: rgba(222, 234, 242, 0.62);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(132, 150, 162, 0.1) 42%, rgba(255, 255, 255, 0.26)),
+    rgba(122, 140, 152, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38), 0 0 8px rgba(196, 214, 226, 0.12);
 }
 .badge-hull.badge-unique {
-  color: var(--violet);
-  border-color: rgba(181, 156, 255, 0.34);
-  background: rgba(181, 156, 255, 0.08);
+  color: #2a1a02;
+  border-color: rgba(255, 222, 128, 0.9);
+  background:
+    linear-gradient(135deg, #fff1b8 0%, #e8bd4f 40%, #fff3bd 62%, #c89124 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 0 10px rgba(255, 204, 85, 0.28);
+  text-shadow: 0 1px 0 rgba(255, 248, 218, 0.65);
+}
+.badge-hull.badge-officer {
+  color: #eadcff;
+  border-color: rgba(190, 132, 255, 0.72);
+  background: linear-gradient(135deg, rgba(170, 94, 255, 0.42), rgba(93, 36, 150, 0.26));
+  box-shadow: inset 0 1px 0 rgba(236, 213, 255, 0.38), 0 0 9px rgba(174, 98, 255, 0.24);
+}
+.badge-hull.badge-abyss {
+  color: #ffe1e3;
+  border-color: rgba(255, 91, 105, 0.72);
+  background: linear-gradient(135deg, rgba(255, 69, 84, 0.44), rgba(128, 22, 35, 0.3));
+  box-shadow: inset 0 1px 0 rgba(255, 211, 214, 0.34), 0 0 9px rgba(255, 62, 80, 0.25);
+}
+.badge-hull.badge-limited::after,
+.badge-hull.badge-unique::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 22%, rgba(255, 255, 255, 0.7) 48%, transparent 72%);
+  transform: translateX(-130%);
+  animation: badge-sheen 3.6s ease-in-out infinite;
+}
+.badge-hull.badge-plex {
+  color: #0b1017;
+  border-color: rgba(255, 255, 255, 0.78);
+  background: linear-gradient(100deg, #ff6b6b, #ffd166, #7ee787, #63b3ff, #d08cff, #ff6b6b);
+  background-size: 300% 100%;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 10px rgba(160, 220, 255, 0.3);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+  animation: plex-shimmer 4.5s linear infinite;
+}
+.badge-hull.badge-plex svg {
+  color: #0b1017;
+}
+@keyframes badge-sheen {
+  0%, 55% { transform: translateX(-130%); }
+  78%, 100% { transform: translateX(130%); }
+}
+@keyframes plex-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
 }
 
 .bonus-list {
@@ -3801,7 +3856,7 @@ html[data-game-mode="abyss"] {
     font-size: 12px;
   }
   .module-line .module-count {
-    font-size: 8px;
+    font-size: 12px;
   }
   .clue-card {
     padding: 11px 12px;

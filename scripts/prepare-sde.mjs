@@ -259,12 +259,14 @@ async function main() {
   console.log('Loading ship dogma attributes and module fit restrictions...');
   const shipAttrs = new Map();
   const fitRestrictions = new Map();
+  const moduleChargeGroups = new Map();
   await stream('typeDogma.jsonl', (o) => {
     const t = types.get(o._key);
     if (!t) return;
     const attrs = {};
     const canFitShipTypes = [];
     const canFitShipGroups = [];
+    const chargeGroups = [];
     for (const a of o.dogmaAttributes || []) {
       const id = a.attributeID;
       if (t.categoryID === SHIP_CATEGORY) attrs[id] = a.value;
@@ -274,10 +276,18 @@ async function main() {
       if (/^canFitShipGroup\d+$/.test(attributes.get(id)?.name || '') || [666, 667, 668].includes(id)) {
         if (a.value) canFitShipGroups.push(Number(a.value));
       }
+      // Modules with charge groups are actual weapons/launchers, not utility
+      // high-slot modules such as Bastion or Command Bursts.
+      if (/^chargeGroup\d+$/i.test(attributes.get(id)?.name || '') && a.value) {
+        chargeGroups.push(Number(a.value));
+      }
     }
     if (t.categoryID === SHIP_CATEGORY) shipAttrs.set(o._key, attrs);
     if (canFitShipTypes.length || canFitShipGroups.length) {
       fitRestrictions.set(o._key, { shipTypes: canFitShipTypes, shipGroups: canFitShipGroups });
+    }
+    if (chargeGroups.length) {
+      moduleChargeGroups.set(o._key, [...new Set(chargeGroups)]);
     }
   });
 
@@ -405,6 +415,7 @@ async function main() {
       basePrice: t.basePrice,
       iconID: t.iconID,
       fitRestrictions: fitRestrictions.get(t.id) || null,
+      chargeGroups: moduleChargeGroups.get(t.id) || [],
     });
   }
 

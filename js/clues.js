@@ -151,6 +151,7 @@ function moduleSizeRank(name) {
 }
 
 const MICRO_JUMP_GROUPS = new Set([1189, 4769]);
+const PLEX_TYPES = new Set([29668, 44992]);
 
 function equipmentRestriction(module) {
   // Micro Jump Drives fit several ship classes: limited, not unique.
@@ -385,7 +386,7 @@ function orderClues(clues, seed, mode = 'normal') {
   const hardAbyss = (clue) => mode === 'abyss' && (
     clue.k === 'race'
     || clue.k === 'group'
-    || (clue.k === 'equipment' && (clue.tag === 'unique' || clue.tag === 'limited'))
+    || (clue.k === 'equipment' && (clue.tags || [clue.tag]).some((tag) => tag === 'unique' || tag === 'limited'))
   );
   const opening = [];
   const rest = [];
@@ -431,6 +432,14 @@ export function buildClues({
     const isCharge = !module || Number(module.categoryID) === 8;
     const restriction = equipmentRestriction(module);
     const common = COMMON_MODULE_GROUPS.has(module?.groupID);
+    const meta = Number(module?.metaGroupID || 0);
+    const tags = [];
+    if (restriction) tags.push(restriction);
+    if (meta === 5) tags.push('officer');
+    if (meta === 15) tags.push('abyss');
+    if (item.slot === 'cargo' && (PLEX_TYPES.has(Number(item.module)) || /plex|pilot'?s license/i.test(module?.name || ''))) {
+      tags.push('plex');
+    }
     let weight = restriction === 'unique' ? 10 : restriction === 'limited' ? 8.2 : common ? 1.2 : 3.0;
     if (!restriction) {
       weight += item.slot === 'rig' ? 0.3 : item.slot === 'subsystem' ? 0.45 : 0;
@@ -448,11 +457,14 @@ export function buildClues({
       v: { module: item.module, count: item.count, slot: item.slot },
       w: round(weight, 1),
       tag: restriction,
+      tags,
       sig: restriction === 'unique',
       charge: isCharge && item.slot !== 'cargo',
     };
     equipmentClues.push(clue);
-    if (item.slot === 'high' && !isCharge) highWeapons.push(clue);
+    if (item.slot === 'high' && !isCharge && Array.isArray(module?.chargeGroups) && module.chargeGroups.length) {
+      highWeapons.push(clue);
+    }
   }
 
   // Loaded ammunition reveals the weapon family and size. It follows the
@@ -471,8 +483,10 @@ export function buildClues({
   for (const clue of equipmentClues) {
     if (clue.charge) {
       clue.w = round(ammoWeight, 1);
+      // Ammo inherits the weapon's weight, but never displays its marker.
       clue.sig = ammoTag === 'unique';
-      clue.tag = ammoTag;
+      clue.tag = null;
+      clue.tags = [];
     }
     clues.push(clue);
   }

@@ -88,6 +88,12 @@ instructions live in [README.md](README.md).
 - Reveal RNG seed: `${date}:${killId || shipId}:${mode}`. Never include the guess
   list in the seed, or earlier reveals could change between refreshes.
 - Equipment size adds weight: Capital/XL +7, Large +2.2, Medium +0.8.
+- Ammo inherits the strongest real weapon restriction for weight, but never
+  displays a limited/unique/officer/abyssal marker. Weapon detection uses SDE
+  `chargeGroup*` dogma attributes, so utility high slots (Bastion, Command Burst)
+  do not contaminate ammo tags.
+- Multiple equipment markers are supported: limited, unique, officer (meta 5),
+  abyssal (meta 15), and cargo-only PLEX easter egg.
 
 ## Data version
 
@@ -165,7 +171,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 30 cases, including downtime boundaries, target/KB
+`npm test` currently covers 32 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.
