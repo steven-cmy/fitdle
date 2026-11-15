@@ -66,6 +66,8 @@ const state = {
   liveFetched: false,
   moduleDetails: null,
   extraTypeNames: {},
+  extraTypeNamesLocale: null,
+  cargoFetchId: 0,
   dogmaAttrs: null,
   dogmaError: false,
   mode: 'normal',
@@ -447,6 +449,14 @@ async function fetchAnswerLive() {
 async function fetchCargoTypeNames() {
   const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
   if (!base || !state.refs?.modules) return;
+  const locale = state.locale;
+  const requestId = ++state.cargoFetchId;
+  if (state.extraTypeNamesLocale !== locale) {
+    // ESI names are language-specific; never reuse an English/Chinese cache
+    // after the player changes the interface language.
+    state.extraTypeNames = {};
+    state.extraTypeNamesLocale = locale;
+  }
   const unknown = [...new Set(
     getEquipment(state.liveLosses).equipment
       .map((item) => item.module)
@@ -459,10 +469,13 @@ async function fetchCargoTypeNames() {
     while (cursor < unknown.length) {
       const id = unknown[cursor++];
       try {
-        const response = await fetch(`${base}/latest/universe/types/${id}/?datasource=tranquility`, {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(8000),
-        });
+        const response = await fetch(
+          `${base}/latest/universe/types/${id}/?datasource=tranquility&language=${encodeURIComponent(locale)}`,
+          {
+            cache: 'no-store',
+            signal: AbortSignal.timeout(8000),
+          },
+        );
         if (response.ok) {
           const data = await response.json();
           if (data?.name) entries.push([id, data.name]);
@@ -473,6 +486,8 @@ async function fetchCargoTypeNames() {
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, unknown.length) }, worker));
+  // Ignore a response that arrived after another language switch.
+  if (state.locale !== locale || state.cargoFetchId !== requestId) return;
   state.extraTypeNames = { ...state.extraTypeNames, ...Object.fromEntries(entries) };
 }
 

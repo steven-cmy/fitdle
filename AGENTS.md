@@ -143,6 +143,8 @@ npm run hooks:install     # enable shared Git hooks
 - `og:image` is score- and locale-specific, absolute using `SITE_URL` or CI
   `CI_PAGES_URL`.
 - Free share: `?kb=...&mode=...&lang=...`; no score page/stats.
+- Cargo/type names not in SDE refs are fetched from ESI with `language=<locale>`;
+  never reuse `extraTypeNames` across locales.
 
 ## Manual and legal
 
