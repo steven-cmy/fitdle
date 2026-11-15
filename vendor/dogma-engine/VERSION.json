@@ -1,0 +1,7 @@
+{
+  "updatedAt": "2026-11-15T04:46:31.454Z",
+  "dogmaEngine": "15.0.0",
+  "sde": "14.3693310.0",
+  "source": "npm @eveshipfit/dogma-engine + @eveshipfit/sde",
+  "note": "skills.json is maintained by Fitdle and was not replaced."
+}

@@ -1,0 +1,75 @@
+stages:
+  - check
+  - build
+  - deploy
+
+default:
+  image: node:20-bookworm
+  interruptible: true
+
+# Runs on every default-branch pipeline and on the daily schedule.
+# It compares the SDE ETag/Last-Modified header with the currently deployed
+# Pages manifest and exports SDE_CHANGED for the build job.
+sde:check:
+  stage: check
+  script:
+    - node scripts/check-sde.mjs
+  artifacts:
+    reports:
+      dotenv: .cache/sde-check.env
+    expire_in: 1 day
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "api"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Every default-branch push and every scheduled run rebuilds/deploys. The SDE
+# refresh itself is skipped unless sde:check detected a new release.
+build:
+  stage: build
+  needs:
+    - job: sde:check
+      artifacts: true
+  cache:
+    key: fitdle-build-v1
+    paths:
+      - .cache/normalized.json
+      - .cache/killpool.json
+      - .cache/sde-meta.json
+  script:
+    - |
+      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/normalized.json ]; then
+        npm run prepare:sde -- --refresh
+      fi
+    - |
+      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/killpool.json ]; then
+        npm run build
+        npm run build:killpool
+      fi
+    - npm run build
+    - npm test
+  artifacts:
+    paths:
+      - dist
+    expire_in: 1 week
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+pages:
+  stage: deploy
+  needs:
+    - job: build
+      artifacts: true
+  script:
+    - rm -rf public
+    - cp -r dist public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

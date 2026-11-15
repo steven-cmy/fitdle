@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" data-eve-font="neue">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#05080c">
+  <meta name="color-scheme" content="dark">
+  <title>FITDLE — Daily EVE Online Ship Puzzle</title>
+  <meta name="description" content="A daily EVE Online ship-identification puzzle. Read the fittings, name the hull. Six attempts, one target per UTC day, eight client languages.">
+  <meta property="og:title" content="FITDLE — Daily EVE Online Ship Puzzle">
+  <meta property="og:description" content="Read the fittings. Name the hull. One target per UTC day, in eight client languages.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+  <script>
+    try {
+      if (localStorage.getItem('fitdle:v1:font') === 'classic') {
+        document.documentElement.dataset.eveFont = 'classic';
+      }
+    } catch {}
+  </script>
+  <link rel="stylesheet" href="styles/app.css">
+</head>
+<body>
+  <canvas id="starfield" aria-hidden="true"></canvas>
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <div id="app">
+    <div class="boot-screen" role="status" aria-live="polite">
+      <div class="boot-mark" aria-hidden="true">
+        <span class="boot-ring boot-ring-a"></span>
+        <span class="boot-ring boot-ring-b"></span>
+        <span class="boot-cross boot-cross-x"></span>
+        <span class="boot-cross boot-cross-y"></span>
+        <span class="boot-core"></span>
+      </div>
+      <div class="boot-title">FITDLE</div>
+      <div class="boot-status">ESTABLISHING UPLINK</div>
+      <div class="boot-sub">Decrypting daily intelligence package</div>
+      <div class="boot-bar"><span></span></div>
+    </div>
+  </div>
+
+  <div id="suggestions" class="suggestions" role="listbox" hidden></div>
+  <div id="modal-root" class="modal-root" aria-hidden="true"></div>
+  <div id="toast-root" class="toast-root" role="status" aria-live="polite" aria-atomic="false"></div>
+
+  <noscript>
+    <div class="noscript-panel">
+      <h1>FITDLE</h1>
+      <p>This puzzle requires JavaScript. Enable JavaScript in your browser to establish the uplink.</p>
+    </div>
+  </noscript>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
