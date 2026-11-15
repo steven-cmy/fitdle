@@ -102,9 +102,11 @@ instructions live in [README.md](README.md).
   abyssal (meta 15), and cargo-only PLEX easter egg. Each marker has a localized
   `title`/`aria-label` hint.
 - Abyss fallback is always a same-group/same-size representative of the abyssal
-  module itself. It picks the variant whose meta group is closest to the highest
-  meta in the same slot (default faction when none). It must never substitute an
-  unrelated module line (e.g. armor repairer into ballistic).
+  module itself. It picks the variant whose **meta level** (attribute 633) is
+  closest to the highest meta level in the same slot (default faction/8 when
+  none). Example: X-Type armor hardener meta 16 in low → repairer officer meta 11
+  is closer than C-Type meta 10. It must never substitute an unrelated module
+  line (e.g. armor repairer into ballistic).
 - Before `calculateDogmaFit`, abyssal fit items are cloned and their type IDs are
   replaced by those tier representatives (cargo untouched). The UI/equipment
   clues keep the original abyssal IDs; only the attribute calculation is substituted.

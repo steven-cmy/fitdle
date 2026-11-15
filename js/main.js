@@ -1192,7 +1192,7 @@ function moduleBadge(tag, clue) {
     const calcName = state.refs.modules?.[clue.calcModule]?.name
       || state.extraTypeNames?.[clue.calcModule]
       || `Type #${clue.calcModule}`;
-    badge.hint = t('dossier.abyssCalc', { name: calcName });
+    badge.hint = `${t('dossier.abyssHint')} ${t('dossier.abyssCalc', { name: calcName })}`;
   }
   return `<span class="badge-hull ${badge.cls}" title="${esc(badge.hint)}" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
 }

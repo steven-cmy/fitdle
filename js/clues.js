@@ -161,43 +161,45 @@ function moduleSizeRank(name) {
 const MICRO_JUMP_GROUPS = new Set([1189, 4769]);
 const PLEX_TYPES = new Set([29668, 44992]);
 
-const ABYSS_TIER_META = { t1: 1, t2: 2, highMeta: 3, faction: 4, officer: 5, deadspace: 6 };
-
 /**
  * Abyssal modules use the representative matching the highest meta module in
  * the same slot, or the closest available meta tier. Representatives are always
  * from the same module group (and therefore the same module variant).
  */
 export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
+  const metaLevelOf = (module) => {
+    const level = Number(module?.metaLevel);
+    return Number.isFinite(level) && level >= 0 ? level : null;
+  };
   const slotMeta = new Map();
   for (const item of equipment) {
     if (item.slot === 'cargo') continue;
-    const meta = Number(refs.modules?.[item.module]?.metaGroupID || 0);
-    if (meta < 1 || meta > 6) continue;
-    if (!slotMeta.has(item.slot) || meta > slotMeta.get(item.slot)) slotMeta.set(item.slot, meta);
+    const level = metaLevelOf(refs.modules?.[item.module]);
+    if (level == null) continue;
+    if (!slotMeta.has(item.slot) || level > slotMeta.get(item.slot)) slotMeta.set(item.slot, level);
   }
   const result = new Map();
   for (const item of equipment) {
     if (item.slot === 'cargo') continue;
     const entry = moduleFallbacks[item.module];
     if (!entry) continue;
-    const targetMeta = slotMeta.get(item.slot) ?? 4;
+    // Highest meta level in the slot; faction (8) is the neutral default.
+    const targetLevel = slotMeta.get(item.slot) ?? 8;
     const sourceGroup = refs.modules?.[item.module]?.groupID;
     let best = null;
     let bestDistance = Infinity;
-    let bestMeta = -1;
+    let bestLevel = -1;
     if (typeof entry === 'string') {
       best = entry;
-      bestDistance = Math.abs(2 - targetMeta);
     } else {
-      for (const [tier, representative] of Object.entries(entry)) {
-        const tierMeta = ABYSS_TIER_META[tier];
-        if (!tierMeta) continue;
-        const distance = Math.abs(tierMeta - targetMeta);
-        if (distance < bestDistance || (distance === bestDistance && tierMeta > bestMeta)) {
+      for (const representative of Object.values(entry)) {
+        const level = metaLevelOf(refs.modules?.[representative]);
+        if (level == null) continue;
+        const distance = Math.abs(level - targetLevel);
+        if (distance < bestDistance || (distance === bestDistance && level > bestLevel)) {
           best = representative;
           bestDistance = distance;
-          bestMeta = tierMeta;
+          bestLevel = level;
         }
       }
     }

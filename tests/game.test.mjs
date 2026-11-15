@@ -620,6 +620,16 @@ test('abyss fallback picks the nearest meta of the same module variant', () => {
   assert.ok(ballistic);
   assert.equal(refs.modules[ballistic].groupID, 367);
   assert.equal(Number(refs.modules[ballistic].metaGroupID), 5);
+
+  const repairFallbacks = selectAbyssFallbacks([
+    { module: 47777, slot: 'low' },
+    { module: 18973, slot: 'low' },
+  ], refs, manifest.moduleFallbacks);
+  const repair = repairFallbacks.get(47777);
+  assert.ok(repair);
+  assert.equal(refs.modules[repair].groupID, 62);
+  assert.equal(Number(refs.modules[repair].metaLevel), 11);
+  assert.notEqual(repair, 19035);
 });
 
 test('abyss weights start from base stats and drop when fitted values change', () => {

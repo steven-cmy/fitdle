@@ -260,6 +260,7 @@ async function main() {
   const shipAttrs = new Map();
   const fitRestrictions = new Map();
   const moduleChargeGroups = new Map();
+  const moduleMetaLevels = new Map();
   await stream('typeDogma.jsonl', (o) => {
     const t = types.get(o._key);
     if (!t) return;
@@ -267,6 +268,7 @@ async function main() {
     const canFitShipTypes = [];
     const canFitShipGroups = [];
     const chargeGroups = [];
+    let metaLevel = null;
     for (const a of o.dogmaAttributes || []) {
       const id = a.attributeID;
       if (t.categoryID === SHIP_CATEGORY) attrs[id] = a.value;
@@ -281,6 +283,7 @@ async function main() {
       if (/^chargeGroup\d+$/i.test(attributes.get(id)?.name || '') && a.value) {
         chargeGroups.push(Number(a.value));
       }
+      if (id === 633 && a.value != null) metaLevel = Number(a.value);
     }
     if (t.categoryID === SHIP_CATEGORY) shipAttrs.set(o._key, attrs);
     if (canFitShipTypes.length || canFitShipGroups.length) {
@@ -289,6 +292,7 @@ async function main() {
     if (chargeGroups.length) {
       moduleChargeGroups.set(o._key, [...new Set(chargeGroups)]);
     }
+    if (metaLevel != null) moduleMetaLevels.set(o._key, metaLevel);
   });
 
   console.log('Loading ship bonuses...');
@@ -416,6 +420,7 @@ async function main() {
       iconID: t.iconID,
       fitRestrictions: fitRestrictions.get(t.id) || null,
       chargeGroups: moduleChargeGroups.get(t.id) || [],
+      metaLevel: moduleMetaLevels.get(t.id) ?? null,
     });
   }
 
