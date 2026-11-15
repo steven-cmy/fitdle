@@ -68,6 +68,7 @@ const VALUE_MIN_TOLERANCE = {
 };
 const FIT_ADDITIVE = ['mass', 'sig', 'shield', 'armor', 'structure', 'capacitor', 'cargo', 'targetRange', 'scanRes', 'pg', 'cpu', 'calibration'];
 const FIT_RATIO = ['speed', 'align', 'warp'];
+const ABYSS_FITTED_WEIGHT_FACTOR = 0.7;
 
 function deriveFitDelta(base = {}, fitted = null) {
   const delta = { add: {}, ratio: {}, resist: {} };
@@ -101,6 +102,13 @@ function adjustedAttr(kind, attrs, fitDelta) {
   const ratio = Number(fitDelta?.ratio?.[kind]);
   if (Number.isFinite(ratio) && ratio > 0) value *= ratio;
   return value;
+}
+
+function sameClueValue(kind, a, b) {
+  if ((a && typeof a === 'object') || (b && typeof b === 'object')) {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  return sameValue(kind, a, b);
 }
 
 function sameValue(kind, a, b) {
@@ -556,6 +564,12 @@ export function buildClues({
     if (mode === 'abyss') {
       if (clue.k === 'race' || clue.k === 'group') clue.w = 10;
       if (clue.k === 'equipment' && clue.sig) clue.w = 10;
+      const baseValue = baseClueValues?.get(clue.k);
+      if (clue.k !== 'equipment' && clue.k !== 'bonus' && baseValue !== undefined) {
+        if (!sameClueValue(clue.k, baseValue, clue.v)) {
+          clue.w = round(Math.max(1, clue.w * ABYSS_FITTED_WEIGHT_FACTOR), 1);
+        }
+      }
     }
   }
 

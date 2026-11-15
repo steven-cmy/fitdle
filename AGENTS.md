@@ -83,6 +83,9 @@ instructions live in [README.md](README.md).
   weight selected first, high-weight items consume more budget and reveal fewer.
 - Abyss misses: `+1/+2/+3/+4/+5`; inverse-weight random; if no equipment or all
   equipment is revealed, the same count is spent on other clues.
+- Abyss static weights start from base stats (so fitted values do not inflate
+  weight), then a clue whose fitted value differs from the base is multiplied by
+  0.7. This reflects that module effects make that attribute less discriminating.
 - A guess reveals shared static values; two additions stay mixed (equipment and
   attributes) through the replacement rule.
 - Reveal RNG seed: `${date}:${killId || shipId}:${mode}`. Never include the guess

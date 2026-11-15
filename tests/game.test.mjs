@@ -586,7 +586,7 @@ test('officer, abyssal and PLEX items expose their own markers', () => {
   assert.ok(plexClue.tags.includes('plex'));
 });
 
-test('abyss weights use base stats instead of fitted values', () => {
+test('abyss weights start from base stats and drop when fitted values change', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const losses = [{ killmail_id: 424250, zkb: { totalValue: 1000 }, victim: { items: [] } }];
   const normal = buildClues({
@@ -601,7 +601,10 @@ test('abyss weights use base stats instead of fitted values', () => {
   const normalMass = normal.clues.find((clue) => clue.k === 'mass');
   const abyssMass = abyss.clues.find((clue) => clue.k === 'mass');
   assert.notEqual(abyssMass.v, normalMass.v);
-  assert.equal(abyssMass.w, normalMass.w);
+  assert.ok(abyssMass.w < normalMass.w);
+  const normalTech = normal.clues.find((clue) => clue.k === 'tech');
+  const abyssTech = abyss.clues.find((clue) => clue.k === 'tech');
+  assert.equal(abyssTech.w, normalTech.w);
 });
 
 test('micro jump drives are shared fittings, not hull-specific equipment', () => {
