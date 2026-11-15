@@ -1,6 +1,6 @@
 # FITDLE
 
-**版本 0.1.13。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
+**版本 0.1.14。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
 
 ![桌面端](docs/screenshot-desktop.png)
 
@@ -263,7 +263,7 @@ npm run build
 - zKillboard API 可能限流。失败时游戏会降级为 SDE 线索，但不会泄露答案。
 - 某些从未有 zKill 损失的纪念/特殊船没有可用的 KB，因此不在可出题池中。
 - `dist/` 和 `.cache/` 都是生成物，不要提交。
-- 版本号只在准备推送前 patch，不在每次 commit 时自动增加；需要 minor/major 时显式指定。
+- 版本号默认每次 commit 自动 patch；需要 minor/major 时显式指定。
 
 ### 版权与许可
 

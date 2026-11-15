@@ -1,6 +1,6 @@
 {
   "name": "fitdle",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "type": "module",
   "description": "EVE Online daily killmail puzzle — static frontend with live zKillboard and SDE data.",
@@ -17,7 +17,7 @@
     "serve": "node scripts/serve.mjs --root dist",
     "serve:source": "node scripts/serve.mjs --root .",
     "test": "node tests/game.test.mjs",
-    "version:bump": "node scripts/bump-version.mjs"
+    "hooks:install": "node scripts/install-git-hooks.mjs"
   },
   "engines": {
     "node": ">=20"
