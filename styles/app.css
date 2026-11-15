@@ -2125,9 +2125,27 @@ html[data-game-mode="abyss"] {
 .zkb-item-link {
   color: inherit;
   text-decoration: none;
+  transition: color 120ms ease-out;
 }
 .zkb-item-link:hover {
   color: var(--amber);
+}
+.zkb-group-link {
+  display: inline-flex;
+  margin-left: 3px;
+  color: inherit;
+  opacity: 0.55;
+  text-decoration: none;
+  vertical-align: baseline;
+  transition: color 120ms ease-out, opacity 120ms ease-out;
+}
+.zkb-group-link svg {
+  width: 9px;
+  height: 9px;
+}
+.zkb-group-link:hover {
+  color: var(--amber);
+  opacity: 1;
 }
 .module-line .module-count {
   display: inline-flex;
