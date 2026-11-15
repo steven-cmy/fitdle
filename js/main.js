@@ -492,6 +492,71 @@ async function fetchCargoTypeNames() {
   state.extraTypeNames = { ...state.extraTypeNames, ...Object.fromEntries(entries) };
 }
 
+const ABYSS_TIER_PRIORITY = { deadspace: 6, officer: 5, faction: 4, t2: 3, highMeta: 2, t1: 1 };
+
+function abyssTierOf(meta) {
+  if (meta === 6) return 'deadspace';
+  if (meta === 5) return 'officer';
+  if (meta === 4) return 'faction';
+  if (meta === 2) return 't2';
+  if (meta === 3) return 'highMeta';
+  if (meta === 1) return 't1';
+  return null;
+}
+
+function abyssFallbackFor(entry, slotTier) {
+  if (!entry) return null;
+  const preferred = slotTier === 'deadspace' || slotTier === 'officer'
+    ? [slotTier, 'faction', 't2', 'highMeta', 't1']
+    : ['faction', 't2', 'highMeta', 't1'];
+  if (typeof entry === 'string') return preferred.includes('t2') ? entry : null;
+  for (const tier of preferred) {
+    if (entry[tier]) return entry[tier];
+  }
+  return null;
+}
+
+function abyssFallbackByModule() {
+  const equipment = getEquipment(state.liveLosses).equipment;
+  const slotTier = new Map();
+  for (const item of equipment) {
+    if (item.slot === 'cargo') continue;
+    const module = state.refs.modules?.[item.module];
+    const tier = abyssTierOf(Number(module?.metaGroupID || 0));
+    if (!tier) continue;
+    const current = slotTier.get(item.slot);
+    if (!current || ABYSS_TIER_PRIORITY[tier] > ABYSS_TIER_PRIORITY[current]) slotTier.set(item.slot, tier);
+  }
+  const result = new Map();
+  for (const item of equipment) {
+    if (item.slot === 'cargo') continue;
+    const source = state.refs.modules?.[item.module];
+    const entry = state.manifest.moduleFallbacks?.[item.module];
+    const fallback = abyssFallbackFor(entry, slotTier.get(item.slot));
+    if (!fallback) continue;
+    // Same-group protection: never borrow an unrelated module line.
+    if (Number(state.refs.modules?.[fallback]?.groupID) !== Number(source?.groupID)) continue;
+    result.set(item.module, fallback);
+  }
+  return result;
+}
+
+function abyssCalculationKillmail(killmail) {
+  const fallbacks = abyssFallbackByModule();
+  if (!fallbacks.size || !killmail?.victim?.items) return killmail;
+  return {
+    ...killmail,
+    victim: {
+      ...killmail.victim,
+      items: killmail.victim.items.map((item) => {
+        if (Number(item.flag) === 5) return item;
+        const fallback = fallbacks.get(Number(item.item_type_id));
+        return fallback ? { ...item, item_type_id: fallback } : item;
+      }),
+    },
+  };
+}
+
 async function fetchModuleDetails() {
   if (state.mode !== 'abyss' || state.moduleDetails) return;
   const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
@@ -499,27 +564,7 @@ async function fetchModuleDetails() {
   const equipment = getEquipment(state.liveLosses).equipment;
   const modules = equipment.map((item) => item.module);
   const unique = [...new Set(modules)];
-  const slotTier = new Map();
-  const slotByModule = new Map();
-  const tierOf = (meta) => {
-    if (meta === 6) return 'deadspace';
-    if (meta === 5) return 'officer';
-    if (meta === 4) return 'faction';
-    if (meta === 2) return 't2';
-    if (meta === 3) return 'highMeta';
-    if (meta === 1) return 't1';
-    return null;
-  };
-  const tierPriority = { deadspace: 6, officer: 5, faction: 4, t2: 3, highMeta: 2, t1: 1 };
-  for (const item of equipment) {
-    if (item.slot === 'cargo') continue;
-    if (!slotByModule.has(item.module)) slotByModule.set(item.module, item.slot);
-    const module = state.refs.modules?.[item.module];
-    const tier = tierOf(Number(module?.metaGroupID || 0));
-    if (!tier) continue;
-    const current = slotTier.get(item.slot);
-    if (!current || tierPriority[tier] > tierPriority[current]) slotTier.set(item.slot, tier);
-  }
+  const fallbackByModule = abyssFallbackByModule();
   const entries = [];
   let cursor = 0;
   const worker = async () => {
@@ -540,31 +585,15 @@ async function fetchModuleDetails() {
   state.moduleDetails = Object.fromEntries(entries);
 
   // Abyssal modules do not expose their mutated values through ESI's type
-  // endpoint. Fall back to the T2 (then faction, then T1) representative from
-  // the same group and size, so their fitted effects are not silently zero.
+  // endpoint. Use the same-group/size representative selected for the slot
+  // tier, so fitted effects are not silently zero.
   const relevant = new Set([4, 20, 67, 72, 150, 169, 554, 600, 796, 983, 1076, 1159]);
   const hasEffects = (data) => (data?.dogma_attributes || []).some((attr) => relevant.has(attr.attribute_id));
-  const fallbacks = state.manifest.moduleFallbacks || {};
   for (const id of unique) {
     const data = state.moduleDetails[id];
     if (!data || hasEffects(data)) continue;
-    const entry = fallbacks[id];
-    if (!entry) continue;
-    // Same-slot deadspace/officer gear is matched at its own tier. Otherwise
-    // the expected order is faction, T2, high-meta, then T1.
-    const sameSlotTier = slotTier.get(slotByModule.get(id));
-    const order = sameSlotTier === 'deadspace' || sameSlotTier === 'officer'
-      ? [sameSlotTier, 'faction', 't2', 'highMeta', 't1']
-      : ['faction', 't2', 'highMeta', 't1'];
-    const fallbackId = order.find((tier) => (
-      typeof entry === 'string' ? tier === 't2' : entry?.[tier]
-    ));
-    const resolvedId = typeof entry === 'string' ? entry : entry?.[fallbackId];
+    const resolvedId = fallbackByModule.get(id);
     if (!resolvedId) continue;
-    // Never borrow another module line just because it shares a slot.
-    const sourceGroup = state.refs.modules?.[id]?.groupID;
-    const representativeGroup = state.refs.modules?.[resolvedId]?.groupID;
-    if (sourceGroup != null && representativeGroup !== sourceGroup) continue;
     if (!state.moduleDetails[resolvedId]) {
       try {
         const response = await fetch(`${base}/latest/universe/types/${resolvedId}/?datasource=tranquility`, {
@@ -620,7 +649,10 @@ async function loadLocaleData(locale) {
   await fetchCargoTypeNames();
   if (state.mode === 'abyss' && state.liveLosses[0]) {
     try {
-      state.dogmaAttrs = await calculateDogmaFit(state.answerShip, state.liveLosses[0]);
+      state.dogmaAttrs = await calculateDogmaFit(
+        state.answerShip,
+        abyssCalculationKillmail(state.liveLosses[0]),
+      );
     } catch {
       state.dogmaError = true;
     }

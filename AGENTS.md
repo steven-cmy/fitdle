@@ -104,6 +104,9 @@ instructions live in [README.md](README.md).
 - Abyss fallback is always a same-group/same-size representative of the abyssal
   module itself. Same-slot deadspace/officer gear only selects the tier; it must
   never substitute an unrelated module line (e.g. armor repairer into ballistic).
+- Before `calculateDogmaFit`, abyssal fit items are cloned and their type IDs are
+  replaced by those tier representatives (cargo untouched). The UI/equipment
+  clues keep the original abyssal IDs; only the attribute calculation is substituted.
 - Official SDE de/ru item names are almost entirely English (5,370+ of 5,378);
   this is upstream behavior, not a locale fallback bug. Displaying English there
   matches the EVE client and EVE Ref. Only zh/es/fr/ja/ko have broad SDE names.
