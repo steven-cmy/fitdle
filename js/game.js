@@ -167,7 +167,16 @@ export function searchShips(index, query, { exclude = new Set(), limit = 8 } = {
     else if (entry.group.startsWith(q)) score = Math.max(score, 45);
     if (score > 0) results.push({ ship, score });
   }
-  results.sort((a, b) => b.score - a.score || a.ship.id - b.ship.id);
+  // Browse order: tech level → hull class/group → race → faction. Search
+  // scoring only decides whether an entry matches, not the presentation order.
+  results.sort((a, b) => (
+    Number(a.ship.techLevel || 0) - Number(b.ship.techLevel || 0)
+    || Number(a.ship.groupID || 0) - Number(b.ship.groupID || 0)
+    || Number(a.ship.raceID || 0) - Number(b.ship.raceID || 0)
+    || Number(a.ship.factionID || 0) - Number(b.ship.factionID || 0)
+    || String(a.ship.names?.en || '').localeCompare(String(b.ship.names?.en || ''))
+    || a.ship.id - b.ship.id
+  ));
   return results.slice(0, limit).map((r) => r.ship);
 }
 

@@ -118,6 +118,19 @@ test('search works across official language names', () => {
   }
 });
 
+test('ship search results follow tech, class, race and faction order', () => {
+  const ships = [
+    { id: 1, names: { en: 'Aardvark' }, techLevel: 2, groupID: 1, raceID: 1, factionID: 1 },
+    { id: 2, names: { en: 'Badger' }, techLevel: 1, groupID: 2, raceID: 1, factionID: 2 },
+    { id: 3, names: { en: 'Cormorant' }, techLevel: 1, groupID: 1, raceID: 2, factionID: 1 },
+  ];
+  const index = buildSearchIndex(ships, {});
+  assert.deepEqual(
+    searchShips(index, 'a', { limit: 10 }).map((ship) => ship.id),
+    [3, 2, 1],
+  );
+});
+
 test('service record streaks survive consecutive days only', () => {
   const storage = {
     value: null,
