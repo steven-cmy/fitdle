@@ -19,7 +19,7 @@ import {
   shareUrl,
 } from './game.js';
 import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
-import { buildClues, getEquipment, EQUIPMENT_SLOT_ORDER } from './clues.js';
+import { buildClues, getEquipment, selectAbyssFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
 import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
 import { computeRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
@@ -457,6 +457,12 @@ async function fetchCargoTypeNames() {
     // after the player changes the interface language.
     state.extraTypeNames = {};
     state.extraTypeNamesLocale = locale;
+    try {
+      const cached = JSON.parse(localStorage.getItem(`fitdle:v1:typeNames:${locale}`) || '{}');
+      if (cached && typeof cached === 'object') state.extraTypeNames = cached;
+    } catch {
+      // localStorage may be unavailable; ESI remains the fallback
+    }
   }
   const unknown = [...new Set(
     getEquipment(state.liveLosses).equipment
@@ -490,55 +496,16 @@ async function fetchCargoTypeNames() {
   // Ignore a response that arrived after another language switch.
   if (state.locale !== locale || state.cargoFetchId !== requestId) return;
   state.extraTypeNames = { ...state.extraTypeNames, ...Object.fromEntries(entries) };
-}
-
-const ABYSS_TIER_PRIORITY = { deadspace: 6, officer: 5, faction: 4, t2: 3, highMeta: 2, t1: 1 };
-
-function abyssTierOf(meta) {
-  if (meta === 6) return 'deadspace';
-  if (meta === 5) return 'officer';
-  if (meta === 4) return 'faction';
-  if (meta === 2) return 't2';
-  if (meta === 3) return 'highMeta';
-  if (meta === 1) return 't1';
-  return null;
-}
-
-function abyssFallbackFor(entry, slotTier) {
-  if (!entry) return null;
-  const preferred = slotTier === 'deadspace' || slotTier === 'officer'
-    ? [slotTier, 'faction', 't2', 'highMeta', 't1']
-    : ['faction', 't2', 'highMeta', 't1'];
-  if (typeof entry === 'string') return preferred.includes('t2') ? entry : null;
-  for (const tier of preferred) {
-    if (entry[tier]) return entry[tier];
+  try {
+    localStorage.setItem(`fitdle:v1:typeNames:${locale}`, JSON.stringify(state.extraTypeNames));
+  } catch {
+    // best effort cache
   }
-  return null;
 }
 
 function abyssFallbackByModule() {
   const equipment = getEquipment(state.liveLosses).equipment;
-  const slotTier = new Map();
-  for (const item of equipment) {
-    if (item.slot === 'cargo') continue;
-    const module = state.refs.modules?.[item.module];
-    const tier = abyssTierOf(Number(module?.metaGroupID || 0));
-    if (!tier) continue;
-    const current = slotTier.get(item.slot);
-    if (!current || ABYSS_TIER_PRIORITY[tier] > ABYSS_TIER_PRIORITY[current]) slotTier.set(item.slot, tier);
-  }
-  const result = new Map();
-  for (const item of equipment) {
-    if (item.slot === 'cargo') continue;
-    const source = state.refs.modules?.[item.module];
-    const entry = state.manifest.moduleFallbacks?.[item.module];
-    const fallback = abyssFallbackFor(entry, slotTier.get(item.slot));
-    if (!fallback) continue;
-    // Same-group protection: never borrow an unrelated module line.
-    if (Number(state.refs.modules?.[fallback]?.groupID) !== Number(source?.groupID)) continue;
-    result.set(item.module, fallback);
-  }
-  return result;
+  return selectAbyssFallbacks(equipment, state.refs, state.manifest.moduleFallbacks || {});
 }
 
 function abyssCalculationKillmail(killmail) {
@@ -629,6 +596,7 @@ function buildAnswerData() {
     moduleDetails: state.mode === 'abyss' ? state.moduleDetails : null,
     fittedAttrs: state.mode === 'abyss' ? state.dogmaAttrs : null,
     baselineAttrs: state.mode === 'abyss' ? state.dogmaBaseline : null,
+    moduleFallbacks: state.mode === 'abyss' ? state.manifest.moduleFallbacks || {} : {},
   });
   state.answerData = {
     ...ship,
@@ -1210,7 +1178,7 @@ function slotLabel(slot) {
   return t(key) || t('cat.equipment');
 }
 
-function moduleBadge(tag) {
+function moduleBadge(tag, clue) {
   const badges = {
     limited: { cls: 'badge-limited', icon: 'lock', label: t('dossier.limited'), hint: t('dossier.limitedHint') },
     unique: { cls: 'badge-unique', icon: 'lock', label: t('dossier.unique'), hint: t('dossier.uniqueHint') },
@@ -1220,6 +1188,12 @@ function moduleBadge(tag) {
   };
   const badge = badges[tag];
   if (!badge) return '';
+  if (tag === 'abyss' && clue?.calcModule) {
+    const calcName = state.refs.modules?.[clue.calcModule]?.name
+      || state.extraTypeNames?.[clue.calcModule]
+      || `Type #${clue.calcModule}`;
+    badge.hint = t('dossier.abyssCalc', { name: calcName });
+  }
   return `<span class="badge-hull ${badge.cls}" title="${esc(badge.hint)}" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
 }
 
@@ -1231,7 +1205,7 @@ function renderModuleLine(clue) {
     ${moduleThumb(clue.v.module, clue.v.slot)}
     <span class="module-line-body">
       <span class="module-line-name">${esc(name)}</span>
-      ${tags.map(moduleBadge).join('')}
+      ${tags.map((tag) => moduleBadge(tag, clue)).join('')}
     </span>
     <span class="module-count">×${int(clue.v.count)}</span>
   </span>`;

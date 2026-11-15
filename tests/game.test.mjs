@@ -28,7 +28,7 @@ import {
   shareUrl,
   utcDateKey,
 } from '../js/game.js';
-import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment } from '../js/clues.js';
+import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, selectAbyssFallbacks } from '../js/clues.js';
 import { computeRevealed } from '../js/reveal.js';
 import { MESSAGES, resolveLocale } from '../js/i18n.js';
 
@@ -604,6 +604,22 @@ test('officer, abyssal and PLEX items expose their own markers', () => {
   assert.ok(officerClue.tags.includes('officer'));
   assert.ok(abyssalClue.tags.includes('abyss'));
   assert.ok(plexClue.tags.includes('plex'));
+});
+
+test('abyss fallback picks the nearest meta of the same module variant', () => {
+  const officerRepair = Object.entries(refs.modules).find(([, module]) => (
+    module.groupID === 62 && Number(module.metaGroupID) === 5
+  ));
+  assert.ok(officerRepair);
+  const equipment = [
+    { module: 49738, slot: 'low' },
+    { module: Number(officerRepair[0]), slot: 'low' },
+  ];
+  const fallbacks = selectAbyssFallbacks(equipment, refs, manifest.moduleFallbacks);
+  const ballistic = fallbacks.get(49738);
+  assert.ok(ballistic);
+  assert.equal(refs.modules[ballistic].groupID, 367);
+  assert.equal(Number(refs.modules[ballistic].metaGroupID), 5);
 });
 
 test('abyss weights start from base stats and drop when fitted values change', () => {

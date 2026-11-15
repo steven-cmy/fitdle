@@ -161,6 +161,51 @@ function moduleSizeRank(name) {
 const MICRO_JUMP_GROUPS = new Set([1189, 4769]);
 const PLEX_TYPES = new Set([29668, 44992]);
 
+const ABYSS_TIER_META = { t1: 1, t2: 2, highMeta: 3, faction: 4, officer: 5, deadspace: 6 };
+
+/**
+ * Abyssal modules use the representative matching the highest meta module in
+ * the same slot, or the closest available meta tier. Representatives are always
+ * from the same module group (and therefore the same module variant).
+ */
+export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
+  const slotMeta = new Map();
+  for (const item of equipment) {
+    if (item.slot === 'cargo') continue;
+    const meta = Number(refs.modules?.[item.module]?.metaGroupID || 0);
+    if (meta < 1 || meta > 6) continue;
+    if (!slotMeta.has(item.slot) || meta > slotMeta.get(item.slot)) slotMeta.set(item.slot, meta);
+  }
+  const result = new Map();
+  for (const item of equipment) {
+    if (item.slot === 'cargo') continue;
+    const entry = moduleFallbacks[item.module];
+    if (!entry) continue;
+    const targetMeta = slotMeta.get(item.slot) ?? 4;
+    const sourceGroup = refs.modules?.[item.module]?.groupID;
+    let best = null;
+    let bestDistance = Infinity;
+    let bestMeta = -1;
+    if (typeof entry === 'string') {
+      best = entry;
+      bestDistance = Math.abs(2 - targetMeta);
+    } else {
+      for (const [tier, representative] of Object.entries(entry)) {
+        const tierMeta = ABYSS_TIER_META[tier];
+        if (!tierMeta) continue;
+        const distance = Math.abs(tierMeta - targetMeta);
+        if (distance < bestDistance || (distance === bestDistance && tierMeta > bestMeta)) {
+          best = representative;
+          bestDistance = distance;
+          bestMeta = tierMeta;
+        }
+      }
+    }
+    if (best && Number(refs.modules?.[best]?.groupID) === Number(sourceGroup)) result.set(item.module, best);
+  }
+  return result;
+}
+
 function equipmentRestriction(module) {
   // Micro Jump Drives fit several ship classes: limited, not unique.
   if (MICRO_JUMP_GROUPS.has(module?.groupID) || /micro jump drive/i.test(module?.name || '')) return 'limited';
@@ -423,8 +468,10 @@ export function buildClues({
   moduleDetails = null,
   fittedAttrs = null,
   baselineAttrs = null,
+  moduleFallbacks = {},
 }) {
   const { equipment, fittedKills } = parseFittings(losses);
+  const abyssFallbacks = mode === 'abyss' ? selectAbyssFallbacks(equipment, refs, moduleFallbacks) : new Map();
   const attrs = mode === 'abyss'
     ? (fittedAttrs || simulateFitting(ship, equipment, moduleDetails))
     : ship.attrs;
@@ -472,6 +519,7 @@ export function buildClues({
       tags,
       sig: restriction === 'unique',
       charge: isCharge && item.slot !== 'cargo',
+      calcModule: abyssFallbacks.get(item.module) || null,
     };
     equipmentClues.push(clue);
     if (item.slot === 'high' && !isCharge && Array.isArray(module?.chargeGroups) && module.chargeGroups.length) {

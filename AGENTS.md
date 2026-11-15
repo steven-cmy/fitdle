@@ -102,8 +102,9 @@ instructions live in [README.md](README.md).
   abyssal (meta 15), and cargo-only PLEX easter egg. Each marker has a localized
   `title`/`aria-label` hint.
 - Abyss fallback is always a same-group/same-size representative of the abyssal
-  module itself. Same-slot deadspace/officer gear only selects the tier; it must
-  never substitute an unrelated module line (e.g. armor repairer into ballistic).
+  module itself. It picks the variant whose meta group is closest to the highest
+  meta in the same slot (default faction when none). It must never substitute an
+  unrelated module line (e.g. armor repairer into ballistic).
 - Before `calculateDogmaFit`, abyssal fit items are cloned and their type IDs are
   replaced by those tier representatives (cargo untouched). The UI/equipment
   clues keep the original abyssal IDs; only the attribute calculation is substituted.
@@ -167,7 +168,9 @@ npm run hooks:install     # enable shared Git hooks
   never commit the local domain into build-dist or docs.
 - Free share: `?kb=...&mode=...&lang=...`; no score page/stats.
 - Cargo/type names not in SDE refs are fetched from ESI with `language=<locale>`;
-  never reuse `extraTypeNames` across locales.
+  never reuse `extraTypeNames` across locales. Resolved names are cached in
+  localStorage per locale (`fitdle:v1:typeNames:<locale>`) to avoid repeat ESI
+  traffic. Abyss representative selection itself is entirely local.
 
 ## Manual and legal
 
@@ -188,7 +191,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 34 cases, including downtime boundaries, target/KB
+`npm test` currently covers 35 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.
