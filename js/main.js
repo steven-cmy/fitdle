@@ -1299,7 +1299,7 @@ function moduleBadge(tag, clue) {
   };
   const badge = badges[tag];
   if (!badge) return '';
-  if (tag === 'abyss' && clue?.calcModule) {
+  if (tag === 'abyss' && state.status !== 'playing' && clue?.calcModule) {
     const calcName = state.refs.modules?.[clue.calcModule]?.name
       || state.extraTypeNames?.[clue.calcModule]
       || `Type #${clue.calcModule}`;
