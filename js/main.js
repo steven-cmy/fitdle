@@ -349,15 +349,33 @@ async function fetchInternetTime() {
   const sources = [state.manifest?.timeSource].filter(Boolean);
   for (const source of sources) {
     try {
-      const before = performance.now();
-      const response = await fetch(source, { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+      const response = await fetch(source, {
+        method: 'HEAD',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      });
       if (!response.ok) continue;
-      const text = await response.text();
-      const match = /(?:^|\n)ts=([\d.]+)/.exec(text);
+
+      // Same-origin HTTP Date header: no CORS preflight and no extra service.
+      const header = response.headers.get('date');
+      const serverMs = header ? Date.parse(header) : NaN;
+      if (Number.isFinite(serverMs)) {
+        state.serverAnchor = serverMs;
+        state.monotonicAnchor = performance.now();
+        state.timeVerified = true;
+        return true;
+      }
+
+      // Compatibility with a trace-style plain-text source.
+      const fallback = await fetch(source, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!fallback.ok) continue;
+      const match = /(?:^|\n)ts=([\d.]+)/.exec(await fallback.text());
       if (!match) continue;
-      const after = performance.now();
       state.serverAnchor = Number(match[1]) * 1000;
-      state.monotonicAnchor = (before + after) / 2;
+      state.monotonicAnchor = performance.now();
       state.timeVerified = true;
       return true;
     } catch {
@@ -863,7 +881,8 @@ function startRadarMosaic() {
   if (!image || !state.answerId) return;
   // The target render is shown as a coarse, drifting mosaic before the kill;
   // the resolved radar swaps in the clean 512px render behind the rings.
-  image.src = renderPath(state.answerId).replace('size=512', 'size=16');
+  // 32px is the smallest valid EVE render size; CSS keeps it pixelated.
+  image.src = renderPath(state.answerId).replace('size=512', 'size=32');
   let step = 0;
   const paint = () => {
     step++;

@@ -19,7 +19,9 @@ const OUT = path.join(ROOT, 'data');
 const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
 const ZKB_BASE = 'https://zkillboard.com';
 const IMAGE_BASE = 'https://images.evetech.net';
-const TIME_SOURCE = 'https://cloudflare.com/cdn-cgi/trace';
+// Same-origin HTTP Date header. Avoids cross-origin CORS and browser
+// interception of the old Cloudflare trace endpoint.
+const TIME_SOURCE = 'data/manifest.json';
 
 if (!fs.existsSync(SDE_FILE)) {
   throw new Error('Missing .cache/normalized.json. Run `node scripts/prepare-sde.mjs` first.');
