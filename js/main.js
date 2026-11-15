@@ -1724,9 +1724,9 @@ function renderDebrief() {
           <div class="debrief-scan"></div>
           <div class="debrief-stamp">${esc(kicker)}</div>
           <div class="debrief-image">
-            <span class="fallback">${icon('ship')}</span>
             <img src="${esc(renderPath(ship.id))}" alt="" onerror="this.remove()">
           </div>
+          ${won ? `<div class="debrief-cross" aria-hidden="true"></div>` : ''}
           <div class="debrief-visual-caption">
             <span>${esc(t('dossier.answer'))}</span>
             <strong>${zkillShipLink(displayName(ship), ship.id)}</strong>
