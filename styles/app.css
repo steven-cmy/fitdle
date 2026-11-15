@@ -937,6 +937,7 @@ select {
   position: relative;
   width: min(100%, 356px);
   aspect-ratio: 1;
+  overflow: hidden;
   border: 1px solid rgba(99, 231, 255, 0.18);
   border-radius: 50%;
   background:
@@ -2669,11 +2670,16 @@ html[data-game-mode="abyss"] {
   align-items: center;
   gap: 8px 16px;
 }
+.answer-confirmed > [data-victim-slot] {
+  margin-left: auto;
+}
 .victim-card {
   display: flex;
   min-width: 0;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  text-align: right;
 }
 .victim-portrait {
   display: block;
@@ -2704,24 +2710,43 @@ html[data-game-mode="abyss"] {
 .victim-lines {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 10px;
+  justify-content: flex-end;
+  gap: 3px 10px;
   margin-top: 4px;
   color: var(--dim);
   font: 500 7px/1.3 var(--font-mono);
   letter-spacing: 0.04em;
 }
 .victim-lines span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   color: var(--dim);
   font: inherit;
   letter-spacing: inherit;
   text-transform: none;
 }
+.victim-org-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  object-fit: cover;
+}
+.victim-body > .zkb-item-link:hover {
+  color: var(--amber);
+}
 .debrief-victim {
   flex: 1 1 100%;
   margin-top: 2px;
+  margin-left: auto;
 }
-.debrief-victim .victim-lines span {
-  font: inherit;
+.debrief-answer .debrief-victim .victim-lines span {
+  display: inline-flex;
+  color: var(--dim);
+  font: 500 7px/1.3 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: none;
 }
 
 .dossier-source {
@@ -3010,8 +3035,9 @@ html[data-game-mode="abyss"] {
 }
 .debrief-image {
   position: absolute;
-  inset: 7% 3% 10%;
+  inset: 0 0 10%;
   display: flex;
+  overflow: hidden;
   align-items: center;
   justify-content: center;
   background: radial-gradient(circle at 50% 45%, #4aa4b4 0%, #123440 48%, #040a0e 100%);
@@ -3028,11 +3054,13 @@ html[data-game-mode="abyss"] {
 .debrief-image img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.18);
   mix-blend-mode: multiply;
   filter: contrast(1.2) brightness(1.4) saturate(1.2);
-  mask-image: radial-gradient(ellipse at 50% 50%, #000 22%, rgba(0, 0, 0, 0.7) 48%, transparent 70%);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 22%, rgba(0, 0, 0, 0.7) 48%, transparent 70%);
+  mask-image: radial-gradient(ellipse at 50% 50%, #000 28%, rgba(0, 0, 0, 0.7) 52%, transparent 76%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 28%, rgba(0, 0, 0, 0.7) 52%, transparent 76%);
 }
 .modal[data-status="lost"] .debrief-image {
   background: radial-gradient(circle at 50% 45%, #8a4a4a 0%, #2a1418 50%, #040a0e 100%);

@@ -295,16 +295,21 @@ function victimMetaHtml() {
   const portrait = characterId && imageBase() && zkillBase
     ? `<a class="victim-portrait zkb-item-link" href="${esc(`${zkillBase}/character/${characterId}/`)}" target="_blank" rel="noopener noreferrer"><img src="${esc(`${imageBase()}/characters/${characterId}/portrait?size=64`)}" alt="${esc(t('dossier.victimAlt'))}" onerror="this.parentElement.remove()"></a>`
     : '';
+  const corpIcon = corporationId && imageBase()
+    ? `<img class="victim-org-icon" src="${esc(`${imageBase()}/corporations/${corporationId}/logo?size=32`)}" alt="" onerror="this.remove()">`
+    : '';
+  const allianceIcon = allianceId && imageBase()
+    ? `<img class="victim-org-icon" src="${esc(`${imageBase()}/alliances/${allianceId}/logo?size=32`)}" alt="" onerror="this.remove()">`
+    : '';
   return `<div class="victim-card">
-    ${portrait}
     <div class="victim-body">
       ${zkillEntityLink('character', characterId, pilot)}
       <div class="victim-lines">
-        <span>${esc(t('dossier.victimId'))} ${zkillEntityLink('character', characterId, characterId || '—')}</span>
-        ${corporationId ? `<span>${esc(t('dossier.corporation'))} ${zkillEntityLink('corporation', corporationId, corporation)}</span>` : ''}
-        ${allianceId ? `<span>${esc(t('dossier.alliance'))} ${zkillEntityLink('alliance', allianceId, alliance)}</span>` : ''}
+        ${corporationId ? `<span class="victim-org">${corpIcon}${esc(t('dossier.corporation'))} ${zkillEntityLink('corporation', corporationId, corporation)}</span>` : ''}
+        ${allianceId ? `<span class="victim-org">${allianceIcon}${esc(t('dossier.alliance'))} ${zkillEntityLink('alliance', allianceId, alliance)}</span>` : ''}
       </div>
     </div>
+    ${portrait}
   </div>`;
 }
 
