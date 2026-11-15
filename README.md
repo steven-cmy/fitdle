@@ -1,6 +1,6 @@
 # FITDLE
 
-**版本 0.1.1。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
+**版本 0.1.2。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
 
 ![桌面端](docs/screenshot-desktop.png)
 
@@ -12,172 +12,217 @@
 
 ![深渊模式](docs/screenshot-abyss.png)
 
+FITDLE 是一个纯前端、无需登录的 EVE Online 每日谜题。每天有一张目标 killmail；
+你只能看到逐步解密的装配和舰船属性，要在 6 次尝试内猜出被害船。所有玩家在同一天、
+同一模式下面对同一目标；切换语言不会改变答案。
+
 ---
 
-## 快速开始
+## 怎么玩
+
+1. 打开 [FITDLE](https://cmy.gitlab.io/fitdle/)。
+2. 阅读右侧情报：特性、船体、导航、防御、TARGETING、装配、装备和 zKillboard 数据。
+3. 在搜索框输入舰船名称并提交。
+4. 每次猜测会揭示与目标相同的数值，并解锁更多线索。
+5. 6 次内命中即胜利；失败会公布目标。
+
+初始线索数量不固定：系统按权重抽取，并保证初始候选不少于 6 艘。未解密的值显示 `?`。
+
+### 标准模式
+
+- 猜错时按装备数量和权重预算揭示装备；
+- 低权重装备更容易先出现；
+- 抽到高权重装备时，本次揭示数量会减少；
+- 其他属性线索在猜测与目标拥有相同值时揭示。
+
+### 深渊模式
+
+- 按 **全 V 技能、所有已装配装备生效** 模拟；
+- 稀有和低使用率船体比标准模式更常见；
+- 第 1/2/3/4/5 次猜错分别增加 `+1/+2/+3/+4/+5` 条线索；
+- 低权重线索更容易先出现；
+- 没有装备或装备全部揭示时，数量会落到其他线索。
+
+### 操作
+
+- `Enter`：提交猜测 / 确认当前操作
+- `Esc`：关闭弹窗或搜索建议
+- 右上角：切换标准/深渊、语言、字体、战地手册
+- 结算：复制不带剧透的分享链接
+- 战地手册底部：查看统计，或确认后重置全部本地进度
+
+### 统计与隐私
+
+- 不需要账号，不连接后端数据库。
+- 进度和统计只保存在浏览器 `localStorage`：
+  - `fitdle:v1:state:*`：当天进度
+  - `fitdle:v1:stats`：游玩次数、胜利、连胜、最佳连胜
+  - `fitdle:v1:lang`：语言
+- 不同域名的 `localStorage` 互相独立；切换域名会看到不同的统计。
+- 自由模式不计入统计，也不写入当天进度。
+- 游戏运行时向 zKillboard、ESI、EVE 图片服务发起请求；不会把图片或 killmail 缓存在仓库。
+- 页脚显示 `v版本 · SDE 官方 build · ZKILL 服务器日期`；不是本地构建哈希。
+
+## URL 指南
+
+| 参数 | 示例 | 作用 |
+| --- | --- | --- |
+| `d` | `?d=2026-11-13` | 打开指定游戏日的档案；不能晚于当前游戏日 |
+| `mode` | `?mode=abyss` | 深渊模式；缺省为标准模式 |
+| `lang` | `?lang=zh` | 强制语言：`en` `de` `es` `fr` `ja` `ko` `ru` `zh` |
+| `kb` | `?kb=139925340` | 自由模式：直接以该 killmail 为目标，可叠加 `mode=abyss` |
+
+所有中文变体（`zh-CN`、`zh-Hant`、`zh-TW`、`zh-HK`、`zh-SG` 等）统一显示简体中文。
+
+### 自由模式
+
+- 不提供 UI 入口，只能通过 URL 进入：
+  - `?kb=<killmail_id>`：标准模式
+  - `?kb=<killmail_id>&mode=abyss`：深渊模式
+- 目标就是该 killmail 的被害船，不参与每日选题。
+- 不记录统计，不保存当天进度。
+- 分享链接为 `?kb=<id>&mode=<normal|abyss>&lang=<lang>`。
+- 同时带 `kb` 和 `d` 时，`d` 会被忽略。
+
+### 分享链接
+
+正式模式的分享按钮会生成：
+
+```text
+/share/3/zh.html?d=2026-11-15&mode=normal&lang=zh
+```
+
+- 分数页为 `share/1..6/<lang>.html`，失败页为 `share/lost/<lang>.html`；
+- 页面带有本地化 Open Graph 标题、描述和 1200×630 预览图；
+- Discord 等平台会显示对应语言的预览；
+- 预览只包含成绩和宣传语，不包含答案、killmail ID 或装备；
+- 打开后自动跳回谜题，并保留日期、模式和语言。
+
+---
+
+## 自托管
+
+### 环境要求
+
+- Node.js **20+**
+- Git
+- 能访问 zKillboard、ESI 和 `images.evetech.net`
+- 一个静态文件托管服务，或 GitLab Pages
+
+### 本地运行
 
 ```bash
+git clone https://gitlab.com/cmy/fitdle.git
+cd fitdle
+npm install
+
+# 第一次准备数据
+npm run prepare:sde
+npm run build:weights
+npm run build:killpool
+npm run build
+
+# 启动本地静态服务器
 npm start
 # http://127.0.0.1:4173/
 ```
 
-`npm start` 服务 **`dist/`**。
+`npm start` 服务 `dist/`。`dist/` 就是最终可部署产物。
 
-### 构建
+### 数据准备说明
 
-```bash
-# 首次构建需要准备 SDE
-npm run build:weights    # 刷新 430 船型的 zKill 使用频率权重
-npm run build:killpool   # 刷新离线 KB 回退池
-npm run build            # 生成 dist/
-```
-
-`build:weights` 通过 zKill 船型统计生成使用频率；已有 `.cache/ship-weights.json` 可离线复用。`build:killpool` 只用于静态 KB 回退池。
-
-### URL 参数
-
-| 参数 | 示例 | 作用 |
+| 命令 | 作用 | 需要网络 |
 | --- | --- | --- |
-| `d` | `?d=2026-11-13` | 指定 EVE 游戏日档案；不得晚于当前游戏日 |
-| `mode` | `?mode=abyss` | 深渊模式；缺省标准 |
-| `lang` | `?lang=zh` | 强制语言：`en` `de` `es` `fr` `ja` `ko` `ru` `zh` |
-| `kb` | `?kb=139925340` | **自由模式**：直接以该 killmail 为目标；可叠加 `mode=abyss` |
+| `npm run prepare:sde` | 下载、解压并标准化官方 SDE | 首次需要 |
+| `npm run build:weights` | 获取全部 SDE 船型的 zKill 使用频率 | 需要 |
+| `npm run build:killpool` | 生成离线 KB 回退池，并记录 zKill 服务器时间 | 需要 |
+| `npm run build` | 生成 `data/` 和 `dist/` | 不需要 |
+| `npm test` | 运行测试 | 不需要 |
 
-正式模式的分享链接指向 `share/{1..6}.html` 或 `share/lost.html`，带 `d` 与 `mode`（标准/深渊都包含）。静态页的 Open Graph 标题/描述包含成绩。
+缓存位于 `.cache/`：
 
-### 自由模式
+- `.cache/normalized.json`：标准化 SDE
+- `.cache/ship-weights.json`：船型使用频率
+- `.cache/killpool.json`：回退 KB 池
+- `.cache/sde-meta.json`：官方 SDE build/ETag 信息
 
-- 不提供 UI 选项，只能通过 URL 进入：
-  - `?kb=<killmail_id>`：标准模式；
-  - `?kb=<killmail_id>&mode=abyss`：深渊模式。
-- 目标就是该 KB 的被害船，不参与每日选题。
-- **不计入统计**：不调用成绩记录、不写本地进度。
-- 仍可分享，分享链接只保留 `kb=<id>` 与 `mode=<normal|abyss>`，不包含日期、语言或成绩页。
-- 仍使用伪随机线索顺序和非谜题随机效果。
-- 语言、模式切换、装备/雷达/结算等玩法与正式模式一致。
-- 顶部 banner 显示自由模式、KB ID、不计入数据，并提供“返回今日”。
-- URL 同时带 `kb` 与 `d` 时，`d` 被忽略，谜面强制为该 KB。
+这些文件不应提交。删除缓存后重新执行上面的数据命令即可。
 
-![自由模式](docs/screenshot-free.png)
-
----
-
-## 玩法
-
-- 每天一张具体 killmail，在 **EVE downtime（11:00 UTC）** 切换。
-- 选题顺序：先按 zKill 使用频率选船型，再在运行时查该船型的近期 KB。
-  - 资格池覆盖 430 艘 SDE 船型；9 艘从未有 zKill 损失的纪念/特殊船无法生成 KB，实际池 421 艘。
-  - 标准模式权重略偏向高使用率船型；深渊模式略偏向低使用率船型。
-  - 权重只影响轻度倾向，最高/最低权重差不超过约 3 倍。
-  - `killShipPool` 为唯一资格船型；`normalShipPool` / `abyssKillShipPool` 为加权抽取池。
-  - KB 主路径：`/api/losses/shipTypeID/{id}/year/{Y}/month/{M}/`。
-  - 使用档案日期的上一个完整 UTC 月，列表固定，所有玩家一致；向前回溯最多 60 个月。
-  - 静态 `killPoolsByShip` 仅在 zKill 不可用或查询为空时作离线回退。
-- 6 次尝试，每次回答被害船名。
-- 初始线索不固定数量：
-  - 按权重阈值伪随机抽取，直到累计权重超过 9；
-  - 最大权重 13、最多 7 条；
-  - 初始候选集不得少于 6 艘；
-  - 唯一/限定装备不会进入初始线索。
-- **标准模式**：猜错时按装备总数和权重预算揭露装备；低权重更容易先出现，抽到高权重装备时揭露数量会减少。
-- **深渊模式**：第 1/2/3/4/5 次猜错分别增加 +1/+2/+3/+4/+5 条；按反权重随机抽取，低权重线索更容易出现。没有装备或装备已全部揭露时，这些数量会落到其他线索上。
-- 右侧档案分组：**特性 / 船体 / 导航 / 防御 / TARGETING / 装配 / 装备 / ZKILLBOARD**。
-- 货舱容量、电容容量归入装配。
-- 装配顺序固定为：炮座、发射器座、高、中、低、改装件槽、CPU、PG、电容、货仓、无人机仓；校准值放在末尾。
-- TARGETING：信号半径、扫描分辨率、锁定范围上限、最大锁定数量。
-- 防御：护盾/装甲/结构各一条血量，另加三层抗性（EM/热能/动能/爆炸）。
-- 槽位配置拆成高/中/低/改装件各自独立条目。
-- 武器安装座拆成炮台安装座、发射器安装座两条。
-- ZKILLBOARD 分组包含 30 天损失、使用排名、危险指数、当前 killmail 总价值；组内不重复写来源。
-- 深渊模式一次揭示 2 条以上时，避免全部是装备或全部是属性：大部分装备时至少混入 1 条非装备，大部分属性时至少混入 1 条装备。
-- 未解密值显示 `?`；装备与加成在完全解密前只有一个封存占位。
-- 新揭示或匹配命中的线索会高亮后渐隐。
-- 结算提供目标 KB 链接；失败时如无样本击杀，回退到该舰船的 zKillboard 页面。
-- 第一次猜测即击杀时使用 **ONE SHOT / 首发命中** 结算。
-- 复制分享按钮只复制 URL。
-
-### 装备
-
-- 只取目标 killmail 受害者实际装配，不混入同船型其他损失。
-- 同名合并，例如 `轻型中子疾速炮 II ×4`。
-- 完全揭示后按槽位分组：
-  - 高能量槽、中能量槽、低能量槽、改装件槽、子系统、无人机舱、舰载机、货仓。
-- 装备行不重复写槽位名，槽位由分组标题表示。
-- 多舰船类别通用装备标记 **限定 / LIMITED**。
-- 单一舰船类别装备标记 **唯一 / UNIQUE**，权重为 10。
-- 货仓物品也纳入装备区；未知类型会在运行时向 ESI 查询名称。
-- 高槽弹药与对应高槽武器采用相同权重；唯一武器的弹药也按唯一装备权重 10 计算。
-- 装备 size（Capital / X-Large / Large / Medium）计入权重；旗舰/超大装备显著提高权重。
-
-### 雷达
-
-- 答题中显示目标渲染图的 **16px 极度像素化、去色**版本，无中心文字。
-- 结算后换成清晰 512px 渲染图，位于雷达环后方。
-
-### 战地手册
-
-- 只保留玩法说明，区分标准/深渊，不含字体、快照、权重或 SDE 技术细节。
-- **总数据统计**：周期、击杀数、当前连胜、最佳连胜。
-- **重置所有进度**：
-  - 必须确认；
-  - 清除全部 `fitdle:v1:*`，包括已揭示答案与当天进度；
-  - 阻止 `pagehide` 写回旧状态并自动刷新。
-
-### 版权
-
-- 页脚与手册只保留一份版权信息。
-- **EVE Online** → <https://www.eveonline.com/>
-- **Fenris Creations（原 CCP hf. / CCP Games）** → <https://fenris.com/>
-- 明确标注：CCP 已于 2026 年更名为 Fenris Creations。
-- 右下角：`v0.1.1 · SDE <dataVersion> · ZKILL <killpool date>`。
-- 页脚提供 GitLab 仓库链接：<https://gitlab.com/cmy/fitdle>。
-- 所有 `zh-*` 语言变体（简繁、地区）统一使用简体中文。
-
----
-
-## 数据与权重
-
-- SDE 属性来自构建期静态目录。
-- 目标 KB 与船型统计来自 zKillboard：
-  - `https://zkillboard.com/api/losses/shipTypeID/{id}/year/{Y}/month/{M}/`（固定自然月池）
-  - `https://zkillboard.com/api/killID/{killmail_id}/`
-  - `https://zkillboard.com/api/stats/shipTypeID/{id}/kills/`
-- 图片直接使用 `images.evetech.net`。
-- 运行时请求不写入 localStorage，也不下载到构建产物。
-- 数值线索按约 **5% 相对容差**视为相同；候选越少、越不容易与其他船混淆，权重越高。
-- 标准模式与深渊模式都会应用容差。
-- 深渊模式的装备差异会以 add/ratio 形式参与比较（质量、护盾、速度等），使 fitted 数据在容差内仍可匹配。
-- 深渊模式线索的**权重仍按 SDE 基础值**计算，避免装配模拟后的复杂数值把权重整体推高。
-- 导航/防御/装配数值按 SDE：
-  - `warp = baseWarpSpeed × warpSpeedMultiplier`
-  - `align = 1.386 × agility × mass / 1,000,000`
-- 加成词条会归一化数字；相同模板、不同数值的条目会降低权重。
-- 深渊模式使用本地化的 [EVEShip.fit dogma-engine](https://github.com/EVEShipFit/dogma-engine) + patched SDE，按 **全 V 技能 + 装备全开** 模拟。
-
----
-
-## 构建 SDE
+### 部署到任意静态托管
 
 ```bash
-npm run prepare:sde
+npm run build
 ```
 
-脚本会：
+把 `dist/` 整个目录上传到 Nginx、Cloudflare Pages、GitLab Pages、S3 等静态托管。
+不需要 Node 运行时，也不需要服务器端 API。
 
-1. 如果 `.cache/sde-source` 没有完整 SDE，就自动下载官方 `eve-online-static-data-latest-jsonl.zip`；
-2. 只解压所需的 JSONL；
-3. 生成 `.cache/normalized.json`。
+如果使用自定义域名，建议设置构建变量：
 
-强制下载最新 SDE：
+```bash
+SITE_URL=https://your-domain.example
+```
+
+它用于生成分享页的绝对 `og:image` 地址。
+
+### 部署到 GitLab Pages
+
+仓库已包含 `.gitlab-ci.yml`，作业为：
+
+- `sde:check`：检查官方 SDE 是否有更新
+- `build`：有需要时刷新 SDE/回退池/船型权重，然后构建并测试
+- `pages`：把 `dist/` 发布到 GitLab Pages
+
+首次推送后，在 GitLab：
+
+1. 确认 **Settings → Pages** 已启用；
+2. 如需公开访问，将 Pages 访问级别设为 **Everyone**；
+3. 等待 `pages` 作业成功；
+4. 访问项目提供的 Pages URL，通常为：
+
+```text
+https://<namespace>.gitlab.io/<project>/
+```
+
+GitLab 的 Pages 域名可能是唯一的 `*.gitlab.io` 地址；以 CI `pages` 作业输出的 URL 为准。
+
+### 每日 downtime 检查
+
+EVE downtime 通常为 **11:00 UTC**。建议在 GitLab 创建每日 schedule：
+
+```text
+Settings → CI/CD → Schedules
+Interval Pattern: 15 11 * * *
+Cron timezone: UTC
+Target branch: 默认分支
+```
+
+11:15 UTC 给官方 SDE 发布留出时间。GitLab 不会从 YAML 自动创建 schedule，需要手动添加一次。
+
+可选变量：
+
+- `FORCE_SDE=1`：强制刷新 SDE
+
+### 更新流程
+
+#### 更新 SDE
 
 ```bash
 npm run update:sde
-# 等价于 node scripts/prepare-sde.mjs --refresh
+npm run build:killpool
+npm run build
+npm test
 ```
 
-构建不会下载图片。
+#### 更新船型使用频率
 
-## 更新深渊引擎
+```bash
+npm run build:weights -- --refresh
+npm run build
+npm test
+```
+
+#### 更新深渊模拟引擎
 
 ```bash
 npm run update:dogma
@@ -185,94 +230,34 @@ npm test
 npm run build
 ```
 
-命令会从 npm 拉取最新的：
+更新后手动打开一次深渊模式，确认 WASM、SDE 和装备模拟正常。
 
-- `@eveshipfit/dogma-engine`：JS + WASM；
-- `@eveshipfit/sde`：patched `sde.dat`；
-- 对应 `LICENSE` / `LICENSE.EVE`。
+### 运维注意事项
 
-更新后写入 `vendor/dogma-engine/VERSION.json`，保留现有 `skills.json`。部署前必须手动打开一次深渊模式，确认 WASM、SDE 和计算属性正常。
+- SDE 更新、KB 回退池刷新或船型权重刷新会改变数据版本，使**当天未完成进度**失效；历史统计和连胜不会直接清空。
+- 运行时的 KB 查询使用固定完整自然月和第 1 页，以保证所有玩家一致；不要改成当前月或翻页。
+- zKillboard API 可能限流。失败时游戏会降级为 SDE 线索，但不会泄露答案。
+- 某些从未有 zKill 损失的纪念/特殊船没有可用的 KB，因此不在可出题池中。
+- `dist/` 和 `.cache/` 都是生成物，不要提交。
+- 版本号默认每次 commit 自动 patch；需要 minor/major 时显式指定。
 
-## GitLab Pages
+### 版权与许可
 
-仓库包含 `.gitlab-ci.yml`：
+FITDLE 是非官方粉丝作品，与 Fenris Creations、CCP 和 zKillboard 无隶属关系。
 
-- `sde:check`：读取 SDE 的 `ETag` / `Last-Modified`，与当前 Pages 的 `data/manifest.json` 比较；
-- `build`：SDE 有更新时重新下载/生成 SDE；每日 schedule 与默认分支推送都会构建并测试；
-- `pages`：把 `dist/` 复制到 `public/` 并部署 GitLab Pages。
+- EVE Online 与 EVE 标志是 **Fenris Creations（原 CCP hf.）** 的注册商标；
+- 游戏数据、图片和相关知识产权属于 Fenris Creations；
+- zKillboard 数据属于其各自所有者；
+- 本项目代码以 MIT 发布。
 
-首次构建会自动下载 SDE。构建缓存包含 `.cache/normalized.json`、`.cache/killpool.json` 和 `.cache/sde-meta.json`。
-
-### 每日 DT 检查
-
-在 GitLab：
-
-```text
-Settings → CI/CD → Schedules
-```
-
-新建 schedule：
-
-- Interval pattern：`15 11 * * *`
-- Cron timezone：`UTC`
-- Target branch：默认分支
-- 可选变量：`FORCE_SDE=1`（强制重建）
-
-EVE DT 通常是 11:00 UTC，因此安排在 11:15 UTC，给 SDE 发布留出时间。GitLab 的 cron 不会自动从 YAML 创建，需要手动添加一次。
-
-### 发布
-
-```bash
-git remote add origin <gitlab-project-url>
-git push -u origin main
-```
-
-Pages URL 由 GitLab 提供，通常为：
-
-```text
-https://<namespace>.gitlab.io/<project>/
-```
+完整版权声明见页脚和战地手册，也可参考 [NOTICE.md](NOTICE.md) 与 [LICENSE](LICENSE)。
 
 ---
 
-## 测试
+## 开发与 AI 说明
 
-```bash
-npm test
-```
+工程架构、数据版本、构建细节、测试清单和发布注意事项已移到：
 
-当前 **30/30** 通过，覆盖：
+**[AGENTS.md](AGENTS.md)**
 
-- EVE downtime 边界、未来日期拦截
-- 目标池、类型→KB 选择、同船不同 KB
-- 目标受害者装备隔离、货仓装备
-- 槽位配置拆分、当前 KB 总价值
-- 阈值初始线索、候选下限
-- 相近 SDE 值归并、fit-adjusted 容差、高槽弹药与武器同权、唯一弹药、装备 size/限定/唯一
-- 武器安装座拆分、深渊基础值权重
-- 深渊多条揭示的装备/属性混合
-- 标准/深渊揭示
-- 分享 URL 与静态 OG 成绩页
-- 8 语言 key 完整性
-- 无硬编码部署域名、无本地图片缓存
-
----
-
-## 已知限制
-
-- KB 主路径是 zKill 的固定自然月查询，不预编译每日目标；静态池只保留 164 张回退 KB。
-- 资格池为 430 艘 SDE 船型减去 9 艘从未有 zKill 损失的船，共 421 艘。
-- 使用频率来自 zKill `rankings.recent.all.metrics.shipsLost`，通过 `npm run build:weights` 刷新。
-- 只读取目标月第 1 页（最多 200 条），列表固定且所有玩家一致；不会翻页扩大范围。
-- 刷新 usage 权重或 KB 回退池会改变 `dataVersion`，导致当前未完成进度失效。
-- dogma-engine 无法从 killmail 还原角色技能和 Abyssal mutation，因此按全 V 技能、装备全开与 SDE/模块基础属性模拟；与当时的实际飞行状态可能有差异。
-- 货仓中的非模块类型在运行时通过 ESI 补名称，第一次加载可能多几个请求。
-- zKillboard API 可能限流；失败时降级为 SDE-only 线索。
-
----
-
-## 许可
-
-代码以 MIT 发布。EVE Online 数据/图片属于 **Fenris Creations（原 CCP hf. / CCP Games）**，zKillboard 数据属于其所有者；详见 [NOTICE.md](NOTICE.md) 与 [LICENSE](LICENSE)。
-
-FITDLE 是非官方粉丝作品，与 Fenris Creations 和 zKillboard 无隶属关系。
+普通玩家和自托管用户只需要本 README；修改代码、数据规则或部署流水线前，请先阅读 `AGENTS.md`。

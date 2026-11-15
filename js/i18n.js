@@ -1789,6 +1789,66 @@ const RENAMES = {
     ja: '次回ダウンタイム', ko: '다음 다운타임', ru: 'СЛЕДУЮЩИЙ DOWNTIME', zh: '下次维护',
   },
 };
+Object.assign(RENAMES, {
+  'footer.copyright': {
+    en: 'EVE Online and the EVE logo are the registered trademarks of Fenris Creations (formerly CCP hf.). All rights are reserved worldwide. All other trademarks are the property of their respective owners. EVE Online, the EVE logo, EVE and all associated logos and designs are the intellectual property of Fenris Creations. All artwork, screenshots, characters, vehicles, storylines, world facts or other recognizable features of the intellectual property relating to these trademarks are likewise the intellectual property of Fenris Creations. Fenris Creations has granted permission to the FITDLE GitLab repository (gitlab.com/cmy/fitdle) to use EVE Online and all associated logos and designs for promotional and information purposes on this website, but does not endorse, and is not in any way affiliated with, FITDLE or its GitLab repository. Fenris Creations is in no way responsible for the content on or functioning of this website, nor can it be liable for any damage arising from the use of this website.',
+    de: 'EVE Online und das EVE-Logo sind eingetragene Marken von Fenris Creations (vormals CCP hf.). Alle Rechte weltweit vorbehalten. Alle anderen Marken sind Eigentum ihrer jeweiligen Inhaber. EVE Online, das EVE-Logo, EVE sowie alle zugehörigen Logos und Designs sind geistiges Eigentum von Fenris Creations. Sämtliche Kunstwerke, Screenshots, Charaktere, Fahrzeuge, Handlungsstränge, Weltfakten und sonstigen erkennbaren Merkmale der geistigen Eigentumsrechte im Zusammenhang mit diesen Marken sind ebenfalls geistiges Eigentum von Fenris Creations. Fenris Creations hat dem FITDLE-GitLab-Repository (gitlab.com/cmy/fitdle) die Erlaubnis erteilt, EVE Online und alle zugehörigen Logos und Designs zu Werbe- und Informationszwecken auf dieser Website zu verwenden, befürwortet das FITDLE-GitLab-Repository jedoch nicht und ist in keiner Weise mit ihm verbunden. Fenris Creations ist in keiner Weise für die Inhalte oder die Funktionsweise dieser Website verantwortlich und haftet nicht für Schäden, die aus der Nutzung dieser Website entstehen.',
+    es: 'EVE Online y el logotipo de EVE son marcas registradas de Fenris Creations (anteriormente CCP hf.). Todos los derechos están reservados en todo el mundo. Todas las demás marcas son propiedad de sus respectivos titulares. EVE Online, el logotipo de EVE, EVE y todos los logotipos y diseños asociados son propiedad intelectual de Fenris Creations. Todas las ilustraciones, capturas de pantalla, personajes, vehículos, argumentos, datos del universo u otras características reconocibles de la propiedad intelectual relacionadas con estas marcas son igualmente propiedad intelectual de Fenris Creations. Fenris Creations ha concedido permiso al repositorio de GitLab de FITDLE (gitlab.com/cmy/fitdle) para utilizar EVE Online y todos los logotipos y diseños asociados con fines promocionales e informativos en este sitio web, pero no respalda ni está afiliada de ningún modo al repositorio de GitLab de FITDLE. Fenris Creations no es responsable en modo alguno del contenido ni del funcionamiento de este sitio web, ni podrá ser considerada responsable de ningún daño derivado del uso de este sitio web.',
+    fr: 'EVE Online et le logo EVE sont des marques déposées de Fenris Creations (anciennement CCP hf.). Tous droits réservés dans le monde entier. Toutes les autres marques sont la propriété de leurs détenteurs respectifs. EVE Online, le logo EVE, EVE ainsi que tous les logos et designs associés sont la propriété intellectuelle de Fenris Creations. Toutes les illustrations, captures d’écran, personnages, véhicules, scénarios, faits relatifs à l’univers ou autres éléments reconnaissables de la propriété intellectuelle liés à ces marques sont également la propriété intellectuelle de Fenris Creations. Fenris Creations a autorisé le dépôt GitLab de FITDLE (gitlab.com/cmy/fitdle) à utiliser EVE Online ainsi que tous les logos et designs associés à des fins promotionnelles et informatives sur ce site web, mais ne cautionne pas et n’est en aucune manière affiliée au dépôt GitLab de FITDLE. Fenris Creations n’est en aucun cas responsable du contenu ou du fonctionnement de ce site web et ne saurait être tenue responsable de tout dommage résultant de l’utilisation de ce site web.',
+    ja: 'EVE Online および EVE ロゴは、Fenris Creations（旧 CCP hf.）の登録商標です。世界中で全ての権利が留保されています。その他の商標はすべて、それぞれの所有者の財産です。EVE Online、EVE ロゴ、EVE および関連するすべてのロゴとデザインは、Fenris Creations の知的財産です。これらの商標に関連する知的財産に含まれるすべてのアートワーク、スクリーンショット、キャラクター、乗り物、ストーリー、世界設定その他の識別可能な要素も、同様に Fenris Creations の知的財産です。Fenris Creations は、FITDLE の GitLab リポジトリ（gitlab.com/cmy/fitdle）に対し、本ウェブサイト上で宣伝および情報提供を目的として EVE Online および関連するすべてのロゴとデザインを使用することを許可していますが、FITDLE の GitLab リポジトリを推奨するものではなく、いかなる関係も有していません。Fenris Creations は、本ウェブサイトの内容または動作について一切責任を負わず、本ウェブサイトの使用に起因するいかなる損害についても責任を負いません。',
+    ko: 'EVE Online 및 EVE 로고는 Fenris Creations(구 CCP hf.)의 등록 상표입니다. 전 세계적으로 모든 권리가 보유됩니다. 그 밖의 모든 상표는 각 소유자의 재산입니다. EVE Online, EVE 로고, EVE 및 관련된 모든 로고와 디자인은 Fenris Creations의 지식 재산입니다. 이러한 상표와 관련된 지식 재산에 속하는 모든 아트워크, 스크린샷, 캐릭터, 탈것, 스토리, 세계관 사실 또는 기타 식별 가능한 요소 역시 Fenris Creations의 지식 재산입니다. Fenris Creations는 FITDLE의 GitLab 저장소(gitlab.com/cmy/fitdle)에 본 웹사이트에서 홍보 및 정보 제공 목적으로 EVE Online과 관련된 모든 로고 및 디자인을 사용할 수 있는 허가를 부여했지만, FITDLE의 GitLab 저장소를 보증하지 않으며 어떠한 방식으로도 제휴 관계에 있지 않습니다. Fenris Creations는 본 웹사이트의 콘텐츠나 작동에 대해 어떠한 책임도 지지 않으며, 본 웹사이트의 사용으로 발생하는 어떠한 손해에 대해서도 책임을 지지 않습니다.',
+    ru: 'EVE Online и логотип EVE являются зарегистрированными товарными знаками Fenris Creations (ранее CCP hf.). Все права защищены во всём мире. Все остальные товарные знаки являются собственностью их соответствующих владельцев. EVE Online, логотип EVE, EVE и все связанные с ними логотипы и дизайны являются интеллектуальной собственностью Fenris Creations. Все художественные материалы, скриншоты, персонажи, транспортные средства, сюжетные линии, факты вселенной и другие узнаваемые элементы интеллектуальной собственности, связанные с этими товарными знаками, также являются интеллектуальной собственностью Fenris Creations. Fenris Creations предоставила репозиторию FITDLE на GitLab (gitlab.com/cmy/fitdle) разрешение использовать EVE Online и все связанные с ним логотипы и дизайны в рекламных и информационных целях на этом сайте, но не одобряет репозиторий FITDLE на GitLab и никаким образом не связана с ним. Fenris Creations никоим образом не несёт ответственности за содержание или работу этого сайта и не может нести ответственность за какой-либо ущерб, возникший в результате использования этого сайта.',
+    zh: 'EVE Online 及 EVE 标志是 Fenris Creations（原 CCP hf.）的注册商标。全球范围内保留所有权利。所有其他商标均为其各自所有者的财产。EVE Online、EVE 标志、EVE 及所有相关标志和设计均为 Fenris Creations 的知识产权。与这些商标相关的所有美术作品、截图、角色、载具、故事情节、世界设定或其他可识别特征，同样属于 Fenris Creations 的知识产权。Fenris Creations 已授权 FITDLE 的 GitLab 仓库（gitlab.com/cmy/fitdle）在本网站上为宣传和信息目的使用 EVE Online 及所有相关标志和设计，但不认可、且在任何方面均不隶属于 FITDLE 或其 GitLab 仓库。Fenris Creations 对本网站的内容或运行不承担任何责任，亦不对因使用本网站而产生的任何损害承担责任。',
+  },
+});
+
+Object.assign(RENAMES, {
+  'help.sharedTitle': {
+    en: 'COMMON RULES', de: 'GEMEINSAME REGELN', es: 'REGLAS COMUNES', fr: 'RÈGLES COMMUNES',
+    ja: '共通ルール', ko: '공통 규칙', ru: 'ОБЩИЕ ПРАВИЛА', zh: '通用规则',
+  },
+  'help.sharedRules': {
+    en: 'Six attempts. One hull.\nInitial intel is drawn by weight; the exact clue count stays hidden.\nA guess reveals values shared with the target.\nOpening clues never leave fewer than six candidate hulls.',
+    de: 'Sechs Versuche. Eine Hülle.\nDie ersten Hinweise werden gewichtet gezogen; die genaue Anzahl bleibt verborgen.\nEin Tipp deckt Werte auf, die mit dem Ziel übereinstimmen.\nDie ersten Hinweise lassen nie weniger als sechs mögliche Hüllen übrig.',
+    es: 'Seis intentos. Un casco.\nLa información inicial se extrae por peso; el número exacto de pistas permanece oculto.\nUna respuesta revela los valores que comparte con el objetivo.\nLas pistas iniciales nunca dejan menos de seis cascos candidatos.',
+    fr: 'Six tentatives. Une coque.\nLes premiers indices sont tirés selon leur poids ; leur nombre exact reste caché.\nUne proposition révèle les valeurs partagées avec la cible.\nLes indices initiaux ne laissent jamais moins de six coques candidates.',
+    ja: '挑戦は6回、船体は1つ。\n最初の情報は重み付きで抽選され、ヒントの正確な数は非公開です。\n回答すると、目標と共通する値が開示されます。\n最初のヒントで候補が6隻未満になることはありません。',
+    ko: '도전 6회, 선체 1척.\n초기 정보는 가중치로 추첨되며 정확한 힌트 수는 비공개입니다.\n추측하면 목표와 공유되는 값이 공개됩니다.\n초기 힌트로 후보가 6척 미만이 되지는 않습니다.',
+    ru: 'Шесть попыток. Один корпус.\nНачальные сведения выбираются по весу; точное число подсказок скрыто.\nОтвет раскрывает значения, совпадающие с целью.\nНачальные подсказки никогда не оставляют меньше шести корпусов-кандидатов.',
+    zh: '六次尝试，一个船体。\n初始情报按权重抽取，具体线索数量不公开。\n每次回答会揭示与目标相同的数值。\n初始线索不会让候选船体少于六艘。',
+  },
+  'help.step4': {
+    en: 'When the cycle ends, share a spoiler-free link.',
+    de: 'Wenn der Zyklus endet, teile einen spoilerfreien Link.',
+    es: 'Cuando termine el ciclo, comparte un enlace sin spoilers.',
+    fr: 'À la fin du cycle, partagez un lien sans spoiler.',
+    ja: 'サイクル終了後は、ネタバレのないリンクを共有しましょう。',
+    ko: '주기가 끝나면 스포일러 없는 링크를 공유하세요.',
+    ru: 'Когда цикл завершится, поделитесь ссылкой без спойлеров.',
+    zh: '本轮结束后，分享一个不剧透的链接。',
+  },
+  'mode.helpNormal': {
+    en: 'Wrong guesses reveal equipment using a count-and-weight budget.\nLow-weight equipment appears first; high-weight picks reduce the number revealed.\nOther clues are revealed when a guess shares the target value.',
+    de: 'Falsche Tipps decken Ausrüstung über ein Mengen- und Gewichtsbudget auf.\nLeichte Ausrüstung erscheint zuerst; schwere Treffer reduzieren die Anzahl.\nAndere Hinweise erscheinen, wenn ein Tipp denselben Wert wie das Ziel hat.',
+    es: 'Las respuestas incorrectas revelan equipo según un presupuesto de cantidad y peso.\nEl equipo de bajo peso aparece primero; las elecciones de alto peso reducen el número revelado.\nOtras pistas aparecen cuando una respuesta comparte el valor del objetivo.',
+    fr: 'Les mauvaises réponses révèlent de l’équipement selon un budget de quantité et de poids.\nL’équipement de faible poids apparaît d’abord ; les choix de poids élevé réduisent le nombre révélé.\nD’autres indices apparaissent lorsqu’une proposition partage la valeur de la cible.',
+    ja: '不正解時は、数量と重みの予算に従って装備が開示されます。\n軽い装備ほど先に現れ、重い装備を引くと開示数が減ります。\n回答が目標と同じ値を持つと、その他のヒントが開示されます。',
+    ko: '오답 시 수량과 가중치 예산에 따라 장비가 공개됩니다.\n낮은 가중치 장비가 먼저 나오며, 높은 가중치를 뽑으면 공개 수가 줄어듭니다.\n추측이 목표와 같은 값을 가지면 다른 힌트가 공개됩니다.',
+    ru: 'Неверные ответы раскрывают оборудование по бюджету количества и веса.\nСначала появляется оборудование с низким весом; выбор тяжёлого уменьшает число раскрытий.\nДругие подсказки открываются, когда ответ совпадает со значением цели.',
+    zh: '猜错时按数量与权重预算揭示装备。\n低权重装备更容易先出现；抽到高权重装备会减少揭示数量。\n当猜测与目标拥有相同数值时，揭示其他线索。',
+  },
+  'mode.helpAbyss': {
+    en: 'All-V skills and every fitted module are simulated as active.\nRare and low-usage hulls are more likely than in standard mode.\nEach miss adds +1/+2/+3/+4/+5 clues.\nWithout equipment, or once all equipment is revealed, those clues fall on other intel.',
+    de: 'Alle V-Skills und jedes montierte Modul werden als aktiv simuliert.\nSeltene und wenig genutzte Hüllen sind wahrscheinlicher als im Standardmodus.\nJeder Fehlversuch fügt +1/+2/+3/+4/+5 Hinweise hinzu.\nOhne Ausrüstung oder nach vollständiger Ausrüstungsaufdeckung entfallen diese Hinweise auf andere Informationen.',
+    es: 'Se simulan habilidades a V y todos los módulos equipados como activos.\nLos cascos raros y poco usados son más probables que en el modo estándar.\nCada fallo añade +1/+2/+3/+4/+5 pistas.\nSin equipo, o cuando todo el equipo ya se ha revelado, esas pistas recaen en otra información.',
+    fr: 'Les compétences au niveau V et tous les modules équipés sont simulés comme actifs.\nLes coques rares et peu utilisées sont plus probables qu’en mode standard.\nChaque échec ajoute +1/+2/+3/+4/+5 indices.\nSans équipement, ou une fois tout l’équipement révélé, ces indices portent sur d’autres informations.',
+    ja: '全スキル V と装着済みの全モジュールを有効としてシミュレーションします。\nレアで使用頻度の低い船体は標準モードより出やすくなります。\n不正解ごとに +1/+2/+3/+4/+5 個のヒントが追加されます。\n装備がない場合、または装備がすべて開示された場合、その分は他の情報に振り分けられます。',
+    ko: '모든 스킬 V와 장착된 모든 모듈을 활성 상태로 시뮬레이션합니다.\n희귀하고 사용 빈도가 낮은 선체가 표준 모드보다 더 자주 등장합니다.\n오답마다 +1/+2/+3/+4/+5개의 힌트가 추가됩니다.\n장비가 없거나 모든 장비가 공개되면 해당 수량은 다른 정보로 대체됩니다.',
+    ru: 'Все навыки V и все установленные модули моделируются как активные.\nРедкие и редко используемые корпуса встречаются чаще, чем в стандартном режиме.\nКаждый промах добавляет +1/+2/+3/+4/+5 подсказок.\nБез оборудования или после полного раскрытия оборудования эти подсказки приходятся на другие сведения.',
+    zh: '按全 V 技能、所有已装配装备生效进行模拟。\n稀有和低使用率船体比标准模式更常见。\n每次猜错分别增加 +1/+2/+3/+4/+5 条线索。\n没有装备或装备已全部揭示时，这些数量会落到其他情报上。',
+  },
+});
+
 for (const [key, values] of Object.entries(RENAMES)) {
   for (const [lang, value] of Object.entries(values)) {
     if (MESSAGES[lang]) MESSAGES[lang][key] = value;

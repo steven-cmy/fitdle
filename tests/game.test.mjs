@@ -172,6 +172,9 @@ test('every locale provides the same message keys', () => {
   const keys = Object.keys(MESSAGES.en).sort();
   for (const locale of manifest.locales) {
     assert.deepEqual(Object.keys(MESSAGES[locale]).sort(), keys, `${locale} key set differs`);
+    assert.ok(MESSAGES[locale]['footer.copyright'].includes('gitlab.com/cmy/fitdle'));
+    assert.ok(MESSAGES[locale]['help.sharedRules'].length > 20);
+    assert.ok(!MESSAGES[locale]['help.step4'].includes('UTC'));
   }
 });
 
@@ -202,6 +205,8 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   assert.ok(manifest.images.baseUrl);
   assert.ok(manifest.zkillboard.baseUrl);
   assert.ok(manifest.links.repo);
+  assert.ok(manifest.sde.buildNumber);
+  assert.match(manifest.zkillboard.snapshot, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(manifest.timeSource);
   assert.ok(manifest.links.eveDocs);
   assert.ok(manifest.links.glossary);

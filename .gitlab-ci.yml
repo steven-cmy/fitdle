@@ -48,7 +48,7 @@ build:
         npm run build
       fi
     - |
-      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/killpool.json ]; then
+      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/killpool.json ] || ! grep -q '"serverDate"' .cache/killpool.json; then
         npm run build:killpool
       fi
     - |

@@ -29,6 +29,19 @@ if (!fs.existsSync(SDE_FILE)) {
 const sde = JSON.parse(fs.readFileSync(SDE_FILE, 'utf8'));
 const sdeMetaFile = path.join(ROOT, '.cache', 'sde-meta.json');
 const sdeMeta = fs.existsSync(sdeMetaFile) ? JSON.parse(fs.readFileSync(sdeMetaFile, 'utf8')) : {};
+if (!sdeMeta.buildNumber) {
+  try {
+    const response = await fetch('https://developers.eveonline.com/static-data/tranquility/latest.jsonl');
+    if (response.ok) {
+      const latest = JSON.parse((await response.text()).split('\n').find(Boolean));
+      sdeMeta.buildNumber = latest.buildNumber || null;
+      sdeMeta.releaseDate = latest.releaseDate || null;
+      fs.writeFileSync(sdeMetaFile, `${JSON.stringify(sdeMeta, null, 2)}\n`);
+    }
+  } catch {
+    // Offline builds fall back to the stored SDE metadata.
+  }
+}
 const locales = LOCALES.filter((locale) => sde.locales?.includes(locale));
 
 function localized(value, locale) {
@@ -288,6 +301,8 @@ const manifest = {
   sdeGeneratedAt: sde.generatedAt || null,
   sde: {
     generatedAt: sde.generatedAt || null,
+    buildNumber: sdeMeta.buildNumber || null,
+    releaseDate: sdeMeta.releaseDate || null,
     url: sdeMeta.url || 'https://developers.eveonline.com/static-data/',
     etag: sdeMeta.etag || '',
     lastModified: sdeMeta.lastModified || '',
@@ -297,7 +312,11 @@ const manifest = {
   defaultLocale: 'en',
   zkillboard: {
     baseUrl: ZKB_BASE,
-    snapshot: killPoolSource.generatedAt ? killPoolSource.generatedAt.slice(0, 10) : null,
+    snapshot: (() => {
+      const raw = killPoolSource.serverDate || killPoolSource.generatedAt || '';
+      const parsed = new Date(raw);
+      return Number.isNaN(parsed.getTime()) ? (raw.slice(0, 10) || null) : parsed.toISOString().slice(0, 10);
+    })(),
   },
   images: { baseUrl: IMAGE_BASE },
   esi: { baseUrl: 'https://esi.evetech.net' },

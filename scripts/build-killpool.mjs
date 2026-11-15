@@ -7,6 +7,7 @@ const shipIDs = new Set(catalog.map((ship) => Number(ship.id)));
 const zkb = 'https://zkillboard.com/api';
 const response = await fetch(`${zkb}/losses/`, { headers: { 'User-Agent': 'Fitdle/1.0' } });
 if (!response.ok) throw new Error(`zKill global losses failed: ${response.status}`);
+const serverDate = response.headers.get('date') || null;
 const losses = await response.json();
 const kills = [];
 for (const kill of Array.isArray(losses) ? losses : []) {
@@ -20,7 +21,8 @@ for (const kill of Array.isArray(losses) ? losses : []) {
   });
 }
 const payload = {
-  generatedAt: new Date().toISOString(),
+  generatedAt: serverDate ? new Date(serverDate).toISOString() : new Date().toISOString(),
+  serverDate,
   source: `${zkb}/losses/`,
   kills,
 };

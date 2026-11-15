@@ -631,9 +631,11 @@ function localeOptions() {
 function copyrightHtml() {
   const eve = state.manifest?.links?.eveOnline || '#';
   const fenris = state.manifest?.links?.fenris || '#';
+  const repo = state.manifest?.links?.repo || '#';
   return esc(t('footer.copyright'))
     .replace('EVE Online', `<a href="${esc(eve)}" target="_blank" rel="noopener noreferrer">EVE Online</a>`)
-    .replace('Fenris Creations', `<a href="${esc(fenris)}" target="_blank" rel="noopener noreferrer">Fenris Creations</a>`);
+    .replace('Fenris Creations', `<a href="${esc(fenris)}" target="_blank" rel="noopener noreferrer">Fenris Creations</a>`)
+    .replace('gitlab.com/cmy/fitdle', `<a href="${esc(repo)}" target="_blank" rel="noopener noreferrer">gitlab.com/cmy/fitdle</a>`);
 }
 
 function renderShell() {
@@ -745,7 +747,7 @@ function renderShell() {
           <a class="repo-link" href="${esc(state.manifest.links?.repo || '#')}" target="_blank" rel="noopener noreferrer" title="${esc(state.manifest.links?.repo || '')}">GitLab</a>
           <a class="zkill-link" href="${esc(state.manifest.zkillboard.baseUrl)}" target="_blank" rel="noopener noreferrer">zKillboard</a>
           <a href="${esc(state.manifest.sde?.url || '#')}" target="_blank" rel="noopener noreferrer">EVE SDE</a>
-          <span class="footer-meta footer-version">v${esc(state.manifest?.version || '0.1.0')} · SDE ${esc(state.manifest.dataVersion)}${state.manifest.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
+          <span class="footer-meta footer-version">v${esc(state.manifest?.version || '0.1.0')} · SDE ${esc(state.manifest?.sde?.buildNumber || state.manifest?.sde?.generatedAt || '—')}${state.manifest.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
         </div>
       </footer>
     </main>
@@ -1652,6 +1654,10 @@ function renderManual() {
             <div class="manual-step"><span class="manual-step-num">04</span><div><h4>${esc(t('help.step4Title'))}</h4><p>${esc(t('help.step4'))}</p></div></div>
           </div>
           <div class="manual-section">
+            <h3>${icon('help')} ${esc(t('help.sharedTitle'))}</h3>
+            <ul class="manual-mode-list">${t('help.sharedRules').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+          </div>
+          <div class="manual-section">
             <h3>${icon('layers')} ${esc(t('mode.standard'))}</h3>
             <p class="manual-mode-hint">${esc(t('mode.standardHint'))}</p>
             <ul class="manual-mode-list">${t('mode.helpNormal').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
@@ -1686,7 +1692,7 @@ function renderManual() {
       </div>
       <div class="manual-footer">
         <span class="left"><b>FITDLE</b></span>
-        <span>v${esc(state.manifest?.version || '0.1.0')} · SDE ${esc(state.manifest?.dataVersion || '')}${state.manifest?.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
+        <span>v${esc(state.manifest?.version || '0.1.0')} · SDE ${esc(state.manifest?.sde?.buildNumber || state.manifest?.sde?.generatedAt || '—')}${state.manifest?.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
       </div>
     </div>
   `;

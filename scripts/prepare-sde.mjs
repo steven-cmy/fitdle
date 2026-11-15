@@ -51,14 +51,32 @@ function extractArchive() {
   throw new Error('Could not extract SDE zip. Install bsdtar or unzip, or extract it manually into .cache/sde-source.');
 }
 
+async function latestSdeRelease() {
+  try {
+    const response = await fetch('https://developers.eveonline.com/static-data/tranquility/latest.jsonl');
+    if (!response.ok) return null;
+    const line = (await response.text()).split('\n').find(Boolean);
+    const data = JSON.parse(line);
+    return {
+      buildNumber: data?.buildNumber || null,
+      releaseDate: data?.releaseDate || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function downloadArchive() {
   console.log(`Downloading EVE SDE: ${SDE_URL}`);
   const response = await fetch(SDE_URL, { redirect: 'follow' });
   if (!response.ok || !response.body) throw new Error(`SDE download failed: ${response.status}`);
+  const official = await latestSdeRelease();
   archiveMeta = {
     url: SDE_URL,
     etag: response.headers.get('etag') || '',
     lastModified: response.headers.get('last-modified') || '',
+    buildNumber: official?.buildNumber || null,
+    releaseDate: official?.releaseDate || null,
     size: Number(response.headers.get('content-length') || 0),
     downloadedAt: new Date().toISOString(),
   };
@@ -102,8 +120,15 @@ async function ensureSde() {
   extractArchive();
   if (!hasFiles(SOURCE)) throw new Error('SDE extraction incomplete');
   if (!KEEP_ARCHIVE) await fsp.rm(ARCHIVE, { force: true });
-  if (!archiveMeta && !fs.existsSync(META)) {
-    await fsp.writeFile(META, `${JSON.stringify({ url: SDE_URL, etag: '', lastModified: '', source: 'cached' }, null, 2)}\n`);
+  if (!archiveMeta) {
+    let meta = fs.existsSync(META)
+      ? JSON.parse(await fsp.readFile(META, 'utf8'))
+      : { url: SDE_URL, etag: '', lastModified: '', source: 'cached' };
+    if (!meta.buildNumber) {
+      const official = await latestSdeRelease();
+      if (official) Object.assign(meta, official);
+      await fsp.writeFile(META, `${JSON.stringify(meta, null, 2)}\n`);
+    }
   }
   return SOURCE;
 }
