@@ -30,7 +30,7 @@ import {
 } from '../js/game.js';
 import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment } from '../js/clues.js';
 import { computeRevealed } from '../js/reveal.js';
-import { MESSAGES } from '../js/i18n.js';
+import { MESSAGES, resolveLocale } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'manifest.json'), 'utf8'));
@@ -170,6 +170,12 @@ test('every locale provides the same message keys', () => {
   }
 });
 
+test('all Chinese locale variants resolve to Simplified Chinese', () => {
+  for (const tag of ['zh', 'zh-CN', 'zh-Hans', 'zh-Hant', 'zh-TW', 'zh-HK', 'zh-SG']) {
+    assert.equal(resolveLocale(tag), 'zh');
+  }
+});
+
 test('catalog is SDE-only, complete, and references official data lazily', () => {
   assert.equal(catalog.length, 430);
   assert.equal(manifest.counts.catalog, catalog.length);
@@ -190,6 +196,7 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   assert.equal(manifest.counts.modules, Object.keys(refs.modules).length);
   assert.ok(manifest.images.baseUrl);
   assert.ok(manifest.zkillboard.baseUrl);
+  assert.ok(manifest.links.repo);
   assert.ok(manifest.timeSource);
   assert.ok(manifest.links.eveDocs);
   assert.ok(manifest.links.glossary);
@@ -540,6 +547,26 @@ test('abyss multi-clue reveals mix equipment and attributes', () => {
   assert.ok(added.length >= 2);
   const equipment = added.filter((index) => built.clues[index].k === 'equipment').length;
   assert.ok(equipment > 0 && equipment < added.length, 'multi-reveal should mix equipment and attributes');
+});
+
+test('abyss falls back to other clues when there is no equipment', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const built = buildClues({
+    ship, catalog, refs, stats: null, losses: [], dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion, mode: 'abyss',
+  });
+  const getShip = (id) => catalog.find((entry) => entry.id === id);
+  const initial = computeRevealed({
+    clues: built.clues, catalog, guesses: [], status: 'playing', answerId: ship.id,
+    mode: 'abyss', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
+  });
+  const revealed = computeRevealed({
+    clues: built.clues, catalog, guesses: [999999, 999998], status: 'playing', answerId: ship.id,
+    mode: 'abyss', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
+  });
+  const added = [...revealed].filter((index) => !initial.has(index));
+  assert.ok(added.length > 0);
+  assert.ok(added.every((index) => built.clues[index].k !== 'equipment'));
 });
 
 test('normal mode releases equipment on misses and shared clues on matching guesses', () => {

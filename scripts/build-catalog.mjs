@@ -274,7 +274,7 @@ const moduleFallbacks = {};
   }
 }
 
-const RULESET_VERSION = 'v8';
+const RULESET_VERSION = 'v9';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
 const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
@@ -306,6 +306,7 @@ const manifest = {
     eveOnline: 'https://www.eveonline.com/',
     fenris: 'https://fenris.com/',
     glossary: 'https://ddd4512kk-source.github.io/EVE-Online-Tranquility-Chinese-Personas/glossary/',
+    repo: 'https://gitlab.com/cmy/fitdle',
   },
   timeSource: TIME_SOURCE,
   answerPool: catalog.map((ship) => ship.id).sort((a, b) => a - b),

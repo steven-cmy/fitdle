@@ -604,6 +604,7 @@ function recomputeRevealed() {
     answerBonuses: state.answerData.bonuses || [],
     answer: state.answerData,
     fitDelta: state.answerData.fitDelta || null,
+    seed: `${state.date}:${state.answerKillId || state.answerId}:${state.mode}`,
   });
   state.visibleCount = state.revealed.size;
 }
@@ -741,9 +742,10 @@ function renderShell() {
           <div class="footer-copyright">${copyrightHtml()}</div>
         </div>
         <div class="footer-links">
+          <a class="repo-link" href="${esc(state.manifest.links?.repo || '#')}" target="_blank" rel="noopener noreferrer" title="${esc(state.manifest.links?.repo || '')}">GitLab</a>
           <a class="zkill-link" href="${esc(state.manifest.zkillboard.baseUrl)}" target="_blank" rel="noopener noreferrer">zKillboard</a>
           <a href="${esc(state.manifest.sde?.url || '#')}" target="_blank" rel="noopener noreferrer">EVE SDE</a>
-          <span class="footer-meta footer-version">v${esc(state.manifest?.version || '1.0.0')} · SDE ${esc(state.manifest.dataVersion)}${state.manifest.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
+          <span class="footer-meta footer-version">v${esc(state.manifest?.version || '0.1.0')} · SDE ${esc(state.manifest.dataVersion)}${state.manifest.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
         </div>
       </footer>
     </main>
@@ -1683,7 +1685,7 @@ function renderManual() {
       </div>
       <div class="manual-footer">
         <span class="left"><b>FITDLE</b></span>
-        <span>v${esc(state.manifest?.version || '1.0.0')} · SDE ${esc(state.manifest?.dataVersion || '')}${state.manifest?.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
+        <span>v${esc(state.manifest?.version || '0.1.0')} · SDE ${esc(state.manifest?.dataVersion || '')}${state.manifest?.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
       </div>
     </div>
   `;

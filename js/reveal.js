@@ -7,8 +7,8 @@
  * exactly one candidate in the SDE catalog.
  */
 import { clueMatchesShip } from './clues.js';
+import { cyrb53 } from './game.js';
 
-export const NORMAL_EQUIPMENT_PER_MISS = 2;
 export const INITIAL_WEIGHT_THRESHOLD = 9;
 export const INITIAL_MAX_WEIGHT = 13;
 export const INITIAL_MAX_CLUES = 7;
@@ -18,6 +18,29 @@ const STATIC_CATEGORIES = new Set(['identity', 'hull', 'slots', 'nav', 'defense'
 
 function isStatic(clue) {
   return STATIC_CATEGORIES.has(clue?.c);
+}
+
+function makeRandom(seed) {
+  let state = cyrb53(String(seed || 'reveal'), 0x51f15e);
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function weightedPick(entries, random) {
+  if (!entries.length) return null;
+  const scored = entries.map((entry) => ({
+    entry,
+    score: 1 / Math.pow(Math.max(0.5, Number(entry.clue.w) || 1), 1.8),
+  }));
+  const total = scored.reduce((sum, item) => sum + item.score, 0);
+  let roll = random() * total;
+  for (const item of scored) {
+    roll -= item.score;
+    if (roll <= 0) return item.entry;
+  }
+  return scored[scored.length - 1].entry;
 }
 
 function candidatesFor(set, clues, catalog, fitDelta) {
@@ -90,16 +113,22 @@ function replacementFor({ equipment, revealed, clues, catalog, fitDelta }) {
   return -1;
 }
 
-function addSequential({ revealed, target, clues, catalog, fitDelta }) {
+function addWeightedSequential({ revealed, target, clues, catalog, fitDelta, random }) {
   const additions = [];
-  const before = revealed.size;
-  for (let index = 0; index < clues.length && revealed.size < target; index++) {
-    if (revealed.has(index)) continue;
-    if (wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)) continue;
-    revealed.add(index);
-    additions.push(index);
+  while (revealed.size < target) {
+    const candidates = clues
+      .map((clue, index) => ({ clue, index }))
+      .filter(({ clue, index }) => (
+        !revealed.has(index)
+        && !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)
+      ));
+    if (!candidates.length) break;
+    const chosen = weightedPick(candidates, random);
+    if (!chosen) break;
+    revealed.add(chosen.index);
+    additions.push(chosen.index);
   }
-  if (revealed.size - before < 2 || additions.length < 2) return;
+  if (additions.length < 2) return;
 
   const equipment = additions.filter((index) => clues[index].k === 'equipment');
   const nonEquipment = additions.filter((index) => clues[index].k !== 'equipment');
@@ -118,18 +147,30 @@ function addSequential({ revealed, target, clues, catalog, fitDelta }) {
   }
 }
 
-function addEquipment({ revealed, misses, clues }) {
+function addEquipment({ revealed, misses, clues, random }) {
   const equipment = clues
     .map((clue, index) => ({ clue, index }))
     .filter(({ clue }) => clue.k === 'equipment');
-  const already = [...revealed].filter((index) => clues[index]?.k === 'equipment').length;
-  let count = already;
-  const target = already + misses * NORMAL_EQUIPMENT_PER_MISS;
-  for (const { index } of equipment) {
-    if (count >= target) break;
-    if (revealed.has(index)) continue;
-    revealed.add(index);
-    count++;
+  if (!equipment.length) return;
+
+  // More fitted items means a slightly larger budget, but expensive/rare
+  // (high-weight) items consume more of it. Low-weight items are picked first.
+  const budget = Math.max(4, Math.min(9, 4 + Math.floor(equipment.length / 8)));
+  for (let miss = 0; miss < misses; miss++) {
+    let spent = 0;
+    let picked = 0;
+    while (spent < budget) {
+      const candidates = equipment.filter(({ index }) => !revealed.has(index));
+      if (!candidates.length) break;
+      const chosen = weightedPick(candidates, random);
+      if (!chosen) break;
+      const cost = Math.max(1, Number(chosen.clue.w) || 1);
+      if (picked > 0 && spent + cost > budget) break;
+      revealed.add(chosen.index);
+      spent += cost;
+      picked++;
+      if (cost >= budget) break;
+    }
   }
 }
 
@@ -179,6 +220,7 @@ export function computeRevealed({
   answerBonuses = [],
   answer = {},
   fitDelta = null,
+  seed = 'reveal',
 }) {
   const total = clues.length;
   if (!total) return new Set();
@@ -186,16 +228,18 @@ export function computeRevealed({
     return new Set(Array.from({ length: total }, (_, index) => index));
   }
 
+  const random = makeRandom(`${seed}:${mode}:${answerId}`);
   const misses = guesses.filter((id) => Number(id) !== Number(answerId)).length;
   if (mode === 'abyss') {
     const revealed = chooseInitial({ clues, catalog, fitDelta });
     const extra = misses > 0 ? (misses * (misses + 1)) / 2 : 0;
-    addSequential({
+    addWeightedSequential({
       revealed,
       target: revealed.size + extra,
       clues,
       catalog,
       fitDelta,
+      random,
     });
     return revealed;
   }
@@ -213,6 +257,6 @@ export function computeRevealed({
       fitDelta,
     });
   }
-  addEquipment({ revealed, misses, clues });
+  addEquipment({ revealed, misses, clues, random });
   return revealed;
 }

@@ -1806,13 +1806,25 @@ export function resolveLocale(raw) {
   return 'en';
 }
 
+function localeFromTag(raw) {
+  if (!raw) return null;
+  // Every zh variant (zh-Hans, zh-Hant, zh-TW, zh-HK, ...) uses the
+  // Simplified Chinese catalog in FITDLE.
+  if (/^zh(?:[-_]|$)/i.test(String(raw))) return 'zh';
+  const resolved = resolveLocale(raw);
+  if (resolved !== 'en' || /^en(?:[-_]|$)/i.test(String(raw))) return resolved;
+  return null;
+}
+
 export function detectLocale() {
   const params = new URLSearchParams(location.search);
   const fromUrl = params.get('lang');
-  if (fromUrl && isLocale(fromUrl)) return fromUrl;
+  const urlLocale = localeFromTag(fromUrl);
+  if (urlLocale) return urlLocale;
   try {
     const stored = localStorage.getItem('fitdle:v1:lang');
-    if (stored && isLocale(stored)) return stored;
+    const storedLocale = localeFromTag(stored);
+    if (storedLocale) return storedLocale;
   } catch {
     // localStorage can be unavailable in privacy modes
   }

@@ -1,6 +1,6 @@
 # FITDLE
 
-**版本 0.0.1。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
+**版本 0.1.0。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
 
 ![桌面端](docs/screenshot-desktop.png)
 
@@ -79,8 +79,8 @@ npm run build            # 生成 dist/
   - 最大权重 13、最多 7 条；
   - 初始候选集不得少于 6 艘；
   - 唯一/限定装备不会进入初始线索。
-- **标准模式**：每次猜错最多解密 2 条装备；其他线索只在猜测与目标同值时揭示。
-- **深渊模式**：初始数量同样由阈值决定；第 1/2/3/4/5 次猜错分别增加 +1/+2/+3/+4/+5 条。
+- **标准模式**：猜错时按装备总数和权重预算揭露装备；低权重更容易先出现，抽到高权重装备时揭露数量会减少。
+- **深渊模式**：第 1/2/3/4/5 次猜错分别增加 +1/+2/+3/+4/+5 条；按反权重随机抽取，低权重线索更容易出现。没有装备或装备已全部揭露时，这些数量会落到其他线索上。
 - 右侧档案分组：**特性 / 船体 / 导航 / 防御 / TARGETING / 装配 / 装备 / ZKILLBOARD**。
 - 货舱容量、电容容量归入装配。
 - 装配顺序固定为：炮座、发射器座、高、中、低、改装件槽、CPU、PG、电容、货仓、无人机仓；校准值放在末尾。
@@ -107,7 +107,7 @@ npm run build            # 生成 dist/
 - 单一舰船类别装备标记 **唯一 / UNIQUE**，权重为 10。
 - 货仓物品也纳入装备区；未知类型会在运行时向 ESI 查询名称。
 - 高槽弹药与对应高槽武器采用相同权重；唯一武器的弹药也按唯一装备权重 10 计算。
-- 装备 size（Capital / X-Large / Large / Medium）计入权重。
+- 装备 size（Capital / X-Large / Large / Medium）计入权重；旗舰/超大装备显著提高权重。
 
 ### 雷达
 
@@ -129,7 +129,9 @@ npm run build            # 生成 dist/
 - **EVE Online** → <https://www.eveonline.com/>
 - **Fenris Creations（原 CCP hf. / CCP Games）** → <https://fenris.com/>
 - 明确标注：CCP 已于 2026 年更名为 Fenris Creations。
-- 右下角：`v0.0.1 · SDE <dataVersion> · ZKILL <killpool date>`。
+- 右下角：`v0.1.0 · SDE <dataVersion> · ZKILL <killpool date>`。
+- 页脚提供 GitLab 仓库链接：<https://gitlab.com/cmy/fitdle>。
+- 所有 `zh-*` 语言变体（简繁、地区）统一使用简体中文。
 
 ---
 
@@ -239,7 +241,7 @@ https://<namespace>.gitlab.io/<project>/
 npm test
 ```
 
-当前 **28/28** 通过，覆盖：
+当前 **30/30** 通过，覆盖：
 
 - EVE downtime 边界、未来日期拦截
 - 目标池、类型→KB 选择、同船不同 KB

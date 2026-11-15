@@ -144,9 +144,9 @@ function normalizeBonusTemplate(line) {
 
 function moduleSizeRank(name) {
   const text = String(name || '');
-  if (/\b(capital|extra large|x-large|xl)\b/i.test(text)) return 2.6;
-  if (/\blarge\b/i.test(text)) return 1.1;
-  if (/\bmedium\b/i.test(text)) return 0.4;
+  if (/\b(capital|extra large|x-large|xl)\b/i.test(text)) return 7;
+  if (/\blarge\b/i.test(text)) return 2.2;
+  if (/\bmedium\b/i.test(text)) return 0.8;
   return 0;
 }
 
