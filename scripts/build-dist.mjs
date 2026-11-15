@@ -33,7 +33,25 @@ for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share
 // Localized static score pages give Discord/other crawlers real Open Graph
 // metadata. Humans are redirected into the puzzle; crawlers never see the
 // answer or target hull in the preview.
-const SITE_URL = (process.env.SITE_URL || process.env.CI_PAGES_URL || 'http://127.0.0.1:4173').replace(/\/$/, '');
+function localSiteUrl() {
+  if (process.env.CI) return '';
+  try {
+    const file = path.join(ROOT, '.cache', 'local.env');
+    if (!fs.existsSync(file)) return '';
+    const line = fs.readFileSync(file, 'utf8').split('\n')
+      .map((entry) => entry.trim())
+      .find((entry) => entry.startsWith('SITE_URL='));
+    return line ? line.slice('SITE_URL='.length).trim() : '';
+  } catch {
+    return '';
+  }
+}
+const SITE_URL = (
+  process.env.SITE_URL
+  || process.env.CI_PAGES_URL
+  || localSiteUrl()
+  || 'http://127.0.0.1:4173'
+).replace(/\/$/, '');
 const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png?v=2`;
 const OG_LOCALES = {
   en: 'en_US', de: 'de_DE', es: 'es_ES', fr: 'fr_FR',

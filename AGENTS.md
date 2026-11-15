@@ -151,7 +151,8 @@ npm run hooks:install     # enable shared Git hooks
   one-shot/burst card; `lost` uses an amber broken-radar card.
 - Regenerate with `python scripts/generate-share-images.py` (Pillow).
 - `og:image` is score- and locale-specific, absolute using `SITE_URL` or CI
-  `CI_PAGES_URL`.
+  `CI_PAGES_URL`. Local builds may read `.cache/local.env` (ignored by Git and CI);
+  never commit the local domain into build-dist or docs.
 - Free share: `?kb=...&mode=...&lang=...`; no score page/stats.
 - Cargo/type names not in SDE refs are fetched from ESI with `language=<locale>`;
   never reuse `extraTypeNames` across locales.

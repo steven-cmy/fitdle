@@ -2199,7 +2199,7 @@ html[data-game-mode="abyss"] {
 .weight {
   display: flex;
   flex: 0 0 auto;
-  flex-direction: column;
+  flex-direction: column-reverse;
   align-items: flex-start;
   justify-content: center;
   gap: 2px;

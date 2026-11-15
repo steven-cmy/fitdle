@@ -1,6 +1,6 @@
 # FITDLE
 
-**版本 0.1.9。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
+**版本 0.1.10。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
 
 ![桌面端](docs/screenshot-desktop.png)
 
@@ -179,6 +179,14 @@ SITE_URL=https://your-domain.example
 ```
 
 它用于生成分享页的绝对 `og:image` 地址。
+
+本地构建可在 `.cache/local.env` 写入：
+
+```text
+SITE_URL=https://your-local-domain.example
+```
+
+`.cache/` 已被 Git 忽略，CI 不会读取该文件；GitLab 构建使用 `CI_PAGES_URL`。优先级为：环境变量 → `CI_PAGES_URL` → 本地文件 → `http://127.0.0.1:4173`。
 
 ### 部署到 GitLab Pages
 
