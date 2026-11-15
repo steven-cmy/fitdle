@@ -34,7 +34,7 @@ for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share
 // metadata. Humans are redirected into the puzzle; crawlers never see the
 // answer or target hull in the preview.
 const SITE_URL = (process.env.SITE_URL || process.env.CI_PAGES_URL || 'http://127.0.0.1:4173').replace(/\/$/, '');
-const OG_IMAGE = `${SITE_URL}/assets/share/og.png`;
+const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png`;
 const OG_LOCALES = {
   en: 'en_US', de: 'de_DE', es: 'es_ES', fr: 'fr_FR',
   ja: 'ja_JP', ko: 'ko_KR', ru: 'ru_RU', zh: 'zh_CN',
@@ -51,6 +51,7 @@ await fsp.mkdir(shareDir, { recursive: true });
 
 function sharePage({ key, locale, title, description, depth }) {
   const canonical = `${SITE_URL}/share/${key}/${locale}.html`;
+  const image = shareImage(key, locale);
   const redirect = depth === 2 ? '../../' : '../';
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
@@ -67,14 +68,14 @@ function sharePage({ key, locale, title, description, depth }) {
 <meta property="og:title" content="${safeTitle}">
 <meta property="og:description" content="${safeDescription}">
 <meta property="og:url" content="${escapeHtml(canonical)}">
-<meta property="og:image" content="${escapeHtml(OG_IMAGE)}">
+<meta property="og:image" content="${escapeHtml(image)}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:locale" content="${OG_LOCALES[locale] || 'en_US'}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${safeTitle}">
 <meta name="twitter:description" content="${safeDescription}">
-<meta name="twitter:image" content="${escapeHtml(OG_IMAGE)}">
+<meta name="twitter:image" content="${escapeHtml(image)}">
 <script>
 const q = new URLSearchParams(location.search);
 const target = new URL('${redirect}', location.href);

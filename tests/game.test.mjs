@@ -160,11 +160,15 @@ test('localized static share pages carry the score for link previews', () => {
     const html = fs.readFileSync(sharePage, 'utf8');
     assert.match(html, /FITDLE — 3\/6 — Target destroyed 🎯/);
     assert.match(html, /I cracked the hull in 3 attempts/);
-    assert.match(html, /og:image" content="[^"]+\/assets\/share\/og\.png"/);
+    assert.match(html, /og:image" content="[^"]+\/assets\/share\/og-3-en\.png"/);
     assert.match(html, /twitter:card" content="summary_large_image"/);
     assert.match(html, /location\.replace/);
     assert.ok(fs.existsSync(zhPage));
-    assert.match(fs.readFileSync(zhPage, 'utf8'), /3\/6 — 目标已击毁 🎯/);
+    const zh = fs.readFileSync(zhPage, 'utf8');
+    assert.match(zh, /3\/6 — 目标已击毁 🎯/);
+    assert.match(zh, /og:image" content="[^"]+\/assets\/share\/og-3-zh\.png"/);
+    assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-3-zh.png')));
+    assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-lost-de.png')));
   }
 });
 
