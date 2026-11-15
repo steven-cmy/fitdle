@@ -1136,15 +1136,15 @@ function slotLabel(slot) {
 
 function moduleBadge(tag) {
   const badges = {
-    limited: { cls: 'badge-limited', icon: 'lock', label: t('dossier.limited') },
-    unique: { cls: 'badge-unique', icon: 'lock', label: t('dossier.unique') },
-    officer: { cls: 'badge-officer', icon: 'star', label: t('dossier.officer') },
-    abyss: { cls: 'badge-abyss', icon: 'radar', label: t('dossier.abyss') },
-    plex: { cls: 'badge-plex', icon: 'star', label: t('dossier.plex') },
+    limited: { cls: 'badge-limited', icon: 'lock', label: t('dossier.limited'), hint: t('dossier.limitedHint') },
+    unique: { cls: 'badge-unique', icon: 'lock', label: t('dossier.unique'), hint: t('dossier.uniqueHint') },
+    officer: { cls: 'badge-officer', icon: 'star', label: t('dossier.officer'), hint: t('dossier.officerHint') },
+    abyss: { cls: 'badge-abyss', icon: 'radar', label: t('dossier.abyss'), hint: t('dossier.abyssHint') },
+    plex: { cls: 'badge-plex', icon: 'star', label: t('dossier.plex'), hint: t('dossier.plexHint') },
   };
   const badge = badges[tag];
   if (!badge) return '';
-  return `<span class="badge-hull ${badge.cls}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
+  return `<span class="badge-hull ${badge.cls}" title="${esc(badge.hint)}" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
 }
 
 function renderModuleLine(clue) {

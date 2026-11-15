@@ -2116,7 +2116,10 @@ html[data-game-mode="abyss"] {
   line-height: 1.3;
 }
 .module-line .module-count {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
+  align-self: center;
   margin-left: auto;
   padding: 2px 5px;
   font-size: 12.5px;
@@ -2196,13 +2199,15 @@ html[data-game-mode="abyss"] {
 .weight {
   display: flex;
   flex: 0 0 auto;
-  align-items: center;
-  gap: 3px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
 }
 .weight i {
   display: block;
   width: 8px;
-  height: 3px;
+  height: 2px;
   background: rgba(126, 196, 216, 0.14);
 }
 .weight i.on {
