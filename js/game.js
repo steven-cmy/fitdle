@@ -134,7 +134,7 @@ export function normalizeText(value) {
     .trim();
 }
 
-export function buildSearchIndex(catalog, groupNames = {}) {
+export function buildSearchIndex(catalog, groupNames = {}, { races = {}, factions = {}, locale = 'en' } = {}) {
   return catalog.map((ship) => {
     const names = [...new Set(Object.values(ship.names || {}).map(normalizeText).filter(Boolean))];
     const group = normalizeText(groupNames[ship.groupID] || '');
@@ -142,6 +142,10 @@ export function buildSearchIndex(catalog, groupNames = {}) {
       ship,
       names,
       group,
+      sortGroup: groupNames[ship.groupID] || '',
+      sortRace: races[ship.raceID] || '',
+      sortFaction: factions[ship.factionID] || '',
+      sortName: ship.names?.[locale] || ship.names?.en || '',
       haystack: [...names, group].join(' '),
     };
   });
@@ -165,16 +169,19 @@ export function searchShips(index, query, { exclude = new Set(), limit = 8 } = {
     }
     if (entry.group === q) score = Math.max(score, 65);
     else if (entry.group.startsWith(q)) score = Math.max(score, 45);
-    if (score > 0) results.push({ ship, score });
+    if (score > 0) results.push({ ship, score, entry });
   }
-  // Browse order: tech level → hull class/group → race → faction. Search
-  // scoring only decides whether an entry matches, not the presentation order.
+  // Browse order: tech level → hull class/group → race → faction. Localized
+  // names are used when available, numeric IDs are the stable fallback.
   results.sort((a, b) => (
     Number(a.ship.techLevel || 0) - Number(b.ship.techLevel || 0)
+    || a.entry.sortGroup.localeCompare(b.entry.sortGroup)
     || Number(a.ship.groupID || 0) - Number(b.ship.groupID || 0)
+    || a.entry.sortRace.localeCompare(b.entry.sortRace)
     || Number(a.ship.raceID || 0) - Number(b.ship.raceID || 0)
+    || a.entry.sortFaction.localeCompare(b.entry.sortFaction)
     || Number(a.ship.factionID || 0) - Number(b.ship.factionID || 0)
-    || String(a.ship.names?.en || '').localeCompare(String(b.ship.names?.en || ''))
+    || a.entry.sortName.localeCompare(b.entry.sortName)
     || a.ship.id - b.ship.id
   ));
   return results.slice(0, limit).map((r) => r.ship);

@@ -129,6 +129,11 @@ test('ship search results follow tech, class, race and faction order', () => {
     searchShips(index, 'a', { limit: 10 }).map((ship) => ship.id),
     [3, 2, 1],
   );
+  const localized = buildSearchIndex(ships, { 1: 'Zeta', 2: 'Alpha' }, { locale: 'de' });
+  assert.deepEqual(
+    searchShips(localized, 'a', { limit: 10 }).map((ship) => ship.id),
+    [2, 3, 1],
+  );
 });
 
 test('service record streaks survive consecutive days only', () => {
@@ -445,11 +450,11 @@ test('fighter bays separate real fighters from carried modules', () => {
     },
   }];
   const equipment = getEquipment(losses, refs).equipment;
-  assert.equal(equipment.find((item) => item.module === 40570)?.slot, 'fighter');
+  assert.equal(equipment.find((item) => item.module === 40570)?.slot, 'fighterBay');
   assert.equal(equipment.find((item) => item.module === 23061)?.slot, 'fighter');
-  assert.equal(equipment.find((item) => item.module === 1952)?.slot, 'cargo');
-  assert.equal(equipment.find((item) => item.module === 41490)?.slot, 'cargo');
-  assert.equal(equipment.find((item) => item.module === 17887)?.slot, 'cargo');
+  assert.equal(equipment.find((item) => item.module === 1952)?.slot, 'fighterBay');
+  assert.equal(equipment.find((item) => item.module === 41490)?.slot, 'fighterBay');
+  assert.equal(equipment.find((item) => item.module === 17887)?.slot, 'fuelBay');
   assert.equal(equipment.find((item) => item.module === 41030)?.slot, 'drone');
 
   const built = buildClues({
@@ -458,8 +463,10 @@ test('fighter bays separate real fighters from carried modules', () => {
   });
   const fighter = built.clues.find((clue) => clue.v?.module === 40570);
   const excavator = built.clues.find((clue) => clue.v?.module === 41030);
-  assert.ok(fighter.w >= 10);
-  assert.ok(excavator.w >= 9.5);
+  assert.equal(fighter.tag, 'limited');
+  assert.equal(excavator.tag, 'unique');
+  assert.ok(fighter.w >= 11);
+  assert.ok(excavator.w >= 11);
 });
 
 test('same type fitted and in cargo is exposed as separate lines', () => {
@@ -511,6 +518,7 @@ test('larger module sizes carry more weight', () => {
       items: [
         { flag: 19, item_type_id: 377, quantity_destroyed: 1, quantity_dropped: 0 },
         { flag: 19, item_type_id: 40354, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 92, item_type_id: 30993, quantity_destroyed: 1, quantity_dropped: 0 },
       ],
     },
   }];
@@ -522,6 +530,8 @@ test('larger module sizes carry more weight', () => {
   const capital = built.clues.find((clue) => clue.k === 'equipment' && clue.v.module === 40354);
   assert.ok(small && capital);
   assert.ok(capital.w > small.w);
+  const rig = built.clues.find((clue) => clue.k === 'equipment' && clue.v.module === 30993);
+  assert.ok(rig.w >= 10);
 });
 
 test('high-slot ammunition uses the same weight as the weapon', () => {

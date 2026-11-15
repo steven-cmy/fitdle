@@ -19,8 +19,9 @@ const FITTED_FLAGS = (() => {
   for (let i = 0; i < 8; i++) map.set(125 + i, 'subsystem');
   map.set(87, 'drone');
   map.set(5, 'cargo');
-  map.set(133, 'cargo'); // carrier fuel bay
-  for (const flag of [155, 158, 159, 160, 161]) map.set(flag, 'fighter');
+  map.set(133, 'fuelBay');
+  map.set(155, 'fighterBay');
+  for (const flag of [158, 159, 160, 161]) map.set(flag, 'fighter');
   return map;
 })();
 
@@ -30,9 +31,11 @@ export const EQUIPMENT_SLOT_ORDER = {
   low: 2,
   rig: 3,
   subsystem: 4,
-  drone: 5,
-  fighter: 6,
-  cargo: 7,
+  fighter: 5,
+  fighterBay: 6,
+  drone: 7,
+  fuelBay: 8,
+  cargo: 9,
 };
 
 // Modules whose groups are fitted on a very large fraction of hulls.  They
@@ -269,13 +272,10 @@ function parseFittings(losses, refs = null) {
   const sample = list[0];
   const sampleModules = new Map();
   for (const item of sample?.victim?.items || []) {
-    let slot = FITTED_FLAGS.get(Number(item.flag));
+    const slot = FITTED_FLAGS.get(Number(item.flag));
     if (!slot) continue;
     const moduleID = Number(item.item_type_id);
     if (!Number.isFinite(moduleID)) continue;
-    // Fighter bays also hold spare modules, charges and fuel. Only actual
-    // fighters (category 87) keep the fighter slot; the rest is cargo.
-    if (slot === 'fighter' && Number(refs?.modules?.[moduleID]?.categoryID) !== 87) slot = 'cargo';
     // Keep the same type separate when it appears both fitted and in cargo.
     const key = `${moduleID}:${slot}`;
     if (!sampleModules.has(key)) sampleModules.set(key, { module: moduleID, slot, qty: 0 });
@@ -514,7 +514,14 @@ export function buildClues({
   for (const item of equipment) {
     const module = refs.modules?.[item.module];
     const isCharge = !module || Number(module.categoryID) === 8;
-    const restriction = equipmentRestriction(module);
+    const isFighter = Number(module?.categoryID) === 87;
+    const isMiningSpecial = Number(module?.categoryID) === 18
+      && /excavator|pluto|mutated.*mining drone/i.test(module?.name || '');
+    let restriction = equipmentRestriction(module);
+    // Fighters fit every carrier/supercarrier family, but no other hull class:
+    // limited. Specialized capital mining drones are Rorqual-only: unique.
+    if (isFighter) restriction = 'limited';
+    if (isMiningSpecial) restriction = 'unique';
     const common = COMMON_MODULE_GROUPS.has(module?.groupID);
     const meta = Number(module?.metaGroupID || 0);
     const tags = [];
@@ -533,13 +540,16 @@ export function buildClues({
     } else if (restriction === 'limited') {
       weight = clamp(weight + moduleSizeRank(module?.name), 7.5, 9.6);
     }
-    // Fighters are effectively carrier/supercarrier-only; capital mining drones
-    // (Excavators) are similarly narrow. Both are very strong hull clues.
-    if (Number(module?.categoryID) === 87) weight = Math.max(weight, 10);
-    if (Number(module?.categoryID) === 18 && /excavator|mining fighter/i.test(module?.name || '')) {
-      weight = Math.max(weight, 9.5);
+    // Rigs narrow the hull class strongly; capital/XL rigs are near-unique.
+    if (item.slot === 'rig') {
+      weight = Math.max(weight, 8.5 + Math.min(1.5, moduleSizeRank(module?.name)));
     }
-    if (mode === 'abyss' && restriction === 'unique') weight = 10;
+    // Fighter and fuel bays exist only on capital hulls. Everything stored in
+    // them is a very strong clue, including spare modules and jump fuel.
+    if (item.slot === 'fighterBay' || item.slot === 'fuelBay') weight = Math.max(weight, 11);
+    if (isFighter) weight = Math.max(weight, module?.groupID === 1653 ? 11 : 10.5);
+    if (isMiningSpecial) weight = Math.max(weight, 11);
+    if (mode === 'abyss' && restriction === 'unique') weight = Math.max(weight, 10);
     if (mode === 'abyss' && restriction === 'limited') weight = Math.max(weight, 8.8);
     const clue = {
       k: 'equipment',
@@ -549,7 +559,7 @@ export function buildClues({
       tag: restriction,
       tags,
       sig: restriction === 'unique',
-      charge: isCharge && item.slot !== 'cargo',
+      charge: isCharge && !['cargo', 'fighterBay', 'fuelBay'].includes(item.slot),
       calcModule: item.slot === 'cargo' ? null : (abyssFallbacks.get(item.module) || null),
     };
     equipmentClues.push(clue);
@@ -585,7 +595,7 @@ export function buildClues({
   // Cargo ammo, cap-booster charges and scripts describe a fitted module.
   // They inherit its weight, but never its marker.
   const fittedWithCharges = equipmentClues.filter((clue) => {
-    if (clue.v.slot === 'cargo') return false;
+    if (['cargo', 'fighterBay', 'fuelBay'].includes(clue.v.slot)) return false;
     const module = refs.modules?.[clue.v.module];
     return Array.isArray(module?.chargeGroups) && module.chargeGroups.length;
   });

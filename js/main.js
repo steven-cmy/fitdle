@@ -724,7 +724,9 @@ function buildAnswerData() {
 async function loadLocaleData(locale) {
   const refs = await fetchJson(`data/refs/${locale}.json`);
   state.refs = refs;
-  state.index = buildSearchIndex(state.catalog, refs.groups);
+  state.index = buildSearchIndex(state.catalog, refs.groups, {
+    races: refs.races, factions: refs.factions, locale: state.locale,
+  });
   await fetchAnswerLive();
   await fetchCargoTypeNames();
   if (state.mode === 'abyss' && state.liveLosses[0]) {
@@ -1983,6 +1985,9 @@ async function changeLocale(nextLocale) {
     state.locale = nextLocale;
     state.i18n = createI18n(nextLocale);
     await loadLocaleData(nextLocale);
+    state.index = buildSearchIndex(state.catalog, state.refs.groups, {
+      races: state.refs.races, factions: state.refs.factions, locale: state.locale,
+    });
     try {
       localStorage.setItem('fitdle:v1:lang', nextLocale);
     } catch {

@@ -93,10 +93,12 @@ instructions live in [README.md](README.md).
   list in the seed, or earlier reveals could change between refreshes.
 - Equipment parsing keys by `module type + slot`; a battery fitted in mid and also
   carried in cargo must render as two lines with their own quantities.
-- Fighter-bay flags 155/158..161 only count as fighter for category 87; modules,
-  charges and fuel stored there become cargo. Flag 133 (fuel bay) is cargo.
-- Fighters (category 87) have weight 10; Excavator/capital mining drones
-  at least 9.5 because they strongly narrow the hull to capital carriers/Rorqual.
+- Fighter tubes (158..161) are `fighter`; flag 155 is `fighterBay` and flag 133 is
+  `fuelBay`, both exposed as their own localized equipment sections.
+- Fighters are `limited` and weigh 10.5 (heavy 11); Excavator/Pluto/special
+  mining drones are `unique` and weigh 11. Everything in fighter/fuel bays weighs
+  at least 11.
+- Rigs weigh at least 8.5; large/capital rigs reach 10.
 - Equipment size adds weight: Capital/XL +7, Large +2.2, Medium +0.8.
 - Ammo inherits the strongest real weapon restriction for weight, but never
   displays a limited/unique/officer/abyssal marker. Weapon detection uses SDE
