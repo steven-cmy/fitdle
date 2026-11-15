@@ -37,6 +37,7 @@ build:
       - .cache/normalized.json
       - .cache/killpool.json
       - .cache/sde-meta.json
+      - .cache/ship-weights.json
   script:
     - |
       if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/normalized.json ]; then
@@ -46,6 +47,10 @@ build:
       if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/killpool.json ]; then
         npm run build
         npm run build:killpool
+      fi
+    - |
+      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/ship-weights.json ]; then
+        npm run build:weights -- --refresh
       fi
     - npm run build
     - npm test

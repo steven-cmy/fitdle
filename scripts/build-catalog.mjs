@@ -154,6 +154,35 @@ const abyssAnswerPool = catalog
   .flatMap((ship) => Array.from({ length: abyssWeight(ship) }, () => ship.id))
   .sort((a, b) => a - b);
 
+const weightsFile = path.join(ROOT, '.cache', 'ship-weights.json');
+const shipWeightsData = fs.existsSync(weightsFile)
+  ? JSON.parse(fs.readFileSync(weightsFile, 'utf8'))
+  : {};
+const shipWeights = shipWeightsData.usage || {};
+const usageOf = (id) => Math.max(0, Number(shipWeights[String(id)]?.recent || 0));
+const allUsageOf = (id) => Math.max(0, Number(shipWeights[String(id)]?.all || 0));
+const maxUsage = Math.max(1, ...catalog.map((ship) => usageOf(ship.id)));
+const logMax = Math.log1p(maxUsage);
+const usageScore = (ship) => (logMax ? Math.log1p(usageOf(ship.id)) / logMax : 0);
+const eligibleShips = catalog.filter((ship) => {
+  const usage = shipWeights[String(ship.id)];
+  // A ship with no recorded zKill loss has no KB, so it cannot be a puzzle target.
+  return !usage || Number(usage.all) > 0;
+});
+const killShipPool = eligibleShips.map((ship) => ship.id).sort((a, b) => a - b);
+const normalShipPool = eligibleShips
+  .flatMap((ship) => {
+    const weight = 1 + 2.2 * usageScore(ship);
+    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
+  })
+  .sort((a, b) => a - b);
+const abyssKillShipPool = eligibleShips
+  .flatMap((ship) => {
+    const weight = 1 + 1.8 * (1 - usageScore(ship));
+    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
+  })
+  .sort((a, b) => a - b);
+
 const killPoolPath = [
   path.join(ROOT, '.cache', 'killpool.json'),
   path.join(ROOT, 'data', 'killpool.json'),
@@ -173,13 +202,7 @@ const abyssKillPool = killPool
     () => entry.killmail_id,
   ))
   .sort((a, b) => a - b);
-const killShipPool = [...new Set(killPool.map((entry) => entry.ship_id))].sort((a, b) => a - b);
-const abyssKillShipPool = killShipPool
-  .flatMap((shipID) => Array.from(
-    { length: abyssWeight(shipByID.get(shipID)) },
-    () => shipID,
-  ))
-  .sort((a, b) => a - b);
+
 const killPoolsByShip = {};
 for (const entry of killPool) {
   if (!killPoolsByShip[entry.ship_id]) killPoolsByShip[entry.ship_id] = [];
@@ -252,7 +275,8 @@ const moduleFallbacks = {};
 }
 
 const RULESET_VERSION = 'v8';
-const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}`;
+const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
+const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
 
 const manifest = {
@@ -289,8 +313,15 @@ const manifest = {
   killPool,
   abyssKillPool,
   killShipPool,
+  normalShipPool,
   abyssKillShipPool,
   killPoolsByShip,
+  shipWeights: {
+    source: 'zKillboard recent ship losses (90-day window)',
+    generatedAt: shipWeightsData.generatedAt || null,
+    eligible: eligibleShips.length,
+    excludedNoKb: catalog.length - eligibleShips.length,
+  },
   killPoolGeneratedAt: killPoolSource.generatedAt || null,
   moduleFallbacks,
   downtimeUtcHour: 11,

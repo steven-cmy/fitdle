@@ -182,9 +182,11 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   assert.ok(manifest.abyssKillPool.length >= manifest.killPool.length);
   for (const entry of manifest.killPool) assert.ok(catalog.some((ship) => ship.id === entry.ship_id));
   assert.ok(new Set(manifest.killPool.map((entry) => entry.ship_id)).size < manifest.killPool.length);
-  assert.equal(manifest.killShipPool.length, new Set(manifest.killPool.map((entry) => entry.ship_id)).size);
+  assert.equal(manifest.killShipPool.length, new Set(manifest.killShipPool).size);
+  assert.ok(manifest.killShipPool.length >= new Set(manifest.killPool.map((entry) => entry.ship_id)).size);
+  assert.ok(manifest.normalShipPool.length >= manifest.killShipPool.length);
   assert.ok(manifest.abyssKillShipPool.length >= manifest.killShipPool.length);
-  for (const shipId of manifest.killShipPool) assert.ok(manifest.killPoolsByShip[shipId]?.length);
+  for (const shipId of manifest.killShipPool) assert.ok(catalog.some((ship) => ship.id === shipId));
   assert.equal(manifest.counts.modules, Object.keys(refs.modules).length);
   assert.ok(manifest.images.baseUrl);
   assert.ok(manifest.zkillboard.baseUrl);

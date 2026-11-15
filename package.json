@@ -7,6 +7,7 @@
   "scripts": {
     "build": "node scripts/build-catalog.mjs && node scripts/build-dist.mjs",
     "build:killpool": "node scripts/build-killpool.mjs",
+    "build:weights": "node scripts/build-ship-weights.mjs",
     "build:catalog": "node scripts/build-catalog.mjs",
     "build:dist": "node scripts/build-dist.mjs",
     "prepare:sde": "node scripts/prepare-sde.mjs",

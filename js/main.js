@@ -410,7 +410,7 @@ function monthBefore(dateKey, monthsBack) {
 async function resolveRuntimeKill(shipId, dateKey) {
   // Use a completed calendar month as the shared, immutable window. A rolling
   // "recent" list would differ depending on when each player opened the page.
-  for (let offset = 1; offset <= 6; offset++) {
+  for (let offset = 1; offset <= 60; offset++) {
     const month = monthBefore(dateKey, offset);
     if (!month) return null;
     try {
@@ -2038,21 +2038,13 @@ async function boot() {
     } else {
       const killShipPool = state.mode === 'abyss'
         ? (manifest.abyssKillShipPool || manifest.killShipPool)
-        : manifest.killShipPool;
+        : (manifest.normalShipPool || manifest.killShipPool);
       const targetShipId = pickDailyAnswer(killShipPool, state.date, manifest.dataVersion);
       const shipKills = manifest.killPoolsByShip?.[targetShipId] || [];
       const targetKillId = pickDailyAnswer(shipKills, `${state.date}:kb`, manifest.dataVersion);
       const targetKill = (manifest.killPool || []).find((entry) => Number(entry.killmail_id) === Number(targetKillId));
-      if (targetKill) {
-        state.answerId = Number(targetKill.ship_id);
-        state.answerKillId = Number(targetKill.killmail_id);
-      } else {
-        const answerPool = state.mode === 'abyss'
-          ? (manifest.abyssAnswerPool || manifest.answerPool)
-          : manifest.answerPool;
-        state.answerId = pickDailyAnswer(answerPool, state.date, manifest.dataVersion);
-        state.answerKillId = null;
-      }
+      state.answerId = Number(targetShipId);
+      state.answerKillId = targetKill ? Number(targetKill.killmail_id) : null;
       if (!state.answerId || !state.catalogMap.has(state.answerId)) throw new Error('daily target unavailable');
       state.answerShip = state.catalogMap.get(state.answerId);
       const runtimeKill = await resolveRuntimeKill(state.answerId, state.date);

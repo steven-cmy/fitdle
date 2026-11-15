@@ -27,11 +27,12 @@ npm start
 
 ```bash
 # 首次构建需要准备 SDE
-npm run build:killpool   # 刷新船型资格池/离线回退池
+npm run build:weights    # 刷新 430 船型的 zKill 使用频率权重
+npm run build:killpool   # 刷新离线 KB 回退池
 npm run build            # 生成 dist/
 ```
 
-`build:killpool` 需要网络；已有的 `.cache/killpool.json` 可离线复用。
+`build:weights` 通过 zKill 船型统计生成使用频率；已有 `.cache/ship-weights.json` 可离线复用。`build:killpool` 只用于静态 KB 回退池。
 
 ### URL 参数
 
@@ -64,11 +65,13 @@ npm run build            # 生成 dist/
 ## 玩法
 
 - 每天一张具体 killmail，在 **EVE downtime（11:00 UTC）** 切换。
-- 选题顺序：先选船型，再在运行时查该船型最近完整自然月的 KB。
-  - `killShipPool` 只负责资格船型；
-  - KB 主路径：`/api/losses/shipTypeID/{id}/year/{Y}/month/{M}/`；
-  - 使用档案日期的上一个完整 UTC 月，列表固定，所有玩家一致；
-  - 最多向前回溯 6 个月；
+- 选题顺序：先按 zKill 使用频率选船型，再在运行时查该船型的近期 KB。
+  - 资格池覆盖 430 艘 SDE 船型；9 艘从未有 zKill 损失的纪念/特殊船无法生成 KB，实际池 421 艘。
+  - 标准模式权重略偏向高使用率船型；深渊模式略偏向低使用率船型。
+  - 权重只影响轻度倾向，最高/最低权重差不超过约 3 倍。
+  - `killShipPool` 为唯一资格船型；`normalShipPool` / `abyssKillShipPool` 为加权抽取池。
+  - KB 主路径：`/api/losses/shipTypeID/{id}/year/{Y}/month/{M}/`。
+  - 使用档案日期的上一个完整 UTC 月，列表固定，所有玩家一致；向前回溯最多 60 个月。
   - 静态 `killPoolsByShip` 仅在 zKill 不可用或查询为空时作离线回退。
 - 6 次尝试，每次回答被害船名。
 - 初始线索不固定数量：
@@ -255,9 +258,11 @@ npm test
 
 ## 已知限制
 
-- KB 主路径是 zKill 的固定自然月查询，不预编译每日目标；静态池只保留 164 张回退 KB / 75 个船型。
+- KB 主路径是 zKill 的固定自然月查询，不预编译每日目标；静态池只保留 164 张回退 KB。
+- 资格池为 430 艘 SDE 船型减去 9 艘从未有 zKill 损失的船，共 421 艘。
+- 使用频率来自 zKill `rankings.recent.all.metrics.shipsLost`，通过 `npm run build:weights` 刷新。
 - 只读取目标月第 1 页（最多 200 条），列表固定且所有玩家一致；不会翻页扩大范围。
-- 船型资格池仍由 `npm run build:killpool` 刷新；只有运行该命令并重新构建时才会改变 `dataVersion` 和重置进度。
+- 刷新 usage 权重或 KB 回退池会改变 `dataVersion`，导致当前未完成进度失效。
 - dogma-engine 无法从 killmail 还原角色技能和 Abyssal mutation，因此按全 V 技能、装备全开与 SDE/模块基础属性模拟；与当时的实际飞行状态可能有差异。
 - 货仓中的非模块类型在运行时通过 ESI 补名称，第一次加载可能多几个请求。
 - zKillboard API 可能限流；失败时降级为 SDE-only 线索。
