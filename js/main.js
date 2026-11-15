@@ -1730,6 +1730,7 @@ function renderDebrief() {
           <div class="debrief-visual-caption">
             <span>${esc(t('dossier.answer'))}</span>
             <strong>${zkillShipLink(displayName(ship), ship.id)}</strong>
+            <div class="debrief-victim" data-victim-slot>${victimMetaHtml()}</div>
           </div>
         </div>
         <div class="debrief-main">
@@ -1744,7 +1745,6 @@ function renderDebrief() {
               <span>${esc(t('dossier.answer'))}</span>
               <strong>${zkillShipLink(displayName(ship), state.answerId)}</strong>
             </div>
-            <div class="debrief-victim" data-victim-slot>${victimMetaHtml()}</div>
           </div>
 
           <div class="debrief-stats">

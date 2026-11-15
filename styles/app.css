@@ -2730,9 +2730,11 @@ html[data-game-mode="abyss"] {
   color: var(--amber);
 }
 .debrief-victim {
-  flex: 1 1 100%;
-  margin-top: 2px;
-  margin-left: auto;
+  position: absolute;
+  right: 30px;
+  bottom: 30px;
+  max-width: 58%;
+  margin: 0;
 }
 .debrief-answer .debrief-victim .victim-lines span {
   display: inline-flex;
@@ -3751,6 +3753,11 @@ html[data-game-mode="abyss"] {
   }
   .debrief-visual-caption {
     padding: 20px 24px 22px;
+  }
+  .debrief-victim {
+    right: 24px;
+    bottom: 22px;
+    max-width: 62%;
   }
   .debrief-main {
     padding: 28px 24px 24px;
