@@ -34,7 +34,7 @@ for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share
 // metadata. Humans are redirected into the puzzle; crawlers never see the
 // answer or target hull in the preview.
 const SITE_URL = (process.env.SITE_URL || process.env.CI_PAGES_URL || 'http://127.0.0.1:4173').replace(/\/$/, '');
-const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png`;
+const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png?v=2`;
 const OG_LOCALES = {
   en: 'en_US', de: 'de_DE', es: 'es_ES', fr: 'fr_FR',
   ja: 'ja_JP', ko: 'ko_KR', ru: 'ru_RU', zh: 'zh_CN',
