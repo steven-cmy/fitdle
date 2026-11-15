@@ -168,7 +168,8 @@ const PLEX_TYPES = new Set([29668, 44992]);
  */
 export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
   const metaLevelOf = (module) => {
-    const level = Number(module?.metaLevel);
+    if (module?.metaLevel == null) return null;
+    const level = Number(module.metaLevel);
     return Number.isFinite(level) && level >= 0 ? level : null;
   };
   const slotMeta = new Map();
