@@ -207,9 +207,9 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   for (const shipId of manifest.killShipPool) assert.ok(catalog.some((ship) => ship.id === shipId));
   assert.equal(manifest.counts.modules, Object.keys(refs.modules).length);
   assert.ok(refs.modules[3186]?.chargeGroups?.includes(377));
-  const abyssFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => entry && typeof entry === 'object');
+  const abyssFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => Array.isArray(entry));
   assert.ok(abyssFallback);
-  assert.ok(abyssFallback.faction || abyssFallback.t2 || abyssFallback.t1);
+  assert.ok(abyssFallback.length > 0);
   for (const [abyssId, entry] of Object.entries(manifest.moduleFallbacks || {})) {
     const source = refs.modules[abyssId];
     if (!source) continue;
@@ -628,7 +628,7 @@ test('abyss fallback picks the nearest meta of the same module variant', () => {
   const repair = repairFallbacks.get(47777);
   assert.ok(repair);
   assert.equal(refs.modules[repair].groupID, 62);
-  assert.equal(Number(refs.modules[repair].metaLevel), 11);
+  assert.equal(Number(refs.modules[repair].metaLevel), 16);
   assert.notEqual(repair, 19035);
 });
 

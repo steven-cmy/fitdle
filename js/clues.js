@@ -190,18 +190,19 @@ export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
     let best = null;
     let bestDistance = Infinity;
     let bestLevel = -1;
-    if (typeof entry === 'string') {
-      best = entry;
-    } else {
-      for (const representative of Object.values(entry)) {
-        const level = metaLevelOf(refs.modules?.[representative]);
-        if (level == null) continue;
-        const distance = Math.abs(level - targetLevel);
-        if (distance < bestDistance || (distance === bestDistance && level > bestLevel)) {
-          best = representative;
-          bestDistance = distance;
-          bestLevel = level;
-        }
+    const candidates = Array.isArray(entry)
+      ? entry
+      : typeof entry === 'string'
+        ? [entry]
+        : Object.values(entry || {});
+    for (const representative of candidates) {
+      const level = metaLevelOf(refs.modules?.[representative]);
+      if (level == null) continue;
+      const distance = Math.abs(level - targetLevel);
+      if (distance < bestDistance || (distance === bestDistance && level > bestLevel)) {
+        best = representative;
+        bestDistance = distance;
+        bestLevel = level;
       }
     }
     if (best && Number(refs.modules?.[best]?.groupID) === Number(sourceGroup)) result.set(item.module, best);
