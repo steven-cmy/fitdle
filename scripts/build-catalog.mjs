@@ -292,17 +292,16 @@ const moduleFallbacks = {};
     const key = `${module.groupID}|${moduleSizeKey(module.names?.en || '')}`;
     const bucket = buckets.get(key);
     if (!bucket) continue;
-    const candidates = [];
+    const entry = {};
     for (const tier of tiers) {
-      for (const representative of bucket[tier]) {
-        if (representative !== module.id && !candidates.includes(representative)) candidates.push(representative);
-      }
+      const candidates = bucket[tier].filter((representative) => representative !== module.id);
+      if (candidates.length) entry[tier] = candidates;
     }
-    if (candidates.length) moduleFallbacks[module.id] = candidates;
+    if (Object.keys(entry).length) moduleFallbacks[module.id] = entry;
   }
 }
 
-const RULESET_VERSION = 'v18';
+const RULESET_VERSION = 'v19';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
 const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);

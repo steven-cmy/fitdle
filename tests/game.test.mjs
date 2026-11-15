@@ -207,14 +207,16 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   for (const shipId of manifest.killShipPool) assert.ok(catalog.some((ship) => ship.id === shipId));
   assert.equal(manifest.counts.modules, Object.keys(refs.modules).length);
   assert.ok(refs.modules[3186]?.chargeGroups?.includes(377));
-  const abyssFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => Array.isArray(entry));
+  const abyssFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => entry && typeof entry === 'object');
   assert.ok(abyssFallback);
-  assert.ok(abyssFallback.length > 0);
+  assert.ok(Object.values(abyssFallback).some((candidates) => Array.isArray(candidates) && candidates.length));
   for (const [abyssId, entry] of Object.entries(manifest.moduleFallbacks || {})) {
     const source = refs.modules[abyssId];
     if (!source) continue;
-    for (const representative of Object.values(entry)) {
-      assert.equal(refs.modules[representative]?.groupID, source.groupID, `${abyssId} borrowed ${representative}`);
+    for (const candidates of Object.values(entry)) {
+      for (const representative of Array.isArray(candidates) ? candidates : [candidates]) {
+        assert.equal(refs.modules[representative]?.groupID, source.groupID, `${abyssId} borrowed ${representative}`);
+      }
     }
   }
   assert.ok(manifest.images.baseUrl);
@@ -630,6 +632,12 @@ test('abyss fallback picks the nearest meta of the same module variant', () => {
   assert.equal(refs.modules[repair].groupID, 62);
   assert.equal(Number(refs.modules[repair].metaLevel), 16);
   assert.notEqual(repair, 19035);
+
+  const entropicFallbacks = selectAbyssFallbacks([
+    { module: 49734, slot: 'low' },
+    { module: 18973, slot: 'low' },
+  ], refs, manifest.moduleFallbacks);
+  assert.equal(entropicFallbacks.get(49734), 52244);
 });
 
 test('abyss weights start from base stats and drop when fitted values change', () => {

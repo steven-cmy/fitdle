@@ -102,12 +102,16 @@ instructions live in [README.md](README.md).
   abyssal (meta 15), and cargo-only PLEX easter egg. Each marker has a localized
   `title`/`aria-label` hint.
 - Abyss fallback is always a same-group/same-size representative of the abyssal
-  module itself. It picks the variant whose **meta level** (attribute 633) is
-  closest to the highest meta level in the same slot (default faction/8 when
-  none). Example: X-Type armor hardener meta 16 in low → X-Type armor repairer
-  meta 16, not C-Type meta 10. The manifest stores all same-group candidates, not
-  only the first representative per bucket. It must never substitute an unrelated
-  module line (e.g. armor repairer into ballistic).
+  module itself. It first picks the highest **meta group** present in the same
+  slot, then the candidate with the closest **meta level** (attribute 633).
+  - Slot deadspace (6): deadspace candidates first, then faction → T2 → highMeta → T1.
+  - Slot officer (5): officer candidates first, then faction → T2 → highMeta → T1.
+  - No candidate at the selected tier: continue down that order.
+  - Example: X-Type armor hardener meta 16 in low → X-Type repairer meta 16.
+  - Example: Entropic Radiation Sink has no deadspace variant → faction Veles
+    (meta 8), not officer Zorya.
+  - The manifest stores all same-group candidates per tier, not only one.
+  - It must never substitute an unrelated module line (e.g. armor repairer into ballistic).
 - Before `calculateDogmaFit`, abyssal fit items are cloned and their type IDs are
   replaced by those tier representatives (cargo untouched). The UI/equipment
   clues keep the original abyssal IDs; only the attribute calculation is substituted.

@@ -172,38 +172,59 @@ export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
     const level = Number(module.metaLevel);
     return Number.isFinite(level) && level >= 0 ? level : null;
   };
+  const groupOf = (module) => {
+    const group = Number(module?.metaGroupID);
+    return group >= 1 && group <= 6 ? group : null;
+  };
   const slotMeta = new Map();
+  const slotLevel = new Map();
   for (const item of equipment) {
     if (item.slot === 'cargo') continue;
-    const level = metaLevelOf(refs.modules?.[item.module]);
-    if (level == null) continue;
-    if (!slotMeta.has(item.slot) || level > slotMeta.get(item.slot)) slotMeta.set(item.slot, level);
+    const module = refs.modules?.[item.module];
+    const group = groupOf(module);
+    const level = metaLevelOf(module);
+    if (group && (!slotMeta.has(item.slot) || group > slotMeta.get(item.slot))) slotMeta.set(item.slot, group);
+    if (level != null && (!slotLevel.has(item.slot) || level > slotLevel.get(item.slot))) slotLevel.set(item.slot, level);
   }
   const result = new Map();
   for (const item of equipment) {
     if (item.slot === 'cargo') continue;
     const entry = moduleFallbacks[item.module];
     if (!entry) continue;
-    // Highest meta level in the slot; faction (8) is the neutral default.
-    const targetLevel = slotMeta.get(item.slot) ?? 8;
+    const targetGroup = slotMeta.get(item.slot) ?? 4;
+    const targetLevel = slotLevel.get(item.slot) ?? 8;
     const sourceGroup = refs.modules?.[item.module]?.groupID;
+    const tierOrder = targetGroup === 6
+      ? ['deadspace', 'faction', 't2', 'highMeta', 't1']
+      : targetGroup === 5
+        ? ['officer', 'faction', 't2', 'highMeta', 't1']
+        : targetGroup === 4
+          ? ['faction', 't2', 'highMeta', 't1']
+          : targetGroup === 2
+            ? ['t2', 'highMeta', 'faction', 't1']
+            : targetGroup === 3
+              ? ['highMeta', 't2', 'faction', 't1']
+              : ['t1', 't2', 'highMeta', 'faction'];
     let best = null;
     let bestDistance = Infinity;
     let bestLevel = -1;
-    const candidates = Array.isArray(entry)
-      ? entry
-      : typeof entry === 'string'
-        ? [entry]
-        : Object.values(entry || {});
-    for (const representative of candidates) {
-      const level = metaLevelOf(refs.modules?.[representative]);
-      if (level == null) continue;
-      const distance = Math.abs(level - targetLevel);
-      if (distance < bestDistance || (distance === bestDistance && level > bestLevel)) {
-        best = representative;
-        bestDistance = distance;
-        bestLevel = level;
+    for (const tier of tierOrder) {
+      const candidates = Array.isArray(entry[tier])
+        ? entry[tier]
+        : entry[tier]
+          ? [entry[tier]]
+          : [];
+      for (const representative of candidates) {
+        const level = metaLevelOf(refs.modules?.[representative]);
+        if (level == null) continue;
+        const distance = Math.abs(level - targetLevel);
+        if (distance < bestDistance || (distance === bestDistance && level > bestLevel)) {
+          best = representative;
+          bestDistance = distance;
+          bestLevel = level;
+        }
       }
+      if (best) break;
     }
     if (best && Number(refs.modules?.[best]?.groupID) === Number(sourceGroup)) result.set(item.module, best);
   }
