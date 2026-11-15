@@ -44,8 +44,11 @@ build:
         npm run prepare:sde -- --refresh
       fi
     - |
-      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/killpool.json ]; then
+      if [ ! -f data/catalog.json ]; then
         npm run build
+      fi
+    - |
+      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/killpool.json ]; then
         npm run build:killpool
       fi
     - |
