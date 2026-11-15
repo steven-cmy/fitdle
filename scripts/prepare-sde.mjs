@@ -391,8 +391,12 @@ async function main() {
   const usedFactionIDs = new Set(shipPayload.map((s) => s.factionID).filter(Boolean));
   const usedMetaGroupIDs = new Set(shipPayload.map((s) => s.metaGroupID).filter(Boolean));
 
+  const sourceMeta = archiveMeta || (fs.existsSync(META) ? JSON.parse(await fsp.readFile(META, 'utf8')) : {});
+  const sourceStamp = sourceMeta.etag || sourceMeta.lastModified || null;
   const payload = {
-    generatedAt: new Date().toISOString(),
+    // Stable source stamp, not the moment this script happened to run.
+    generatedAt: sourceStamp || new Date().toISOString(),
+    sourceEtag: sourceMeta.etag || null,
     locales: LOCALES,
     ships: shipPayload,
     moduleTypes,

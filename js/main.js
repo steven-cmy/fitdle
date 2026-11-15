@@ -877,22 +877,47 @@ function stopRadarMosaic() {
 function startRadarMosaic() {
   stopRadarMosaic();
   if (state.status !== 'playing') return;
-  const image = document.querySelector('.radar-visual-image');
-  if (!image || !state.answerId) return;
-  // The target render is shown as a coarse, drifting mosaic before the kill;
-  // the resolved radar swaps in the clean 512px render behind the rings.
-  // 32px is the smallest valid EVE render size; CSS keeps it pixelated.
-  image.src = renderPath(state.answerId).replace('size=512', 'size=32');
-  let step = 0;
-  const paint = () => {
-    step++;
-    const x = 18 + ((step * 17) % 54);
-    const y = 20 + ((step * 29) % 50);
-    image.style.objectPosition = `${x}% ${y}%`;
-    image.style.transform = `scale(${1.08 + (step % 3) * 0.04}) translate(${(step % 5) - 2}%, ${((step * 3) % 5) - 2}%)`;
+  const stage = document.querySelector('.radar-visual');
+  if (!stage || !state.answerId) return;
+
+  // Never put the answer render in the pre-reveal DOM. Cycle five unrelated
+  // hulls with cosmetic random crops/drift; only the resolved radar swaps in
+  // the real 512px target render.
+  stage.innerHTML = '';
+  const pool = state.catalog.filter((ship) => Number(ship.id) !== Number(state.answerId));
+  const frames = [];
+  for (let i = 0; i < 5 && pool.length; i++) {
+    const pick = Math.floor(Math.random() * pool.length);
+    const ship = pool.splice(pick, 1)[0];
+    const img = document.createElement('img');
+    img.className = 'radar-visual-image radar-frame';
+    img.alt = '';
+    img.draggable = false;
+    img.src = renderPath(ship.id).replace('size=512', 'size=32');
+    img.onerror = () => img.classList.add('is-missing');
+    stage.appendChild(img);
+    frames.push(img);
+  }
+  if (!frames.length) return;
+  let active = 0;
+  frames[0].classList.add('is-active');
+  const move = (frame) => {
+    frame.style.objectPosition = `${Math.floor(Math.random() * 80) + 10}% ${Math.floor(Math.random() * 80) + 10}%`;
+    frame.style.transform = `scale(${1.1 + Math.random() * 0.25}) translate(${(Math.random() - 0.5) * 5}%, ${(Math.random() - 0.5) * 5}%)`;
   };
-  paint();
-  state.radarMosaicTimer = setInterval(paint, 2400);
+  const cycle = () => {
+    active = (active + 1) % frames.length;
+    for (let i = 0; i < frames.length; i++) frames[i].classList.toggle('is-active', i === active);
+    move(frames[active]);
+  };
+  move(frames[0]);
+  // Swap roughly every 3 seconds; keep moving/cropping the visible hull.
+  let ticks = 0;
+  state.radarMosaicTimer = setInterval(() => {
+    ticks++;
+    if (ticks % 4 === 0) cycle();
+    else move(frames[active]);
+  }, 750);
 }
 
 function attemptIcon(ship) {
