@@ -21,9 +21,6 @@ if (!fs.existsSync(path.join(DATA, 'catalog.json'))) {
 await fsp.rm(DIST, { recursive: true, force: true });
 await fsp.mkdir(DIST, { recursive: true });
 
-for (const file of ['index.html']) {
-  await fsp.copyFile(path.join(ROOT, file), path.join(DIST, file));
-}
 for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share', 'data', 'vendor/dogma-engine']) {
   const source = path.join(ROOT, dir);
   if (!fs.existsSync(source)) continue;
@@ -52,6 +49,11 @@ const SITE_URL = (
   || localSiteUrl()
   || 'http://127.0.0.1:4173'
 ).replace(/\/$/, '');
+
+const indexHtml = (await fsp.readFile(path.join(ROOT, 'index.html'), 'utf8'))
+  .replaceAll('__SITE_URL__', SITE_URL);
+await fsp.writeFile(path.join(DIST, 'index.html'), indexHtml);
+
 const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png?v=2`;
 const OG_LOCALES = {
   en: 'en_US', de: 'de_DE', es: 'es_ES', fr: 'fr_FR',
