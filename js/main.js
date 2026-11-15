@@ -266,11 +266,11 @@ function zkillItemLink(text, id) {
   return `<a class="zkb-item-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
 }
 
-function zkillGroupLink(groupID) {
+function zkillGroupTextLink(text, groupID) {
   const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
   const id = Number(groupID);
-  if (!base || !id) return '';
-  return `<a class="zkb-group-link" href="${esc(`${base}/group/${id}/`)}" target="_blank" rel="noopener noreferrer" title="zKill group" aria-label="zKill group">${icon('layers')}</a>`;
+  if (!base || !id) return esc(text);
+  return `<a class="zkb-item-link" href="${esc(`${base}/group/${id}/`)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
 }
 
 function groupName(ship) {
@@ -810,7 +810,6 @@ function renderShell() {
           <div class="dossier-body">
             <div id="answer-banner"></div>
             <div class="dossier-groups" id="dossier-groups"></div>
-            <div class="dossier-source" id="dossier-source"></div>
           </div>
         </section>
       </div>
@@ -1123,7 +1122,7 @@ function clueValue(clue) {
     case 'faction':
       return `<span class="big">${esc(state.refs.factions[value] || state.refs.races[value] || '—')}</span>`;
     case 'group':
-      return `<span class="big">${esc(state.refs.groups[value] || '—')}</span>`;
+      return `<span class="big">${zkillGroupTextLink(state.refs.groups[value] || '—', value)}</span>`;
     case 'meta':
       return `<span class="big">${esc(state.refs.metaGroups[value] || '—')}</span>`;
     case 'tech':
@@ -1222,7 +1221,7 @@ function renderModuleLine(clue) {
   return `<span class="module-line">
     ${moduleThumb(clue.v.module, clue.v.slot)}
     <span class="module-line-body">
-      <span class="module-line-name">${zkillItemLink(name, clue.v.module)}${zkillGroupLink(module?.groupID)}</span>
+      <span class="module-line-name">${zkillItemLink(name, clue.v.module)}</span>
       ${tags.map((tag) => moduleBadge(tag, clue)).join('')}
     </span>
     <span class="module-count">×${int(clue.v.count)}</span>
@@ -1276,7 +1275,7 @@ function renderDossier() {
       answerBanner.innerHTML = `<div class="answer-banner" data-status="${state.status}">
         <div>
           <span>${esc(t('dossier.answer'))}</span>
-          <strong>${zkillItemLink(displayName(state.answerShip), state.answerId)}${zkillGroupLink(state.answerShip?.groupID)}</strong>
+          <strong>${zkillItemLink(displayName(state.answerShip), state.answerId)}</strong>
         </div>
         <button type="button" class="link-button" data-action="debrief">${icon('external')} ${esc(t('end.review'))}</button>
       </div>`;
@@ -1377,12 +1376,6 @@ function renderDossier() {
         </div>
       </section>`;
     }).join('');
-  }
-
-  const source = $('#dossier-source');
-  if (source) {
-    const fitted = state.answerData.fitting?.fittedKills || 0;
-    source.innerHTML = fitted ? `<span>${esc(t('dossier.basedOn', { n: int(fitted) }))}</span><span>zKillboard</span>` : '';
   }
 
   if (state.fresh.size) {
