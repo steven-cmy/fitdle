@@ -452,8 +452,8 @@ test('fighter bays separate real fighters from carried modules', () => {
   const equipment = getEquipment(losses, refs).equipment;
   assert.equal(equipment.find((item) => item.module === 40570)?.slot, 'fighterBay');
   assert.equal(equipment.find((item) => item.module === 23061)?.slot, 'fighter');
-  assert.equal(equipment.find((item) => item.module === 1952)?.slot, 'fighterBay');
-  assert.equal(equipment.find((item) => item.module === 41490)?.slot, 'fighterBay');
+  assert.equal(equipment.find((item) => item.module === 1952)?.slot, 'cargo');
+  assert.equal(equipment.find((item) => item.module === 41490)?.slot, 'cargo');
   assert.equal(equipment.find((item) => item.module === 17887)?.slot, 'fuelBay');
   assert.equal(equipment.find((item) => item.module === 41030)?.slot, 'drone');
 
@@ -465,8 +465,26 @@ test('fighter bays separate real fighters from carried modules', () => {
   const excavator = built.clues.find((clue) => clue.v?.module === 41030);
   assert.equal(fighter.tag, 'limited');
   assert.equal(excavator.tag, 'unique');
-  assert.ok(fighter.w >= 11);
-  assert.ok(excavator.w >= 11);
+  assert.ok(fighter.w >= 10);
+  assert.ok(excavator.w >= 10);
+  const fitted = buildClues({
+    ship, catalog, refs, stats: null,
+    losses: [{
+      killmail_id: 139037509,
+      zkb: { totalValue: 1000 },
+      victim: { items: [
+        { flag: 22, item_type_id: 90475, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 22, item_type_id: 43552, quantity_destroyed: 1, quantity_dropped: 0 },
+      ] },
+    }],
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion,
+  });
+  const sensor = fitted.clues.find((clue) => clue.v?.module === 90475);
+  const command = fitted.clues.find((clue) => clue.v?.module === 43552);
+  assert.ok(sensor.w > command.w, `${sensor.w} should exceed ${command.w}`);
+  for (const clue of fitted.clues.filter((entry) => entry.k === 'equipment')) {
+    assert.ok(clue.w <= 10);
+  }
 });
 
 test('same type fitted and in cargo is exposed as separate lines', () => {

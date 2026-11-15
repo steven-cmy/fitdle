@@ -231,6 +231,19 @@ export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
   return result;
 }
 
+function restrictionBreadth(module, catalog) {
+  const restrictions = module?.fitRestrictions;
+  if (!restrictions) return 0;
+  const groups = new Set((restrictions.shipGroups || []).map(Number).filter(Boolean));
+  const types = new Set((restrictions.shipTypes || []).map(Number).filter(Boolean));
+  if (!groups.size && !types.size) return 0;
+  let count = 0;
+  for (const ship of catalog || []) {
+    if (types.has(Number(ship.id)) || groups.has(Number(ship.groupID))) count += 1;
+  }
+  return count || groups.size + types.size;
+}
+
 function equipmentRestriction(module) {
   // Micro Jump Drives fit several ship classes: limited, not unique.
   if (MICRO_JUMP_GROUPS.has(module?.groupID) || /micro jump drive/i.test(module?.name || '')) return 'limited';
@@ -272,10 +285,14 @@ function parseFittings(losses, refs = null) {
   const sample = list[0];
   const sampleModules = new Map();
   for (const item of sample?.victim?.items || []) {
-    const slot = FITTED_FLAGS.get(Number(item.flag));
+    let slot = FITTED_FLAGS.get(Number(item.flag));
     if (!slot) continue;
     const moduleID = Number(item.item_type_id);
     if (!Number.isFinite(moduleID)) continue;
+    // Only real fighters occupy the fighter bay/tubes. Spare modules, charges
+    // and scripts at these flags are ordinary cargo, not fighter equipment.
+    if ((slot === 'fighterBay' || slot === 'fighter')
+      && Number(refs?.modules?.[moduleID]?.categoryID) !== 87) slot = 'cargo';
     // Keep the same type separate when it appears both fitted and in cargo.
     const key = `${moduleID}:${slot}`;
     if (!sampleModules.has(key)) sampleModules.set(key, { module: moduleID, slot, qty: 0 });
@@ -538,24 +555,25 @@ export function buildClues({
       weight -= Math.min(common ? 0.4 : 1.2, item.rate * (common ? 0.4 : 1.2));
       weight = clamp(weight, 1, 7.8);
     } else if (restriction === 'limited') {
-      weight = clamp(weight + moduleSizeRank(module?.name), 7.5, 9.6);
+      const breadth = restrictionBreadth(module, catalog);
+      const scarcity = 1 - Math.log2(1 + breadth) / Math.log2(1 + Math.max(1, catalog.length));
+      weight = clamp(8.2 + 1.6 * scarcity + moduleSizeRank(module?.name) * 0.2, 8.2, 9.8);
     }
     // Rigs narrow the hull class strongly; capital/XL rigs are near-unique.
     if (item.slot === 'rig') {
       weight = Math.max(weight, 8.5 + Math.min(1.5, moduleSizeRank(module?.name)));
     }
-    // Fighter and fuel bays exist only on capital hulls. Everything stored in
-    // them is a very strong clue, including spare modules and jump fuel.
-    if (item.slot === 'fighterBay' || item.slot === 'fuelBay') weight = Math.max(weight, 11);
-    if (isFighter) weight = Math.max(weight, module?.groupID === 1653 ? 11 : 10.5);
-    if (isMiningSpecial) weight = Math.max(weight, 11);
+    // Jump fuel only exists on capital hulls; actual fighters are handled below.
+    if (item.slot === 'fuelBay') weight = Math.max(weight, 10);
+    if (isFighter) weight = Math.max(weight, module?.groupID === 1653 ? 10.8 : 10.4);
+    if (isMiningSpecial) weight = Math.max(weight, 10.8);
     if (mode === 'abyss' && restriction === 'unique') weight = Math.max(weight, 10);
     if (mode === 'abyss' && restriction === 'limited') weight = Math.max(weight, 8.8);
     const clue = {
       k: 'equipment',
       c: 'equipment',
       v: { module: item.module, count: item.count, slot: item.slot },
-      w: round(weight, 1),
+      w: round(clamp(weight, 1, 10), 1),
       tag: restriction,
       tags,
       sig: restriction === 'unique',
