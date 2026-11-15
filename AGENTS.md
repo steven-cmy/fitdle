@@ -95,6 +95,9 @@ instructions live in [README.md](README.md).
 - Multiple equipment markers are supported: limited, unique, officer (meta 5),
   abyssal (meta 15), and cargo-only PLEX easter egg. Each marker has a localized
   `title`/`aria-label` hint.
+- Abyss fallback is always a same-group/same-size representative of the abyssal
+  module itself. Same-slot deadspace/officer gear only selects the tier; it must
+  never substitute an unrelated module line (e.g. armor repairer into ballistic).
 - Official SDE de/ru item names are almost entirely English (5,370+ of 5,378);
   this is upstream behavior, not a locale fallback bug. Displaying English there
   matches the EVE client and EVE Ref. Only zh/es/fr/ja/ko have broad SDE names.

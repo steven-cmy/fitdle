@@ -210,6 +210,13 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   const abyssFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => entry && typeof entry === 'object');
   assert.ok(abyssFallback);
   assert.ok(abyssFallback.faction || abyssFallback.t2 || abyssFallback.t1);
+  for (const [abyssId, entry] of Object.entries(manifest.moduleFallbacks || {})) {
+    const source = refs.modules[abyssId];
+    if (!source) continue;
+    for (const representative of Object.values(entry)) {
+      assert.equal(refs.modules[representative]?.groupID, source.groupID, `${abyssId} borrowed ${representative}`);
+    }
+  }
   assert.ok(manifest.images.baseUrl);
   assert.ok(manifest.zkillboard.baseUrl);
   assert.ok(manifest.links.repo);

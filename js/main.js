@@ -560,6 +560,10 @@ async function fetchModuleDetails() {
     ));
     const resolvedId = typeof entry === 'string' ? entry : entry?.[fallbackId];
     if (!resolvedId) continue;
+    // Never borrow another module line just because it shares a slot.
+    const sourceGroup = state.refs.modules?.[id]?.groupID;
+    const representativeGroup = state.refs.modules?.[resolvedId]?.groupID;
+    if (sourceGroup != null && representativeGroup !== sourceGroup) continue;
     if (!state.moduleDetails[resolvedId]) {
       try {
         const response = await fetch(`${base}/latest/universe/types/${resolvedId}/?datasource=tranquility`, {
