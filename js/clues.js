@@ -519,7 +519,7 @@ export function buildClues({
       tags,
       sig: restriction === 'unique',
       charge: isCharge && item.slot !== 'cargo',
-      calcModule: abyssFallbacks.get(item.module) || null,
+      calcModule: item.slot === 'cargo' ? null : (abyssFallbacks.get(item.module) || null),
     };
     equipmentClues.push(clue);
     if (item.slot === 'high' && !isCharge && Array.isArray(module?.chargeGroups) && module.chargeGroups.length) {
