@@ -75,6 +75,7 @@ function sharePage({ key, locale, title, description, depth }) {
   const redirect = depth === 2 ? '../../' : '../';
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
+  const safeImage = escapeHtml(image);
   return `<!doctype html>
 <html lang="${locale}">
 <head>
@@ -88,14 +89,18 @@ function sharePage({ key, locale, title, description, depth }) {
 <meta property="og:title" content="${safeTitle}">
 <meta property="og:description" content="${safeDescription}">
 <meta property="og:url" content="${escapeHtml(canonical)}">
-<meta property="og:image" content="${escapeHtml(image)}">
+<meta property="og:image" content="${safeImage}">
+<meta property="og:image:secure_url" content="${safeImage}">
+<meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${safeTitle}">
 <meta property="og:locale" content="${OG_LOCALES[locale] || 'en_US'}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${safeTitle}">
 <meta name="twitter:description" content="${safeDescription}">
-<meta name="twitter:image" content="${escapeHtml(image)}">
+<meta name="twitter:image" content="${safeImage}">
+<meta name="twitter:image:alt" content="${safeTitle}">
 <script>
 const q = new URLSearchParams(location.search);
 const target = new URL('${redirect}', location.href);
