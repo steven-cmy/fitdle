@@ -577,7 +577,7 @@ async function fetchCargoTypeNames() {
     }
   }
   const unknown = [...new Set(
-    getEquipment(state.liveLosses).equipment
+    getEquipment(state.liveLosses, state.refs).equipment
       .map((item) => item.module)
       .filter((id) => !state.refs.modules[id] && !state.extraTypeNames[id])
   )];
@@ -616,7 +616,7 @@ async function fetchCargoTypeNames() {
 }
 
 function abyssFallbackByModule() {
-  const equipment = getEquipment(state.liveLosses).equipment;
+  const equipment = getEquipment(state.liveLosses, state.refs).equipment;
   return selectAbyssFallbacks(equipment, state.refs, state.manifest.moduleFallbacks || {});
 }
 
@@ -640,7 +640,7 @@ async function fetchModuleDetails() {
   if (state.mode !== 'abyss' || state.moduleDetails) return;
   const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
   if (!base) return;
-  const equipment = getEquipment(state.liveLosses).equipment;
+  const equipment = getEquipment(state.liveLosses, state.refs).equipment;
   const modules = equipment.map((item) => item.module);
   const unique = [...new Set(modules)];
   const fallbackByModule = abyssFallbackByModule();

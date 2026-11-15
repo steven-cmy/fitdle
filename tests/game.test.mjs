@@ -428,6 +428,40 @@ test('cargo hold items are part of the exposed equipment', () => {
   assert.equal(equipment.equipment[0].slot, 'cargo');
 });
 
+test('fighter bays separate real fighters from carried modules', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const losses = [{
+    killmail_id: 139037509,
+    zkb: { totalValue: 1000 },
+    victim: {
+      items: [
+        { flag: 155, item_type_id: 40570, quantity_destroyed: 6, quantity_dropped: 0 },
+        { flag: 155, item_type_id: 1952, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 155, item_type_id: 41490, quantity_destroyed: 62, quantity_dropped: 0 },
+        { flag: 158, item_type_id: 23061, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 133, item_type_id: 17887, quantity_destroyed: 53946, quantity_dropped: 0 },
+        { flag: 87, item_type_id: 41030, quantity_destroyed: 1, quantity_dropped: 0 },
+      ],
+    },
+  }];
+  const equipment = getEquipment(losses, refs).equipment;
+  assert.equal(equipment.find((item) => item.module === 40570)?.slot, 'fighter');
+  assert.equal(equipment.find((item) => item.module === 23061)?.slot, 'fighter');
+  assert.equal(equipment.find((item) => item.module === 1952)?.slot, 'cargo');
+  assert.equal(equipment.find((item) => item.module === 41490)?.slot, 'cargo');
+  assert.equal(equipment.find((item) => item.module === 17887)?.slot, 'cargo');
+  assert.equal(equipment.find((item) => item.module === 41030)?.slot, 'drone');
+
+  const built = buildClues({
+    ship, catalog, refs, stats: null, losses, dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion,
+  });
+  const fighter = built.clues.find((clue) => clue.v?.module === 40570);
+  const excavator = built.clues.find((clue) => clue.v?.module === 41030);
+  assert.ok(fighter.w >= 10);
+  assert.ok(excavator.w >= 9.5);
+});
+
 test('same type fitted and in cargo is exposed as separate lines', () => {
   const losses = [{
     killmail_id: 139532182,

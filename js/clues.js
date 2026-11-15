@@ -19,6 +19,7 @@ const FITTED_FLAGS = (() => {
   for (let i = 0; i < 8; i++) map.set(125 + i, 'subsystem');
   map.set(87, 'drone');
   map.set(5, 'cargo');
+  map.set(133, 'cargo'); // carrier fuel bay
   for (const flag of [155, 158, 159, 160, 161]) map.set(flag, 'fighter');
   return map;
 })();
@@ -240,11 +241,11 @@ function equipmentRestriction(module) {
   return 'limited';
 }
 
-export function getEquipment(losses) {
-  return parseFittings(losses);
+export function getEquipment(losses, refs = null) {
+  return parseFittings(losses, refs);
 }
 
-function parseFittings(losses) {
+function parseFittings(losses, refs = null) {
   const list = Array.isArray(losses) ? losses : [];
   const values = [];
   const moduleKills = new Map();
@@ -268,10 +269,13 @@ function parseFittings(losses) {
   const sample = list[0];
   const sampleModules = new Map();
   for (const item of sample?.victim?.items || []) {
-    const slot = FITTED_FLAGS.get(Number(item.flag));
+    let slot = FITTED_FLAGS.get(Number(item.flag));
     if (!slot) continue;
     const moduleID = Number(item.item_type_id);
     if (!Number.isFinite(moduleID)) continue;
+    // Fighter bays also hold spare modules, charges and fuel. Only actual
+    // fighters (category 87) keep the fighter slot; the rest is cargo.
+    if (slot === 'fighter' && Number(refs?.modules?.[moduleID]?.categoryID) !== 87) slot = 'cargo';
     // Keep the same type separate when it appears both fitted and in cargo.
     const key = `${moduleID}:${slot}`;
     if (!sampleModules.has(key)) sampleModules.set(key, { module: moduleID, slot, qty: 0 });
@@ -491,7 +495,7 @@ export function buildClues({
   baselineAttrs = null,
   moduleFallbacks = {},
 }) {
-  const { equipment, fittedKills } = parseFittings(losses);
+  const { equipment, fittedKills } = parseFittings(losses, refs);
   const abyssFallbacks = mode === 'abyss' ? selectAbyssFallbacks(equipment, refs, moduleFallbacks) : new Map();
   const attrs = mode === 'abyss'
     ? (fittedAttrs || simulateFitting(ship, equipment, moduleDetails))
@@ -528,6 +532,12 @@ export function buildClues({
       weight = clamp(weight, 1, 7.8);
     } else if (restriction === 'limited') {
       weight = clamp(weight + moduleSizeRank(module?.name), 7.5, 9.6);
+    }
+    // Fighters are effectively carrier/supercarrier-only; capital mining drones
+    // (Excavators) are similarly narrow. Both are very strong hull clues.
+    if (Number(module?.categoryID) === 87) weight = Math.max(weight, 10);
+    if (Number(module?.categoryID) === 18 && /excavator|mining fighter/i.test(module?.name || '')) {
+      weight = Math.max(weight, 9.5);
     }
     if (mode === 'abyss' && restriction === 'unique') weight = 10;
     if (mode === 'abyss' && restriction === 'limited') weight = Math.max(weight, 8.8);
