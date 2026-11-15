@@ -71,6 +71,9 @@ const state = {
   dogmaAttrs: null,
   dogmaBaseline: null,
   dogmaError: false,
+  victimInfo: null,
+  victimInfoKey: null,
+  victimInfoLoading: false,
   mode: 'normal',
   serverAnchor: null,
   monotonicAnchor: 0,
@@ -264,6 +267,45 @@ function zkillItemLink(text, id) {
   const url = zkillItemUrl(id);
   if (!url) return esc(text);
   return `<a class="zkb-item-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
+}
+
+function zkillShipLink(text, id) {
+  const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
+  if (!base || !Number(id)) return esc(text);
+  return `<a class="zkb-item-link" href="${esc(`${base}/ship/${Number(id)}/`)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
+}
+
+function zkillEntityLink(kind, id, text) {
+  const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
+  if (!base || !Number(id)) return esc(text);
+  return `<a class="zkb-item-link" href="${esc(`${base}/${kind}/${Number(id)}/`)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
+}
+
+function victimMetaHtml() {
+  const victim = state.liveLosses?.[0]?.victim;
+  if (!victim) return '';
+  const info = state.victimInfo || {};
+  const characterId = Number(victim.character_id) || null;
+  const corporationId = Number(victim.corporation_id) || null;
+  const allianceId = Number(victim.alliance_id) || null;
+  const pilot = info.characterName || t('dossier.pilotFallback', { id: characterId || '?' });
+  const corporation = info.corporationName || t('dossier.corpFallback', { id: corporationId || '?' });
+  const alliance = info.allianceName || t('dossier.allianceFallback', { id: allianceId || '?' });
+  const zkillBase = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
+  const portrait = characterId && imageBase() && zkillBase
+    ? `<a class="victim-portrait zkb-item-link" href="${esc(`${zkillBase}/character/${characterId}/`)}" target="_blank" rel="noopener noreferrer"><img src="${esc(`${imageBase()}/characters/${characterId}/portrait?size=64`)}" alt="${esc(t('dossier.victimAlt'))}" onerror="this.parentElement.remove()"></a>`
+    : '';
+  return `<div class="victim-card">
+    ${portrait}
+    <div class="victim-body">
+      ${zkillEntityLink('character', characterId, pilot)}
+      <div class="victim-lines">
+        <span>${esc(t('dossier.victimId'))} ${zkillEntityLink('character', characterId, characterId || '—')}</span>
+        ${corporationId ? `<span>${esc(t('dossier.corporation'))} ${zkillEntityLink('corporation', corporationId, corporation)}</span>` : ''}
+        ${allianceId ? `<span>${esc(t('dossier.alliance'))} ${zkillEntityLink('alliance', allianceId, alliance)}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
 }
 
 function zkillGroupTextLink(text, groupID) {
@@ -463,6 +505,53 @@ async function fetchAnswerLive() {
   const killmail = kill.status === 'fulfilled' && Array.isArray(kill.value) ? kill.value[0] : null;
   state.liveLosses = killmail ? [killmail] : [];
   state.liveError = !state.liveStats && !state.liveLosses.length;
+}
+
+async function fetchVictimInfo() {
+  const victim = state.liveLosses?.[0]?.victim;
+  if (!victim || state.status === 'playing') return;
+  const key = [victim.character_id, victim.corporation_id, victim.alliance_id].join(':');
+  if (!key.trim(':')) return;
+  if (state.victimInfoKey !== key) state.victimInfo = null;
+  if (state.victimInfoKey === key || state.victimInfoLoading) return;
+  state.victimInfoKey = key;
+  state.victimInfoLoading = true;
+  const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
+  const read = async (kind, id) => {
+    if (!base || !Number(id)) return null;
+    try {
+      const response = await fetch(`${base}/latest/${kind}/${Number(id)}/?datasource=tranquility`, {
+        cache: 'force-cache',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
+  };
+  const [character, corporation, alliance] = await Promise.all([
+    read('characters', victim.character_id),
+    read('corporations', victim.corporation_id),
+    read('alliances', victim.alliance_id),
+  ]);
+  if (state.victimInfoKey !== key) return;
+  state.victimInfo = {
+    characterId: Number(victim.character_id) || null,
+    characterName: character?.name || '',
+    corporationId: Number(victim.corporation_id) || null,
+    corporationName: corporation?.name || '',
+    allianceId: Number(victim.alliance_id) || null,
+    allianceName: alliance?.name || '',
+  };
+  state.victimInfoLoading = false;
+  refreshVictimSlots();
+}
+
+function refreshVictimSlots() {
+  $$('[data-victim-slot]').forEach((slot) => {
+    slot.innerHTML = victimMetaHtml();
+  });
 }
 
 async function fetchCargoTypeNames() {
@@ -1273,12 +1362,16 @@ function renderDossier() {
       answerBanner.innerHTML = '';
     } else {
       answerBanner.innerHTML = `<div class="answer-banner" data-status="${state.status}">
-        <div>
-          <span>${esc(t('dossier.answer'))}</span>
-          <strong>${zkillItemLink(displayName(state.answerShip), state.answerId)}</strong>
+        <div class="answer-confirmed">
+          <div>
+            <span>${esc(t('dossier.answer'))}</span>
+            <strong>${zkillShipLink(displayName(state.answerShip), state.answerId)}</strong>
+          </div>
+          <div data-victim-slot>${victimMetaHtml()}</div>
         </div>
         <button type="button" class="link-button" data-action="debrief">${icon('external')} ${esc(t('end.review'))}</button>
       </div>`;
+      void fetchVictimInfo();
     }
   }
 
@@ -1631,7 +1724,7 @@ function renderDebrief() {
           </div>
           <div class="debrief-visual-caption">
             <span>${esc(t('dossier.answer'))}</span>
-            <strong>${esc(displayName(ship))}</strong>
+            <strong>${zkillShipLink(displayName(ship), ship.id)}</strong>
           </div>
         </div>
         <div class="debrief-main">
@@ -1644,8 +1737,9 @@ function renderDebrief() {
             <span class="icon"><img src="${esc(shipIconPath(ship))}" alt="" onerror="this.remove()"></span>
             <div>
               <span>${esc(t('dossier.answer'))}</span>
-              <strong>${esc(displayName(ship))}</strong>
+              <strong>${zkillShipLink(displayName(ship), state.answerId)}</strong>
             </div>
+            <div class="debrief-victim" data-victim-slot>${victimMetaHtml()}</div>
           </div>
 
           <div class="debrief-stats">
@@ -1677,6 +1771,7 @@ function renderDebrief() {
     </div>
   `;
   openModal(html, 'debrief', state.status);
+  void fetchVictimInfo();
 }
 
 function clearToasts() {

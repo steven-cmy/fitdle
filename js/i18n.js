@@ -1910,6 +1910,31 @@ Object.assign(RENAMES, {
     ru: 'PLEX в трюме? Очень необычная загрузка.',
     zh: '货仓里放 PLEX？这装配相当不寻常。',
   },
+  'dossier.victimId': {
+    en: 'ID', de: 'ID', es: 'ID', fr: 'ID', ja: 'ID', ko: 'ID', ru: 'ID', zh: 'ID',
+  },
+  'dossier.corporation': {
+    en: 'CORP', de: 'KONZERN', es: 'CORP', fr: 'CORP', ja: '企業', ko: '코퍼레이션', ru: 'КОРП.', zh: '公司',
+  },
+  'dossier.alliance': {
+    en: 'ALLIANCE', de: 'ALLIANZ', es: 'ALIANZA', fr: 'ALLIANCE', ja: '同盟', ko: '얼라이언스', ru: 'АЛЬЯНС', zh: '联盟',
+  },
+  'dossier.pilotFallback': {
+    en: 'Pilot #{id}', de: 'Pilot #{id}', es: 'Piloto #{id}', fr: 'Pilote #{id}',
+    ja: 'パイロット #{id}', ko: '파일럿 #{id}', ru: 'Пилот #{id}', zh: '飞行员 #{id}',
+  },
+  'dossier.corpFallback': {
+    en: 'Corp #{id}', de: 'Konzern #{id}', es: 'Corp. #{id}', fr: 'Corp. #{id}',
+    ja: '企業 #{id}', ko: '코퍼레이션 #{id}', ru: 'Корп. #{id}', zh: '公司 #{id}',
+  },
+  'dossier.allianceFallback': {
+    en: 'Alliance #{id}', de: 'Allianz #{id}', es: 'Alianza #{id}', fr: 'Alliance #{id}',
+    ja: '同盟 #{id}', ko: '얼라이언스 #{id}', ru: 'Альянс #{id}', zh: '联盟 #{id}',
+  },
+  'dossier.victimAlt': {
+    en: 'Victim portrait', de: 'Porträt des Opfers', es: 'Retrato de la víctima', fr: 'Portrait de la victime',
+    ja: '被害者のポートレート', ko: '피해자 초상화', ru: 'Портрет жертвы', zh: '受害者头像',
+  },
   'dossier.officer': {
     en: 'OFFICER', de: 'OFFIZIER', es: 'OFICIAL', fr: 'OFFICIER',
     ja: 'オフィサー', ko: '오피서', ru: 'ОФИЦЕР', zh: '官员',
