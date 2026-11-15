@@ -207,6 +207,9 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   for (const shipId of manifest.killShipPool) assert.ok(catalog.some((ship) => ship.id === shipId));
   assert.equal(manifest.counts.modules, Object.keys(refs.modules).length);
   assert.ok(refs.modules[3186]?.chargeGroups?.includes(377));
+  const abyssFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => entry && typeof entry === 'object');
+  assert.ok(abyssFallback);
+  assert.ok(abyssFallback.faction || abyssFallback.t2 || abyssFallback.t1);
   assert.ok(manifest.images.baseUrl);
   assert.ok(manifest.zkillboard.baseUrl);
   assert.ok(manifest.links.repo);

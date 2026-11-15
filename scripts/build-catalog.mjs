@@ -270,25 +270,37 @@ function moduleSizeKey(name) {
 const moduleFallbacks = {};
 {
   const buckets = new Map();
+  const tiers = ['deadspace', 'officer', 'faction', 't2', 'highMeta', 't1'];
+  const tierOf = (meta) => {
+    if (meta === 6) return 'deadspace';
+    if (meta === 5) return 'officer';
+    if (meta === 4) return 'faction';
+    if (meta === 2) return 't2';
+    if (meta === 3) return 'highMeta';
+    if (meta === 1) return 't1';
+    return null;
+  };
   for (const module of moduleTypes) {
     const key = `${module.groupID}|${moduleSizeKey(module.names?.en || '')}`;
-    if (!buckets.has(key)) buckets.set(key, { t2: [], faction: [], t1: [] });
-    const bucket = buckets.get(key);
-    const meta = Number(module.metaGroupID || 0);
-    if (meta === 2) bucket.t2.push(module.id);
-    else if (meta >= 4) bucket.faction.push(module.id);
-    else if (meta === 1) bucket.t1.push(module.id);
+    if (!buckets.has(key)) buckets.set(key, Object.fromEntries(tiers.map((tier) => [tier, []])));
+    const tier = tierOf(Number(module.metaGroupID || 0));
+    if (tier) buckets.get(key)[tier].push(module.id);
   }
   for (const module of moduleTypes) {
     if (Number(module.metaGroupID || 0) !== 15) continue;
     const key = `${module.groupID}|${moduleSizeKey(module.names?.en || '')}`;
     const bucket = buckets.get(key);
-    const representative = bucket?.t2[0] || bucket?.faction[0] || bucket?.t1[0];
-    if (representative && representative !== module.id) moduleFallbacks[module.id] = representative;
+    if (!bucket) continue;
+    const entry = {};
+    for (const tier of tiers) {
+      const representative = bucket[tier][0];
+      if (representative && representative !== module.id) entry[tier] = representative;
+    }
+    if (Object.keys(entry).length) moduleFallbacks[module.id] = entry;
   }
 }
 
-const RULESET_VERSION = 'v11';
+const RULESET_VERSION = 'v12';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
 const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);

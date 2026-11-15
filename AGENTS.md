@@ -7,8 +7,9 @@ instructions live in [README.md](README.md).
 
 - Never reveal today's target ship, killmail ID, victim name, or answer render in
   tests, logs, commits, screenshots, or chat. Use archive dates in screenshots.
-- Every commit bumps **patch** by default. Use `VERSION_BUMP=minor` or
-  `VERSION_BUMP=major` only when the user explicitly asks for that release level.
+- Do **not** bump the version on every commit. Bump once immediately before a
+  push, after local work and tests are complete. Use `VERSION_BUMP=minor` or
+  `major` only when the user explicitly asks for that release level.
 - Do not commit `.cache/`, `dist/`, browser state, or the GitLab token.
 - Keep the puzzle deterministic for every player: fixed date, fixed complete UTC
   month window, page 1 only, stable hash seeds.
@@ -121,7 +122,7 @@ npm run build:killpool    # fallback KB pool + zKill server date
 npm run build:weights     # 430-hull zKill usage weights
 npm run build             # data + dist
 npm run update:dogma      # vendor latest EVE Ship Fit engine/SDE
-npm run hooks:install     # enable shared Git hooks
+npm run version:bump      # patch bump immediately before a push
 ```
 
 `npm run build` requires `data/catalog.json`; on a fresh checkout run
@@ -130,15 +131,20 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Version bump
 
-`.githooks/pre-commit` calls `scripts/bump-version.mjs`.
+There is no per-commit bump hook. Accumulate local commits, then immediately
+before pushing:
 
-- Default `patch`.
-- `VERSION_BUMP=minor` / `major` for explicit releases.
-- `VERSION_BUMP=none` to skip.
-- The script also updates the README version strings.
-- In the DSH Windows sandbox, Git shell hooks may be blocked (`sh` signal-pipe
-  error). In that environment run `node scripts/bump-version.mjs` manually, then
-  `git commit --no-verify`. On a normal Git install the hook works automatically.
+```bash
+npm run version:bump          # patch, updates package.json + README
+npm run build
+npm test
+git add package.json README.md
+git commit -m "Release <version>"
+git push ...
+```
+
+- `VERSION_BUMP=minor` / `major` for an explicitly requested release level.
+- Do not bump during the exploratory/local iteration commits.
 
 ## Sharing
 

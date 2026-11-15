@@ -495,8 +495,30 @@ async function fetchModuleDetails() {
   if (state.mode !== 'abyss' || state.moduleDetails) return;
   const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
   if (!base) return;
-  const modules = getEquipment(state.liveLosses).equipment.map((item) => item.module);
+  const equipment = getEquipment(state.liveLosses).equipment;
+  const modules = equipment.map((item) => item.module);
   const unique = [...new Set(modules)];
+  const slotTier = new Map();
+  const slotByModule = new Map();
+  const tierOf = (meta) => {
+    if (meta === 6) return 'deadspace';
+    if (meta === 5) return 'officer';
+    if (meta === 4) return 'faction';
+    if (meta === 2) return 't2';
+    if (meta === 3) return 'highMeta';
+    if (meta === 1) return 't1';
+    return null;
+  };
+  const tierPriority = { deadspace: 6, officer: 5, faction: 4, t2: 3, highMeta: 2, t1: 1 };
+  for (const item of equipment) {
+    if (item.slot === 'cargo') continue;
+    if (!slotByModule.has(item.module)) slotByModule.set(item.module, item.slot);
+    const module = state.refs.modules?.[item.module];
+    const tier = tierOf(Number(module?.metaGroupID || 0));
+    if (!tier) continue;
+    const current = slotTier.get(item.slot);
+    if (!current || tierPriority[tier] > tierPriority[current]) slotTier.set(item.slot, tier);
+  }
   const entries = [];
   let cursor = 0;
   const worker = async () => {
@@ -525,22 +547,33 @@ async function fetchModuleDetails() {
   for (const id of unique) {
     const data = state.moduleDetails[id];
     if (!data || hasEffects(data)) continue;
-    const fallbackId = fallbacks[id];
-    if (!fallbackId) continue;
-    if (!state.moduleDetails[fallbackId]) {
+    const entry = fallbacks[id];
+    if (!entry) continue;
+    // Same-slot deadspace/officer gear is matched at its own tier. Otherwise
+    // the expected order is faction, T2, high-meta, then T1.
+    const sameSlotTier = slotTier.get(slotByModule.get(id));
+    const order = sameSlotTier === 'deadspace' || sameSlotTier === 'officer'
+      ? [sameSlotTier, 'faction', 't2', 'highMeta', 't1']
+      : ['faction', 't2', 'highMeta', 't1'];
+    const fallbackId = order.find((tier) => (
+      typeof entry === 'string' ? tier === 't2' : entry?.[tier]
+    ));
+    const resolvedId = typeof entry === 'string' ? entry : entry?.[fallbackId];
+    if (!resolvedId) continue;
+    if (!state.moduleDetails[resolvedId]) {
       try {
-        const response = await fetch(`${base}/latest/universe/types/${fallbackId}/?datasource=tranquility`, {
+        const response = await fetch(`${base}/latest/universe/types/${resolvedId}/?datasource=tranquility`, {
           cache: 'no-store',
           signal: AbortSignal.timeout(8000),
         });
-        if (response.ok) state.moduleDetails[fallbackId] = await response.json();
+        if (response.ok) state.moduleDetails[resolvedId] = await response.json();
       } catch {
         // leave the module without simulated effects
       }
     }
-    const representative = state.moduleDetails[fallbackId];
+    const representative = state.moduleDetails[resolvedId];
     if (hasEffects(representative)) {
-      state.moduleDetails[id] = { ...data, dogma_attributes: representative.dogma_attributes, fallbackType: fallbackId };
+      state.moduleDetails[id] = { ...data, dogma_attributes: representative.dogma_attributes, fallbackType: resolvedId };
     }
   }
 }
