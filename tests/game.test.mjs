@@ -121,6 +121,21 @@ test('abyss misses reveal nested equipment plus one other clue', () => {
   assert.equal(count(one, false) - count(zero, false), 1);
   assert.equal(count(two, true) - count(one, true), 2);
   assert.equal(count(two, false) - count(one, false), 1);
+
+  const empty = buildClues({
+    ship, catalog, refs, stats: null,
+    losses: [{ killmail_id: 1, zkb: { totalValue: 0 }, victim: { items: [] } }],
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+  });
+  const emptyRun = (guesses) => computeRevealed({
+    clues: empty.clues, catalog, guesses, status: 'playing', answerId: 587,
+    mode: 'abyss', locale: 'en', getShip: (id) => catalog.find((entry) => entry.id === id),
+    seed: 'abyss-cadence',
+  });
+  const emptyZero = emptyRun([]);
+  const emptyOne = emptyRun([wrong]);
+  const otherDelta = [...emptyOne].filter((index) => !emptyZero.has(index)).length;
+  assert.equal(otherDelta, 2);
 });
 
 test('profile similarity is aggregate-only and exact on the answer', () => {

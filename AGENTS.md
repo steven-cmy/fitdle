@@ -82,8 +82,8 @@ instructions live in [README.md](README.md).
 - Normal mode misses: equipment budget based on fitted equipment count; low
   weight selected first, high-weight items consume more budget and reveal fewer.
 - Abyss misses: `+1/+2/+3/+4/+5` equipment clues, plus one weighted
-  non-equipment clue each miss. If equipment runs out, that quota stops; the
-  extra clue is still selected by weight.
+  non-equipment clue each miss. If equipment is short, the uncovered quota is
+  halved (rounded up) into additional weighted non-equipment clues.
 - Abyss static weights start from base stats (so fitted values do not inflate
   weight), then a clue whose fitted value differs from the **all-V no-modules
   baseline** is multiplied by 0.7. Skill-only changes do not reduce weight; only

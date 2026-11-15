@@ -1838,14 +1838,14 @@ Object.assign(RENAMES, {
     zh: '猜错时按数量与权重预算揭示装备。\n低权重装备更容易先出现；抽到高权重装备会减少揭示数量。\n当猜测与目标拥有相同数值时，揭示其他线索。',
   },
   'mode.helpAbyss': {
-    en: 'All-V skills and every fitted module are simulated as active.\nRare and low-usage hulls are more likely than in standard mode.\nEach miss adds +1..+5 equipment clues, plus one weighted other clue.\nIf equipment runs out, the equipment quota stops; the other clue still follows the weight rule.',
+    en: 'All-V skills and every fitted module are simulated as active.\nRare and low-usage hulls are more likely than in standard mode.\nEach miss adds +1..+5 equipment clues, plus one weighted other clue.\nIf equipment runs short, the uncovered quota is halved (rounded up) into additional other clues; all picks follow the weight rule.',
     de: 'Alle V-Skills und jedes montierte Modul werden als aktiv simuliert.\nSeltene und wenig genutzte Hüllen sind wahrscheinlicher als im Standardmodus.\nJeder Fehlversuch fügt +1/+2/+3/+4/+5 Hinweise hinzu.\nOhne Ausrüstung oder nach vollständiger Ausrüstungsaufdeckung entfallen diese Hinweise auf andere Informationen.',
     es: 'Se simulan habilidades a V y todos los módulos equipados como activos.\nLos cascos raros y poco usados son más probables que en el modo estándar.\nCada fallo añade +1/+2/+3/+4/+5 pistas.\nSin equipo, o cuando todo el equipo ya se ha revelado, esas pistas recaen en otra información.',
     fr: 'Les compétences au niveau V et tous les modules équipés sont simulés comme actifs.\nLes coques rares et peu utilisées sont plus probables qu’en mode standard.\nChaque échec ajoute +1/+2/+3/+4/+5 indices.\nSans équipement, ou une fois tout l’équipement révélé, ces indices portent sur d’autres informations.',
     ja: '全スキル V と装着済みの全モジュールを有効としてシミュレーションします。\nレアで使用頻度の低い船体は標準モードより出やすくなります。\n不正解ごとに +1/+2/+3/+4/+5 個のヒントが追加されます。\n装備がない場合、または装備がすべて開示された場合、その分は他の情報に振り分けられます。',
     ko: '모든 스킬 V와 장착된 모든 모듈을 활성 상태로 시뮬레이션합니다.\n희귀하고 사용 빈도가 낮은 선체가 표준 모드보다 더 자주 등장합니다.\n오답마다 +1/+2/+3/+4/+5개의 힌트가 추가됩니다.\n장비가 없거나 모든 장비가 공개되면 해당 수량은 다른 정보로 대체됩니다.',
     ru: 'Все навыки V и все установленные модули моделируются как активные.\nРедкие и редко используемые корпуса встречаются чаще, чем в стандартном режиме.\nКаждый промах добавляет +1/+2/+3/+4/+5 подсказок.\nБез оборудования или после полного раскрытия оборудования эти подсказки приходятся на другие сведения.',
-    zh: '按全 V 技能、所有已装配装备生效进行模拟。\n稀有和低使用率船体比标准模式更常见。\n每次猜错分别增加 +1~+5 条装备线索，并额外揭示一条其他线索。\n装备不足时只停止装备配额，额外线索仍按权重规则抽取。',
+    zh: '按全 V 技能、所有已装配装备生效进行模拟。\n稀有和低使用率船体比标准模式更常见。\n每次猜错分别增加 +1~+5 条装备线索，并额外揭示一条其他线索。\n装备不足时，未满足的装备配额减半后向上取整，转为额外其他线索；所有抽取仍按权重进行。',
   },
 });
 

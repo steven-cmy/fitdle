@@ -148,14 +148,17 @@ function addWeightedSequential({ revealed, target, clues, catalog, fitDelta, ran
 }
 
 function addAbyssEquipment({ revealed, count, clues, random }) {
+  let added = 0;
   for (let picked = 0; picked < count; picked++) {
     const candidates = clues
       .map((clue, index) => ({ clue, index }))
       .filter(({ clue, index }) => clue.k === 'equipment' && !revealed.has(index));
     const chosen = weightedPick(candidates, random);
-    if (!chosen) return;
+    if (!chosen) break;
     revealed.add(chosen.index);
+    added += 1;
   }
+  return added;
 }
 
 function addAbyssOther({ revealed, clues, catalog, fitDelta, random }) {
@@ -259,8 +262,12 @@ export function computeRevealed({
     // Miss 1..5 adds 1..5 equipment clues, plus one weighted non-equipment
     // clue each time.
     for (let miss = 1; miss <= misses; miss++) {
-      addAbyssEquipment({ revealed, count: miss, clues, random });
-      addAbyssOther({ revealed, clues, catalog, fitDelta, random });
+      const added = addAbyssEquipment({ revealed, count: miss, clues, random });
+      const shortfall = Math.max(0, miss - added);
+      const others = 1 + Math.ceil(shortfall / 2);
+      for (let index = 0; index < others; index++) {
+        addAbyssOther({ revealed, clues, catalog, fitDelta, random });
+      }
     }
     return revealed;
   }
