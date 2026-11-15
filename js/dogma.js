@@ -55,21 +55,7 @@ async function loadEngine() {
   return enginePromise;
 }
 
-export async function calculateDogmaFit(ship, killmail) {
-  if (!killmail?.victim) return null;
-  const { module: engine, skills } = await loadEngine();
-  const fit = engine.load_killmail({
-    killmail_id: Number(killmail.killmail_id),
-    victim: {
-      ship_type_id: Number(killmail.victim.ship_type_id),
-      items: (killmail.victim.items || []).map((item) => ({
-        flag: Number(item.flag),
-        item_type_id: Number(item.item_type_id),
-        quantity_destroyed: Number(item.quantity_destroyed || 0),
-        quantity_dropped: Number(item.quantity_dropped || 0),
-      })),
-    },
-  });
+function applyAllVSkills(fit, skills) {
   // Abyssal mode is a max-performance simulation: all skills V and every
   // fitted module active. Killmails do not carry the victim's skill sheet.
   fit.character = {
@@ -79,7 +65,10 @@ export async function calculateDogmaFit(ship, killmail) {
   if (Array.isArray(fit.items)) {
     fit.items = fit.items.map((item) => ({ ...item, state: 'active' }));
   }
-  const calculation = engine.calculate(fit);
+  return fit;
+}
+
+function attrsFromCalculation(ship, calculation) {
   const attributes = calculation?.ship?.attributes;
   const attrs = { ...(ship.attrs || {}) };
   for (const [id, key] of Object.entries(ATTR_KEYS)) {
@@ -111,4 +100,37 @@ export async function calculateDogmaFit(ship, killmail) {
   const maxLocked = attrValue(attributes, 192);
   if (maxLocked != null) attrs.maxLockedTargets = maxLocked;
   return attrs;
+}
+
+export async function calculateDogmaFit(ship, killmail) {
+  if (!killmail?.victim) return null;
+  const { module: engine, skills } = await loadEngine();
+  const fit = engine.load_killmail({
+    killmail_id: Number(killmail.killmail_id),
+    victim: {
+      ship_type_id: Number(killmail.victim.ship_type_id),
+      items: (killmail.victim.items || []).map((item) => ({
+        flag: Number(item.flag),
+        item_type_id: Number(item.item_type_id),
+        quantity_destroyed: Number(item.quantity_destroyed || 0),
+        quantity_dropped: Number(item.quantity_dropped || 0),
+      })),
+    },
+  });
+  applyAllVSkills(fit, skills);
+  return attrsFromCalculation(ship, engine.calculate(fit));
+}
+
+/** All-V skills only, with no fitted modules. Used to isolate equipment effects. */
+export async function calculateDogmaBaseline(ship) {
+  const { module: engine, skills } = await loadEngine();
+  const fit = engine.load_killmail({
+    killmail_id: 0,
+    victim: {
+      ship_type_id: Number(ship.id),
+      items: [],
+    },
+  });
+  applyAllVSkills(fit, skills);
+  return attrsFromCalculation(ship, engine.calculate(fit));
 }

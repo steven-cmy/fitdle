@@ -20,7 +20,7 @@ import {
 } from './game.js';
 import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
 import { buildClues, getEquipment, EQUIPMENT_SLOT_ORDER } from './clues.js';
-import { calculateDogmaFit } from './dogma.js';
+import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
 import { computeRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
 import { initStarfield } from './starfield.js';
@@ -69,6 +69,7 @@ const state = {
   extraTypeNamesLocale: null,
   cargoFetchId: 0,
   dogmaAttrs: null,
+  dogmaBaseline: null,
   dogmaError: false,
   mode: 'normal',
   serverAnchor: null,
@@ -598,6 +599,7 @@ function buildAnswerData() {
     mode: state.mode,
     moduleDetails: state.mode === 'abyss' ? state.moduleDetails : null,
     fittedAttrs: state.mode === 'abyss' ? state.dogmaAttrs : null,
+    baselineAttrs: state.mode === 'abyss' ? state.dogmaBaseline : null,
   });
   state.answerData = {
     ...ship,
@@ -621,6 +623,11 @@ async function loadLocaleData(locale) {
       state.dogmaAttrs = await calculateDogmaFit(state.answerShip, state.liveLosses[0]);
     } catch {
       state.dogmaError = true;
+    }
+    try {
+      state.dogmaBaseline = await calculateDogmaBaseline(state.answerShip);
+    } catch {
+      state.dogmaBaseline = null;
     }
   }
   if (state.mode === 'abyss' && !state.dogmaAttrs) await fetchModuleDetails();

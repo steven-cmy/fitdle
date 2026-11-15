@@ -84,8 +84,9 @@ instructions live in [README.md](README.md).
 - Abyss misses: `+1/+2/+3/+4/+5`; inverse-weight random; if no equipment or all
   equipment is revealed, the same count is spent on other clues.
 - Abyss static weights start from base stats (so fitted values do not inflate
-  weight), then a clue whose fitted value differs from the base is multiplied by
-  0.7. This reflects that module effects make that attribute less discriminating.
+  weight), then a clue whose fitted value differs from the **all-V no-modules
+  baseline** is multiplied by 0.7. Skill-only changes do not reduce weight; only
+  module effects do. `calculateDogmaBaseline` supplies that baseline.
 - A guess reveals shared static values; two additions stay mixed (equipment and
   attributes) through the replacement rule.
 - Reveal RNG seed: `${date}:${killId || shipId}:${mode}`. Never include the guess

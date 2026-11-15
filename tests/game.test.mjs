@@ -605,6 +605,15 @@ test('abyss weights start from base stats and drop when fitted values change', (
   const normalTech = normal.clues.find((clue) => clue.k === 'tech');
   const abyssTech = abyss.clues.find((clue) => clue.k === 'tech');
   assert.equal(abyssTech.w, normalTech.w);
+
+  const skillOnly = buildClues({
+    ship, catalog, refs, stats: null, losses, dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion, mode: 'abyss',
+    baselineAttrs: { ...ship.attrs, mass: ship.attrs.mass + 5000000 },
+    fittedAttrs: { ...ship.attrs, mass: ship.attrs.mass + 5000000 },
+  });
+  const skillMass = skillOnly.clues.find((clue) => clue.k === 'mass');
+  assert.equal(skillMass.w, normalMass.w);
 });
 
 test('micro jump drives are shared fittings, not hull-specific equipment', () => {

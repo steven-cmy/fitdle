@@ -422,6 +422,7 @@ export function buildClues({
   mode = 'normal',
   moduleDetails = null,
   fittedAttrs = null,
+  baselineAttrs = null,
 }) {
   const { equipment, fittedKills } = parseFittings(losses);
   const attrs = mode === 'abyss'
@@ -430,6 +431,9 @@ export function buildClues({
   const fitDelta = mode === 'abyss' ? deriveFitDelta(ship.attrs || {}, attrs) : null;
   const baseClueValues = mode === 'abyss'
     ? new Map(staticClues(ship, ship.attrs || {}).map((clue) => [clue.k, clue.v]))
+    : null;
+  const skillClueValues = mode === 'abyss'
+    ? new Map(staticClues(ship, baselineAttrs || ship.attrs || {}).map((clue) => [clue.k, clue.v]))
     : null;
   const clues = staticClues(ship, attrs);
 
@@ -564,9 +568,9 @@ export function buildClues({
     if (mode === 'abyss') {
       if (clue.k === 'race' || clue.k === 'group') clue.w = 10;
       if (clue.k === 'equipment' && clue.sig) clue.w = 10;
-      const baseValue = baseClueValues?.get(clue.k);
-      if (clue.k !== 'equipment' && clue.k !== 'bonus' && baseValue !== undefined) {
-        if (!sameClueValue(clue.k, baseValue, clue.v)) {
+      const baselineValue = skillClueValues?.get(clue.k);
+      if (clue.k !== 'equipment' && clue.k !== 'bonus' && baselineValue !== undefined) {
+        if (!sameClueValue(clue.k, baselineValue, clue.v)) {
           clue.w = round(Math.max(1, clue.w * ABYSS_FITTED_WEIGHT_FACTOR), 1);
         }
       }
