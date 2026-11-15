@@ -491,6 +491,28 @@ export function buildClues({
     clues.push(clue);
   }
 
+  // Cargo ammo, cap-booster charges and scripts describe a fitted module.
+  // They inherit its weight, but never its marker.
+  const fittedWithCharges = equipmentClues.filter((clue) => {
+    if (clue.v.slot === 'cargo') return false;
+    const module = refs.modules?.[clue.v.module];
+    return Array.isArray(module?.chargeGroups) && module.chargeGroups.length;
+  });
+  for (const clue of equipmentClues) {
+    if (clue.v.slot !== 'cargo') continue;
+    const cargoModule = refs.modules?.[clue.v.module];
+    if (!cargoModule || Number(cargoModule.categoryID) !== 8) continue;
+    const compatible = fittedWithCharges.filter((fitted) => {
+      const module = refs.modules?.[fitted.v.module];
+      return module?.chargeGroups?.includes(cargoModule.groupID);
+    });
+    if (!compatible.length) continue;
+    clue.w = Math.max(...compatible.map((fitted) => fitted.w));
+    clue.tag = null;
+    clue.tags = [];
+    clue.sig = false;
+  }
+
   if (stats) {
     const recent = stats.rankings?.recent?.all;
     const losses30 = Number(recent?.metrics?.shipsLost || 0);

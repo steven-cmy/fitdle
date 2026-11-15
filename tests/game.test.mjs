@@ -519,6 +519,35 @@ test('utility high-slot modules do not make ammunition unique', () => {
   assert.equal(ammo.w, weapon.w);
 });
 
+test('cargo charges inherit fitted equipment weight without markers', () => {
+  const marauder = catalog.find((entry) => entry.groupID === 900);
+  const losses = [{
+    killmail_id: 424252,
+    zkb: { totalValue: 1000 },
+    victim: {
+      items: [
+        { flag: 27, item_type_id: 3186, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 19, item_type_id: 1978, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 5, item_type_id: 12791, quantity_destroyed: 46, quantity_dropped: 0 },
+        { flag: 5, item_type_id: 28999, quantity_destroyed: 1, quantity_dropped: 0 },
+      ],
+    },
+  }];
+  const built = buildClues({
+    ship: marauder, catalog, refs, stats: null, losses, dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion,
+  });
+  const weapon = built.clues.find((clue) => clue.v?.module === 3186);
+  const computer = built.clues.find((clue) => clue.v?.module === 1978);
+  const cargoAmmo = built.clues.find((clue) => clue.v?.module === 12791);
+  const cargoScript = built.clues.find((clue) => clue.v?.module === 28999);
+  assert.ok(weapon && computer && cargoAmmo && cargoScript);
+  assert.equal(cargoAmmo.w, weapon.w);
+  assert.equal(cargoScript.w, computer.w);
+  assert.deepEqual(cargoAmmo.tags, []);
+  assert.deepEqual(cargoScript.tags, []);
+});
+
 test('officer, abyssal and PLEX items expose their own markers', () => {
   const battleship = catalog.find((entry) => entry.groupID === 27);
   const officer = Object.entries(refs.modules).find(([, module]) => Number(module.metaGroupID) === 5);
