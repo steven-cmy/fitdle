@@ -81,8 +81,9 @@ instructions live in [README.md](README.md).
   6 candidate hulls; unique/limited tag equipment excluded initially.
 - Normal mode misses: equipment budget based on fitted equipment count; low
   weight selected first, high-weight items consume more budget and reveal fewer.
-- Abyss misses: `+1/+2/+3/+4/+5`; inverse-weight random; if no equipment or all
-  equipment is revealed, the same count is spent on other clues.
+- Abyss misses: `+1/+2/+3/+4/+5` equipment clues, plus one weighted
+  non-equipment clue each miss. If equipment runs out, that quota stops; the
+  extra clue is still selected by weight.
 - Abyss static weights start from base stats (so fitted values do not inflate
   weight), then a clue whose fitted value differs from the **all-V no-modules
   baseline** is multiplied by 0.7. Skill-only changes do not reduce weight; only
@@ -208,7 +209,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 37 cases, including downtime boundaries, target/KB
+`npm test` currently covers 38 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.

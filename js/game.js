@@ -12,7 +12,7 @@ export const DOWNTIME_HOUR_UTC = 11;
 export function revealCountFor(misses, totalClues, mode = 'normal') {
   const safeMisses = Math.max(0, misses);
   const count = mode === 'abyss'
-    ? INITIAL_REVEAL + (safeMisses * (safeMisses + 1)) / 2
+    ? INITIAL_REVEAL + (safeMisses * (safeMisses + 1)) / 2 + safeMisses
     : INITIAL_REVEAL + safeMisses * REVEAL_PER_MISS;
   return Math.min(totalClues, count);
 }

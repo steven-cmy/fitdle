@@ -90,14 +90,37 @@ test('daily answer is deterministic, language-independent and includes special h
 
 test('abyssal reveal cadence matches the six-attempt design', () => {
   assert.equal(revealCountFor(0, 40, 'abyss'), INITIAL_REVEAL);
-  assert.equal(revealCountFor(1, 40, 'abyss'), 4);
-  assert.equal(revealCountFor(2, 40, 'abyss'), 6);
-  assert.equal(revealCountFor(3, 40, 'abyss'), 9);
-  assert.equal(revealCountFor(5, 40, 'abyss'), 18);
-  assert.equal(newlyRevealedFor(1, 40, 'abyss'), 1);
-  assert.equal(newlyRevealedFor(2, 40, 'abyss'), 2);
-  assert.equal(newlyRevealedFor(3, 40, 'abyss'), 3);
+  assert.equal(revealCountFor(1, 40, 'abyss'), 5);
+  assert.equal(revealCountFor(2, 40, 'abyss'), 8);
+  assert.equal(revealCountFor(3, 40, 'abyss'), 12);
+  assert.equal(revealCountFor(5, 40, 'abyss'), 23);
+  assert.equal(newlyRevealedFor(1, 40, 'abyss'), 2);
+  assert.equal(newlyRevealedFor(2, 40, 'abyss'), 3);
+  assert.equal(newlyRevealedFor(3, 40, 'abyss'), 4);
   assert.equal(INITIAL_REVEAL, 3);
+});
+
+test('abyss misses reveal nested equipment plus one other clue', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const built = buildClues({
+    ship, catalog, refs, stats: null, losses: makeLosses(),
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+  });
+  const wrong = catalog.find((entry) => entry.id !== 587).id;
+  const run = (guesses) => computeRevealed({
+    clues: built.clues, catalog, guesses, status: 'playing', answerId: 587,
+    mode: 'abyss', locale: 'en', getShip: (id) => catalog.find((entry) => entry.id === id),
+    seed: 'abyss-cadence',
+  });
+  const count = (set, equipment) => [...set]
+    .filter((index) => (built.clues[index].k === 'equipment') === equipment).length;
+  const zero = run([]);
+  const one = run([wrong]);
+  const two = run([wrong, wrong]);
+  assert.equal(count(one, true) - count(zero, true), 1);
+  assert.equal(count(one, false) - count(zero, false), 1);
+  assert.equal(count(two, true) - count(one, true), 2);
+  assert.equal(count(two, false) - count(one, false), 1);
 });
 
 test('profile similarity is aggregate-only and exact on the answer', () => {
@@ -866,8 +889,8 @@ test('normal mode releases equipment on misses and shared clues on matching gues
   const abyssOne = compute([999999], 'abyss');
   const abyssTwo = compute([999999, 999998], 'abyss');
   assert.ok(abyssInitial.size >= 2 && abyssInitial.size <= 7);
-  assert.ok(abyssOne.size >= abyssInitial.size && abyssOne.size <= abyssInitial.size + 1);
-  assert.ok(abyssTwo.size >= abyssOne.size && abyssTwo.size <= abyssInitial.size + 3);
+  assert.ok(abyssOne.size >= abyssInitial.size && abyssOne.size <= abyssInitial.size + 2);
+  assert.ok(abyssTwo.size >= abyssOne.size && abyssTwo.size <= abyssInitial.size + 5);
 });
 
 test('frontend source has no hard-coded deployment domains or local image caches', () => {
