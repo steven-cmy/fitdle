@@ -1,6 +1,6 @@
 # FITDLE
 
-**版本 0.1.0。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
+**版本 0.1.1。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
 
 ![桌面端](docs/screenshot-desktop.png)
 
@@ -129,7 +129,7 @@ npm run build            # 生成 dist/
 - **EVE Online** → <https://www.eveonline.com/>
 - **Fenris Creations（原 CCP hf. / CCP Games）** → <https://fenris.com/>
 - 明确标注：CCP 已于 2026 年更名为 Fenris Creations。
-- 右下角：`v0.1.0 · SDE <dataVersion> · ZKILL <killpool date>`。
+- 右下角：`v0.1.1 · SDE <dataVersion> · ZKILL <killpool date>`。
 - 页脚提供 GitLab 仓库链接：<https://gitlab.com/cmy/fitdle>。
 - 所有 `zh-*` 语言变体（简繁、地区）统一使用简体中文。
 
