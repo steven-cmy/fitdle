@@ -255,6 +255,17 @@ function displayName(ship) {
   return ship?.names?.[state.locale] || ship?.names?.en || 'UNKNOWN';
 }
 
+function zkillItemUrl(id) {
+  const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
+  return base && Number(id) ? `${base}/item/${Number(id)}/` : '';
+}
+
+function zkillItemLink(text, id) {
+  const url = zkillItemUrl(id);
+  if (!url) return esc(text);
+  return `<a class="zkb-item-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
+}
+
 function groupName(ship) {
   return state.refs?.groups?.[ship?.groupID] || `Group ${ship?.groupID ?? '?'}`;
 }
@@ -1204,7 +1215,7 @@ function renderModuleLine(clue) {
   return `<span class="module-line">
     ${moduleThumb(clue.v.module, clue.v.slot)}
     <span class="module-line-body">
-      <span class="module-line-name">${esc(name)}</span>
+      <span class="module-line-name">${zkillItemLink(name, clue.v.module)}</span>
       ${tags.map((tag) => moduleBadge(tag, clue)).join('')}
     </span>
     <span class="module-count">×${int(clue.v.count)}</span>
@@ -1258,7 +1269,7 @@ function renderDossier() {
       answerBanner.innerHTML = `<div class="answer-banner" data-status="${state.status}">
         <div>
           <span>${esc(t('dossier.answer'))}</span>
-          <strong>${esc(displayName(state.answerShip))}</strong>
+          <strong>${zkillItemLink(displayName(state.answerShip), state.answerId)}</strong>
         </div>
         <button type="button" class="link-button" data-action="debrief">${icon('external')} ${esc(t('end.review'))}</button>
       </div>`;

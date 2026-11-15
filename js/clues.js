@@ -194,17 +194,13 @@ export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
     const targetGroup = slotMeta.get(item.slot) ?? 4;
     const targetLevel = slotLevel.get(item.slot) ?? 8;
     const sourceGroup = refs.modules?.[item.module]?.groupID;
-    const tierOrder = targetGroup === 6
-      ? ['deadspace', 'faction', 't2', 'highMeta', 't1']
-      : targetGroup === 5
-        ? ['officer', 'faction', 't2', 'highMeta', 't1']
-        : targetGroup === 4
-          ? ['faction', 't2', 'highMeta', 't1']
-          : targetGroup === 2
-            ? ['t2', 'highMeta', 'faction', 't1']
-            : targetGroup === 3
-              ? ['highMeta', 't2', 'faction', 't1']
-              : ['t1', 't2', 'highMeta', 'faction'];
+    // One fixed hierarchy. Never use a higher meta group than the slot already
+    // contains; walk downward from the slot's highest group.
+    const tierRank = { officer: 6, deadspace: 5, faction: 4, t2: 3, highMeta: 2, t1: 1 };
+    const groupRank = { 5: 6, 6: 5, 4: 4, 2: 3, 3: 2, 1: 1 };
+    const targetRank = groupRank[targetGroup] ?? 4;
+    const tierOrder = ['officer', 'deadspace', 'faction', 't2', 'highMeta', 't1']
+      .filter((tier) => tierRank[tier] <= targetRank);
     let best = null;
     let bestDistance = Infinity;
     let bestLevel = -1;

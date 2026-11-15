@@ -104,9 +104,10 @@ instructions live in [README.md](README.md).
 - Abyss fallback is always a same-group/same-size representative of the abyssal
   module itself. It first picks the highest **meta group** present in the same
   slot, then the candidate with the closest **meta level** (attribute 633).
-  - Slot deadspace (6): deadspace candidates first, then faction → T2 → highMeta → T1.
-  - Slot officer (5): officer candidates first, then faction → T2 → highMeta → T1.
-  - No candidate at the selected tier: continue down that order.
+  - Single hierarchy: officer → deadspace → faction → T2 → highMeta → T1.
+  - Never use a tier higher than the slot's highest meta group; walk that one
+    order from the slot tier downward.
+  - Within the first tier that has candidates, pick the closest meta level.
   - Example: X-Type armor hardener meta 16 in low → X-Type repairer meta 16.
   - Example: Entropic Radiation Sink has no deadspace variant → faction Veles
     (meta 8), not officer Zorya.
