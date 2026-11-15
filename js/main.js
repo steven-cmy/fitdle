@@ -1505,9 +1505,10 @@ function shareLink() {
     url.hash = '';
     url.searchParams.set('kb', state.freeKillId);
     url.searchParams.set('mode', state.mode === 'abyss' ? 'abyss' : 'normal');
+    url.searchParams.set('lang', state.locale);
     return url.toString();
   }
-  return shareUrl(location, state.date, state.mode, state.status, state.guesses.length);
+  return shareUrl(location, state.date, state.mode, state.status, state.guesses.length, state.locale);
 }
 
 function renderDebrief() {

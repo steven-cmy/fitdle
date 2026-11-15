@@ -13,6 +13,7 @@
     "prepare:sde": "node scripts/prepare-sde.mjs",
     "update:sde": "node scripts/prepare-sde.mjs --refresh",
     "update:dogma": "node scripts/update-dogma.mjs",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
     "start": "node scripts/serve.mjs --root dist",
     "serve": "node scripts/serve.mjs --root dist",
     "serve:source": "node scripts/serve.mjs --root .",

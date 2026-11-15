@@ -238,16 +238,19 @@ export function shareText({ date, status, attempts, url, t }) {
   return `${headline}\n${grid}\n${url}`;
 }
 
-export function shareUrl(locationLike, date, mode = 'normal', status = 'playing', attempts = 0) {
-  // A static score page carries the Open Graph metadata used by Discord and
-  // other link previews. The page itself redirects into the actual puzzle.
+export function shareUrl(locationLike, date, mode = 'normal', status = 'playing', attempts = 0, locale = 'en') {
+  // A localized static score page carries the Open Graph metadata used by
+  // Discord and other link previews. The page itself redirects into the puzzle.
   const url = new URL(locationLike.href);
   const key = status === 'lost' ? 'lost' : String(Math.max(1, Math.min(6, Number(attempts) || 1)));
-  url.pathname = new URL(`share/${key}.html`, url).pathname;
+  const language = String(locale || 'en').toLowerCase().split(/[-_]/)[0];
+  const safeLocale = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'].includes(language) ? language : 'en';
+  url.pathname = new URL(`share/${key}/${safeLocale}.html`, url).pathname;
   url.search = '';
   url.hash = '';
   url.searchParams.set('d', date);
   url.searchParams.set('mode', mode === 'abyss' ? 'abyss' : 'normal');
+  url.searchParams.set('lang', safeLocale);
   return url.toString();
 }
 

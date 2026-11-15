@@ -134,13 +134,13 @@ test('service record streaks survive consecutive days only', () => {
 
 test('share URLs and result grids are spoiler-safe', () => {
   const url = shareUrl({ href: 'https://example.test/fitdle/index.html?d=2026-11-01&lang=de#x' }, '2026-11-14', 'normal', 'won', 3);
-  assert.equal(url, 'https://example.test/fitdle/share/3.html?d=2026-11-14&mode=normal');
+  assert.equal(url, 'https://example.test/fitdle/share/3/en.html?d=2026-11-14&mode=normal&lang=en');
   assert.equal(new URL(url).origin, 'https://example.test');
-  const abyssUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, '2026-11-14', 'abyss', 'won', 4);
-  assert.equal(abyssUrl, 'https://example.test/fitdle/share/4.html?d=2026-11-14&mode=abyss');
-  const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, '2026-11-14', 'abyss', 'lost', 6);
-  assert.equal(lostUrl, 'https://example.test/fitdle/share/lost.html?d=2026-11-14&mode=abyss');
-  assert.ok(!url.includes('lang='));
+  const abyssUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, '2026-11-14', 'abyss', 'won', 4, 'zh-Hant');
+  assert.equal(abyssUrl, 'https://example.test/fitdle/share/4/zh.html?d=2026-11-14&mode=abyss&lang=zh');
+  const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, '2026-11-14', 'abyss', 'lost', 6, 'de');
+  assert.equal(lostUrl, 'https://example.test/fitdle/share/lost/de.html?d=2026-11-14&mode=abyss&lang=de');
+  assert.ok(url.includes('lang=en'));
   const storage = { data: new Map(), getItem(k) { return this.data.get(k) ?? null; }, setItem(k, v) { this.data.set(k, v); } };
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [1], status: 'playing' }, 'normal');
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [2], status: 'playing' }, 'abyss');
@@ -153,13 +153,18 @@ test('share URLs and result grids are spoiler-safe', () => {
   assert.equal([...loss].length, ATTEMPT_LIMIT);
 });
 
-test('static share pages carry the score for link previews', () => {
-  const sharePage = path.join(ROOT, 'dist', 'share', '3.html');
+test('localized static share pages carry the score for link previews', () => {
+  const sharePage = path.join(ROOT, 'dist', 'share', '3', 'en.html');
+  const zhPage = path.join(ROOT, 'dist', 'share', '3', 'zh.html');
   if (fs.existsSync(sharePage)) {
     const html = fs.readFileSync(sharePage, 'utf8');
-    assert.match(html, /og:title" content="FITDLE — 3\/6"/);
-    assert.match(html, /og:description" content="I destroyed the target in 3 attempts/);
+    assert.match(html, /FITDLE — 3\/6 — Target destroyed 🎯/);
+    assert.match(html, /I cracked the hull in 3 attempts/);
+    assert.match(html, /og:image" content="[^"]+\/assets\/share\/og\.png"/);
+    assert.match(html, /twitter:card" content="summary_large_image"/);
     assert.match(html, /location\.replace/);
+    assert.ok(fs.existsSync(zhPage));
+    assert.match(fs.readFileSync(zhPage, 'utf8'), /3\/6 — 目标已击毁 🎯/);
   }
 });
 
