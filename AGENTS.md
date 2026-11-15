@@ -137,7 +137,8 @@ npm run hooks:install     # enable shared Git hooks
 - Static pages are generated per locale by `build-dist`; metadata is localized and
   contains only score/attempts, never the answer.
 - OG images: `assets/share/og-{1..6|lost}-{locale}.png`, 1200×630, localized
-  headline/tagline/score, no target or killmail data.
+  headline/tagline/score, no target or killmail data. `1` uses a cyan
+  one-shot/burst card; `lost` uses an amber broken-radar card.
 - Regenerate with `python scripts/generate-share-images.py` (Pillow).
 - `og:image` is score- and locale-specific, absolute using `SITE_URL` or CI
   `CI_PAGES_URL`.

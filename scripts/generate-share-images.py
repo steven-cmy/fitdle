@@ -28,41 +28,49 @@ LOCALES = {
     "en": {
         "badge": "EN", "font": r"C:\Windows\Fonts\segoeuib.ttf",
         "win": "TARGET DESTROYED", "one": "FIRST-SHOT KILL", "lost": "TARGET ESCAPED",
+        "oneTag": "ONE SHOT", "lostTag": "SIGNAL LOST",
         "tagline": "DAILY EVE ONLINE KILLBOARD PUZZLE", "cta": "CAN YOU BEAT THIS?",
     },
     "de": {
         "badge": "DE", "font": r"C:\Windows\Fonts\segoeuib.ttf",
         "win": "ZIEL ZERSTÖRT", "one": "TREFFER BEIM ERSTEN SCHUSS", "lost": "ZIEL ENTKOMMEN",
+        "oneTag": "ONE SHOT", "lostTag": "SIGNAL VERLOREN",
         "tagline": "TÄGLICHES EVE-ONLINE-KILLBOARD-RÄTSEL", "cta": "SCHAFFST DU MEHR?",
     },
     "es": {
         "badge": "ES", "font": r"C:\Windows\Fonts\segoeuib.ttf",
         "win": "OBJETIVO DESTRUIDO", "one": "MUERTE AL PRIMER DISPARO", "lost": "EL OBJETIVO ESCAPÓ",
+        "oneTag": "UN SOLO DISPARO", "lostTag": "SEÑAL PERDIDA",
         "tagline": "PUZLE DIARIO DE KILLBOARD DE EVE ONLINE", "cta": "¿PUEDES SUPERARLO?",
     },
     "fr": {
         "badge": "FR", "font": r"C:\Windows\Fonts\segoeuib.ttf",
         "win": "CIBLE DÉTRUITE", "one": "ÉLIMINATION AU PREMIER TIR", "lost": "CIBLE ÉCHAPPÉE",
+        "oneTag": "UN SEUL TIR", "lostTag": "SIGNAL PERDU",
         "tagline": "PUZZLE QUOTIDIEN DE KILLBOARD EVE ONLINE", "cta": "PEUX-TU FAIRE MIEUX ?",
     },
     "ja": {
         "badge": "日本語", "font": r"C:\Windows\Fonts\YuGothB.ttc",
         "win": "目標撃破", "one": "初弾撃破", "lost": "目標逃げられました",
+        "oneTag": "一撃必殺", "lostTag": "信号喪失",
         "tagline": "EVE Online 毎日キルボードパズル", "cta": "スコアを超えられる？",
     },
     "ko": {
         "badge": "한국어", "font": r"C:\Windows\Fonts\malgunbd.ttf",
         "win": "목표 격파", "one": "첫 발에 격파", "lost": "목표가 도주했습니다",
+        "oneTag": "원샷", "lostTag": "신호 상실",
         "tagline": "EVE Online 일일 킬보드 퍼즐", "cta": "내 점수를 넘을 수 있나요?",
     },
     "ru": {
         "badge": "RU", "font": r"C:\Windows\Fonts\segoeuib.ttf",
         "win": "ЦЕЛЬ УНИЧТОЖЕНА", "one": "УБИЙСТВО С ПЕРВОГО ВЫСТРЕЛА", "lost": "ЦЕЛЬ УШЛА",
+        "oneTag": "ОДИН ВЫСТРЕЛ", "lostTag": "СИГНАЛ ПОТЕРЯН",
         "tagline": "ЕЖЕДНЕВНАЯ ГОЛОВОЛОМКА ПО КИЛЛБОРДУ EVE ONLINE", "cta": "СМОЖЕШЬ ЛУЧШЕ?",
     },
     "zh": {
         "badge": "中文", "font": r"C:\Windows\Fonts\msyhbd.ttc",
         "win": "目标已击毁", "one": "首发命中", "lost": "目标逃逸",
+        "oneTag": "一枪入魂", "lostTag": "信号丢失",
         "tagline": "EVE Online 每日击杀谜题", "cta": "你能超过我吗？",
     },
 }
@@ -126,28 +134,11 @@ def adaptive_font(draw, text, path, start, minimum, max_width):
     return fnt, wrap(draw, text, fnt, max_width)
 
 
-def card(locale, key, score):
-    copy = LOCALES[locale]
-    headline = copy[{"lost": "lost", "1": "one"}.get(key, "win")] if key != "lost" else copy["lost"]
-    win = key != "lost"
-    accent = AMBER if not win else (CYAN if key == "1" else GREEN)
-    large = "0/6" if not win else f"{key}/6"
-
-    img = Image.new("RGB", (W, H), BG)
-    draw = ImageDraw.Draw(img, "RGBA")
-
+def frame(draw, copy):
     for x in range(0, W, 60):
         draw.line((x, 0, x, H), fill=(20, 50, 62, 30), width=1)
     for y in range(0, H, 60):
         draw.line((0, y, W, y), fill=(20, 50, 62, 30), width=1)
-
-    cx, cy = 940, 310
-    for r, color in [(250, (50, 200, 180, 20)), (190, (50, 200, 180, 26)),
-                     (125, (242, 166, 59, 35)), (60, (242, 166, 59, 48))]:
-        draw.ellipse((cx-r, cy-r, cx+r, cy+r), outline=color, width=2)
-    draw.line((cx-270, cy, cx+270, cy), fill=(50, 200, 180, 22), width=1)
-    draw.line((cx, cy-270, cx, cy+270), fill=(50, 200, 180, 22), width=1)
-
     draw.text((70, 54), "FITDLE", font=font(BASE_FONT, 66), fill=TEXT)
     draw.text((74, 126), "DAILY KILLBOARD", font=font(BASE_FONT, 22), fill=AMBER)
     badge_font = font(copy["font"], 18)
@@ -156,24 +147,115 @@ def card(locale, key, score):
                            outline=(60, 110, 125, 180), width=1)
     draw.text((W - 70 - badge_w - 15, 68), copy["badge"], font=badge_font, fill=MUTED)
 
-    # score cells
+
+def bottom(draw, copy, accent):
+    draw.line((70, 574, 1130, 574), fill=(35, 72, 84, 160), width=1)
+    tag_font = font(copy["font"], 14)
+    draw.multiline_text((72, 590), wrap(draw, copy["tagline"], tag_font, 780),
+                        font=tag_font, fill=MUTED, spacing=2)
+    cta_font = font(copy["font"], 18)
+    cta_w = text_width(draw, copy["cta"], cta_font)
+    draw.text((1128 - cta_w, 586), copy["cta"], font=cta_font, fill=accent)
+
+
+def cells(draw, key, win):
     for i in range(6):
         x = 74 + i * 42
         fill = (42, 195, 172, 220) if win and i < int(key) else (35, 57, 64, 180)
         draw.rounded_rectangle((x, 186, x+29, 215), radius=3, fill=fill)
 
+
+def one_shot(draw, copy):
+    import math
+    frame(draw, copy)
+    cx, cy = 885, 300
+    for angle in range(0, 360, 12):
+        rad = math.radians(angle)
+        inner = 92
+        outer = 330 if angle % 36 == 0 else 235
+        alpha = 86 if angle % 36 == 0 else 34
+        draw.line((cx + math.cos(rad) * inner, cy + math.sin(rad) * inner,
+                   cx + math.cos(rad) * outer, cy + math.sin(rad) * outer),
+                  fill=(54, 228, 200, alpha), width=2 if angle % 36 == 0 else 1)
+    for r, alpha in [(92, 90), (160, 55), (230, 35)]:
+        draw.ellipse((cx-r, cy-r, cx+r, cy+r), outline=(54, 228, 200, alpha), width=2)
+    draw.line((cx-330, cy, cx+330, cy), fill=(54, 228, 200, 40), width=1)
+    draw.line((cx, cy-330, cx, cy+330), fill=(54, 228, 200, 40), width=1)
+    draw.ellipse((cx-12, cy-12, cx+12, cy+12), fill=(54, 228, 200, 230))
+    draw.ellipse((cx-38, cy-38, cx+38, cy+38), outline=(54, 228, 200, 120), width=2)
+    draw.text((cx-104, cy+248), "01 / 06", font=font(MONO_FONT, 16), fill=(123, 190, 185))
+
+    cells(draw, "1", True)
+    tag_font = font(copy["font"], 18)
+    draw.text((74, 236), copy["oneTag"], font=tag_font, fill=CYAN)
+    draw.text((66, 264), "1/6", font=font(BASE_FONT, 150), fill=CYAN)
+    headline_font, headline_text = adaptive_font(draw, copy["one"], copy["font"], 52, 30, 640)
+    draw.multiline_text((72, 430), headline_text, font=headline_font, fill=TEXT, spacing=6)
+    bottom(draw, copy, CYAN)
+
+
+def escaped(draw, copy):
+    import math
+    frame(draw, copy)
+    cx, cy = 900, 300
+    # Broken rings and a fading sweep communicate a lost target.
+    for r, start, extent, alpha in [(235, 205, 255, 32), (160, 20, 250, 48), (92, 120, 230, 62)]:
+        draw.arc((cx-r, cy-r, cx+r, cy+r), start=start, end=start+extent,
+                 fill=(242, 166, 59, alpha), width=2)
+    for step in range(18):
+        rad = math.radians(198 - step * 1.5)
+        alpha = max(10, 80 - step * 4)
+        draw.line((cx, cy, cx + math.cos(rad) * 290, cy + math.sin(rad) * 290),
+                  fill=(242, 166, 59, alpha), width=1)
+    draw.line((cx-280, cy, cx-90, cy), fill=(242, 166, 59, 42), width=1)
+    draw.line((cx+110, cy, cx+280, cy), fill=(242, 166, 59, 42), width=1)
+    draw.line((cx, cy-280, cx, cy-110), fill=(242, 166, 59, 42), width=1)
+    draw.line((cx, cy+110, cx, cy+280), fill=(242, 166, 59, 42), width=1)
+    # Off-screen contact trace.
+    bx, by = cx + 170, cy - 105
+    draw.ellipse((bx-9, by-9, bx+9, by+9), outline=(242, 166, 59, 210), width=2)
+    draw.ellipse((bx-26, by-26, bx+26, by+26), outline=(242, 166, 59, 60), width=1)
+    draw.text((cx-102, cy+248), "LOST // 06", font=font(MONO_FONT, 16), fill=(140, 112, 78))
+
+    cells(draw, "lost", False)
+    tag_font = font(copy["font"], 18)
+    draw.text((74, 236), copy["lostTag"], font=tag_font, fill=AMBER)
+    draw.text((66, 264), "0/6", font=font(BASE_FONT, 150), fill=AMBER)
+    headline_font, headline_text = adaptive_font(draw, copy["lost"], copy["font"], 52, 30, 640)
+    draw.multiline_text((72, 430), headline_text, font=headline_font, fill=TEXT, spacing=6)
+    bottom(draw, copy, AMBER)
+
+
+def card(locale, key, score):
+    copy = LOCALES[locale]
+    img = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(img, "RGBA")
+
+    if key == "1":
+        one_shot(draw, copy)
+        img.save(OUT / f"og-{key}-{locale}.png", optimize=True)
+        return
+    if key == "lost":
+        escaped(draw, copy)
+        img.save(OUT / f"og-{key}-{locale}.png", optimize=True)
+        return
+
+    win = True
+    accent = GREEN
+    large = f"{key}/6"
+    frame(draw, copy)
+    cx, cy = 940, 310
+    for r, color in [(250, (50, 200, 180, 20)), (190, (50, 200, 180, 26)),
+                     (125, (242, 166, 59, 35)), (60, (242, 166, 59, 48))]:
+        draw.ellipse((cx-r, cy-r, cx+r, cy+r), outline=color, width=2)
+    draw.line((cx-270, cy, cx+270, cy), fill=(50, 200, 180, 22), width=1)
+    draw.line((cx, cy-270, cx, cy+270), fill=(50, 200, 180, 22), width=1)
+
+    cells(draw, key, win)
     draw.text((70, 248), large, font=font(BASE_FONT, 154), fill=accent)
-
-    headline_font, headline_text = adaptive_font(draw, headline, copy["font"], 46, 28, 640)
+    headline_font, headline_text = adaptive_font(draw, copy["win"], copy["font"], 46, 28, 640)
     draw.multiline_text((72, 460), headline_text, font=headline_font, fill=TEXT, spacing=6)
-
-    # bottom strip
-    draw.line((70, 574, 1130, 574), fill=(35, 72, 84, 160), width=1)
-    tag_font = font(copy["font"], 14)
-    draw.multiline_text((72, 590), wrap(draw, copy["tagline"], tag_font, 780), font=tag_font, fill=MUTED, spacing=2)
-    cta_font = font(copy["font"], 18)
-    cta_w = text_width(draw, copy["cta"], cta_font)
-    draw.text((1128 - cta_w, 586), copy["cta"], font=cta_font, fill=CYAN)
+    bottom(draw, copy, accent)
 
     img.save(OUT / f"og-{key}-{locale}.png", optimize=True)
 
