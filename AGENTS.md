@@ -91,6 +91,8 @@ instructions live in [README.md](README.md).
   attributes) through the replacement rule.
 - Reveal RNG seed: `${date}:${killId || shipId}:${mode}`. Never include the guess
   list in the seed, or earlier reveals could change between refreshes.
+- Equipment parsing keys by `module type + slot`; a battery fitted in mid and also
+  carried in cargo must render as two lines with their own quantities.
 - Equipment size adds weight: Capital/XL +7, Large +2.2, Medium +0.8.
 - Ammo inherits the strongest real weapon restriction for weight, but never
   displays a limited/unique/officer/abyssal marker. Weapon detection uses SDE
@@ -183,7 +185,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 33 cases, including downtime boundaries, target/KB
+`npm test` currently covers 34 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.

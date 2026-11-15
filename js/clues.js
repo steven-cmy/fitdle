@@ -206,23 +206,23 @@ function parseFittings(losses) {
     if (!slot) continue;
     const moduleID = Number(item.item_type_id);
     if (!Number.isFinite(moduleID)) continue;
-    if (!sampleModules.has(moduleID)) sampleModules.set(moduleID, { qty: 0, slots: new Map() });
-    const entry = sampleModules.get(moduleID);
+    // Keep the same type separate when it appears both fitted and in cargo.
+    const key = `${moduleID}:${slot}`;
+    if (!sampleModules.has(key)) sampleModules.set(key, { module: moduleID, slot, qty: 0 });
+    const entry = sampleModules.get(key);
     entry.qty += Math.max(1, Number(item.quantity_destroyed || 0) + Number(item.quantity_dropped || 0) || 1);
-    entry.slots.set(slot, (entry.slots.get(slot) || 0) + 1);
   }
 
   const equipment = [];
-  for (const [moduleID, info] of sampleModules) {
-    const slot = [...info.slots.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'high';
+  for (const info of sampleModules.values()) {
     equipment.push({
-      module: moduleID,
-      slot,
+      module: info.module,
+      slot: info.slot,
       count: Math.max(1, info.qty),
-      rate: (moduleKills.get(moduleID) || 0) / Math.max(1, fittedKills),
+      rate: (moduleKills.get(info.module) || 0) / Math.max(1, fittedKills),
     });
   }
-  equipment.sort((a, b) => b.rate - a.rate || b.count - a.count || a.module - b.module);
+  equipment.sort((a, b) => b.rate - a.rate || b.count - a.count || a.module - b.module || a.slot.localeCompare(b.slot));
   return { equipment, fittedKills, medianValue: median(values) };
 }
 

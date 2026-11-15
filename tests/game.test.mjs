@@ -413,6 +413,26 @@ test('cargo hold items are part of the exposed equipment', () => {
   assert.equal(equipment.equipment[0].slot, 'cargo');
 });
 
+test('same type fitted and in cargo is exposed as separate lines', () => {
+  const losses = [{
+    killmail_id: 139532182,
+    zkb: { totalValue: 1000 },
+    victim: {
+      items: [
+        { flag: 5, item_type_id: 48439, quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 21, item_type_id: 48439, quantity_destroyed: 1, quantity_dropped: 0 },
+      ],
+    },
+  }];
+  const equipment = getEquipment(losses).equipment;
+  const mid = equipment.find((item) => item.module === 48439 && item.slot === 'mid');
+  const cargo = equipment.find((item) => item.module === 48439 && item.slot === 'cargo');
+  assert.ok(mid);
+  assert.ok(cargo);
+  assert.equal(mid.count, 1);
+  assert.equal(cargo.count, 1);
+});
+
 test('slot layout is split into separate clues and kill value is exposed', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const losses = [{
