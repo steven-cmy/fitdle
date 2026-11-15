@@ -1,6 +1,6 @@
 # FITDLE
 
-**版本 0.1.2。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
+**版本 0.1.3。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
 
 ![桌面端](docs/screenshot-desktop.png)
 
@@ -118,7 +118,8 @@ npm install
 
 # 第一次准备数据
 npm run prepare:sde
-npm run build:weights
+npm run build            # 先生成 data/catalog.json
+npm run build:weights    # 需要上一步的 catalog
 npm run build:killpool
 npm run build
 

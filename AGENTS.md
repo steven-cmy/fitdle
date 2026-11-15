@@ -114,8 +114,9 @@ npm run update:dogma      # vendor latest EVE Ship Fit engine/SDE
 npm run hooks:install     # enable shared Git hooks
 ```
 
-`npm run build` requires `data/catalog.json`; run `npm run build` first or use a
-prepared workspace.
+`npm run build` requires `data/catalog.json`; on a fresh checkout run
+`prepare:sde` then `build` once before `build:weights` (weights read the catalog).
+`build:killpool` is independent.
 
 ## Version bump
 
