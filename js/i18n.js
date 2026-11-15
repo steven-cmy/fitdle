@@ -1939,6 +1939,12 @@ Object.assign(RENAMES, {
     en: 'FUEL BAY', de: 'TREIBSTOFFBAY', es: 'BAHÍA DE COMBUSTIBLE', fr: 'BAIE DE CARBURANT',
     ja: '燃料ベイ', ko: '연료 베이', ru: 'ТОПЛИВНЫЙ ОТСЕК', zh: '燃料舱',
   },
+  'archive.noStats': {
+    en: 'ARCHIVE RUN // NOT COUNTED', de: 'ARCHIV-LAUF // NICHT GEZÄHLT',
+    es: 'PARTIDA DE ARCHIVO // NO CUENTA', fr: 'PARTIE ARCHIVE // NON COMPTÉE',
+    ja: 'アーカイブ実行 // 集計外', ko: '아카이브 실행 // 집계 제외',
+    ru: 'АРХИВНЫЙ ЗАБЕГ // НЕ УЧИТЫВАЕТСЯ', zh: '档案模式 // 不计入数据',
+  },
   'dossier.victimAlt': {
     en: 'Victim portrait', de: 'Porträt des Opfers', es: 'Retrato de la víctima', fr: 'Portrait de la victime',
     ja: '被害者のポートレート', ko: '피해자 초상화', ru: 'Портрет жертвы', zh: '受害者头像',

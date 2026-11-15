@@ -1657,7 +1657,7 @@ function applyGuess(shipId) {
 
   renderAll();
   if (state.status !== 'playing') {
-    if (!isFree()) {
+    if (!isFree() && !isArchive()) {
       state.stats = recordResult(localStorage, state.stats, {
         date: state.date,
         status: state.status,
@@ -1764,7 +1764,11 @@ function renderDebrief() {
             <button type="button" class="button ghost" data-action="close-modal">${esc(t('end.review'))}</button>
           </div>
 
-          ${free ? `<div class="free-note">${esc(t('free.noStats'))}</div>` : ''}
+          ${free
+            ? `<div class="free-note">${esc(t('free.noStats'))}</div>`
+            : isArchive()
+              ? `<div class="free-note">${esc(t('archive.noStats'))}</div>`
+              : ''}
           <div class="share-box">
             <label for="share-url">${esc(t('end.share'))}</label>
             <input id="share-url" type="text" readonly value="${esc(url)}">
