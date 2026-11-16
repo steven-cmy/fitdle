@@ -52,6 +52,7 @@ export function modeFromLocation(search = '') {
   return new URLSearchParams(search).get('mode') === 'abyss' ? 'abyss' : 'normal';
 }
 
+export const ARCHIVE_START = '2003-05-06';
 export const KILL_HISTORY_START = '2012-05-22';
 
 export function isValidDateKey(value) {
@@ -59,7 +60,7 @@ export function isValidDateKey(value) {
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return false;
   if (date.toISOString().slice(0, 10) !== value) return false;
-  return value >= KILL_HISTORY_START && value <= '2100-12-31';
+  return value >= ARCHIVE_START && value <= '2100-12-31';
 }
 
 export function shiftDateKey(value, days) {

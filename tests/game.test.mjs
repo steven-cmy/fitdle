@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  ARCHIVE_START,
   ATTEMPT_LIMIT,
   INITIAL_REVEAL,
   DOWNTIME_HOUR_UTC,
@@ -63,8 +64,10 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(gameDateKey(new Date('2026-11-14T10:59:59Z')), '2026-11-13');
   assert.equal(gameDateKey(new Date('2026-11-14T11:00:00Z')), '2026-11-14');
   assert.equal(KILL_HISTORY_START, '2012-05-22');
-  assert.equal(isValidDateKey('2012-05-21'), false);
-  assert.equal(isValidDateKey('2012-05-22'), true);
+  assert.equal(ARCHIVE_START, '2003-05-06');
+  assert.equal(isValidDateKey('2003-05-05'), false);
+  assert.equal(isValidDateKey('2003-05-06'), true);
+  assert.equal(isValidDateKey('2012-05-21'), true);
   assert.equal(isValidDateKey('2026-02-29'), false);
   assert.equal(isValidDateKey('2024-02-29'), true);
   assert.equal(msUntilNextUtcMidnight(new Date('2026-11-14T23:59:30Z')), 30000);
@@ -80,7 +83,8 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(future.invalid, true);
   assert.equal(future.date, '2026-11-14');
   const beforeHistory = dateKeyFromLocation('?d=2012-05-21', new Date('2026-11-14T12:00:00Z'));
-  assert.equal(beforeHistory.invalid, true);
+  assert.equal(beforeHistory.invalid, false);
+  assert.equal(beforeHistory.date, '2012-05-21');
   assert.equal(shiftDateKey('2012-05-22', -1), '2012-05-21');
   assert.equal(shiftDateKey('2026-11-14', 1), '2026-11-15');
   assert.equal(parseKillId('139037509'), 139037509);

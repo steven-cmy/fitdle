@@ -4,6 +4,7 @@ import {
   buildSearchIndex,
   cyrb53,
   dateKeyFromLocation,
+  ARCHIVE_START,
   gameDateKey,
   killHasFittedModules,
   KILL_HISTORY_START,
@@ -111,6 +112,7 @@ const state = {
   newTargetAvailable: false,
   composing: false,
   allowEmptyKb: true,
+  fontSize: 'normal',
   booted: false,
   font: 'neue',
   fontClicks: 0,
@@ -208,6 +210,37 @@ function applyFont(mode, persist = false) {
     }
   }
   syncFontControls();
+}
+
+function applyFontSize(size, persist = false) {
+  state.fontSize = ['normal', 'large', 'xlarge'].includes(size) ? size : 'normal';
+  document.documentElement.dataset.fontSize = state.fontSize;
+  if (persist) {
+    try {
+      localStorage.setItem('fitdle:v1:font-size', state.fontSize);
+    } catch {
+      // best effort
+    }
+  }
+}
+
+function readFontSize() {
+  try {
+    const value = localStorage.getItem('fitdle:v1:font-size');
+    return ['normal', 'large', 'xlarge'].includes(value) ? value : 'normal';
+  } catch {
+    return 'normal';
+  }
+}
+
+function setFontStyle(mode) {
+  applyFont(mode, true);
+  renderManual();
+}
+
+function setFontSize(size) {
+  applyFontSize(size, true);
+  renderManual();
 }
 
 function syncFontControls() {
@@ -499,11 +532,11 @@ function monthBefore(dateKey, monthsBack) {
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
 }
 
-async function resolveRuntimeKill(shipId, dateKey) {
-  // Use a completed calendar month as the shared, immutable window. A rolling
-  // "recent" list would differ depending on when each player opened the page.
+async function resolveRuntimeKill(shipId, dateKey, anchorDate = state.today) {
+  // The archive date only seeds the selection. The KB window is anchored to
+  // today so archived runs do not try to reconstruct historical killboards.
   for (let offset = 1; offset <= 180; offset++) {
-    const month = monthBefore(dateKey, offset);
+    const month = monthBefore(anchorDate, offset);
     if (!month) return null;
     const monthEnd = new Date(Date.UTC(month.year, month.month, 0)).toISOString().slice(0, 10);
     if (monthEnd < KILL_HISTORY_START) return null;
@@ -869,10 +902,6 @@ function renderShell() {
         </div>
       </div>
       <div class="topbar-actions">
-        <button class="font-toggle" type="button" data-action="toggle-font" data-font="${state.font}" aria-pressed="${state.font !== 'neue'}" aria-label="${esc(t('font.switch'))}" title="${esc(`${t('font.label')}: ${fontValue}`)}">
-          <span class="font-toggle-a">Aa</span>
-          <span class="font-toggle-value">${esc(fontValue)}</span>
-        </button>
         <button class="icon-button" type="button" data-action="help" aria-label="${esc(t('header.help'))}">
           ${icon('help')}<span class="label">${esc(t('header.help'))}</span>
         </button>
@@ -883,7 +912,12 @@ function renderShell() {
       </div>
     </header>
 
-    <div id="archive-banner" class="banner" hidden></div>
+    <div id="free-banner" class="banner" hidden></div>
+    <div id="archive-wrap" class="archive-wrap" hidden>
+      <button type="button" class="archive-arrow" data-action="archive-prev" aria-label="${esc(t('archive.prev'))}">&larr;</button>
+      <div id="archive-banner" class="banner" hidden></div>
+      <button type="button" class="archive-arrow" data-action="archive-next" aria-label="${esc(t('archive.next'))}">&rarr;</button>
+    </div>
     <div id="new-target-banner" class="banner" hidden></div>
 
     <main id="main" class="shell">
@@ -899,7 +933,6 @@ function renderShell() {
           <button type="button" class="mode-button${state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
           <button type="button" class="mode-button${state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
         </div>
-        <span class="mode-hint">${esc(state.mode === 'abyss' ? t('mode.abyssHint') : t('mode.standardHint'))}</span>
       </div>
 
       <section class="hero" id="hero" aria-labelledby="hero-title"></section>
@@ -984,22 +1017,27 @@ function renderChrome() {
   const countdownWrap = countdown?.closest('.countdown');
   if (countdownWrap) countdownWrap.style.display = free || archive ? 'none' : '';
 
-  const archiveBanner = $('#archive-banner');
-  if (archiveBanner) {
-    archiveBanner.hidden = !free && !archive;
+  const freeBanner = $('#free-banner');
+  if (freeBanner) {
+    freeBanner.hidden = !free;
     if (free) {
-      archiveBanner.innerHTML = `${icon('radar')} ${esc(t('free.kicker'))} // ${esc(t('free.kb', { id: state.freeKillId }))} <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
-    } else if (archive) {
-      const previous = shiftDateKey(state.date, -1);
-      const next = shiftDateKey(state.date, 1);
-      archiveBanner.innerHTML = `<span>${icon('database')} ${esc(t('header.archive'))} // ${esc(state.date)}</span>
-        <span class="banner-actions">
-          <button type="button" data-action="archive-prev" ${previous < KILL_HISTORY_START ? 'disabled' : ''}>${esc(t('archive.prev'))}</button>
-          <button type="button" data-action="archive-next" ${next > state.today ? 'disabled' : ''}>${esc(t('archive.next'))}</button>
-          <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>
-        </span>`;
+      freeBanner.innerHTML = `${icon('radar')} ${esc(t('free.kicker'))} // ${esc(t('free.kb', { id: state.freeKillId }))} <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
     }
   }
+  const archiveWrap = $('#archive-wrap');
+  if (archiveWrap) archiveWrap.hidden = !archive;
+  const archiveBanner = $('#archive-banner');
+  if (archiveBanner) {
+    archiveBanner.hidden = !archive;
+    if (archive) {
+      archiveBanner.innerHTML = `<span>${icon('database')} ${esc(t('header.archive'))} // ${esc(state.date)}</span>
+        <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
+    }
+  }
+  const archivePrev = $('[data-action="archive-prev"]');
+  const archiveNext = $('[data-action="archive-next"]');
+  if (archivePrev) archivePrev.disabled = !archive || shiftDateKey(state.date, -1) < ARCHIVE_START;
+  if (archiveNext) archiveNext.disabled = !archive || shiftDateKey(state.date, 1) > state.today;
   const newBanner = $('#new-target-banner');
   if (newBanner) {
     newBanner.hidden = free || !state.newTargetAvailable;
@@ -1882,7 +1920,7 @@ function navigateToDate(date) {
 function stepArchive(days) {
   if (!isArchive()) return;
   let next = shiftDateKey(state.date, days);
-  if (next < KILL_HISTORY_START) next = KILL_HISTORY_START;
+  if (next < ARCHIVE_START) next = ARCHIVE_START;
   if (next > state.today) next = state.today;
   if (next === state.date) return;
   navigateToDate(next);
@@ -1897,7 +1935,7 @@ function openArchiveModal() {
       <h2 id="archive-title">${esc(t('archiveModal.title'))}</h2>
       <p class="mode-modal-body">${esc(t('archiveModal.body'))}</p>
       <label class="mode-modal-label" for="archive-date">${esc(t('archiveModal.select'))}</label>
-      <input id="archive-date" class="mode-modal-input" type="date" min="${KILL_HISTORY_START}" max="${state.today}" value="${selected}">
+      <input id="archive-date" class="mode-modal-input" type="date" min="${ARCHIVE_START}" max="${state.today}" value="${selected}">
       <div class="mode-modal-error" id="archive-error" aria-live="polite"></div>
       <div class="mode-modal-actions">
         <button type="button" class="button primary" data-action="archive-submit">${icon('calendar')} ${esc(t('archiveModal.open'))}</button>
@@ -1978,7 +2016,7 @@ function submitArchiveDate() {
   const input = $('#archive-date');
   const error = $('#archive-error');
   const value = input?.value;
-  if (!value || value < KILL_HISTORY_START || value > state.today) {
+  if (!value || value < ARCHIVE_START || value > state.today) {
     if (error) error.textContent = t('archiveModal.invalid');
     return;
   }
@@ -2027,6 +2065,18 @@ function renderManual() {
         <div class="manual-column">
           <div class="manual-section">
             <h3>${icon('slots')} ${esc(t('manual.settingsTitle'))}</h3>
+            <div class="setting-row">
+              <span>${esc(t('font.label'))}</span>
+              <div class="segmented">
+                ${[['neue', 'font.neue'], ['classic', 'font.classic'], ['triglavian', 'font.triglavian']].map(([value, key]) => `<button type="button" class="${state.font === value ? 'is-active' : ''}" data-action="set-font" data-font="${value}" aria-pressed="${state.font === value}">${esc(t(key))}</button>`).join('')}
+              </div>
+            </div>
+            <div class="setting-row">
+              <span>${esc(t('settings.fontSize'))}</span>
+              <div class="segmented">
+                ${[['normal', 'settings.sizeNormal'], ['large', 'settings.sizeLarge'], ['xlarge', 'settings.sizeXLarge']].map(([value, key]) => `<button type="button" class="${state.fontSize === value ? 'is-active' : ''}" data-action="set-font-size" data-size="${value}" aria-pressed="${state.fontSize === value}">${esc(t(key))}</button>`).join('')}
+              </div>
+            </div>
             <button type="button" class="setting-toggle" data-action="toggle-empty-kb" role="switch" aria-checked="${state.allowEmptyKb}">
               <span>
                 <strong>${esc(t('manual.emptyKb'))}</strong>
@@ -2253,6 +2303,8 @@ document.addEventListener('click', (event) => {
     if (action === 'archive-prev') { stepArchive(-1); return; }
     if (action === 'archive-next') { stepArchive(1); return; }
     if (action === 'toggle-empty-kb') { setAllowEmptyKb(!state.allowEmptyKb); return; }
+    if (action === 'set-font') { setFontStyle(actionEl.dataset.font); return; }
+    if (action === 'set-font-size') { setFontSize(actionEl.dataset.size); return; }
     if (action === 'help') { renderManual(); return; }
     if (action === 'submit') { submitGuess(); return; }
     if (action === 'debrief') { renderDebrief(); return; }
@@ -2396,6 +2448,8 @@ async function boot() {
   } catch {
     applyFont('neue');
   }
+  state.fontSize = readFontSize();
+  applyFontSize(state.fontSize);
   try {
     const manifest = await fetchJson('data/manifest.json');
     state.manifest = manifest;
@@ -2445,7 +2499,7 @@ async function boot() {
       state.answerKillId = targetKill ? Number(targetKill.killmail_id) : null;
       if (!state.answerId || !state.catalogMap.has(state.answerId)) throw new Error('daily target unavailable');
       state.answerShip = state.catalogMap.get(state.answerId);
-      const runtimeKill = await resolveRuntimeKill(state.answerId, state.date);
+      const runtimeKill = await resolveRuntimeKill(state.answerId, state.date, state.today);
       if (runtimeKill?.killmail_id) state.answerKillId = Number(runtimeKill.killmail_id);
     }
     await loadLocaleData(state.locale);

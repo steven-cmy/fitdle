@@ -795,6 +795,11 @@ select {
   opacity: 0.35;
   pointer-events: none;
 }
+.banner svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
 .banner-actions {
   display: flex;
   flex-wrap: wrap;
@@ -803,6 +808,42 @@ select {
 }
 .banner-actions button {
   letter-spacing: 0.04em;
+}
+.archive-wrap {
+  display: flex;
+  width: min(1440px, calc(100% - 48px));
+  align-items: center;
+  gap: 12px;
+  margin: 14px auto 0;
+}
+.archive-wrap[hidden] {
+  display: none;
+}
+.archive-wrap .banner {
+  width: auto;
+  flex: 1 1 auto;
+  margin: 0;
+}
+.archive-arrow {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--amber);
+  border: 1px solid rgba(255, 181, 71, 0.35);
+  background: rgba(6, 12, 18, 0.55);
+  font: 500 26px/1 var(--font-mono);
+  transition: color 140ms, background 140ms, border-color 140ms;
+}
+.archive-arrow:hover:not(:disabled) {
+  color: #1a0f02;
+  border-color: var(--amber);
+  background: var(--amber);
+}
+.archive-arrow:disabled {
+  opacity: 0.3;
+  pointer-events: none;
 }
 .banner > svg {
   width: 13px;
@@ -3526,6 +3567,36 @@ html[data-game-mode="abyss"] {
   width: 13px;
   height: 13px;
 }
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  color: var(--muted);
+  font: 600 9px/1.3 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.segmented button {
+  padding: 5px 8px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: transparent;
+  font: 600 8.5px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.segmented button.is-active {
+  color: var(--amber);
+  border-color: rgba(242, 166, 59, 0.45);
+  background: rgba(242, 166, 59, 0.1);
+}
 .setting-toggle {
   display: flex;
   width: 100%;
@@ -4417,3 +4488,48 @@ html[data-game-mode="abyss"] {
 @keyframes toast-out {
   to { opacity: 0; transform: translateX(20px); }
 }
+
+/* Font size preference */
+html[data-font-size="large"] .attr-label,
+html[data-font-size="large"] .equipment-slot-head,
+html[data-font-size="large"] .group-title { font-size: 11px; }
+html[data-font-size="large"] .attr-value .sub,
+html[data-font-size="large"] .attr-value .unit,
+html[data-font-size="large"] .dossier-count span,
+html[data-font-size="large"] .attempt-meta,
+html[data-font-size="large"] .attempt-status strong { font-size: 10px; }
+html[data-font-size="large"] .module-line-name,
+html[data-font-size="large"] .module-line .module-count { font-size: 14.5px; }
+html[data-font-size="large"] .badge-hull { font-size: 9.5px; }
+html[data-font-size="large"] .debrief-stat span,
+html[data-font-size="large"] .debrief-bonus-title { font-size: 9.5px; }
+html[data-font-size="large"] .bonus-list li { font-size: 13px; }
+html[data-font-size="large"] .debrief-description,
+html[data-font-size="large"] .debrief-body,
+html[data-font-size="large"] .manual-section p { font-size: 13.5px; }
+html[data-font-size="large"] .mode-button,
+html[data-font-size="large"] .banner { font-size: 10px; }
+html[data-font-size="large"] .victim-lines { font-size: 8.5px; }
+html[data-font-size="large"] .victim-body > .zkb-item-link { font-size: 13px; }
+
+html[data-font-size="xlarge"] .attr-label,
+html[data-font-size="xlarge"] .equipment-slot-head,
+html[data-font-size="xlarge"] .group-title { font-size: 12.5px; }
+html[data-font-size="xlarge"] .attr-value .sub,
+html[data-font-size="xlarge"] .attr-value .unit,
+html[data-font-size="xlarge"] .dossier-count span,
+html[data-font-size="xlarge"] .attempt-meta,
+html[data-font-size="xlarge"] .attempt-status strong { font-size: 11.5px; }
+html[data-font-size="xlarge"] .module-line-name,
+html[data-font-size="xlarge"] .module-line .module-count { font-size: 16px; }
+html[data-font-size="xlarge"] .badge-hull { font-size: 10.5px; }
+html[data-font-size="xlarge"] .debrief-stat span,
+html[data-font-size="xlarge"] .debrief-bonus-title { font-size: 10.5px; }
+html[data-font-size="xlarge"] .bonus-list li { font-size: 14px; }
+html[data-font-size="xlarge"] .debrief-description,
+html[data-font-size="xlarge"] .debrief-body,
+html[data-font-size="xlarge"] .manual-section p { font-size: 15px; }
+html[data-font-size="xlarge"] .mode-button,
+html[data-font-size="xlarge"] .banner { font-size: 11px; }
+html[data-font-size="xlarge"] .victim-lines { font-size: 9.5px; }
+html[data-font-size="xlarge"] .victim-body > .zkb-item-link { font-size: 14px; }
