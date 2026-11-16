@@ -69,8 +69,10 @@ instructions live in [README.md](README.md).
 
 ## KB selection
 
+- zKill kill reports before **2012-05-22** do not exist; never select them.
 - `/api/losses/shipTypeID/{id}/year/{Y}/month/{M}/`, page 1 only (200 max).
-- Start at the previous complete UTC month; walk back up to 60 months.
+- Start at the previous complete UTC month; walk back through the kill-history floor
+  (2012-05-22), with a hard scan cap of 180 months.
 - Hash seed includes date, hull and month offset; all players see the same KB.
 - Static `killPoolsByShip` is only a fallback when runtime fetch/selection fails.
 - Do not add pagination or current-month data; it would break identical play.
@@ -237,6 +239,8 @@ test reads `dist/`.
 - zKill APIs can rate-limit; runtime degrades to SDE-only clues.
 - Dogma cannot recover the victim's real skills/mutations; simulates all-V and
   active modules.
-- Some hulls have no KB in 60 months; static fallback may be empty.
+- Some hulls have no KB within the scanned history; static fallback may be empty.
 - Free mode is not counted and not persisted.
+- Archive mode is not counted in the service record.
+- The field manual setting `fitdle:v1:allowEmptyKb` controls whether empty-hull killmails are eligible (default on).
 - Stats are origin-local; different domains have separate localStorage.

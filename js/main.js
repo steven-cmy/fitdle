@@ -5,10 +5,14 @@ import {
   cyrb53,
   dateKeyFromLocation,
   gameDateKey,
+  killHasFittedModules,
+  KILL_HISTORY_START,
   loadState,
   loadStats,
   modeFromLocation,
   msUntilNextDowntime,
+  parseKillId,
+  shiftDateKey,
   normalizeText,
   pickDailyAnswer,
   profileSimilarity,
@@ -106,6 +110,7 @@ const state = {
   localeLoading: false,
   newTargetAvailable: false,
   composing: false,
+  allowEmptyKb: true,
   booted: false,
   font: 'neue',
   fontClicks: 0,
@@ -227,6 +232,25 @@ function readFontClicks() {
   } catch {
     return 0;
   }
+}
+
+function readAllowEmptyKb() {
+  try {
+    return localStorage.getItem('fitdle:v1:allowEmptyKb') !== '0';
+  } catch {
+    return true;
+  }
+}
+
+function setAllowEmptyKb(enabled) {
+  state.allowEmptyKb = Boolean(enabled);
+  try {
+    localStorage.setItem('fitdle:v1:allowEmptyKb', state.allowEmptyKb ? '1' : '0');
+  } catch {
+    // ignore
+  }
+  renderManual();
+  showToast(t('manual.emptyKb'), t(state.allowEmptyKb ? 'manual.emptyKbOn' : 'manual.emptyKbOff'), 'info', 3200);
 }
 
 function toggleFont() {
@@ -478,13 +502,19 @@ function monthBefore(dateKey, monthsBack) {
 async function resolveRuntimeKill(shipId, dateKey) {
   // Use a completed calendar month as the shared, immutable window. A rolling
   // "recent" list would differ depending on when each player opened the page.
-  for (let offset = 1; offset <= 60; offset++) {
+  for (let offset = 1; offset <= 180; offset++) {
     const month = monthBefore(dateKey, offset);
     if (!month) return null;
+    const monthEnd = new Date(Date.UTC(month.year, month.month, 0)).toISOString().slice(0, 10);
+    if (monthEnd < KILL_HISTORY_START) return null;
     try {
       const data = await fetchZkill(`/api/losses/shipTypeID/${shipId}/year/${month.year}/month/${month.month}/`);
       if (!Array.isArray(data)) continue;
-      const losses = data.filter((kill) => Number(kill?.victim?.ship_type_id) === Number(shipId));
+      const losses = data.filter((kill) => (
+        Number(kill?.victim?.ship_type_id) === Number(shipId)
+        && String(kill?.killmail_time || '') >= `${KILL_HISTORY_START}T00:00:00Z`
+        && (state.allowEmptyKb || killHasFittedModules(kill))
+      ));
       if (!losses.length) continue;
       const index = cyrb53(`${dateKey}:${shipId}:${month.year}-${month.month}`, 0x5ca1ab1e) % losses.length;
       return losses[index];
@@ -859,6 +889,12 @@ function renderShell() {
     <main id="main" class="shell">
       <div class="mode-bar" data-mode="${state.mode}">
         <span class="mode-label">${esc(t('mode.label'))}</span>
+        <div class="mode-switch mode-nav" role="group" aria-label="${esc(t('mode.label'))}">
+          <button type="button" class="mode-button${!isFree() && !isArchive() ? ' is-active' : ''}" data-action="play-today" aria-pressed="${!isFree() && !isArchive()}">${esc(t('mode.daily'))}</button>
+          <button type="button" class="mode-button${isFree() ? ' is-active' : ''}" data-action="free-mode" aria-pressed="${isFree()}">${esc(t('mode.free'))}</button>
+          <button type="button" class="mode-button${isArchive() ? ' is-active' : ''}" data-action="archive-mode" aria-pressed="${isArchive()}">${esc(t('mode.archive'))}</button>
+        </div>
+        <span class="mode-divider" aria-hidden="true"></span>
         <div class="mode-switch" role="group" aria-label="${esc(t('mode.label'))}">
           <button type="button" class="mode-button${state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
           <button type="button" class="mode-button${state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
@@ -954,7 +990,14 @@ function renderChrome() {
     if (free) {
       archiveBanner.innerHTML = `${icon('radar')} ${esc(t('free.kicker'))} // ${esc(t('free.kb', { id: state.freeKillId }))} <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
     } else if (archive) {
-      archiveBanner.innerHTML = `${icon('database')} ${esc(t('header.archive'))} // ${esc(state.date)} <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
+      const previous = shiftDateKey(state.date, -1);
+      const next = shiftDateKey(state.date, 1);
+      archiveBanner.innerHTML = `<span>${icon('database')} ${esc(t('header.archive'))} // ${esc(state.date)}</span>
+        <span class="banner-actions">
+          <button type="button" data-action="archive-prev" ${previous < KILL_HISTORY_START ? 'disabled' : ''}>${esc(t('archive.prev'))}</button>
+          <button type="button" data-action="archive-next" ${next > state.today ? 'disabled' : ''}>${esc(t('archive.next'))}</button>
+          <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>
+        </span>`;
     }
   }
   const newBanner = $('#new-target-banner');
@@ -1116,7 +1159,7 @@ function renderAttempts() {
       const result = buildGuessResult(ship, state.answerShip, i + 1);
       const similarity = correct ? 100 : result.similarity;
       rows.push(`
-        <li class="attempt is-complete ${correct ? 'is-correct' : 'is-wrong'}${state.latestIndex === i ? ' is-latest' : ''}" aria-label="${esc(`${displayName(ship)}, ${correct ? t('board.confirmed') : t('board.mismatch')}, ${similarity}%`)}">
+        <li class="attempt is-complete ${correct ? 'is-correct' : 'is-wrong'}${state.latestIndex === i ? ' is-latest' : ''}" aria-label="${esc(`${displayName(ship)}, ${correct ? t('board.confirmed') : t('board.matchRate')}, ${similarity}%`)}">
           <span class="attempt-marker">${String(i + 1).padStart(2, '0')}</span>
           ${attemptIcon(ship)}
           <span class="attempt-body">
@@ -1125,7 +1168,7 @@ function renderAttempts() {
             <span class="match-track" style="--match:${similarity}%"><span></span></span>
           </span>
           <span class="attempt-status">
-            <strong>${esc(correct ? t('board.confirmed') : t('board.mismatch'))}</strong>
+            <strong>${esc(correct ? t('board.confirmed') : t('board.matchRate'))}</strong>
             <span>${similarity}%</span>
           </span>
         </li>
@@ -1825,6 +1868,123 @@ function closeModal() {
   if (focus && typeof focus.focus === 'function' && focus.isConnected) focus.focus();
 }
 
+function navigateToDate(date) {
+  const url = new URL(location.href);
+  url.pathname = new URL('.', location.href).pathname;
+  url.search = '';
+  url.hash = '';
+  if (date !== state.today) url.searchParams.set('d', date);
+  if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
+  url.searchParams.set('lang', state.locale);
+  location.assign(url.toString());
+}
+
+function stepArchive(days) {
+  if (!isArchive()) return;
+  let next = shiftDateKey(state.date, days);
+  if (next < KILL_HISTORY_START) next = KILL_HISTORY_START;
+  if (next > state.today) next = state.today;
+  if (next === state.date) return;
+  navigateToDate(next);
+}
+
+function openArchiveModal() {
+  const selected = isArchive() ? state.date : state.today;
+  openModal(`
+    <div class="modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="archive-title" data-kind="archive">
+      <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
+      <div class="panel-kicker">${icon('database')} // ${esc(t('mode.archive'))}</div>
+      <h2 id="archive-title">${esc(t('archiveModal.title'))}</h2>
+      <p class="mode-modal-body">${esc(t('archiveModal.body'))}</p>
+      <label class="mode-modal-label" for="archive-date">${esc(t('archiveModal.select'))}</label>
+      <input id="archive-date" class="mode-modal-input" type="date" min="${KILL_HISTORY_START}" max="${state.today}" value="${selected}">
+      <div class="mode-modal-error" id="archive-error" aria-live="polite"></div>
+      <div class="mode-modal-actions">
+        <button type="button" class="button primary" data-action="archive-submit">${icon('calendar')} ${esc(t('archiveModal.open'))}</button>
+        <button type="button" class="button ghost" data-action="close-modal">${esc(t('common.close'))}</button>
+      </div>
+    </div>
+  `, 'archive');
+}
+
+function openFreeModal() {
+  openModal(`
+    <div class="modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="free-title" data-kind="free">
+      <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
+      <div class="panel-kicker">${icon('radar')} // ${esc(t('mode.free'))}</div>
+      <h2 id="free-title">${esc(t('freeModal.title'))}</h2>
+      <p class="mode-modal-body">${esc(t('freeModal.body'))}</p>
+      <label class="mode-modal-label" for="free-kb-input">${esc(t('freeModal.kbLabel'))}</label>
+      <input id="free-kb-input" class="mode-modal-input" type="text" inputmode="numeric" autocomplete="off" placeholder="${esc(t('freeModal.placeholder'))}">
+      <div class="mode-modal-error" id="free-error" aria-live="polite"></div>
+      <div class="mode-modal-actions">
+        <button type="button" class="button primary" data-action="free-submit">${icon('target')} ${esc(t('freeModal.open'))}</button>
+        <button type="button" class="button ghost" data-action="close-modal">${esc(t('common.close'))}</button>
+      </div>
+    </div>
+  `, 'free');
+  setTimeout(() => $('#free-kb-input')?.focus(), 40);
+}
+
+async function submitFreeKill() {
+  const input = $('#free-kb-input');
+  const error = $('#free-error');
+  const button = $('[data-action="free-submit"]');
+  const killId = parseKillId(input?.value);
+  if (!killId) {
+    if (error) error.textContent = t('freeModal.invalid');
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+    button.textContent = t('freeModal.loading');
+  }
+  if (error) error.textContent = '';
+  try {
+    const data = await fetchZkill(`/api/killID/${killId}/`);
+    const killmail = Array.isArray(data) ? data[0] : null;
+    if (!killmail?.victim?.ship_type_id) throw new Error('invalid');
+    if (String(killmail.killmail_time || '') < `${KILL_HISTORY_START}T00:00:00Z`) {
+      if (error) error.textContent = t('freeModal.old');
+      return;
+    }
+    if (!state.allowEmptyKb && !killHasFittedModules(killmail)) {
+      if (error) error.textContent = t('freeModal.empty');
+      return;
+    }
+    if (!state.catalogMap.has(Number(killmail.victim.ship_type_id))) {
+      if (error) error.textContent = t('freeModal.invalid');
+      return;
+    }
+    const url = new URL(location.href);
+    url.pathname = new URL('.', location.href).pathname;
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('kb', String(killId));
+    if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
+    url.searchParams.set('lang', state.locale);
+    location.assign(url.toString());
+  } catch {
+    if (error) error.textContent = t('freeModal.invalid');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = t('freeModal.open');
+    }
+  }
+}
+
+function submitArchiveDate() {
+  const input = $('#archive-date');
+  const error = $('#archive-error');
+  const value = input?.value;
+  if (!value || value < KILL_HISTORY_START || value > state.today) {
+    if (error) error.textContent = t('archiveModal.invalid');
+    return;
+  }
+  navigateToDate(value);
+}
+
 function renderManual() {
   const stats = state.stats || DEFAULT_STATS;
   const played = stats.played || 0;
@@ -1865,6 +2025,16 @@ function renderManual() {
           </div>
         </div>
         <div class="manual-column">
+          <div class="manual-section">
+            <h3>${icon('slots')} ${esc(t('manual.settingsTitle'))}</h3>
+            <button type="button" class="setting-toggle" data-action="toggle-empty-kb" role="switch" aria-checked="${state.allowEmptyKb}">
+              <span>
+                <strong>${esc(t('manual.emptyKb'))}</strong>
+                <small>${esc(t('manual.emptyKbHelp'))}</small>
+              </span>
+              <i class="toggle-track" aria-hidden="true"><b></b></i>
+            </button>
+          </div>
           <div class="manual-section">
             <h3>${icon('database')} ${esc(t('help.statsTitle'))}</h3>
             <div class="stats-grid">
@@ -2076,6 +2246,13 @@ document.addEventListener('click', (event) => {
   const actionEl = event.target.closest('[data-action]');
   if (actionEl) {
     const action = actionEl.dataset.action;
+    if (action === 'free-mode') { openFreeModal(); return; }
+    if (action === 'archive-mode') { openArchiveModal(); return; }
+    if (action === 'free-submit') { void submitFreeKill(); return; }
+    if (action === 'archive-submit') { submitArchiveDate(); return; }
+    if (action === 'archive-prev') { stepArchive(-1); return; }
+    if (action === 'archive-next') { stepArchive(1); return; }
+    if (action === 'toggle-empty-kb') { setAllowEmptyKb(!state.allowEmptyKb); return; }
     if (action === 'help') { renderManual(); return; }
     if (action === 'submit') { submitGuess(); return; }
     if (action === 'debrief') { renderDebrief(); return; }
@@ -2116,6 +2293,16 @@ document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       event.preventDefault();
       closeModal();
+      return;
+    }
+    if (event.key === 'Enter' && state.modal?.kind === 'free') {
+      event.preventDefault();
+      void submitFreeKill();
+      return;
+    }
+    if (event.key === 'Enter' && state.modal?.kind === 'archive') {
+      event.preventDefault();
+      submitArchiveDate();
       return;
     }
     if (event.key === 'Tab') {
@@ -2202,6 +2389,7 @@ async function boot() {
   state.locale = detectLocale();
   state.i18n = createI18n(state.locale);
   state.fontClicks = readFontClicks();
+  state.allowEmptyKb = readAllowEmptyKb();
   try {
     const storedFont = localStorage.getItem('fitdle:v1:font');
     applyFont(storedFont === 'classic' || storedFont === 'triglavian' ? storedFont : 'neue');
@@ -2234,6 +2422,12 @@ async function boot() {
       const data = await fetchZkill(`/api/killID/${state.freeKillId}/`);
       const killmail = Array.isArray(data) ? data[0] : null;
       if (!killmail?.victim?.ship_type_id) throw new Error('free target unavailable');
+      if (String(killmail.killmail_time || '') < `${KILL_HISTORY_START}T00:00:00Z`) {
+        throw new Error('free killmail before kill history');
+      }
+      if (!state.allowEmptyKb && !killHasFittedModules(killmail)) {
+        throw new Error('empty free killmail disabled');
+      }
       state.freeKillmail = killmail;
       state.answerId = Number(killmail.victim.ship_type_id);
       state.answerKillId = state.freeKillId;

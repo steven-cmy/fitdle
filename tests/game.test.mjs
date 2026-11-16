@@ -12,12 +12,15 @@ import {
   dailyAnswerIndex,
   gameDateKey,
   isValidDateKey,
+  KILL_HISTORY_START,
+  killHasFittedModules,
   loadState,
   loadStats,
   modeFromLocation,
   msUntilNextDowntime,
   msUntilNextUtcMidnight,
   newlyRevealedFor,
+  parseKillId,
   pickDailyAnswer,
   profileSimilarity,
   recordResult,
@@ -26,6 +29,7 @@ import {
   saveState,
   searchShips,
   shareUrl,
+  shiftDateKey,
   utcDateKey,
 } from '../js/game.js';
 import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, selectAbyssFallbacks } from '../js/clues.js';
@@ -58,6 +62,9 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(utcDateKey(new Date('2026-11-15T00:00:00Z')), '2026-11-15');
   assert.equal(gameDateKey(new Date('2026-11-14T10:59:59Z')), '2026-11-13');
   assert.equal(gameDateKey(new Date('2026-11-14T11:00:00Z')), '2026-11-14');
+  assert.equal(KILL_HISTORY_START, '2012-05-22');
+  assert.equal(isValidDateKey('2012-05-21'), false);
+  assert.equal(isValidDateKey('2012-05-22'), true);
   assert.equal(isValidDateKey('2026-02-29'), false);
   assert.equal(isValidDateKey('2024-02-29'), true);
   assert.equal(msUntilNextUtcMidnight(new Date('2026-11-14T23:59:30Z')), 30000);
@@ -72,6 +79,15 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   const future = dateKeyFromLocation('?d=2026-11-15', new Date('2026-11-14T12:00:00Z'));
   assert.equal(future.invalid, true);
   assert.equal(future.date, '2026-11-14');
+  const beforeHistory = dateKeyFromLocation('?d=2012-05-21', new Date('2026-11-14T12:00:00Z'));
+  assert.equal(beforeHistory.invalid, true);
+  assert.equal(shiftDateKey('2012-05-22', -1), '2012-05-21');
+  assert.equal(shiftDateKey('2026-11-14', 1), '2026-11-15');
+  assert.equal(parseKillId('139037509'), 139037509);
+  assert.equal(parseKillId('https://zkillboard.com/kill/139037509/'), 139037509);
+  assert.equal(parseKillId('nope'), null);
+  assert.equal(killHasFittedModules({ victim: { items: [{ flag: 5, item_type_id: 1 }] } }), false);
+  assert.equal(killHasFittedModules({ victim: { items: [{ flag: 19, item_type_id: 1 }] } }), true);
 });
 
 test('daily answer is deterministic, language-independent and includes special hulls', () => {

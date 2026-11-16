@@ -52,13 +52,47 @@ export function modeFromLocation(search = '') {
   return new URLSearchParams(search).get('mode') === 'abyss' ? 'abyss' : 'normal';
 }
 
+export const KILL_HISTORY_START = '2012-05-22';
+
 export function isValidDateKey(value) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return false;
   if (date.toISOString().slice(0, 10) !== value) return false;
-  const year = Number(value.slice(0, 4));
-  return year >= 2020 && year <= 2100;
+  return value >= KILL_HISTORY_START && value <= '2100-12-31';
+}
+
+export function shiftDateKey(value, days) {
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  date.setUTCDate(date.getUTCDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+export function parseKillId(raw) {
+  const value = String(raw || '').trim();
+  if (/^\d+$/.test(value) && Number(value) > 0) return Number(value);
+  const bare = value.match(/(?:zkillboard\.com\/)?(?:api\/)?kill(?:ID)?\/(\d+)/i);
+  if (bare) return Number(bare[1]);
+  try {
+    const url = new URL(value);
+    const match = url.pathname.match(/\/(?:kill|api\/killID)\/(\d+)\/?/i);
+    if (match) return Number(match[1]);
+    const query = url.searchParams.get('killID') || url.searchParams.get('killmail_id');
+    if (query && /^\d+$/.test(query)) return Number(query);
+  } catch {
+    // not a URL
+  }
+  return null;
+}
+
+const FITTED_KILL_FLAGS = new Set([
+  11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+  87, 92, 93, 94, 155, 158, 159, 160, 161,
+]);
+
+export function killHasFittedModules(killmail) {
+  return (killmail?.victim?.items || []).some((item) => FITTED_KILL_FLAGS.has(Number(item.flag)));
 }
 
 export function dateKeyFromLocation(search = location.search, now = new Date(), resetHourUtc = DOWNTIME_HOUR_UTC) {

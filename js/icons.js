@@ -13,6 +13,7 @@ const PATHS = {
   link: '<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',
   copy: '<rect x="8" y="8" width="11" height="12" rx="1"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h3"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="M7 14h2M11 14h2M15 14h2M7 18h2M11 18h2"/>',
   ship: '<path d="M12 3l2 4 5 2-2 8-5 4-5-4-2-8 5-2Z"/><path d="M12 7v11M7 9l10 6M17 9L7 15"/>',
   slots: '<rect x="3" y="4" width="18" height="5"/><rect x="3" y="15" width="18" height="5"/><path d="M6 6.5h.01M6 17.5h.01"/>',
   navigation: '<path d="M12 3l7 18-7-4-7 4Z"/><path d="M12 7v10"/>',
