@@ -75,7 +75,7 @@ instructions live in [README.md](README.md).
 - `/api/losses/shipTypeID/{id}/year/{Y}/month/{M}/`, page 1 only (200 max).
 - Start at the previous complete UTC month relative to **today**; archive dates are
   only selection seeds. Walk back through the kill-history floor (2012-05-22), with
-  a hard scan cap of 180 months.
+  a hard scan cap of 24 months; the static killpool is the fallback.
 - Hash seed includes date, hull and month offset; all players see the same KB.
 - Static `killPoolsByShip` is only a fallback when runtime fetch/selection fails.
 - Do not add pagination or current-month data; it would break identical play.

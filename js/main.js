@@ -571,7 +571,8 @@ function monthBefore(dateKey, monthsBack) {
 async function resolveRuntimeKill(shipId, dateKey, anchorDate = state.today) {
   // The archive date only seeds the selection. The KB window is anchored to
   // today so archived runs do not try to reconstruct historical killboards.
-  for (let offset = 1; offset <= 180; offset++) {
+  const maxMonthScan = 24;
+  for (let offset = 1; offset <= maxMonthScan; offset++) {
     const month = monthBefore(anchorDate, offset);
     if (!month) return null;
     const monthEnd = new Date(Date.UTC(month.year, month.month, 0)).toISOString().slice(0, 10);
