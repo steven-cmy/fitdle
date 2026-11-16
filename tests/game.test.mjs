@@ -369,7 +369,10 @@ test('runtime clue builder uses SDE plus live-shaped zKill fixtures', () => {
   assert.equal(built.sampleKill, 424242);
   const usage = built.clues.find((clue) => clue.k === 'usageRank');
   assert.ok(usage && usage.v >= 1 && usage.v <= 100);
-  for (const clue of built.clues) assert.ok(clue.w >= 1 && clue.w <= 10);
+  for (const clue of built.clues) {
+    const floor = clue.k === 'structureResists' ? 0.2 : 1;
+    assert.ok(clue.w >= floor && clue.w <= 10);
+  }
   const identity = built.clues.slice(0, 3).filter((clue) => ['tech', 'race', 'faction', 'group'].includes(clue.k));
   assert.ok(identity.length <= 1, 'opening identity leak');
   const equipment = built.clues.slice(0, 3).filter((clue) => clue.k === 'equipment');
@@ -592,6 +595,12 @@ test('assault damage control raises abyss structure resist weight', () => {
   const dc = build(2048);
   assert.ok(adc.w >= 9.5);
   assert.ok(adc.w > dc.w);
+  const standard = buildClues({
+    ship, catalog, refs, stats: null,
+    losses: [{ killmail_id: 8, zkb: { totalValue: 1000 }, victim: { items: [] } }],
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion,
+  }).clues.find((clue) => clue.k === 'structureResists');
+  assert.ok(standard.w <= 0.4);
 });
 
 test('low-slot weapon upgrades are weighted by matching weapon family', () => {
