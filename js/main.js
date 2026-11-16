@@ -1068,17 +1068,21 @@ function renderShell() {
 
       <div class="console">
         <section class="panel board-panel" id="board-panel" aria-labelledby="board-title">
-          <header class="panel-head">
+          <header class="panel-head${isTimed() ? ' is-timed' : ''}">
+            ${isTimed() ? `<button type="button" class="timed-clock-button" aria-label="${esc(t('timed.label'))}">
+              <span>${esc(t('timed.label'))}</span>
+              <strong id="board-count-text">00:00</strong>
+              <small>${esc(t('timed.holdShort'))}</small>
+            </button>` : ''}
             <div>
               <div class="panel-kicker"><span class="idx">01</span> // ${esc(t('board.title'))}</div>
               <h2 id="board-title">${esc(t('board.title'))}</h2>
               <p class="panel-sub">${esc(t('board.subtitle'))}</p>
             </div>
-            <div class="dossier-count" aria-hidden="true">
-              <strong id="board-count-text">${isTimed() ? '00:00' : `${String(state.guesses.length).padStart(2, '0')} / 06`}</strong>
-              <span>${esc(isTimed() ? t('timed.label') : t('hero.attempts'))}</span>
-              ${isTimed() ? `<small class="timed-hold">${esc(t('timed.hold'))}</small>` : ''}
-            </div>
+            ${isTimed() ? '' : `<div class="dossier-count" aria-hidden="true">
+              <strong id="board-count-text">${String(state.guesses.length).padStart(2, '0')} / 06</strong>
+              <span>${esc(t('hero.attempts'))}</span>
+            </div>`}
           </header>
           <div id="acquire-slot"></div>
           <ol class="attempts" id="attempts" aria-label="${esc(t('board.title'))}"></ol>
@@ -1593,7 +1597,24 @@ function renderDossier() {
     const orbText = $('#dossier-orb-text');
     if (orbText) orbText.textContent = '0%';
     if ($('#answer-banner')) $('#answer-banner').innerHTML = '';
-    if ($('#dossier-groups')) $('#dossier-groups').innerHTML = '';
+    const host = $('#dossier-groups');
+    if (host) {
+      host.innerHTML = ['hull', 'nav', 'defense', 'targeting', 'fitting', 'equipment', 'cargo'].map((category) => `
+        <section class="dossier-group cat-${category} is-sealed">
+          <header class="group-head">
+            <span class="group-title">${icon(CATEGORY_ICON[category] || 'dot')}<span>${esc(categoryLabel(category))}</span></span>
+            <span class="group-progress" aria-hidden="true"><span style="--p:0"></span></span>
+            <span class="group-count"><b>?</b></span>
+          </header>
+          <div class="group-rows">
+            <div class="attr-row is-hidden equipment-sealed">
+              <span class="attr-label">${esc(t('dossier.encrypted'))}</span>
+              <span class="attr-value"><span class="attr-redacted" aria-label="?">?</span></span>
+              <span class="attr-meta"><span class="attr-lock">${icon('lock')}</span></span>
+            </div>
+          </div>
+        </section>`).join('');
+    }
     return;
   }
   const total = state.answerData.clues.length;
@@ -2464,7 +2485,7 @@ function clearTimerPress() {
 }
 document.addEventListener('pointerdown', (event) => {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
-  if (!event.target.closest('#board-count-text')) return;
+  if (!event.target.closest('.timed-clock-button')) return;
   clearTimerPress();
   timerPressTimer = setTimeout(() => {
     timerPressTimer = null;

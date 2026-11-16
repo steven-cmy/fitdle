@@ -257,8 +257,10 @@ test reads `dist/`.
   active modules.
 - Some hulls have no usable zKill page; static fallback may be empty.
 - Timed mode is an unscored alternate rule set selected with `timer=1`; it starts
-  with no clues, has unlimited attempts, a live timer, long-press forfeit, and
-  uses a timed share page. Cargo has its own dossier block/reveal quota.
+  with sealed placeholder dossier blocks and no clues, has unlimited attempts, a
+  live timer button with long-press forfeit, and uses a timed share page. Cargo
+  has its own dossier block/reveal quota; cargo capacity is shown there but is not
+  part of the cargo quota.
 - Free mode is not counted and not persisted. It ignores empty-hull/date filters;
   a kill that exists on zKill opens, otherwise the app falls back to the daily puzzle.
 - Archive mode is not counted in the service record.

@@ -2196,13 +2196,17 @@ Object.assign(RENAMES, {
   },
   'timed.label': {
     en: 'TIME', de: 'ZEIT', es: 'TIEMPO', fr: 'TEMPS',
-    ja: 'タイム', ko: '시간', ru: 'ВРЕМЯ', zh: '计时',
+    ja: 'タイム', ko: '시간', ru: 'ВРЕМЯ', zh: '用时',
   },
   'timed.hold': {
     en: 'Hold to give up and reveal the answer', de: 'Halten zum Aufgeben und Auflösen',
     es: 'Mantén para rendirte y revelar la respuesta', fr: 'Maintenez pour abandonner et révéler',
     ja: '長押しで放棄して答えを表示', ko: '길게 눌러 포기하고 정답 표시',
     ru: 'Удерживайте, чтобы сдаться и увидеть ответ', zh: '长按放弃并显示答案',
+  },
+  'timed.holdShort': {
+    en: 'HOLD TO GIVE UP', de: 'HALTEN ZUM AUFGEBEN', es: 'MANTÉN PARA RENDIRTE', fr: 'MAINTENIR POUR ABANDONNER',
+    ja: '長押しで放棄', ko: '길게 눌러 포기', ru: 'УДЕРЖИВАТЬ — СДАТЬСЯ', zh: '长按放弃',
   },
   'timed.time': {
     en: 'TIME', de: 'ZEIT', es: 'TIEMPO', fr: 'TEMPS',

@@ -4839,3 +4839,49 @@ html[data-timed="1"] #hero-timed {
   background: var(--green);
   transform: translateX(18px);
 }
+
+/* Timed control refinements */
+.timed-toggle,
+.timed-toggle.is-active {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.timed-toggle.is-active {
+  color: var(--green);
+}
+.panel-head.is-timed {
+  align-items: flex-start;
+}
+.timed-clock-button {
+  display: flex;
+  min-width: 118px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-right: 14px;
+  padding: 9px 12px;
+  color: var(--green);
+  border: 1px solid rgba(99, 245, 166, 0.35);
+  background: rgba(99, 245, 166, 0.06);
+  text-align: left;
+  clip-path: var(--clip-sm);
+}
+.timed-clock-button > span {
+  color: var(--muted);
+  font: 600 8px/1 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.timed-clock-button strong {
+  color: var(--green);
+  font: 700 34px/1 var(--font-mono);
+  letter-spacing: 0.03em;
+  text-shadow: 0 0 16px rgba(99, 245, 166, 0.22);
+}
+.timed-clock-button small {
+  color: var(--dim);
+  font: 500 8px/1.2 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
