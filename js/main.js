@@ -2282,6 +2282,11 @@ function renderManual() {
             <ul class="manual-mode-list">${t('mode.helpAbyss').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
           </div>
           <div class="manual-section">
+            <h3>${icon('clock')} ${esc(t('mode.timed'))}</h3>
+            <p class="manual-mode-hint">${esc(t('mode.timedHint'))}</p>
+            <ul class="manual-mode-list">${t('mode.helpTimed').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+          </div>
+          <div class="manual-section">
             <h3>${icon('globe')} ${esc(t('help.langTitle'))}</h3>
             <p>${esc(t('help.langBody'))}</p>
           </div>
