@@ -244,6 +244,11 @@ function setFontStyle(mode) {
   renderManual();
 }
 
+function toggleFontFace() {
+  applyFont(state.font === 'classic' ? 'neue' : 'classic', true);
+  renderManual();
+}
+
 function setFontSize(size) {
   applyFontSize(size, true);
   renderManual();
@@ -2056,9 +2061,9 @@ function renderManual() {
             <h3>${icon('slots')} ${esc(t('manual.settingsTitle'))}</h3>
             <div class="setting-row">
               <button type="button" class="setting-secret" data-action="font-secret">${esc(t('font.label'))}</button>
-              <div class="segmented">
-                ${[['neue', 'font.neue'], ['classic', 'font.classic']].map(([value, key]) => `<button type="button" class="${state.font === value ? 'is-active' : ''}" data-action="set-font" data-font="${value}" aria-pressed="${state.font === value}">${esc(t(key))}</button>`).join('')}
-              </div>
+              <button type="button" class="font-switch-button" data-action="toggle-font-face" aria-label="${esc(t('font.switch'))}">
+                ${esc(state.font === 'classic' ? t('font.classic') : t('font.neue'))}
+              </button>
             </div>
             <div class="setting-row">
               <span>${esc(t('settings.fontSize'))}</span>
@@ -2295,6 +2300,7 @@ document.addEventListener('click', (event) => {
     if (action === 'set-font') { setFontStyle(actionEl.dataset.font); return; }
     if (action === 'set-font-size') { setFontSize(actionEl.dataset.size); return; }
     if (action === 'font-secret') { secretFontClick(); return; }
+    if (action === 'toggle-font-face') { toggleFontFace(); return; }
     if (action === 'help') { renderManual(); return; }
     if (action === 'submit') { submitGuess(); return; }
     if (action === 'debrief') { renderDebrief(); return; }
@@ -2483,12 +2489,6 @@ async function boot() {
         const data = await fetchZkill(`/api/killID/${state.freeKillId}/`);
         const killmail = Array.isArray(data) ? data[0] : null;
         if (!killmail?.victim?.ship_type_id) throw new Error('free target unavailable');
-        if (String(killmail.killmail_time || '') < `${KILL_HISTORY_START}T00:00:00Z`) {
-          throw new Error('free killmail before kill history');
-        }
-        if (!state.allowEmptyKb && !killHasFittedModules(killmail)) {
-          throw new Error('empty free killmail disabled');
-        }
         state.freeKillmail = killmail;
         state.answerId = Number(killmail.victim.ship_type_id);
         state.answerKillId = state.freeKillId;

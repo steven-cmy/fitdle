@@ -245,9 +245,11 @@ test reads `dist/`.
 - Dogma cannot recover the victim's real skills/mutations; simulates all-V and
   active modules.
 - Some hulls have no KB within the scanned history; static fallback may be empty.
-- Free mode is not counted and not persisted.
+- Free mode is not counted and not persisted. It ignores empty-hull/date filters;
+  a kill that exists on zKill opens, otherwise the app falls back to the daily puzzle.
 - Archive mode is not counted in the service record.
 - The field manual setting `fitdle:v1:allowEmptyKb` controls whether empty-hull killmails are eligible (default on).
-- Font face and five-step font size are stored in `fitdle:v1:font` and
-  `fitdle:v1:font-size`; the default `normal` step is the former XL scale.
+- Font face (one NEW/CLASSIC toggle) and five-step font size are stored in
+  `fitdle:v1:font` and `fitdle:v1:font-size`; the default `normal` step is the
+  former XL scale. Resistance labels scale with the selected size.
 - Stats are origin-local; different domains have separate localStorage.
