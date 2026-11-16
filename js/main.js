@@ -348,6 +348,10 @@ function isTimed() {
   return state.timed;
 }
 
+function storageMode() {
+  return isTimed() ? `${state.mode}:timed` : state.mode;
+}
+
 function timedFromLocation(search) {
   const params = new URLSearchParams(search);
   return params.get('timer') === '1' || params.get('timed') === '1';
@@ -395,6 +399,18 @@ function startTimedClock() {
   updateTimedClock();
 }
 
+function resumeTimedClock() {
+  if (!isTimed() || !state.timerStarted) return;
+  if (state.timerHandle) clearInterval(state.timerHandle);
+  state.timerHandle = setInterval(updateTimedClock, 500);
+  updateTimedClock();
+}
+
+function markTimedForfeited() {
+  const button = $('.timed-clock-button');
+  if (button) button.classList.toggle('is-forfeited', isTimed() && Boolean(state.gaveUp));
+}
+
 function stopTimedClock() {
   if (state.timerHandle) clearInterval(state.timerHandle);
   state.timerHandle = null;
@@ -405,8 +421,10 @@ function stopTimedClock() {
 function startTimedRun() {
   if (!isTimed() || state.timerStarted || state.status !== 'playing') return;
   startTimedClock();
+  state.gaveUp = false;
   recomputeRevealed();
   renderAll();
+  persist();
   setTimeout(() => $('#ship-input')?.focus(), 80);
 }
 
@@ -420,6 +438,8 @@ function giveUpTimed() {
   state.status = 'lost';
   recomputeRevealed();
   renderAll();
+  markTimedForfeited();
+  persist();
   setTimeout(() => renderDebrief(), 300);
 }
 
@@ -933,18 +953,28 @@ async function loadLocaleData(locale) {
 }
 
 function readStoredState() {
-  if (isFree() || isTimed()) return { guesses: [], status: 'playing', invalidated: false };
-  const stored = loadState(localStorage, state.date, state.dataVersionKey, state.mode);
+  if (isFree()) return { guesses: [], status: 'playing', invalidated: false };
+  const stored = loadState(localStorage, state.date, state.dataVersionKey, storageMode());
   if (!stored) return { invalidated: false };
   if (stored.invalidated) return { invalidated: true };
   const allowed = new Set(state.catalogMap.keys());
-  const guesses = [...new Set((stored.guesses || []).map(Number).filter((id) => allowed.has(id)))].slice(0, ATTEMPT_LIMIT);
+  const guesses = [...new Set((stored.guesses || []).map(Number).filter((id) => allowed.has(id)))]
+    .slice(0, isTimed() ? undefined : ATTEMPT_LIMIT);
   if (stored.answerId && Number(stored.answerId) !== Number(state.answerId)) return { invalidated: true };
   let status = stored.status;
   if (guesses.includes(state.answerId)) status = 'won';
+  else if (isTimed()) status = stored.status === 'lost' && stored.gaveUp ? 'lost' : 'playing';
   else if (guesses.length >= ATTEMPT_LIMIT) status = 'lost';
   else status = 'playing';
-  return { guesses, status, invalidated: false };
+  return {
+    guesses,
+    status,
+    invalidated: false,
+    timerStarted: status === 'playing' && stored.timerStarted === true,
+    timerStartAt: Number(stored.timerStartAt) || 0,
+    timerElapsedMs: Number(stored.timerElapsedMs) || 0,
+    gaveUp: stored.gaveUp === true && status === 'lost',
+  };
 }
 
 function recomputeRevealed() {
@@ -971,14 +1001,21 @@ function recomputeRevealed() {
 }
 
 function persist() {
-  if (isFree() || isTimed()) return;
+  if (isFree()) return;
   saveState(localStorage, state.date, {
     dataVersion: state.dataVersionKey,
     date: state.date,
     answerId: state.answerId,
     guesses: state.guesses,
     status: state.status,
-  }, state.mode);
+    timed: isTimed(),
+    timerStarted: isTimed() && state.timerStarted,
+    timerStartAt: isTimed() && state.timerStarted ? state.timerStartAt : 0,
+    timerElapsedMs: isTimed()
+      ? (state.timerStarted ? currentElapsed() : state.timerElapsedMs)
+      : 0,
+    gaveUp: isTimed() && state.gaveUp,
+  }, storageMode());
 }
 
 // ---------------------------------------------------------------------------
@@ -1377,6 +1414,8 @@ function renderAttempts() {
       : `${String(state.guesses.length).padStart(2, '0')} / 06`;
     boardCount.title = isTimed() ? t('timed.hold') : '';
     boardCount.style.cursor = isTimed() ? 'pointer' : '';
+    const clockButton = $('.timed-clock-button');
+    if (clockButton) clockButton.classList.toggle('is-forfeited', isTimed() && Boolean(state.gaveUp));
   }
   setTimeout(() => {
     $$('.attempt.is-latest').forEach((el) => el.classList.remove('is-latest'));
@@ -2767,10 +2806,21 @@ async function boot() {
 
     const restored = readStoredState();
     if (!isFree() && restored.invalidated) {
-      saveState(localStorage, state.date, { dataVersion: state.dataVersionKey, date: state.date, answerId: state.answerId, guesses: [], status: 'playing' }, state.mode);
+      state.guesses = [];
+      state.status = 'playing';
+      state.timerStarted = false;
+      state.timerStartAt = 0;
+      state.timerElapsedMs = 0;
+      state.gaveUp = false;
+      persist();
     } else {
       state.guesses = restored.guesses || [];
       state.status = restored.status || 'playing';
+      state.timerStarted = isTimed() && state.status === 'playing' && restored.timerStarted === true;
+      state.timerStartAt = Number(restored.timerStartAt) || 0;
+      state.timerElapsedMs = Number(restored.timerElapsedMs) || 0;
+      if (state.timerStarted && !state.timerStartAt) state.timerStartAt = Date.now() - state.timerElapsedMs;
+      state.gaveUp = isTimed() && state.status === 'lost' && restored.gaveUp === true;
     }
     recomputeRevealed();
     state.fresh = new Set();
@@ -2779,6 +2829,10 @@ async function boot() {
 
     renderShell();
     renderAll();
+    if (isTimed()) {
+      resumeTimedClock();
+      markTimedForfeited();
+    }
 
     if (!isFree() && locationDate.invalid) showToast(t('error.date'), '', 'warn', 4200);
     if (!state.timeVerified) showToast(t('error.time'), '', 'warn', 5200);

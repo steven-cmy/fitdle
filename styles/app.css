@@ -4917,3 +4917,13 @@ html[data-timed="1"] #hero-timed {
   from { height: 0; }
   to { height: 100%; }
 }
+
+.timed-clock-button.is-forfeited {
+  border-color: rgba(255, 72, 72, 0.65);
+  background: rgba(255, 58, 58, 0.12);
+}
+.timed-clock-button.is-forfeited::after {
+  height: 100%;
+  background: rgba(255, 58, 58, 0.4);
+  animation: none;
+}
