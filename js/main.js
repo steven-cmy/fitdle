@@ -442,7 +442,7 @@ function moduleIconPath(moduleID) {
 
 function weightPips(weight) {
   const lit = Math.max(1, Math.min(5, Math.ceil(Number(weight) / 2)));
-  return `<span class="weight" title="${esc(t('dossier.signal'))} ${esc(weight)}/10" aria-label="${esc(t('dossier.signal'))} ${esc(weight)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
+  return `<span class="weight" title="${esc(t('dossier.signal'))} ${esc(Number(weight).toFixed(2))}/10" aria-label="${esc(t('dossier.signal'))} ${esc(Number(weight).toFixed(2))}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 
 function categoryLabel(category) {
@@ -1059,7 +1059,7 @@ function renderChrome() {
   if (freeBanner) {
     freeBanner.hidden = !free;
     if (free) {
-      freeBanner.innerHTML = `${icon('radar')} ${esc(t('free.kicker'))} // ${esc(t('free.kb', { id: state.freeKillToken }))} <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
+      freeBanner.innerHTML = `${icon('radar')} ${esc(t('free.kicker'))} // ${esc(t('free.kb', { id: state.freeKillToken }))}`;
     }
   }
   const archiveWrap = $('#archive-wrap');
@@ -1068,8 +1068,7 @@ function renderChrome() {
   if (archiveBanner) {
     archiveBanner.hidden = !archive;
     if (archive) {
-      archiveBanner.innerHTML = `<span>${icon('database')} ${esc(t('header.archive'))} // ${esc(state.date)}</span>
-        <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
+      archiveBanner.innerHTML = `<span>${icon('database')} ${esc(t('header.archive'))} // ${esc(state.date)}</span>`;
     }
   }
   const archivePrev = $('[data-action="archive-prev"]');
@@ -1492,8 +1491,8 @@ function renderDossier() {
           <span>${esc(t('dossier.answer'))}</span>
           <strong>${zkillShipLink(displayName(state.answerShip), state.answerId)}</strong>
         </div>
-        <button type="button" class="link-button" data-action="debrief">${icon('external')} ${esc(t('end.review'))}</button>
         <div class="answer-victim" data-victim-slot>${victimMetaHtml()}</div>
+        <button type="button" class="link-button" data-action="debrief">${icon('external')} ${esc(t('end.review'))}</button>
       </div>`;
       void fetchVictimInfo();
     }
