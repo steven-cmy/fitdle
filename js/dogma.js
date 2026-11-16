@@ -63,13 +63,17 @@ function applyAllVSkills(fit, skills) {
     skills: Object.fromEntries(skills.map((id) => [id, 5])),
   };
   if (Array.isArray(fit.items)) {
-    // Every fitted module is online and active, but never overheated.
-    fit.items = fit.items.map((item) => ({
-      ...item,
-      state: 'active',
-      overheated: false,
-      overload: false,
-    }));
+    // Every fitted module is online and active, but never overheated. Cargo
+    // (including fuel and spare fighter-bay modules) stays offline.
+    fit.items = fit.items.map((item) => {
+      const cargo = String(item.slot?.type || '').toLowerCase() === 'cargo';
+      return {
+        ...item,
+        state: cargo ? 'offline' : 'active',
+        overheated: false,
+        overload: false,
+      };
+    });
   }
   return fit;
 }
