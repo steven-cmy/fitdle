@@ -574,6 +574,21 @@ test('fighter bays separate real fighters from carried modules', () => {
   }
 });
 
+test('assault damage control raises abyss structure resist weight', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const build = (moduleId) => buildClues({
+    ship, catalog, refs, stats: null,
+    losses: [{ killmail_id: 7, zkb: { totalValue: 1000 }, victim: { items: [
+      { flag: 12, item_type_id: moduleId, quantity_destroyed: 1, quantity_dropped: 0 },
+    ] } }],
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+  }).clues.find((clue) => clue.k === 'structureResists');
+  const adc = build(47257);
+  const dc = build(2048);
+  assert.ok(adc.w >= 9.5);
+  assert.ok(adc.w > dc.w);
+});
+
 test('low-slot weapon upgrades are weighted by matching weapon family', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const build = (items) => buildClues({

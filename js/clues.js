@@ -564,6 +564,10 @@ export function buildClues({
   const droneBoat = equipment.some((item) => item.slot === 'drone')
     || Number(ship.attrs?.drones?.bandwidth) > 0
     || Number(ship.attrs?.drones?.capacity) > 0;
+  const hasAssaultDamageControl = equipment.some((item) => (
+    item.slot === 'low'
+    && /assault damage control/i.test(refs.modules?.[item.module]?.name || '')
+  ));
   for (const item of equipment) {
     const module = refs.modules?.[item.module];
     const isCharge = !module || Number(module.categoryID) === 8;
@@ -728,6 +732,11 @@ export function buildClues({
         if (!sameClueValue(clue.k, baselineValue, clue.v)) {
           clue.w = round(Math.max(1, clue.w * ABYSS_FITTED_WEIGHT_FACTOR), 1);
         }
+      }
+      // An Assault Damage Control pushes structure resistances into a range
+      // ordinary hardeners cannot reach, so make that clue near-definitive.
+      if (hasAssaultDamageControl && clue.k === 'structureResists') {
+        clue.w = Math.max(clue.w, 9.5);
       }
     }
   }

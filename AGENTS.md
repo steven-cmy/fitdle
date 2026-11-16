@@ -109,6 +109,7 @@ instructions live in [README.md](README.md).
 - Fighter tubes (158..161) are `fighter`; flag 155 is `fighterBay` and flag 133 is
   `fuelBay`. Only category-87 fighters stay in fighter slots; spare modules,
   charges and scripts there are cargo.
+- An Assault Damage Control raises the abyss structure-resist clue to at least 9.5.
 - Low-slot weapon upgrades are weighted by the weapon family they improve
   (projectile/energy/hybrid/missile/drone/disintegrator/turret); matching fitted
   weapons raise weight from 5.8 to at least 7.4.
@@ -226,7 +227,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 40 cases, including downtime boundaries, target/KB
+`npm test` currently covers 41 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.
