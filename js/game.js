@@ -116,6 +116,17 @@ export function killHasFittedModules(killmail) {
   return (killmail?.victim?.items || []).some((item) => FITTED_KILL_FLAGS.has(Number(item.flag)));
 }
 
+export function selectRuntimeKill(losses, seed, allowEmpty = true) {
+  if (!Array.isArray(losses) || !losses.length) return null;
+  const index = cyrb53(String(seed), 0x5ca1ab1e) % losses.length;
+  const baseline = losses[index];
+  if (allowEmpty || killHasFittedModules(baseline)) return baseline;
+  const fitted = losses.filter(killHasFittedModules);
+  if (!fitted.length) return null;
+  const fallback = cyrb53(`${seed}:nonempty`, 0x5ca1ab1e) % fitted.length;
+  return fitted[fallback];
+}
+
 export function dateKeyFromLocation(search = location.search, now = new Date(), resetHourUtc = DOWNTIME_HOUR_UTC) {
   const params = new URLSearchParams(search);
   const raw = params.get('d');

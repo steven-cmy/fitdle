@@ -2698,15 +2698,31 @@ html[data-game-mode="abyss"] {
 }
 
 .answer-banner {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "ship button"
+    "victim victim";
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 8px 16px;
   margin-bottom: 12px;
   padding: 14px 16px;
   border: 1px solid rgba(99, 245, 166, 0.25);
   background: linear-gradient(90deg, rgba(99, 245, 166, 0.08), transparent 70%);
   clip-path: var(--clip-sm);
+}
+.answer-ship {
+  grid-area: ship;
+  min-width: 0;
+}
+.answer-banner > button {
+  grid-area: button;
+}
+.answer-victim {
+  display: flex;
+  min-width: 0;
+  grid-area: victim;
+  justify-content: flex-end;
 }
 .answer-banner[data-status="lost"] {
   border-color: rgba(255, 108, 103, 0.28);
@@ -3063,6 +3079,9 @@ html[data-game-mode="abyss"] {
 .modal.is-one-shot .debrief-stamp {
   color: var(--amber);
   border-color: rgba(242, 166, 59, 0.45);
+}
+.modal.debrief-modal {
+  width: min(1240px, 100%);
 }
 .debrief {
   display: grid;
@@ -4706,3 +4725,15 @@ html[data-font-size="largest"] .debrief-kicker,
 html[data-font-size="largest"] .debrief-visual-caption span { font-size: 14px; }
 html[data-font-size="largest"] .debrief-answer span { font-size: 12px; }
 html[data-font-size="largest"] .debrief-stat strong { font-size: 24px; }
+
+/* Toast text follows the global font-size preference. */
+html[data-font-size="smallest"] .toast-title { font-size: 9px; }
+html[data-font-size="smallest"] .toast-body { font-size: 10px; }
+html[data-font-size="smaller"] .toast-title { font-size: 10px; }
+html[data-font-size="smaller"] .toast-body { font-size: 11px; }
+html[data-font-size="normal"] .toast-title { font-size: 12px; }
+html[data-font-size="normal"] .toast-body { font-size: 13px; }
+html[data-font-size="larger"] .toast-title { font-size: 13.5px; }
+html[data-font-size="larger"] .toast-body { font-size: 14.5px; }
+html[data-font-size="largest"] .toast-title { font-size: 15px; }
+html[data-font-size="largest"] .toast-body { font-size: 16px; }

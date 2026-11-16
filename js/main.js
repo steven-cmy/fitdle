@@ -2,13 +2,11 @@ import {
   ATTEMPT_LIMIT,
   buildGuessResult,
   buildSearchIndex,
-  cyrb53,
   dateKeyFromLocation,
   ARCHIVE_START,
   freeKillIdFromToken,
   freeKillToken,
   gameDateKey,
-  killHasFittedModules,
   KILL_HISTORY_START,
   loadState,
   loadStats,
@@ -23,6 +21,7 @@ import {
   saveState,
   saveStats,
   searchShips,
+  selectRuntimeKill,
   shareUrl,
 } from './game.js';
 import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
@@ -245,6 +244,18 @@ function setFontStyle(mode) {
 }
 
 function toggleFontFace() {
+  state.fontClicks += 1;
+  try {
+    localStorage.setItem('fitdle:v1:font-clicks', String(state.fontClicks));
+  } catch {
+    // best effort
+  }
+  if (state.fontClicks % 10 === 0) {
+    applyFont('triglavian', true);
+    renderManual();
+    showToast(t('font.triglavianToast'), t('font.triglavianSub'), 'info');
+    return;
+  }
   applyFont(state.font === 'classic' ? 'neue' : 'classic', true);
   renderManual();
 }
@@ -570,11 +581,14 @@ async function resolveRuntimeKill(shipId, dateKey, anchorDate = state.today) {
       const losses = data.filter((kill) => (
         Number(kill?.victim?.ship_type_id) === Number(shipId)
         && String(kill?.killmail_time || '') >= `${KILL_HISTORY_START}T00:00:00Z`
-        && (state.allowEmptyKb || killHasFittedModules(kill))
       ));
       if (!losses.length) continue;
-      const index = cyrb53(`${dateKey}:${shipId}:${month.year}-${month.month}`, 0x5ca1ab1e) % losses.length;
-      return losses[index];
+      const selected = selectRuntimeKill(
+        losses,
+        `${dateKey}:${shipId}:${month.year}-${month.month}`,
+        state.allowEmptyKb,
+      );
+      if (selected) return selected;
     } catch {
       // try the previous month
     }
@@ -1474,14 +1488,12 @@ function renderDossier() {
       answerBanner.innerHTML = '';
     } else {
       answerBanner.innerHTML = `<div class="answer-banner" data-status="${state.status}">
-        <div class="answer-confirmed">
-          <div>
-            <span>${esc(t('dossier.answer'))}</span>
-            <strong>${zkillShipLink(displayName(state.answerShip), state.answerId)}</strong>
-          </div>
-          <div data-victim-slot>${victimMetaHtml()}</div>
+        <div class="answer-ship">
+          <span>${esc(t('dossier.answer'))}</span>
+          <strong>${zkillShipLink(displayName(state.answerShip), state.answerId)}</strong>
         </div>
         <button type="button" class="link-button" data-action="debrief">${icon('external')} ${esc(t('end.review'))}</button>
+        <div class="answer-victim" data-victim-slot>${victimMetaHtml()}</div>
       </div>`;
       void fetchVictimInfo();
     }
@@ -1824,7 +1836,7 @@ function renderDebrief() {
     ? t('oneShot.body')
     : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) }));
   const html = `
-    <div class="modal${oneShot ? ' is-one-shot' : ''}" role="dialog" aria-modal="true" aria-labelledby="debrief-title" data-kind="debrief" data-status="${state.status}" data-one-shot="${oneShot}">
+    <div class="modal debrief-modal${oneShot ? ' is-one-shot' : ''}" role="dialog" aria-modal="true" aria-labelledby="debrief-title" data-kind="debrief" data-status="${state.status}" data-one-shot="${oneShot}">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
       <div class="debrief">
         <div class="debrief-visual">
@@ -2060,7 +2072,7 @@ function renderManual() {
           <div class="manual-section">
             <h3>${icon('slots')} ${esc(t('manual.settingsTitle'))}</h3>
             <div class="setting-row">
-              <button type="button" class="setting-secret" data-action="font-secret">${esc(t('font.label'))}</button>
+              <span>${esc(t('font.label'))}</span>
               <button type="button" class="font-switch-button" data-action="toggle-font-face" aria-label="${esc(t('font.switch'))}">
                 ${esc(state.font === 'classic' ? t('font.classic') : t('font.neue'))}
               </button>

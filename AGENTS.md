@@ -79,6 +79,8 @@ instructions live in [README.md](README.md).
 - Hash seed includes date, hull and month offset; all players see the same KB.
 - Static `killPoolsByShip` is only a fallback when runtime fetch/selection fails.
 - Do not add pagination or current-month data; it would break identical play.
+- Empty-hull filtering never changes the baseline pick: choose the normal hashed
+  kill first; only replace it when that pick is empty and the setting is off.
 
 ## Reveal rules
 
@@ -216,7 +218,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 38 cases, including downtime boundaries, target/KB
+`npm test` currently covers 39 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.

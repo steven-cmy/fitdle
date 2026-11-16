@@ -31,6 +31,7 @@ import {
   revealCountFor,
   saveState,
   searchShips,
+  selectRuntimeKill,
   shareUrl,
   shiftDateKey,
   utcDateKey,
@@ -198,6 +199,28 @@ test('ship search results follow tech, class, race and faction order', () => {
     searchShips(localized, 'a', { limit: 10 }).map((ship) => ship.id),
     [2, 3, 1],
   );
+});
+
+test('empty-hull setting preserves non-empty baseline KB picks', () => {
+  const empty = { killmail_id: 1, victim: { items: [{ flag: 5, item_type_id: 1 }] } };
+  const fittedA = { killmail_id: 2, victim: { items: [{ flag: 19, item_type_id: 2 }] } };
+  const fittedB = { killmail_id: 3, victim: { items: [{ flag: 19, item_type_id: 3 }] } };
+  const losses = [empty, fittedA, fittedB];
+  let preserved = false;
+  let converted = false;
+  for (let i = 0; i < 80; i++) {
+    const seed = `pick-${i}`;
+    const baseline = selectRuntimeKill(losses, seed, true);
+    const filtered = selectRuntimeKill(losses, seed, false);
+    if (baseline === fittedA || baseline === fittedB) {
+      if (filtered === baseline) preserved = true;
+    } else if (baseline === empty && filtered && filtered !== empty) {
+      converted = true;
+    }
+  }
+  assert.equal(preserved, true);
+  assert.equal(converted, true);
+  assert.equal(selectRuntimeKill([empty], 'only-empty', false), null);
 });
 
 test('service record streaks survive consecutive days only', () => {
