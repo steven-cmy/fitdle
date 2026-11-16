@@ -570,7 +570,7 @@ async function resolvePageTarget(hulls, dateKey) {
     for (let page = 1; page <= 10; page++) {
       let data = null;
       try {
-        data = await fetchZkill(`/losses/shipTypeID/${shipId}/page/${page}/`);
+        data = await fetchZkill(`/api/losses/shipTypeID/${shipId}/page/${page}/`);
       } catch {
         break;
       }
