@@ -416,7 +416,7 @@ function staticClues(ship, attrs = ship.attrs || {}) {
   if (attrs.align) add('align', 'nav', attrs.align, 1.5);
   if (attrs.warp) add('warp', 'nav', attrs.warp, 1.45);
   if (attrs.mass) add('mass', 'nav', attrs.mass, 1.4);
-  if (attrs.cargo) add('cargo', 'fitting', attrs.cargo, 1.4);
+  if (attrs.cargo) add('cargoCapacity', 'cargo', attrs.cargo, 1.4);
   if (attrs.capacitor) add('capacitor', 'fitting', attrs.capacitor, 1.4);
 
   if (attrs.sig) add('sig', 'targeting', attrs.sig, 1.35);
@@ -460,7 +460,7 @@ function matchesCatalog(clue, other, fitDelta = null) {
     case 'align': return sameValue('align', adjustedAttr('align', attrs, fitDelta), clue.v);
     case 'warp': return sameValue('warp', adjustedAttr('warp', attrs, fitDelta), clue.v);
     case 'mass': return sameValue('mass', adjustedAttr('mass', attrs, fitDelta), clue.v);
-    case 'cargo': return sameValue('cargo', adjustedAttr('cargo', attrs, fitDelta), clue.v);
+    case 'cargoCapacity': return sameValue('cargo', adjustedAttr('cargo', attrs, fitDelta), clue.v);
     case 'shield': return sameValue('shield', adjustedAttr('shield', attrs, fitDelta), clue.v);
     case 'armor': return sameValue('armor', adjustedAttr('armor', attrs, fitDelta), clue.v);
     case 'structure': return sameValue('structure', adjustedAttr('structure', attrs, fitDelta), clue.v);

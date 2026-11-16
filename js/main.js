@@ -537,7 +537,7 @@ function categoryLabel(category) {
 }
 
 function clueLabel(clue) {
-  return t(`clue.${clue.k}`) || clue.k;
+  return t(`clue.${clue.k === 'cargoCapacity' ? 'cargo' : clue.k}`) || clue.k;
 }
 
 function brandMark() {
@@ -1058,7 +1058,10 @@ function renderShell() {
           <button type="button" class="mode-button${state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
           <button type="button" class="mode-button${state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
         </div>
-        <button type="button" class="mode-button mode-timed${isTimed() ? ' is-active' : ''}" data-action="toggle-timed" aria-pressed="${isTimed()}" ${isFree() ? 'disabled' : ''}>${esc(t('mode.timed'))}</button>
+        <button type="button" class="timed-toggle${isTimed() ? ' is-active' : ''}" data-action="toggle-timed" role="switch" aria-checked="${isTimed()}" ${isFree() ? 'disabled' : ''}>
+          <span>${esc(t('mode.timed'))}</span>
+          <i class="toggle-track" aria-hidden="true"><b></b></i>
+        </button>
       </div>
 
       <section class="hero" id="hero" aria-labelledby="hero-title"></section>
@@ -1074,6 +1077,7 @@ function renderShell() {
             <div class="dossier-count" aria-hidden="true">
               <strong id="board-count-text">${isTimed() ? '00:00' : `${String(state.guesses.length).padStart(2, '0')} / 06`}</strong>
               <span>${esc(isTimed() ? t('timed.label') : t('hero.attempts'))}</span>
+              ${isTimed() ? `<small class="timed-hold">${esc(t('timed.hold'))}</small>` : ''}
             </div>
           </header>
           <div id="acquire-slot"></div>
@@ -1484,7 +1488,7 @@ function clueValue(clue) {
       return `<span class="big">${esc(dec(value, 1))}</span><span class="unit">AU/s</span>`;
     case 'mass':
       return `<span class="big">${esc(compact(value))}</span><span class="unit">kg</span>`;
-    case 'cargo':
+    case 'cargoCapacity':
       return formatNumberValue(value, 'm³');
     case 'shield':
     case 'armor':
@@ -1562,7 +1566,7 @@ function renderClueRow(clue, index, revealed) {
   const category = groupCategory(clue);
   let label = clueLabel(clue);
   let value = revealed ? clueValue(clue) : '';
-  if (clue.k === 'equipment') {
+  if (clue.k === 'equipment' || clue.k === 'cargo') {
     label = '';
     value = revealed ? renderModuleLine(clue) : '';
   } else if (clue.k === 'bonus') {

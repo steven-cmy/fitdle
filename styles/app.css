@@ -4785,3 +4785,57 @@ html[data-font-size="largest"] .toast-body { font-size: 16px; }
 html[data-timed="1"] #board-count-text {
   color: var(--green);
 }
+
+html[data-timed="1"] #board-count-text {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--green);
+  text-shadow: 0 0 16px rgba(99, 245, 166, 0.25);
+}
+html[data-timed="1"] #hero-timed {
+  font-size: 22px;
+  letter-spacing: 0.04em;
+}
+.timed-hold {
+  display: block;
+  max-width: 190px;
+  margin-top: 7px;
+  padding: 5px 8px;
+  color: var(--green);
+  border: 1px solid rgba(99, 245, 166, 0.3);
+  background: rgba(99, 245, 166, 0.06);
+  font: 600 8.5px/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.timed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 7px 4px 9px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: transparent;
+  font: 600 9px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.timed-toggle.is-active {
+  color: var(--green);
+  border-color: rgba(99, 245, 166, 0.45);
+  background: rgba(99, 245, 166, 0.08);
+}
+.timed-toggle:disabled {
+  opacity: 0.4;
+}
+
+.timed-toggle[aria-checked="true"] .toggle-track {
+  border-color: rgba(99, 245, 166, 0.45);
+  background: rgba(99, 245, 166, 0.16);
+}
+.timed-toggle[aria-checked="true"] .toggle-track b {
+  background: var(--green);
+  transform: translateX(18px);
+}

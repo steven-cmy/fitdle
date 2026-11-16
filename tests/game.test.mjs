@@ -497,7 +497,7 @@ test('targeting, fitting and resistance clues use their new groups', () => {
     dataVersion: manifest.dataVersion,
   });
   const byKind = (kind) => built.clues.find((clue) => clue.k === kind);
-  assert.equal(byKind('cargo').c, 'fitting');
+  assert.equal(byKind('cargoCapacity').c, 'cargo');
   assert.equal(byKind('capacitor').c, 'fitting');
   assert.equal(byKind('sig').c, 'targeting');
   assert.equal(byKind('scanRes').c, 'targeting');
