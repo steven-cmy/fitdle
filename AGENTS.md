@@ -256,6 +256,9 @@ test reads `dist/`.
 - Dogma cannot recover the victim's real skills/mutations; simulates all-V and
   active modules.
 - Some hulls have no usable zKill page; static fallback may be empty.
+- Timed mode is an unscored alternate rule set selected with `timer=1`; it starts
+  with no clues, has unlimited attempts, a live timer, long-press forfeit, and
+  uses a timed share page. Cargo has its own dossier block/reveal quota.
 - Free mode is not counted and not persisted. It ignores empty-hull/date filters;
   a kill that exists on zKill opens, otherwise the app falls back to the daily puzzle.
 - Archive mode is not counted in the service record.

@@ -621,9 +621,10 @@ export function buildClues({
     }
     if (mode === 'abyss' && restriction === 'unique') weight = Math.max(weight, 10);
     if (mode === 'abyss' && restriction === 'limited') weight = Math.max(weight, 8.8);
+    const cargo = item.slot === 'cargo';
     const clue = {
-      k: 'equipment',
-      c: 'equipment',
+      k: cargo ? 'cargo' : 'equipment',
+      c: cargo ? 'cargo' : 'equipment',
       v: { module: item.module, count: item.count, slot: item.slot },
       w: round(clamp(weight, 1, 10), 1),
       tag: restriction,

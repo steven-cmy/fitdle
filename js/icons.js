@@ -37,6 +37,7 @@ const PATHS = {
   pin: '<path d="M12 21s7-5.8 7-11a7 7 0 1 0-14 0c0 5.2 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/>',
   cut: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 8l12 12M8 16L20 4"/>',
   dot: '<circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/>',
+  cargo: '<path d="M4 7h16v13H4z"/><path d="M4 7l3-3h10l3 3M9 11h6"/>',
 };
 
 export function icon(name, className = '') {
@@ -52,6 +53,7 @@ export const CATEGORY_ICON = {
   defense: 'defense',
   fitting: 'wrench',
   equipment: 'target',
+  cargo: 'cargo',
   economy: 'coin',
   traits: 'star',
 };

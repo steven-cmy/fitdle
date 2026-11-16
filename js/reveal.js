@@ -73,6 +73,7 @@ function chooseInitial({ clues, catalog, fitDelta, random }) {
   ) {
     const available = candidates.filter(({ clue, index }) => {
       if (revealed.has(index) || clue.k === 'bonus') return false;
+      if (clue.k === 'cargo') return false;
       if (clue.k === 'equipment' && clue.tag) return false;
       if (identity(clue) && hasIdentity) return false;
       if (clue.k === 'equipment' && hasEquipment) return false;
@@ -94,6 +95,7 @@ function chooseInitial({ clues, catalog, fitDelta, random }) {
     const fallback = candidates.filter(({ clue, index }) => (
       !revealed.has(index)
       && clue.k !== 'bonus'
+      && clue.k !== 'cargo'
       && !(clue.k === 'equipment' && clue.tag)
       && !(identity(clue) && hasIdentity)
       && !(clue.k === 'equipment' && hasEquipment)
@@ -170,12 +172,26 @@ function addAbyssOther({ revealed, clues, catalog, fitDelta, random }) {
     .map((clue, index) => ({ clue, index }))
     .filter(({ clue, index }) => (
       clue.k !== 'equipment'
+      && clue.k !== 'cargo'
       && clue.k !== 'bonus'
       && !revealed.has(index)
       && !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)
     ));
   const chosen = weightedPick(candidates, random);
   if (chosen) revealed.add(chosen.index);
+}
+
+function addCargo({ revealed, count, clues, random }) {
+  const cargo = clues
+    .map((clue, index) => ({ clue, index }))
+    .filter(({ clue, index }) => clue.k === 'cargo' && !revealed.has(index));
+  for (let picked = 0; picked < count && cargo.length; picked++) {
+    const chosen = weightedPick(cargo, random);
+    if (!chosen) break;
+    revealed.add(chosen.index);
+    const at = cargo.findIndex((entry) => entry.index === chosen.index);
+    if (at >= 0) cargo.splice(at, 1);
+  }
 }
 
 function addEquipment({ revealed, misses, clues, random }) {
@@ -272,6 +288,8 @@ export function computeRevealed({
       for (let index = 0; index < others; index++) {
         addAbyssOther({ revealed, clues, catalog, fitDelta, random });
       }
+      const cargoCount = clues.filter((clue) => clue.k === 'cargo').length;
+      addCargo({ revealed, count: Math.max(1, Math.ceil(cargoCount / 10)), clues, random });
     }
     return revealed;
   }
@@ -290,5 +308,6 @@ export function computeRevealed({
     });
   }
   addEquipment({ revealed, misses, clues, random });
+  addCargo({ revealed, count: misses, clues, random });
   return revealed;
 }

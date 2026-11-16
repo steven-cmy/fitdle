@@ -69,13 +69,13 @@ const message = (locale, key, vars = {}) => fill(MESSAGES[locale]?.[key] || MESS
 const shareDir = path.join(DIST, 'share');
 await fsp.mkdir(shareDir, { recursive: true });
 
-function sharePage({ key, locale, title, description, depth }) {
+function sharePage({ key, locale, title, description, depth, image = null }) {
   const canonical = `${SITE_URL}/share/${key}/${locale}.html`;
-  const image = shareImage(key, locale);
+  const imageUrl = image || shareImage(key, locale);
   const redirect = depth === 2 ? '../../' : '../';
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
-  const safeImage = escapeHtml(image);
+  const safeImage = escapeHtml(imageUrl);
   return `<!doctype html>
 <html lang="${locale}">
 <head>
@@ -104,7 +104,7 @@ function sharePage({ key, locale, title, description, depth }) {
 <script>
 const q = new URLSearchParams(location.search);
 const target = new URL('${redirect}', location.href);
-for (const key of ['d', 'mode', 'lang']) {
+for (const key of ['d', 'mode', 'lang', 't', 'timer']) {
   const value = q.get(key);
   if (value) target.searchParams.set(key, value);
 }
@@ -122,6 +122,17 @@ location.replace(target.toString());
 for (const score of [1, 2, 3, 4, 5, 6]) {
   const scoreKey = String(score);
   for (const locale of LOCALES) {
+  const dir = path.join(shareDir, 'timed');
+  await fsp.mkdir(dir, { recursive: true });
+  await fsp.writeFile(path.join(dir, `${locale}.html`), sharePage({
+    key: `timed`, locale,
+    title: message(locale, 'share.timedTitle'),
+    description: message(locale, 'share.timedDescription'),
+    depth: 2,
+    image: `${SITE_URL}/assets/share/og.png`,
+  }));
+}
+for (const locale of LOCALES) {
     const one = score === 1;
     const title = `FITDLE — ${message(locale, one ? 'share.oneTitle' : 'share.winTitle', { score })}`;
     const description = message(locale, one ? 'share.oneBody' : 'share.winBody', { score });

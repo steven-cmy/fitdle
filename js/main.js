@@ -32,7 +32,7 @@ import { computeRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
 import { initStarfield } from './starfield.js';
 
-const CATEGORIES = ['traits', 'hull', 'nav', 'defense', 'targeting', 'fitting', 'equipment', 'economy'];
+const CATEGORIES = ['traits', 'hull', 'nav', 'defense', 'targeting', 'fitting', 'equipment', 'cargo', 'economy'];
 const CATEGORY_ALIASES = { identity: 'hull', slots: 'fitting' };
 const DEFENSE_ORDER = {
   shield: 0,
@@ -116,6 +116,12 @@ const state = {
   composing: false,
   allowEmptyKb: true,
   fontSize: 'normal',
+  timed: false,
+  timerStarted: false,
+  timerStartAt: 0,
+  timerElapsedMs: 0,
+  timerHandle: null,
+  gaveUp: false,
   booted: false,
   font: 'neue',
   fontClicks: 0,
@@ -336,6 +342,85 @@ function toggleFont() {
     return;
   }
   applyFont(state.font === 'triglavian' ? 'neue' : state.font === 'neue' ? 'classic' : 'neue', true);
+}
+
+function isTimed() {
+  return state.timed;
+}
+
+function timedFromLocation(search) {
+  const params = new URLSearchParams(search);
+  return params.get('timer') === '1' || params.get('timed') === '1';
+}
+
+function setTimed(enabled) {
+  const url = new URL(location.href);
+  if (enabled) url.searchParams.set('timer', '1');
+  else {
+    url.searchParams.delete('timer');
+    url.searchParams.delete('timed');
+  }
+  location.assign(url.toString());
+}
+
+function formatElapsed(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function currentElapsed() {
+  if (!state.timerStarted || !state.timerStartAt) return state.timerElapsedMs;
+  return Math.max(0, Date.now() - state.timerStartAt);
+}
+
+function updateTimedClock() {
+  if (!isTimed()) return;
+  const text = state.timerStarted ? formatElapsed(currentElapsed()) : '00:00';
+  const board = $('#board-count-text');
+  if (board) board.textContent = text;
+  const hero = $('#hero-timed');
+  if (hero) hero.textContent = text;
+}
+
+function startTimedClock() {
+  stopTimedClock();
+  state.timerStartAt = Date.now();
+  state.timerStarted = true;
+  state.timerHandle = setInterval(updateTimedClock, 500);
+  updateTimedClock();
+}
+
+function stopTimedClock() {
+  if (state.timerHandle) clearInterval(state.timerHandle);
+  state.timerHandle = null;
+  if (state.timerStarted) state.timerElapsedMs = Math.max(0, Date.now() - state.timerStartAt);
+  state.timerStarted = false;
+}
+
+function startTimedRun() {
+  if (!isTimed() || state.timerStarted || state.status !== 'playing') return;
+  startTimedClock();
+  recomputeRevealed();
+  renderAll();
+  setTimeout(() => $('#ship-input')?.focus(), 80);
+}
+
+function giveUpTimed() {
+  if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
+  state.timerElapsedMs = currentElapsed();
+  state.timerStarted = false;
+  if (state.timerHandle) clearInterval(state.timerHandle);
+  state.timerHandle = null;
+  state.gaveUp = true;
+  state.status = 'lost';
+  recomputeRevealed();
+  renderAll();
+  setTimeout(() => renderDebrief(), 300);
 }
 
 function setMode(mode) {
@@ -565,7 +650,7 @@ async function fetchZkill(path) {
 
 async function resolvePageTarget(hulls, dateKey) {
   const seen = new Set();
-  const seedBase = `${dateKey}:${state.dataVersionKey || state.manifest.dataVersion}`;
+  const seedBase = `${dateKey}:${state.dataVersionKey || state.manifest.dataVersion}:${state.timed ? 'timed' : 'standard'}`;
   for (const shipId of hulls) {
     for (let page = 1; page <= 10; page++) {
       let data = null;
@@ -848,7 +933,7 @@ async function loadLocaleData(locale) {
 }
 
 function readStoredState() {
-  if (isFree()) return { guesses: [], status: 'playing', invalidated: false };
+  if (isFree() || isTimed()) return { guesses: [], status: 'playing', invalidated: false };
   const stored = loadState(localStorage, state.date, state.dataVersionKey, state.mode);
   if (!stored) return { invalidated: false };
   if (stored.invalidated) return { invalidated: true };
@@ -863,6 +948,11 @@ function readStoredState() {
 }
 
 function recomputeRevealed() {
+  if (isTimed() && !state.timerStarted && state.status === 'playing') {
+    state.revealed = new Set();
+    state.visibleCount = 0;
+    return;
+  }
   state.revealed = computeRevealed({
     clues: state.answerData.clues,
     catalog: state.catalog,
@@ -875,13 +965,13 @@ function recomputeRevealed() {
     answerBonuses: state.answerData.bonuses || [],
     answer: state.answerData,
     fitDelta: state.answerData.fitDelta || null,
-    seed: `${state.date}:${state.answerKillId || state.answerId}:${state.mode}`,
+    seed: `${state.date}:${state.answerKillId || state.answerId}:${state.mode}:${state.timed ? 'timed' : 'standard'}`,
   });
   state.visibleCount = state.revealed.size;
 }
 
 function persist() {
-  if (isFree()) return;
+  if (isFree() || isTimed()) return;
   saveState(localStorage, state.date, {
     dataVersion: state.dataVersionKey,
     date: state.date,
@@ -968,6 +1058,7 @@ function renderShell() {
           <button type="button" class="mode-button${state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
           <button type="button" class="mode-button${state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
         </div>
+        <button type="button" class="mode-button mode-timed${isTimed() ? ' is-active' : ''}" data-action="toggle-timed" aria-pressed="${isTimed()}" ${isFree() ? 'disabled' : ''}>${esc(t('mode.timed'))}</button>
       </div>
 
       <section class="hero" id="hero" aria-labelledby="hero-title"></section>
@@ -985,8 +1076,8 @@ function renderShell() {
               <span>${esc(t('hero.attempts'))}</span>
             </div>
           </header>
-          <ol class="attempts" id="attempts" aria-label="${esc(t('board.title'))}"></ol>
           <div id="acquire-slot"></div>
+          <ol class="attempts" id="attempts" aria-label="${esc(t('board.title'))}"></ol>
         </section>
 
         <section class="panel dossier-panel" id="dossier-panel" aria-labelledby="dossier-title">
@@ -1094,7 +1185,7 @@ function renderChrome() {
 function hiddenTotals() {
   const clues = state.answerData?.clues || [];
   return clues.some((clue, index) => (
-    (clue.c === 'equipment' || clue.c === 'traits') && !state.revealed.has(index)
+    (clue.c === 'equipment' || clue.c === 'cargo' || clue.c === 'traits') && !state.revealed.has(index)
   ));
 }
 
@@ -1119,9 +1210,11 @@ function renderHero() {
       <p class="hero-body">${esc(t('hero.body'))}</p>
       <div class="hero-stats">
         <div class="hero-stat">
-          <span>${esc(t('hero.attempts'))}</span>
-          <strong><em>${String(ATTEMPT_LIMIT).padStart(2, '0')}</em></strong>
-          <small>MAX</small>
+          <span>${esc(isTimed() ? t('timed.label') : t('hero.attempts'))}</span>
+          <strong${isTimed() ? ' id="hero-timed"' : ''}>${isTimed()
+            ? formatElapsed(state.timerStarted ? currentElapsed() : state.timerElapsedMs)
+            : `<em>${String(ATTEMPT_LIMIT).padStart(2, '0')}</em>`}</strong>
+          <small>${isTimed() ? '∞' : 'MAX'}</small>
         </div>
         <div class="hero-stat">
           <span>${esc(t('hero.fragments'))}</span>
@@ -1221,9 +1314,18 @@ function attemptIcon(ship) {
 function renderAttempts() {
   const list = $('#attempts');
   if (!list) return;
+  if (isTimed() && !state.timerStarted && state.status === 'playing') {
+    list.innerHTML = '';
+    const boardCount = $('#board-count-text');
+    if (boardCount) boardCount.textContent = '00:00';
+    return;
+  }
   const ended = state.status !== 'playing';
   const rows = [];
-  for (let i = 0; i < ATTEMPT_LIMIT; i++) {
+  const limit = isTimed()
+    ? Math.max(ATTEMPT_LIMIT, state.guesses.length + (ended ? 0 : 1))
+    : ATTEMPT_LIMIT;
+  for (let i = 0; i < limit; i++) {
     const guessId = state.guesses[i];
     if (guessId != null) {
       const ship = state.catalogMap.get(guessId);
@@ -1262,7 +1364,13 @@ function renderAttempts() {
   }
   list.innerHTML = rows.join('');
   const boardCount = $('#board-count-text');
-  if (boardCount) boardCount.textContent = `${String(state.guesses.length).padStart(2, '0')} / 06`;
+  if (boardCount) {
+    boardCount.textContent = isTimed()
+      ? formatElapsed(state.timerStarted ? currentElapsed() : state.timerElapsedMs)
+      : `${String(state.guesses.length).padStart(2, '0')} / 06`;
+    boardCount.title = isTimed() ? t('timed.hold') : '';
+    boardCount.style.cursor = isTimed() ? 'pointer' : '';
+  }
   setTimeout(() => {
     $$('.attempt.is-latest').forEach((el) => el.classList.remove('is-latest'));
     state.latestIndex = -1;
@@ -1282,6 +1390,16 @@ function renderAcquire() {
         <button type="button" class="link-button" data-action="debrief">${icon('target')} ${esc(t('end.review'))}</button>
       </div>
     `;
+    return;
+  }
+  if (isTimed() && !state.timerStarted) {
+    slot.innerHTML = `
+      <div class="acquire timed-acquire">
+        <button type="button" class="start-button" data-action="start-timed">
+          ${icon('clock')} ${esc(t('timed.start'))}
+        </button>
+        <p class="timed-hint">${esc(t('timed.startHint'))}</p>
+      </div>`;
     return;
   }
   slot.innerHTML = `
@@ -1461,6 +1579,19 @@ function renderClueRow(clue, index, revealed) {
 
 function renderDossier() {
   if (!state.answerData) return;
+  if (isTimed() && !state.timerStarted && state.status === 'playing') {
+    const countText = $('#dossier-count-text');
+    if (countText) countText.textContent = '0 / ?';
+    const progressBar = $('#dossier-progress');
+    if (progressBar) progressBar.style.width = '0%';
+    const orb = $('#dossier-orb');
+    if (orb) orb.style.setProperty('--p', 0);
+    const orbText = $('#dossier-orb-text');
+    if (orbText) orbText.textContent = '0%';
+    if ($('#answer-banner')) $('#answer-banner').innerHTML = '';
+    if ($('#dossier-groups')) $('#dossier-groups').innerHTML = '';
+    return;
+  }
   const total = state.answerData.clues.length;
   const visible = state.revealed.size;
   const totalHidden = hiddenTotals();
@@ -1505,34 +1636,37 @@ function renderDossier() {
   const host = $('#dossier-groups');
   if (host) {
     host.innerHTML = groups.map(({ category, entries }) => {
-      if (category === 'equipment') {
+      if (category === 'equipment' || category === 'cargo') {
         const ordered = [...entries].sort((a, b) => (
           (EQUIPMENT_SLOT_ORDER[a.clue.v.slot] ?? 9) - (EQUIPMENT_SLOT_ORDER[b.clue.v.slot] ?? 9)
           || a.index - b.index
         ));
         const revealed = ordered.filter((entry) => state.revealed.has(entry.index));
         const hidden = ordered.length - revealed.length;
+        const sealedKey = category === 'cargo' ? 'dossier.cargoSealed' : 'dossier.equipmentSealed';
         const sealed = hidden
-          ? `<div class="attr-row cat-equipment is-hidden equipment-sealed">
-              <span class="attr-label">${esc(t('dossier.equipmentSealed'))}</span>
+          ? `<div class="attr-row cat-${category} is-hidden equipment-sealed">
+              <span class="attr-label">${esc(t(sealedKey))}</span>
               <span class="attr-value"><span class="attr-redacted" aria-label="?">?</span></span>
               <span class="attr-meta"><span class="attr-lock">${icon('lock')}</span></span>
             </div>`
           : '';
-        const slotGroups = Object.entries(EQUIPMENT_SLOT_ORDER)
-          .map(([slot]) => ({
-            slot,
-            rows: revealed.filter(({ clue }) => clue.v.slot === slot),
-          }))
-          .filter((group) => group.rows.length)
-          .map(({ slot, rows }) => `<div class="equipment-slot-group">
-            <div class="equipment-slot-head"><span>${esc(slotLabel(slot))}</span><i>${rows.length}</i></div>
-            ${rows.map(({ clue, index }) => renderClueRow(clue, index, true)).join('')}
-          </div>`)
-          .join('');
-        return `<section class="dossier-group cat-equipment${hidden ? ' is-sealed' : ''}">
+        const slotGroups = category === 'cargo'
+          ? revealed.map(({ clue, index }) => renderClueRow(clue, index, true)).join('')
+          : Object.entries(EQUIPMENT_SLOT_ORDER)
+            .map(([slot]) => ({
+              slot,
+              rows: revealed.filter(({ clue }) => clue.v.slot === slot),
+            }))
+            .filter((group) => group.rows.length)
+            .map(({ slot, rows }) => `<div class="equipment-slot-group">
+              <div class="equipment-slot-head"><span>${esc(slotLabel(slot))}</span><i>${rows.length}</i></div>
+              ${rows.map(({ clue, index }) => renderClueRow(clue, index, true)).join('')}
+            </div>`)
+            .join('');
+        return `<section class="dossier-group cat-${category}${hidden ? ' is-sealed' : ''}">
           <header class="group-head">
-            <span class="group-title">${icon(CATEGORY_ICON.equipment || 'dot')}<span>${esc(categoryLabel('equipment'))}</span></span>
+            <span class="group-title">${icon(CATEGORY_ICON[category] || 'cargo')}<span>${esc(categoryLabel(category))}</span></span>
             <span class="group-progress" aria-hidden="true"><span style="--p:${hidden ? 0 : 100}"></span></span>
             <span class="group-count"><b>${revealed.length}</b> / ${hidden ? '?' : ordered.length}</span>
           </header>
@@ -1752,7 +1886,8 @@ function applyGuess(shipId) {
   hideSuggestions();
   state.guesses.push(shipId);
   const correct = shipId === state.answerId;
-  state.status = correct ? 'won' : (state.guesses.length >= ATTEMPT_LIMIT ? 'lost' : 'playing');
+  if (isTimed() && correct) stopTimedClock();
+  state.status = correct ? 'won' : (isTimed() ? 'playing' : (state.guesses.length >= ATTEMPT_LIMIT ? 'lost' : 'playing'));
   recomputeRevealed();
   state.fresh = new Set([...state.revealed].filter((index) => !previousRevealed.has(index)));
   state.latestIndex = previousGuesses;
@@ -1770,7 +1905,7 @@ function applyGuess(shipId) {
 
   renderAll();
   if (state.status !== 'playing') {
-    if (!isFree() && !isArchive()) {
+    if (!isFree() && !isArchive() && !isTimed()) {
       state.stats = recordResult(localStorage, state.stats, {
         date: state.date,
         status: state.status,
@@ -1809,6 +1944,18 @@ function shareLink() {
     url.searchParams.set('lang', state.locale);
     return url.toString();
   }
+  if (isTimed()) {
+    const url = new URL(location.href);
+    url.pathname = new URL(`share/timed/${state.locale}.html`, location.href).pathname;
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('t', String(Math.round(state.timerElapsedMs / 1000)));
+    url.searchParams.set('mode', state.mode === 'abyss' ? 'abyss' : 'normal');
+    if (isArchive()) url.searchParams.set('d', state.date);
+    url.searchParams.set('lang', state.locale);
+    url.searchParams.set('timer', '1');
+    return url.toString();
+  }
   return shareUrl(location, state.date, state.mode, state.status, state.guesses.length, state.locale);
 }
 
@@ -1825,12 +1972,19 @@ function renderDebrief() {
   const bonuses = state.answerData.bonuses || [];
   const kbHref = sampleKill ? zkillKillUrl(sampleKill) : (!won ? zkillShipUrl() : null);
   const kbLabel = sampleKill ? t('end.killmail') : t('end.killboard');
-  const oneShot = won && state.guesses.length === 1;
-  const kicker = oneShot ? t('oneShot.kicker') : (won ? t('end.victoryKicker') : t('end.defeatKicker'));
-  const title = oneShot ? t('oneShot.title') : (won ? t('end.victoryTitle') : t('end.defeatTitle'));
-  const body = oneShot
-    ? t('oneShot.body')
-    : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) }));
+  const timed = isTimed();
+  const oneShot = !timed && won && state.guesses.length === 1;
+  const kicker = timed
+    ? (won ? t('timed.winKicker') : t('timed.giveUpKicker'))
+    : (oneShot ? t('oneShot.kicker') : (won ? t('end.victoryKicker') : t('end.defeatKicker')));
+  const title = timed
+    ? (won ? t('timed.winTitle') : t('timed.giveUpTitle'))
+    : (oneShot ? t('oneShot.title') : (won ? t('end.victoryTitle') : t('end.defeatTitle')));
+  const body = timed
+    ? (won ? t('timed.winBody', { name: displayName(ship) }) : t('timed.giveUpBody', { name: displayName(ship) }))
+    : (oneShot
+      ? t('oneShot.body')
+      : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) })));
   const html = `
     <div class="modal debrief-modal${oneShot ? ' is-one-shot' : ''}" role="dialog" aria-modal="true" aria-labelledby="debrief-title" data-kind="debrief" data-status="${state.status}" data-one-shot="${oneShot}">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
@@ -1863,9 +2017,13 @@ function renderDebrief() {
           </div>
 
           <div class="debrief-stats">
-            <div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length} / 6</strong></div>
-            <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>
-            <div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>
+            ${timed
+              ? `<div class="debrief-stat"><span>${esc(t('timed.time'))}</span><strong>${esc(formatElapsed(state.timerElapsedMs))}</strong></div>
+                 <div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length}</strong></div>
+                 <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>`
+              : `<div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length} / 6</strong></div>
+                 <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>
+                 <div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`}
           </div>
 
           <div class="debrief-description">${description.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
@@ -1945,6 +2103,7 @@ function navigateToDate(date) {
   url.hash = '';
   if (date !== state.today) url.searchParams.set('d', date);
   if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
+  if (isTimed()) url.searchParams.set('timer', '1');
   url.searchParams.set('lang', state.locale);
   location.assign(url.toString());
 }
@@ -2294,10 +2453,30 @@ function startTicker() {
 // Events
 // ---------------------------------------------------------------------------
 
+let timerPressTimer = null;
+function clearTimerPress() {
+  if (timerPressTimer) clearTimeout(timerPressTimer);
+  timerPressTimer = null;
+}
+document.addEventListener('pointerdown', (event) => {
+  if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
+  if (!event.target.closest('#board-count-text')) return;
+  clearTimerPress();
+  timerPressTimer = setTimeout(() => {
+    timerPressTimer = null;
+    giveUpTimed();
+  }, 800);
+});
+for (const name of ['pointerup', 'pointercancel', 'pointerleave']) {
+  document.addEventListener(name, clearTimerPress);
+}
+
 document.addEventListener('click', (event) => {
   const actionEl = event.target.closest('[data-action]');
   if (actionEl) {
     const action = actionEl.dataset.action;
+    if (action === 'toggle-timed') { setTimed(!isTimed()); return; }
+    if (action === 'start-timed') { startTimedRun(); return; }
     if (action === 'free-mode') { openFreeModal(); return; }
     if (action === 'archive-mode') { openArchiveModal(); return; }
     if (action === 'free-submit') { void submitFreeKill(); return; }
@@ -2463,7 +2642,9 @@ async function boot() {
     state.catalog = catalog.ships;
     state.catalogMap = new Map(state.catalog.map((ship) => [ship.id, ship]));
     state.mode = modeFromLocation(location.search);
+    state.timed = timedFromLocation(location.search);
     document.documentElement.dataset.gameMode = state.mode;
+    document.documentElement.dataset.timed = state.timed ? '1' : '0';
 
     const now = serverNow();
     const resetHour = manifest.downtimeUtcHour || 11;
@@ -2471,6 +2652,7 @@ async function boot() {
     const locationDate = dateKeyFromLocation(location.search, now, resetHour);
     const freeTarget = freeKillFromLocation(location.search);
     state.freeKillId = freeTarget?.id || null;
+    if (state.freeKillId) state.timed = false;
     state.freeKillToken = freeTarget?.token || null;
     state.date = state.freeKillId ? `free-${state.freeKillToken}` : locationDate.date;
     if (freeTarget?.legacy) {
@@ -2523,7 +2705,7 @@ async function boot() {
         : (manifest.normalShipPool || manifest.killShipPool);
       const hulls = weightedHullOrder(
         killShipPool,
-        `${state.date}:${manifest.dataVersion}:${state.mode}:hulls`,
+        `${state.date}:${manifest.dataVersion}:${state.mode}:${state.timed ? 'timed' : 'standard'}:hulls`,
         8,
       );
       const pageTarget = await resolvePageTarget(hulls, state.date);
@@ -2534,7 +2716,7 @@ async function boot() {
       const fallbackKillId = (() => {
         if (targetKill) return null;
         const shipKills = manifest.killPoolsByShip?.[targetShipId] || [];
-        return pickDailyAnswer(shipKills, `${state.date}:kb`, manifest.dataVersion);
+        return pickDailyAnswer(shipKills, `${state.date}:kb:${state.timed ? 'timed' : 'standard'}`, manifest.dataVersion);
       })();
       const fallbackKill = fallbackKillId
         ? (manifest.killPool || []).find((entry) => Number(entry.killmail_id) === Number(fallbackKillId))

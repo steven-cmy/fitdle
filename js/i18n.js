@@ -2167,6 +2167,99 @@ Object.assign(RENAMES, {
   },
 });
 
+Object.assign(RENAMES, {
+  'cat.cargo': {
+    en: 'CARGO HOLD', de: 'FRACHTRAUM', es: 'BODEGA', fr: 'SOUTE',
+    ja: 'カーゴホールド', ko: '화물창', ru: 'ГРУЗОВОЙ ОТСЕК', zh: '货仓',
+  },
+  'dossier.cargoSealed': {
+    en: 'Sealed cargo', de: 'Versiegelte Fracht', es: 'Carga sellada', fr: 'Soute scellée',
+    ja: '封印された貨物', ko: '봉인된 화물', ru: 'Закрытый груз', zh: '已封存货仓',
+  },
+  'mode.timed': {
+    en: 'TIMED', de: 'ZEIT', es: 'CRONO', fr: 'CHRONO',
+    ja: 'タイム', ko: '타임', ru: 'НА ВРЕМЯ', zh: '计时',
+  },
+  'timed.start': {
+    en: 'START TIMED RUN', de: 'ZEITLAUF STARTEN', es: 'INICIAR CRONO', fr: 'LANCER LE CHRONO',
+    ja: 'タイム計測を開始', ko: '타임 런 시작', ru: 'НАЧАТЬ ЗАБЕГ', zh: '开始计时',
+  },
+  'timed.startHint': {
+    en: 'No clues until you start. Unlimited attempts, timer runs until you lock the ship.',
+    de: 'Keine Hinweise vor dem Start. Unbegrenzte Versuche, die Zeit läuft bis zum Lock.',
+    es: 'Sin pistas hasta empezar. Intentos ilimitados; el crono corre hasta bloquear la nave.',
+    fr: 'Aucun indice avant le départ. Tentatives illimitées, le chrono tourne jusqu’au verrouillage.',
+    ja: '開始までヒントなし。試行は無制限、艦船をロックするまで計測。',
+    ko: '시작 전에는 단서가 없습니다. 시도는 무제한이며 함선을 락할 때까지 시간이 흐릅니다.',
+    ru: 'До старта подсказок нет. Попытки не ограничены, таймер идёт до захвата корабля.',
+    zh: '开始前没有任何线索。可无限次尝试，计时直到锁定舰船。',
+  },
+  'timed.label': {
+    en: 'TIME', de: 'ZEIT', es: 'TIEMPO', fr: 'TEMPS',
+    ja: 'タイム', ko: '시간', ru: 'ВРЕМЯ', zh: '计时',
+  },
+  'timed.hold': {
+    en: 'Hold to give up and reveal the answer', de: 'Halten zum Aufgeben und Auflösen',
+    es: 'Mantén para rendirte y revelar la respuesta', fr: 'Maintenez pour abandonner et révéler',
+    ja: '長押しで放棄して答えを表示', ko: '길게 눌러 포기하고 정답 표시',
+    ru: 'Удерживайте, чтобы сдаться и увидеть ответ', zh: '长按放弃并显示答案',
+  },
+  'timed.time': {
+    en: 'TIME', de: 'ZEIT', es: 'TIEMPO', fr: 'TEMPS',
+    ja: 'タイム', ko: '시간', ru: 'ВРЕМЯ', zh: '用时',
+  },
+  'timed.winKicker': {
+    en: 'TIMED SIGNAL LOCK', de: 'ZEITLAUF-SIGNALSPERRE', es: 'BLOQUEO CRONO', fr: 'VERROU CHRONO',
+    ja: 'タイム・シグナルロック', ko: '타임 신호 락', ru: 'ЗАХВАТ НА ВРЕМЯ', zh: '计时信号锁定',
+  },
+  'timed.winTitle': {
+    en: 'SIGNAL LOCKED', de: 'SIGNAL GESPERRT', es: 'SEÑAL BLOQUEADA', fr: 'SIGNAL VERROUILLÉ',
+    ja: '信号ロック完了', ko: '신호 락 완료', ru: 'СИГНАЛ ЗАХВАЧЕН', zh: '信号已锁定',
+  },
+  'timed.winBody': {
+    en: 'Timed signal locked. Target identity resolved: {name}.',
+    de: 'Zeitsignal gesperrt. Ziel identifiziert: {name}.',
+    es: 'Señal cronometrada bloqueada. Identidad resuelta: {name}.',
+    fr: 'Signal chronométré verrouillé. Identité résolue : {name}.',
+    ja: 'タイム信号ロック完了。目標識別：{name}。',
+    ko: '타임 신호 락 완료. 목표 신원 확인: {name}.',
+    ru: 'Сигнал захвачен на время. Цель опознана: {name}.',
+    zh: '计时信号锁定完成，目标身份已解析：{name}。',
+  },
+  'timed.giveUpKicker': {
+    en: 'TIMED RUN ABANDONED', de: 'ZEITLAUF AUFGEGEBEN', es: 'CRONO ABANDONADO', fr: 'CHRONO ABANDONNÉ',
+    ja: 'タイム計測を放棄', ko: '타임 런 포기', ru: 'ЗАБЕГ ПРЕРВАН', zh: '计时中止',
+  },
+  'timed.giveUpTitle': {
+    en: 'SIGNAL RELEASED', de: 'SIGNAL FREIGEGEBEN', es: 'SEÑAL LIBERADA', fr: 'SIGNAL LIBÉRÉ',
+    ja: '信号を解放', ko: '신호 해제', ru: 'СИГНАЛ ОТПУЩЕН', zh: '信号已释放',
+  },
+  'timed.giveUpBody': {
+    en: 'You gave up the timed lock. The target was {name}.',
+    de: 'Du hast die Zeitsperre aufgegeben. Das Ziel war {name}.',
+    es: 'Abandonaste el bloqueo cronometrado. El objetivo era {name}.',
+    fr: 'Vous avez abandonné le verrou chronométré. La cible était {name}.',
+    ja: 'タイムロックを放棄しました。目標は {name} でした。',
+    ko: '타임 락을 포기했습니다. 목표는 {name}였습니다.',
+    ru: 'Вы отказались от захвата на время. Целью был {name}.',
+    zh: '你放弃了计时锁定。目标是 {name}。',
+  },
+  'share.timedTitle': {
+    en: 'FITDLE — Timed signal run', de: 'FITDLE — Zeitlauf', es: 'FITDLE — Crono', fr: 'FITDLE — Chrono',
+    ja: 'FITDLE — タイム計測', ko: 'FITDLE — 타임 런', ru: 'FITDLE — Забег на время', zh: 'FITDLE — 计时挑战',
+  },
+  'share.timedDescription': {
+    en: 'A timed FITDLE run. Open the puzzle and try to beat the clock.',
+    de: 'Ein FITDLE-Zeitlauf. Öffne das Rätsel und schlage die Uhr.',
+    es: 'Una partida cronometrada de FITDLE. Abre el puzzle e intenta batir el reloj.',
+    fr: 'Une partie chronométrée de FITDLE. Ouvrez le puzzle et battez le chrono.',
+    ja: 'FITDLEのタイム計測。パズルを開いてタイムに挑戦。',
+    ko: 'FITDLE 타임 런. 퍼즐을 열고 기록에 도전하세요.',
+    ru: 'Забег FITDLE на время. Откройте головоломку и побейте таймер.',
+    zh: 'FITDLE 计时挑战。打开谜题，尝试刷新用时。',
+  },
+});
+
 for (const [key, values] of Object.entries(RENAMES)) {
   for (const [lang, value] of Object.entries(values)) {
     if (MESSAGES[lang]) MESSAGES[lang][key] = value;

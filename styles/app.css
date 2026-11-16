@@ -4734,3 +4734,54 @@ html[data-font-size="larger"] .toast-title { font-size: 13.5px; }
 html[data-font-size="larger"] .toast-body { font-size: 14.5px; }
 html[data-font-size="largest"] .toast-title { font-size: 15px; }
 html[data-font-size="largest"] .toast-body { font-size: 16px; }
+
+/* Timed mode */
+.mode-timed {
+  color: var(--green);
+  border-color: rgba(99, 245, 166, 0.3);
+}
+.mode-timed.is-active,
+.mode-bar[data-mode="abyss"] .mode-timed.is-active {
+  color: var(--green);
+  border-color: rgba(99, 245, 166, 0.55);
+  background: rgba(99, 245, 166, 0.1);
+}
+.start-button {
+  display: flex;
+  width: 100%;
+  height: 64px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #03120b;
+  border: 1px solid var(--green);
+  background: var(--green);
+  font: 700 13px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  clip-path: var(--clip-sm);
+}
+.start-button:hover {
+  background: #b6ffd2;
+}
+.start-button svg {
+  width: 20px;
+  height: 20px;
+}
+.timed-acquire {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.timed-hint {
+  margin: 0;
+  color: var(--muted);
+  font: 500 10px/1.55 var(--font-mono);
+  text-align: center;
+}
+#board-count-text {
+  transition: color 140ms;
+}
+html[data-timed="1"] #board-count-text {
+  color: var(--green);
+}
