@@ -295,6 +295,10 @@ export function computeRevealed({
   }
 
   const revealed = chooseInitial({ clues, catalog, fitDelta, random });
+  // Standard mode always exposes the common structure-resist baseline. It is
+  // free opening information, not part of the initial clue quota.
+  const structureResists = clues.findIndex((clue) => clue.k === 'structureResists');
+  if (structureResists >= 0) revealed.add(structureResists);
   for (const id of guesses) {
     if (Number(id) === Number(answerId)) continue;
     addMatching({

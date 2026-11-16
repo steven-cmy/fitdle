@@ -370,7 +370,7 @@ test('runtime clue builder uses SDE plus live-shaped zKill fixtures', () => {
   const usage = built.clues.find((clue) => clue.k === 'usageRank');
   assert.ok(usage && usage.v >= 1 && usage.v <= 100);
   for (const clue of built.clues) {
-    const floor = clue.k === 'structureResists' ? 0.2 : 1;
+    const floor = clue.k === 'structureResists' ? 0 : 1;
     assert.ok(clue.w >= floor && clue.w <= 10);
   }
   const identity = built.clues.slice(0, 3).filter((clue) => ['tech', 'race', 'faction', 'group'].includes(clue.k));
@@ -972,7 +972,8 @@ test('normal mode releases equipment on misses and shared clues on matching gues
     answer: answerData,
   });
   const initial = compute([]);
-  assert.ok(initial.size >= 2 && initial.size <= 7, 'initial reveal is threshold-driven');
+  assert.ok(initial.size >= 2 && initial.size <= 8, 'initial reveal is threshold-driven');
+  assert.ok([...initial].some((index) => built.clues[index].k === 'structureResists'));
   const initialStatic = [...initial]
     .map((index) => built.clues[index])
     .filter((clue) => ['identity', 'hull', 'slots', 'nav', 'defense', 'fitting'].includes(clue.c));

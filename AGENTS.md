@@ -109,8 +109,8 @@ instructions live in [README.md](README.md).
 - Fighter tubes (158..161) are `fighter`; flag 155 is `fighterBay` and flag 133 is
   `fuelBay`. Only category-87 fighters stay in fighter slots; spare modules,
   charges and scripts there are cargo.
-- Standard mode caps structure-resist weight at 0.3 because every hull has the same
-  base structure resists.
+- Standard mode always includes structure resists in the opening clues and gives
+  them weight 0 because every hull has the same base structure resists.
 - An Assault Damage Control raises the abyss structure-resist clue to at least 9.5.
 - Low-slot weapon upgrades are weighted by the weapon family they improve
   (projectile/energy/hybrid/missile/drone/disintegrator/turret); matching fitted

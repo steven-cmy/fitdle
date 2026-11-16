@@ -740,9 +740,9 @@ export function buildClues({
         clue.w = Math.max(clue.w, 9.5);
       }
     } else if (clue.k === 'structureResists') {
-      // Every hull starts with the same base structure resists, so this is
-      // nearly worthless in Standard mode.
-      clue.w = Math.min(clue.w, 0.3);
+      // Every hull starts with the same base structure resists. Show it as a
+      // free opening fact in Standard mode, but never count it as valid intel.
+      clue.w = 0;
     }
   }
 
