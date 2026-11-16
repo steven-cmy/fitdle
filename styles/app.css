@@ -4885,3 +4885,35 @@ html[data-timed="1"] #hero-timed {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+/* Timer press-to-forfeit animation */
+.timed-clock-button {
+  position: relative;
+  overflow: hidden;
+  margin-right: 0;
+  margin-left: 14px;
+  user-select: none;
+  touch-action: none;
+}
+.timed-clock-button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 100%;
+  height: 0;
+  background: rgba(255, 58, 58, 0.45);
+  pointer-events: none;
+}
+.timed-clock-button.is-holding::after {
+  animation: timed-forfeit-fill 3s linear forwards;
+}
+.timed-clock-button > * {
+  position: relative;
+  z-index: 1;
+}
+@keyframes timed-forfeit-fill {
+  from { height: 0; }
+  to { height: 100%; }
+}

@@ -1,6 +1,6 @@
 # FITDLE
 
-**版本 0.2.1。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
+**版本 0.2.2。** EVE Online 每日击杀谜题：读取一张 killmail 的装配与属性，在 6 次尝试内锁定被害船。
 
 ![桌面端](docs/screenshot-desktop.png)
 

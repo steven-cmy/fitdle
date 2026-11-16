@@ -1069,17 +1069,16 @@ function renderShell() {
       <div class="console">
         <section class="panel board-panel" id="board-panel" aria-labelledby="board-title">
           <header class="panel-head${isTimed() ? ' is-timed' : ''}">
-            ${isTimed() ? `<button type="button" class="timed-clock-button" aria-label="${esc(t('timed.label'))}">
-              <span>${esc(t('timed.label'))}</span>
-              <strong id="board-count-text">00:00</strong>
-              <small>${esc(t('timed.holdShort'))}</small>
-            </button>` : ''}
             <div>
               <div class="panel-kicker"><span class="idx">01</span> // ${esc(t('board.title'))}</div>
               <h2 id="board-title">${esc(t('board.title'))}</h2>
               <p class="panel-sub">${esc(t('board.subtitle'))}</p>
             </div>
-            ${isTimed() ? '' : `<div class="dossier-count" aria-hidden="true">
+            ${isTimed() ? `<button type="button" class="timed-clock-button" aria-label="${esc(t('timed.label'))}">
+              <span>${esc(t('timed.label'))}</span>
+              <strong id="board-count-text">00:00</strong>
+              <small>${esc(t('timed.holdShort'))}</small>
+            </button>` : `<div class="dossier-count" aria-hidden="true">
               <strong id="board-count-text">${String(state.guesses.length).padStart(2, '0')} / 06</strong>
               <span>${esc(t('hero.attempts'))}</span>
             </div>`}
@@ -1578,7 +1577,7 @@ function renderClueRow(clue, index, revealed) {
     value = revealed ? (state.answerData.bonuses?.[clue.v] || '') : '';
   }
   if (revealed && !value) value = '—';
-  return `<div class="attr-row cat-${category}${clue.k === 'equipment' ? ' equipment-row' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-category="${category}">
+  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-category="${category}">
     <span class="attr-label">${esc(label)}</span>
     <span class="attr-value">${revealed ? value : '<span class="attr-redacted" aria-label="?">?</span>'}</span>
     <span class="attr-meta">${revealed ? weightPips(clue.w) : `<span class="attr-lock">${icon('lock')}</span>`}</span>
@@ -2479,21 +2478,32 @@ function startTicker() {
 // ---------------------------------------------------------------------------
 
 let timerPressTimer = null;
+let timerPressButton = null;
 function clearTimerPress() {
   if (timerPressTimer) clearTimeout(timerPressTimer);
   timerPressTimer = null;
+  if (timerPressButton) timerPressButton.classList.remove('is-holding');
+  timerPressButton = null;
 }
 document.addEventListener('pointerdown', (event) => {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
-  if (!event.target.closest('.timed-clock-button')) return;
+  if (event.button !== 0) return;
+  const button = event.target.closest('.timed-clock-button');
+  if (!button) return;
   clearTimerPress();
+  timerPressButton = button;
+  button.classList.remove('is-holding');
+  void button.offsetWidth;
+  button.classList.add('is-holding');
   timerPressTimer = setTimeout(() => {
     timerPressTimer = null;
+    timerPressButton = null;
+    button.classList.remove('is-holding');
     giveUpTimed();
-  }, 800);
+  }, 3000);
 });
-for (const name of ['pointerup', 'pointercancel', 'pointerleave']) {
-  document.addEventListener(name, clearTimerPress);
+for (const name of ['pointerup', 'pointercancel', 'blur']) {
+  window.addEventListener(name, clearTimerPress);
 }
 
 document.addEventListener('click', (event) => {
