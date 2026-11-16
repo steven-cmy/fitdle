@@ -42,6 +42,29 @@ export const EQUIPMENT_SLOT_ORDER = {
 // are still useful clues, but should never dominate the dossier.
 const COMMON_MODULE_GROUPS = new Set([46, 52, 57, 38, 60, 62, 65]);
 
+// Low-slot weapon upgrades and the weapon family they improve.
+const WEAPON_UPGRADE_FAMILIES = new Map([
+  [59, 'projectile'],   // Gyrostabilizer
+  [205, 'energy'],      // Heat Sink
+  [302, 'hybrid'],      // Magnetic Field Stabilizer
+  [367, 'missile'],     // Ballistic Control System
+  [645, 'drone'],       // Drone Damage Amplifier
+  [1988, 'disintegrator'], // Entropic Radiation Sink
+  [211, 'turret'],      // Tracking Enhancer
+  [1292, 'drone'],      // Omnidirectional Tracking Enhancer
+  [1395, 'missile'],    // Missile Guidance Enhancer
+]);
+
+function weaponFamilyOf(module) {
+  const name = String(module?.name || '');
+  if (/disintegrator/i.test(name)) return 'disintegrator';
+  if (/missile|rocket|torpedo|launcher/i.test(name)) return 'missile';
+  if (/autocannon|artillery/i.test(name)) return 'projectile';
+  if (/blaster|railgun/i.test(name)) return 'hybrid';
+  if (/laser|beam|pulse/i.test(name)) return 'energy';
+  return null;
+}
+
 function clamp(value, lo, hi) {
   return Math.max(lo, Math.min(hi, value));
 }
@@ -529,6 +552,18 @@ export function buildClues({
 
   const equipmentClues = [];
   const highWeapons = [];
+  const weaponCounts = new Map();
+  for (const item of equipment) {
+    if (item.slot !== 'high') continue;
+    const family = weaponFamilyOf(refs.modules?.[item.module]);
+    if (family) weaponCounts.set(family, (weaponCounts.get(family) || 0) + 1);
+  }
+  const turretCount = (weaponCounts.get('energy') || 0)
+    + (weaponCounts.get('hybrid') || 0)
+    + (weaponCounts.get('projectile') || 0);
+  const droneBoat = equipment.some((item) => item.slot === 'drone')
+    || Number(ship.attrs?.drones?.bandwidth) > 0
+    || Number(ship.attrs?.drones?.capacity) > 0;
   for (const item of equipment) {
     const module = refs.modules?.[item.module];
     const isCharge = !module || Number(module.categoryID) === 8;
@@ -568,6 +603,18 @@ export function buildClues({
     if (item.slot === 'fuelBay') weight = Math.max(weight, 10);
     if (isFighter) weight = Math.max(weight, module?.groupID === 1653 ? 10.8 : 10.4);
     if (isMiningSpecial) weight = Math.max(weight, 10.8);
+    // Low-slot weapon upgrades narrow the weapon family (and therefore hull).
+    if (item.slot === 'low') {
+      const upgrade = WEAPON_UPGRADE_FAMILIES.get(Number(module?.groupID));
+      if (upgrade) {
+        const count = upgrade === 'turret'
+          ? turretCount
+          : upgrade === 'drone'
+            ? (droneBoat ? 1 : 0)
+            : (weaponCounts.get(upgrade) || 0);
+        weight = Math.max(weight, count > 0 ? 7.4 + Math.min(1.4, count * 0.35) : 5.8);
+      }
+    }
     if (mode === 'abyss' && restriction === 'unique') weight = Math.max(weight, 10);
     if (mode === 'abyss' && restriction === 'limited') weight = Math.max(weight, 8.8);
     const clue = {

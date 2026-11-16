@@ -116,6 +116,34 @@ export function killHasFittedModules(killmail) {
   return (killmail?.victim?.items || []).some((item) => FITTED_KILL_FLAGS.has(Number(item.flag)));
 }
 
+export function weightedHullOrder(pool, seed, limit = 8) {
+  const counts = new Map();
+  for (const id of pool || []) counts.set(Number(id), (counts.get(Number(id)) || 0) + 1);
+  let state = cyrb53(String(seed || 'hulls'), 0x2f6e2b1);
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  const order = [];
+  while (order.length < Math.min(limit, counts.size)) {
+    let total = 0;
+    for (const weight of counts.values()) total += weight;
+    let roll = random() * total;
+    let picked = null;
+    for (const [id, weight] of counts) {
+      roll -= weight;
+      if (roll <= 0) {
+        picked = id;
+        break;
+      }
+    }
+    if (picked == null) picked = counts.keys().next().value;
+    order.push(picked);
+    counts.delete(picked);
+  }
+  return order;
+}
+
 export function selectRuntimeKill(losses, seed, allowEmpty = true) {
   if (!Array.isArray(losses) || !losses.length) return null;
   const index = cyrb53(String(seed), 0x5ca1ab1e) % losses.length;

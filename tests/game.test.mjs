@@ -574,6 +574,21 @@ test('fighter bays separate real fighters from carried modules', () => {
   }
 });
 
+test('low-slot weapon upgrades are weighted by matching weapon family', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const build = (items) => buildClues({
+    ship, catalog, refs, stats: null,
+    losses: [{ killmail_id: 9, zkb: { totalValue: 1000 }, victim: { items } }],
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion,
+  });
+  const bcs = { flag: 12, item_type_id: 22291, quantity_destroyed: 1, quantity_dropped: 0 };
+  const launcher = { flag: 27, item_type_id: 2404, quantity_destroyed: 1, quantity_dropped: 0 };
+  const alone = build([bcs]).clues.find((clue) => clue.v?.module === 22291);
+  const matched = build([bcs, launcher]).clues.find((clue) => clue.v?.module === 22291);
+  assert.ok(matched.w > alone.w);
+  assert.ok(matched.w >= 7.4);
+});
+
 test('same type fitted and in cargo is exposed as separate lines', () => {
   const losses = [{
     killmail_id: 139532182,

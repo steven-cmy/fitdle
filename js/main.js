@@ -23,6 +23,7 @@ import {
   searchShips,
   selectRuntimeKill,
   shareUrl,
+  weightedHullOrder,
 } from './game.js';
 import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
 import { buildClues, getEquipment, selectAbyssFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
@@ -561,38 +562,32 @@ async function fetchZkill(path) {
   return response.json();
 }
 
-function monthBefore(dateKey, monthsBack) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateKey));
-  if (!match) return null;
-  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1 - monthsBack, 1));
-  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
-}
 
-async function resolveRuntimeKill(shipId, dateKey, anchorDate = state.today) {
-  // The archive date only seeds the selection. The KB window is anchored to
-  // today so archived runs do not try to reconstruct historical killboards.
-  const maxMonthScan = 24;
-  for (let offset = 1; offset <= maxMonthScan; offset++) {
-    const month = monthBefore(anchorDate, offset);
-    if (!month) return null;
-    const monthEnd = new Date(Date.UTC(month.year, month.month, 0)).toISOString().slice(0, 10);
-    if (monthEnd < KILL_HISTORY_START) return null;
-    try {
-      const data = await fetchZkill(`/api/losses/shipTypeID/${shipId}/year/${month.year}/month/${month.month}/`);
-      if (!Array.isArray(data)) continue;
+async function resolvePageTarget(hulls, dateKey) {
+  const seen = new Set();
+  const seedBase = `${dateKey}:${state.dataVersionKey || state.manifest.dataVersion}`;
+  for (const shipId of hulls) {
+    for (let page = 1; page <= 10; page++) {
+      let data = null;
+      try {
+        data = await fetchZkill(`/losses/shipTypeID/${shipId}/page/${page}/`);
+      } catch {
+        break;
+      }
+      if (!Array.isArray(data) || !data.length) break;
       const losses = data.filter((kill) => (
         Number(kill?.victim?.ship_type_id) === Number(shipId)
         && String(kill?.killmail_time || '') >= `${KILL_HISTORY_START}T00:00:00Z`
       ));
-      if (!losses.length) continue;
-      const selected = selectRuntimeKill(
-        losses,
-        `${dateKey}:${shipId}:${month.year}-${month.month}`,
-        state.allowEmptyKb,
-      );
-      if (selected) return selected;
-    } catch {
-      // try the previous month
+      if (!losses.length) break;
+      const available = losses.filter((kill) => !seen.has(Number(kill.killmail_id)));
+      if (!available.length) continue;
+      const chosen = selectRuntimeKill(available, `${seedBase}:${shipId}:${page}`, state.allowEmptyKb);
+      if (chosen) {
+        seen.add(Number(chosen.killmail_id));
+        return { shipId: Number(shipId), killmail: chosen };
+      }
+      // The whole page was unusable (all empty/duplicate); try the next page.
     }
   }
   return null;
@@ -2526,16 +2521,30 @@ async function boot() {
       const killShipPool = state.mode === 'abyss'
         ? (manifest.abyssKillShipPool || manifest.killShipPool)
         : (manifest.normalShipPool || manifest.killShipPool);
-      const targetShipId = pickDailyAnswer(killShipPool, state.date, manifest.dataVersion);
-      const shipKills = manifest.killPoolsByShip?.[targetShipId] || [];
-      const targetKillId = pickDailyAnswer(shipKills, `${state.date}:kb`, manifest.dataVersion);
-      const targetKill = (manifest.killPool || []).find((entry) => Number(entry.killmail_id) === Number(targetKillId));
+      const hulls = weightedHullOrder(
+        killShipPool,
+        `${state.date}:${manifest.dataVersion}:${state.mode}:hulls`,
+        8,
+      );
+      const pageTarget = await resolvePageTarget(hulls, state.date);
+      const targetShipId = pageTarget?.shipId
+        || hulls[0]
+        || pickDailyAnswer(killShipPool, state.date, manifest.dataVersion);
+      const targetKill = pageTarget?.killmail || null;
+      const fallbackKillId = (() => {
+        if (targetKill) return null;
+        const shipKills = manifest.killPoolsByShip?.[targetShipId] || [];
+        return pickDailyAnswer(shipKills, `${state.date}:kb`, manifest.dataVersion);
+      })();
+      const fallbackKill = fallbackKillId
+        ? (manifest.killPool || []).find((entry) => Number(entry.killmail_id) === Number(fallbackKillId))
+        : null;
       state.answerId = Number(targetShipId);
-      state.answerKillId = targetKill ? Number(targetKill.killmail_id) : null;
+      state.answerKillId = targetKill
+        ? Number(targetKill.killmail_id)
+        : (fallbackKill ? Number(fallbackKill.killmail_id) : null);
       if (!state.answerId || !state.catalogMap.has(state.answerId)) throw new Error('daily target unavailable');
       state.answerShip = state.catalogMap.get(state.answerId);
-      const runtimeKill = await resolveRuntimeKill(state.answerId, state.date, state.today);
-      if (runtimeKill?.killmail_id) state.answerKillId = Number(runtimeKill.killmail_id);
     }
     await loadLocaleData(state.locale);
 

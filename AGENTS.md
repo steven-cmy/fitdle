@@ -10,8 +10,8 @@ instructions live in [README.md](README.md).
 - Every commit bumps **patch** by default. Use `VERSION_BUMP=minor` or
   `VERSION_BUMP=major` only when the user explicitly asks for that release level.
 - Do not commit `.cache/`, `dist/`, browser state, or the GitLab token.
-- Keep the puzzle deterministic for every player: fixed date, fixed complete UTC
-  month window, page 1 only, stable hash seeds.
+- Keep the puzzle deterministic for every player: fixed date seed, stable hull /
+  page hashes, and page-1-first zKill selection.
 - Do not add a backend, account system, or runtime database. The game is static.
 - Prefer official SDE/zKill/ESI/image sources. Do not cache images in the repo.
 - Do not hard-code deployment domains in authored JS/CSS/HTML. Use `manifest.links`
@@ -52,8 +52,8 @@ instructions live in [README.md](README.md).
    and stores recent/all ship-loss counts in `.cache/ship-weights.json`.
 4. `build` reads normalized SDE + weights + killpool and writes `data/` and
    `dist/`.
-5. Runtime: choose hull from weighted pool, then fetch that hull's recent
-   complete-month zKill losses, hash-pick one killmail, fetch it live.
+5. Runtime: build a weighted hull candidate list, fetch page 1 (then later pages)
+   for each hull, hash-pick one killmail, fetch it live.
 
 ## Target selection
 
@@ -72,13 +72,16 @@ instructions live in [README.md](README.md).
 - zKill kill reports before **2012-05-22** do not exist; never select them.
 - Archive dates may be any past day since EVE launch (2003-05-06); the date is only
   the deterministic seed, not the KB month anchor.
-- `/api/losses/shipTypeID/{id}/year/{Y}/month/{M}/`, page 1 only (200 max).
-- Start at the previous complete UTC month relative to **today**; archive dates are
-  only selection seeds. Walk back through the kill-history floor (2012-05-22), with
-  a hard scan cap of 24 months; the static killpool is the fallback.
-- Hash seed includes date, hull and month offset; all players see the same KB.
-- Static `killPoolsByShip` is only a fallback when runtime fetch/selection fails.
-- Do not add pagination or current-month data; it would break identical play.
+- Build a deterministic weighted hull candidate order from the mode pool.
+- For each hull fetch `/api/losses/shipTypeID/{id}/page/1/` directly; select a
+  kill by the date/hull/page hash. If the page has no usable kill (or all entries
+  were already seen), continue to page 2, then the next hull.
+- A runtime `Set` prevents duplicate kill IDs within the candidate walk. There is
+  no stored history of prior days; the date seed makes the selection deterministic.
+- If every candidate/page is exhausted, use `killPoolsByShip` as the static
+  fallback, otherwise the SDE-only dossier.
+- Page endpoints are fetched in order (1, 2, ...); the same date/hull/page hashes
+  keep every player on the same result.
 - Empty-hull filtering never changes the baseline pick: choose the normal hashed
   kill first; only replace it when that pick is empty and the setting is off.
 
@@ -106,6 +109,9 @@ instructions live in [README.md](README.md).
 - Fighter tubes (158..161) are `fighter`; flag 155 is `fighterBay` and flag 133 is
   `fuelBay`. Only category-87 fighters stay in fighter slots; spare modules,
   charges and scripts there are cargo.
+- Low-slot weapon upgrades are weighted by the weapon family they improve
+  (projectile/energy/hybrid/missile/drone/disintegrator/turret); matching fitted
+  weapons raise weight from 5.8 to at least 7.4.
 - Limited modules get a scarcity bonus from how many catalog hulls their
   `fitRestrictions` cover: fewer compatible hulls = higher weight.
 - Fighters are `limited` and weigh 10; Excavator/Pluto/special mining drones are
@@ -220,7 +226,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 39 cases, including downtime boundaries, target/KB
+`npm test` currently covers 40 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.
@@ -248,7 +254,7 @@ test reads `dist/`.
 - zKill APIs can rate-limit; runtime degrades to SDE-only clues.
 - Dogma cannot recover the victim's real skills/mutations; simulates all-V and
   active modules.
-- Some hulls have no KB within the scanned history; static fallback may be empty.
+- Some hulls have no usable zKill page; static fallback may be empty.
 - Free mode is not counted and not persisted. It ignores empty-hull/date filters;
   a kill that exists on zKill opens, otherwise the app falls back to the daily puzzle.
 - Archive mode is not counted in the service record.
