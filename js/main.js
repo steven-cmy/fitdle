@@ -2414,9 +2414,17 @@ function playToday() {
 function resetAllProgress() {
   if (!window.confirm(t('help.resetConfirm'))) return;
   state.resetting = true;
+  if (state.timerHandle) clearInterval(state.timerHandle);
+  state.timerHandle = null;
+  state.timerStarted = false;
+  state.timerStartAt = 0;
+  state.timerElapsedMs = 0;
+  state.gaveUp = false;
   try {
-    for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('fitdle:v1:')) localStorage.removeItem(key);
+    // Iterate backwards: localStorage.length changes as keys are removed.
+    for (let index = localStorage.length - 1; index >= 0; index--) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith('fitdle:v1:')) localStorage.removeItem(key);
     }
   } catch {
     // ignore
