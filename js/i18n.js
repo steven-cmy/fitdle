@@ -2130,6 +2130,43 @@ Object.assign(RENAMES, {
   },
 });
 
+Object.assign(RENAMES, {
+  'board.title': {
+    en: 'SHIP SIGNAL LOCK', de: 'SCHIFFSSIGNAL-SPERRE', es: 'BLOQUEO DE SEÑAL', fr: 'VERROUILLAGE SIGNAL',
+    ja: '艦船信号ロック', ko: '함선 신호 락', ru: 'ЗАХВАТ СИГНАЛА КОРАБЛЯ', zh: '舰船信号锁定',
+  },
+  'board.subtitle': {
+    en: 'Try to lock a ship signal, compare the profile and pull the next kill record.',
+    de: 'Versuche, ein Schiffsignal zu sperren, vergleiche das Profil und hole den nächsten Kill.',
+    es: 'Intenta bloquear una señal de nave, compara el perfil y obtén el siguiente registro.',
+    fr: 'Tentez de verrouiller un signal de vaisseau, comparez le profil et extrayez le prochain kill.',
+    ja: '艦船信号のロックを試み、プロファイルを比較して次のキル記録を取得します。',
+    ko: '함선 신호 락을 시도하고 프로필을 비교해 다음 킬 기록을 가져옵니다.',
+    ru: 'Попробуйте захватить сигнал корабля, сравните профиль и получите следующую запись.',
+    zh: '尝试锁定舰船信号，比对轮廓并拉取下一份击杀记录。',
+  },
+  'board.locked': {
+    en: 'SIGNAL LOCKED', de: 'SIGNAL GESPERRT', es: 'SEÑAL BLOQUEADA', fr: 'SIGNAL VERROUILLÉ',
+    ja: '信号ロック済み', ko: '신호 락됨', ru: 'СИГНАЛ ЗАХВАЧЕН', zh: '信号已锁定',
+  },
+  'board.sealed': {
+    en: 'SIGNAL SEALED', de: 'SIGNAL VERSIEGELT', es: 'SEÑAL SELLADA', fr: 'SIGNAL SCELLÉ',
+    ja: '信号封印', ko: '신호 봉인', ru: 'СИГНАЛ ЗАПЕЧАТАН', zh: '信号已封存',
+  },
+  'board.ready': {
+    en: 'SIGNAL READY', de: 'SIGNAL BEREIT', es: 'SEÑAL LISTA', fr: 'SIGNAL PRÊT',
+    ja: '信号待機', ko: '신호 준비', ru: 'СИГНАЛ ГОТОВ', zh: '信号待锁定',
+  },
+  'dossier.encrypted': {
+    en: 'SIGNAL SEALED', de: 'SIGNAL VERSIEGELT', es: 'SEÑAL SELLADA', fr: 'SIGNAL SCELLÉ',
+    ja: '信号封印', ko: '신호 봉인', ru: 'СИГНАЛ ЗАПЕЧАТАН', zh: '信号已封存',
+  },
+  'dossier.decrypted': {
+    en: 'SIGNAL PARSED', de: 'SIGNAL GEPARST', es: 'SEÑAL ANALIZADA', fr: 'SIGNAL ANALYSÉ',
+    ja: '信号解析済み', ko: '신호 분석됨', ru: 'СИГНАЛ РАСШИФРОВАН', zh: '信号已解析',
+  },
+});
+
 for (const [key, values] of Object.entries(RENAMES)) {
   for (const [lang, value] of Object.entries(values)) {
     if (MESSAGES[lang]) MESSAGES[lang][key] = value;

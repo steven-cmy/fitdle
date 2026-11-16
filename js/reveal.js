@@ -60,43 +60,47 @@ function wouldLeaveTooFew(set, index, clues, catalog, fitDelta) {
   return next.length < INITIAL_MIN_CANDIDATES;
 }
 
-function chooseInitial({ clues, catalog, fitDelta }) {
+function chooseInitial({ clues, catalog, fitDelta, random }) {
   const revealed = new Set();
   const identity = (clue) => ['tech', 'race', 'faction', 'group'].includes(clue.k);
+  const candidates = clues.map((clue, index) => ({ clue, index }));
   let hasIdentity = false;
   let hasEquipment = false;
   let weight = 0;
-  for (let index = 0; index < clues.length; index++) {
-    if (weight >= INITIAL_WEIGHT_THRESHOLD) break;
-    if (revealed.size >= INITIAL_MAX_CLUES) break;
-    const clue = clues[index];
-    if (clue.k === 'bonus') continue;
-    if (clue.k === 'equipment' && clue.tag) continue;
-    if (identity(clue) && hasIdentity) continue;
-    if (clue.k === 'equipment' && hasEquipment) continue;
-    if (wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)) continue;
+  while (
+    revealed.size < INITIAL_MAX_CLUES
+    && (weight < INITIAL_WEIGHT_THRESHOLD || revealed.size < 3)
+  ) {
+    const available = candidates.filter(({ clue, index }) => {
+      if (revealed.has(index) || clue.k === 'bonus') return false;
+      if (clue.k === 'equipment' && clue.tag) return false;
+      if (identity(clue) && hasIdentity) return false;
+      if (clue.k === 'equipment' && hasEquipment) return false;
+      if (weight > 0 && weight + (Number(clue.w) || 0) > INITIAL_MAX_WEIGHT) return false;
+      return !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta);
+    });
+    if (!available.length) break;
+    const chosen = weightedPick(available, random);
+    if (!chosen) break;
+    const clue = chosen.clue;
     const clueWeight = Math.max(0, Number(clue.w) || 0);
-    if (weight > 0 && weight + clueWeight > INITIAL_MAX_WEIGHT) {
-      continue;
-    }
-    revealed.add(index);
+    if (weight > 0 && weight + clueWeight > INITIAL_MAX_WEIGHT) break;
+    revealed.add(chosen.index);
     weight += clueWeight;
     if (identity(clue)) hasIdentity = true;
     if (clue.k === 'equipment') hasEquipment = true;
   }
   if (weight < INITIAL_WEIGHT_THRESHOLD && revealed.size < INITIAL_MAX_CLUES) {
-    const fallback = clues
-      .map((clue, index) => ({ clue, index }))
-      .filter(({ clue, index }) => (
-        !revealed.has(index)
-        && clue.k !== 'bonus'
-        && !(clue.k === 'equipment' && clue.tag)
-        && !(identity(clue) && hasIdentity)
-        && !(clue.k === 'equipment' && hasEquipment)
-        && !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)
-      ))
-      .sort((a, b) => (Number(a.clue.w) || 0) - (Number(b.clue.w) || 0));
-    if (fallback.length) revealed.add(fallback[0].index);
+    const fallback = candidates.filter(({ clue, index }) => (
+      !revealed.has(index)
+      && clue.k !== 'bonus'
+      && !(clue.k === 'equipment' && clue.tag)
+      && !(identity(clue) && hasIdentity)
+      && !(clue.k === 'equipment' && hasEquipment)
+      && !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)
+    ));
+    const chosen = weightedPick(fallback, random);
+    if (chosen) revealed.add(chosen.index);
   }
   return revealed;
 }
@@ -258,7 +262,7 @@ export function computeRevealed({
   const random = makeRandom(`${seed}:${mode}:${answerId}`);
   const misses = guesses.filter((id) => Number(id) !== Number(answerId)).length;
   if (mode === 'abyss') {
-    const revealed = chooseInitial({ clues, catalog, fitDelta });
+    const revealed = chooseInitial({ clues, catalog, fitDelta, random });
     // Miss 1..5 adds 1..5 equipment clues, plus one weighted non-equipment
     // clue each time.
     for (let miss = 1; miss <= misses; miss++) {
@@ -272,7 +276,7 @@ export function computeRevealed({
     return revealed;
   }
 
-  const revealed = chooseInitial({ clues, catalog, fitDelta });
+  const revealed = chooseInitial({ clues, catalog, fitDelta, random });
   for (const id of guesses) {
     if (Number(id) === Number(answerId)) continue;
     addMatching({

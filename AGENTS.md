@@ -82,8 +82,8 @@ instructions live in [README.md](README.md).
 
 ## Reveal rules
 
-- Initial clues: weighted threshold 9 / max 13 / max 7 clues; never fewer than
-  6 candidate hulls; unique/limited tag equipment excluded initially.
+- Initial clues: weighted random picks (not a fixed sequence), threshold 9 / max 13 /
+  max 7 clues; never fewer than 6 candidate hulls; tagged equipment excluded initially.
 - Normal mode misses: equipment budget based on fitted equipment count; low
   weight selected first, high-weight items consume more budget and reveal fewer.
 - Abyss misses: `+1/+2/+3/+4/+5` equipment clues, plus one weighted

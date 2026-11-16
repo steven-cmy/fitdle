@@ -2503,6 +2503,8 @@ html[data-game-mode="abyss"] {
   color: var(--red);
   border: 1px solid rgba(255, 108, 103, 0.28);
   background: rgba(255, 108, 103, 0.06);
+  cursor: default;
+  user-select: none;
   font: 600 8.5px/1 var(--font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -4626,3 +4628,81 @@ html[data-font-size="larger"] .resist-cell b { font-size: 15px; }
 html[data-font-size="larger"] .resist-cell small { font-size: 11px; }
 html[data-font-size="largest"] .resist-cell b { font-size: 17px; }
 html[data-font-size="largest"] .resist-cell small { font-size: 12px; }
+
+/* Buttons and metadata follow the global font-size preference. */
+html[data-font-size="smallest"] .button,
+html[data-font-size="smallest"] .link-button,
+html[data-font-size="smallest"] .lock-button,
+html[data-font-size="smallest"] .share-box label,
+html[data-font-size="smallest"] .share-box input,
+html[data-font-size="smallest"] .debrief-next,
+html[data-font-size="smallest"] .free-note { font-size: 8.5px; }
+html[data-font-size="smaller"] .button,
+html[data-font-size="smaller"] .link-button,
+html[data-font-size="smaller"] .lock-button,
+html[data-font-size="smaller"] .share-box label,
+html[data-font-size="smaller"] .share-box input,
+html[data-font-size="smaller"] .debrief-next,
+html[data-font-size="smaller"] .free-note { font-size: 10px; }
+html[data-font-size="normal"] .button,
+html[data-font-size="normal"] .link-button,
+html[data-font-size="normal"] .lock-button,
+html[data-font-size="normal"] .share-box label,
+html[data-font-size="normal"] .share-box input,
+html[data-font-size="normal"] .debrief-next,
+html[data-font-size="normal"] .free-note { font-size: 12px; }
+html[data-font-size="larger"] .button,
+html[data-font-size="larger"] .link-button,
+html[data-font-size="larger"] .lock-button,
+html[data-font-size="larger"] .share-box label,
+html[data-font-size="larger"] .share-box input,
+html[data-font-size="larger"] .debrief-next,
+html[data-font-size="larger"] .free-note { font-size: 13.5px; }
+html[data-font-size="largest"] .button,
+html[data-font-size="largest"] .link-button,
+html[data-font-size="largest"] .lock-button,
+html[data-font-size="largest"] .share-box label,
+html[data-font-size="largest"] .share-box input,
+html[data-font-size="largest"] .debrief-next,
+html[data-font-size="largest"] .free-note { font-size: 15px; }
+
+/* Remaining dossier/debrief labels follow the same five steps. */
+html[data-font-size="smallest"] .panel-sub,
+html[data-font-size="smallest"] .dossier-panel .panel-kicker,
+html[data-font-size="smallest"] .modal .panel-kicker { font-size: 10px; }
+html[data-font-size="smallest"] .debrief-kicker,
+html[data-font-size="smallest"] .debrief-visual-caption span { font-size: 9px; }
+html[data-font-size="smallest"] .debrief-answer span { font-size: 8px; }
+html[data-font-size="smallest"] .debrief-stat strong { font-size: 18px; }
+
+html[data-font-size="smaller"] .panel-sub,
+html[data-font-size="smaller"] .dossier-panel .panel-kicker,
+html[data-font-size="smaller"] .modal .panel-kicker { font-size: 11.5px; }
+html[data-font-size="smaller"] .debrief-kicker,
+html[data-font-size="smaller"] .debrief-visual-caption span { font-size: 10px; }
+html[data-font-size="smaller"] .debrief-answer span { font-size: 9px; }
+html[data-font-size="smaller"] .debrief-stat strong { font-size: 19px; }
+
+html[data-font-size="normal"] .panel-sub,
+html[data-font-size="normal"] .dossier-panel .panel-kicker,
+html[data-font-size="normal"] .modal .panel-kicker { font-size: 13px; }
+html[data-font-size="normal"] .debrief-kicker,
+html[data-font-size="normal"] .debrief-visual-caption span { font-size: 11px; }
+html[data-font-size="normal"] .debrief-answer span { font-size: 10px; }
+html[data-font-size="normal"] .debrief-stat strong { font-size: 20px; }
+
+html[data-font-size="larger"] .panel-sub,
+html[data-font-size="larger"] .dossier-panel .panel-kicker,
+html[data-font-size="larger"] .modal .panel-kicker { font-size: 14.5px; }
+html[data-font-size="larger"] .debrief-kicker,
+html[data-font-size="larger"] .debrief-visual-caption span { font-size: 12.5px; }
+html[data-font-size="larger"] .debrief-answer span { font-size: 11px; }
+html[data-font-size="larger"] .debrief-stat strong { font-size: 22px; }
+
+html[data-font-size="largest"] .panel-sub,
+html[data-font-size="largest"] .dossier-panel .panel-kicker,
+html[data-font-size="largest"] .modal .panel-kicker { font-size: 16px; }
+html[data-font-size="largest"] .debrief-kicker,
+html[data-font-size="largest"] .debrief-visual-caption span { font-size: 14px; }
+html[data-font-size="largest"] .debrief-answer span { font-size: 12px; }
+html[data-font-size="largest"] .debrief-stat strong { font-size: 24px; }
