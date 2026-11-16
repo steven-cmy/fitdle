@@ -442,7 +442,8 @@ function moduleIconPath(moduleID) {
 
 function weightPips(weight) {
   const lit = Math.max(1, Math.min(5, Math.ceil(Number(weight) / 2)));
-  return `<span class="weight" title="${esc(t('dossier.signal'))} ${esc(Number(weight).toFixed(2))}/10" aria-label="${esc(t('dossier.signal'))} ${esc(Number(weight).toFixed(2))}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
+  const shown = String(Number(Number(weight).toFixed(2)));
+  return `<span class="weight" title="${esc(t('dossier.signal'))} ${esc(shown)}/10" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 
 function categoryLabel(category) {

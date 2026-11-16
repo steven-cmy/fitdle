@@ -333,6 +333,7 @@ function simulateFitting(ship, equipment, moduleDetails) {
   let warpMultiplier = 1;
 
   for (const item of equipment) {
+    if (['cargo', 'fighterBay', 'fuelBay'].includes(item.slot)) continue;
     const module = moduleDetails[item.module];
     if (!module) continue;
     massAddition += moduleAttribute(module, 4) + moduleAttribute(module, 796);
