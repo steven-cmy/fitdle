@@ -63,7 +63,13 @@ function applyAllVSkills(fit, skills) {
     skills: Object.fromEntries(skills.map((id) => [id, 5])),
   };
   if (Array.isArray(fit.items)) {
-    fit.items = fit.items.map((item) => ({ ...item, state: 'active' }));
+    // Every fitted module is online and active, but never overheated.
+    fit.items = fit.items.map((item) => ({
+      ...item,
+      state: 'active',
+      overheated: false,
+      overload: false,
+    }));
   }
   return fit;
 }

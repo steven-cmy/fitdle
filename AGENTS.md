@@ -91,6 +91,7 @@ instructions live in [README.md](README.md).
 - Abyss misses: `+1/+2/+3/+4/+5` equipment clues, plus one weighted
   non-equipment clue each miss. If equipment is short, the uncovered quota is
   halved (rounded up) into additional weighted non-equipment clues.
+- All fitted modules are simulated as online and active, never overheated.
 - Abyss static weights start from base stats (so fitted values do not inflate
   weight), then a clue whose fitted value differs from the **all-V no-modules
   baseline** is multiplied by 0.7. Skill-only changes do not reduce weight; only
