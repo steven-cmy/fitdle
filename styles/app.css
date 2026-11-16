@@ -4927,3 +4927,13 @@ html[data-timed="1"] #hero-timed {
   background: rgba(255, 58, 58, 0.4);
   animation: none;
 }
+
+/* Zero-weight intel is shown but visually inert */
+.attr-row.is-zero-weight {
+  filter: grayscale(1);
+  opacity: 0.62;
+}
+.weight.is-zero i {
+  background: rgba(126, 196, 216, 0.1);
+  box-shadow: none;
+}

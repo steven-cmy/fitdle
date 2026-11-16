@@ -547,9 +547,10 @@ function moduleIconPath(moduleID) {
 }
 
 function weightPips(weight) {
-  const lit = Math.max(1, Math.min(5, Math.ceil(Number(weight) / 2)));
-  const shown = String(Number(Number(weight).toFixed(2)));
-  return `<span class="weight" title="${esc(t('dossier.signal'))} ${esc(shown)}/10" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
+  const numeric = Number(weight) || 0;
+  const lit = numeric <= 0 ? 0 : Math.max(1, Math.min(5, Math.ceil(numeric / 2)));
+  const shown = String(Number(numeric.toFixed(2)));
+  return `<span class="weight${lit === 0 ? ' is-zero' : ''}" title="${esc(t('dossier.signal'))} ${esc(shown)}/10" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 
 function categoryLabel(category) {
@@ -1616,7 +1617,8 @@ function renderClueRow(clue, index, revealed) {
     value = revealed ? (state.answerData.bonuses?.[clue.v] || '') : '';
   }
   if (revealed && !value) value = '—';
-  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-category="${category}">
+  const zeroWeight = (Number(clue.w) || 0) <= 0;
+  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-category="${category}">
     <span class="attr-label">${esc(label)}</span>
     <span class="attr-value">${revealed ? value : '<span class="attr-redacted" aria-label="?">?</span>'}</span>
     <span class="attr-meta">${revealed ? weightPips(clue.w) : `<span class="attr-lock">${icon('lock')}</span>`}</span>
