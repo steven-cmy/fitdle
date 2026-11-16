@@ -11,6 +11,8 @@ import {
   buildGuessResult,
   dateKeyFromLocation,
   dailyAnswerIndex,
+  freeKillIdFromToken,
+  freeKillToken,
   gameDateKey,
   isValidDateKey,
   KILL_HISTORY_START,
@@ -90,6 +92,10 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(parseKillId('139037509'), 139037509);
   assert.equal(parseKillId('https://zkillboard.com/kill/139037509/'), 139037509);
   assert.equal(parseKillId('nope'), null);
+  const freeToken = freeKillToken(139037509);
+  assert.ok(!freeToken.includes('139037509'));
+  assert.equal(freeKillIdFromToken(freeToken), 139037509);
+  assert.equal(freeKillIdFromToken('kbad00'), null);
   assert.equal(killHasFittedModules({ victim: { items: [{ flag: 5, item_type_id: 1 }] } }), false);
   assert.equal(killHasFittedModules({ victim: { items: [{ flag: 19, item_type_id: 1 }] } }), true);
 });

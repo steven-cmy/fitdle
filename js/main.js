@@ -5,6 +5,8 @@ import {
   cyrb53,
   dateKeyFromLocation,
   ARCHIVE_START,
+  freeKillIdFromToken,
+  freeKillToken,
   gameDateKey,
   killHasFittedModules,
   KILL_HISTORY_START,
@@ -91,6 +93,7 @@ const state = {
   answerId: null,
   answerKillId: null,
   freeKillId: null,
+  freeKillToken: null,
   freeKillmail: null,
   answerShip: null,
   answerData: null,
@@ -191,10 +194,11 @@ function isArchive() {
   return state.date !== state.today;
 }
 
-function freeKillIdFromLocation(search) {
+function freeKillFromLocation(search) {
   const params = new URLSearchParams(search);
   const raw = params.get('kb') || params.get('killmail') || params.get('kill');
-  return raw && /^\d+$/.test(raw) && Number(raw) > 0 ? Number(raw) : null;
+  const id = raw ? freeKillIdFromToken(raw) : null;
+  return id ? { id, token: freeKillToken(id), legacy: /^\d+$/.test(raw) } : null;
 }
 
 function applyFont(mode, persist = false) {
@@ -213,7 +217,7 @@ function applyFont(mode, persist = false) {
 }
 
 function applyFontSize(size, persist = false) {
-  state.fontSize = ['normal', 'large', 'xlarge'].includes(size) ? size : 'normal';
+  state.fontSize = ['smallest', 'smaller', 'normal', 'larger', 'largest'].includes(size) ? size : 'normal';
   document.documentElement.dataset.fontSize = state.fontSize;
   if (persist) {
     try {
@@ -227,7 +231,9 @@ function applyFontSize(size, persist = false) {
 function readFontSize() {
   try {
     const value = localStorage.getItem('fitdle:v1:font-size');
-    return ['normal', 'large', 'xlarge'].includes(value) ? value : 'normal';
+    if (value === 'xlarge') return 'normal';
+    if (value === 'large') return 'smaller';
+    return ['smallest', 'smaller', 'normal', 'larger', 'largest'].includes(value) ? value : 'normal';
   } catch {
     return 'normal';
   }
@@ -284,6 +290,19 @@ function setAllowEmptyKb(enabled) {
   }
   renderManual();
   showToast(t('manual.emptyKb'), t(state.allowEmptyKb ? 'manual.emptyKbOn' : 'manual.emptyKbOff'), 'info', 3200);
+}
+
+function secretFontClick() {
+  state.fontClicks += 1;
+  try {
+    localStorage.setItem('fitdle:v1:font-clicks', String(state.fontClicks));
+  } catch {
+    // best effort
+  }
+  if (state.fontClicks % 10 !== 0) return;
+  applyFont('triglavian', true);
+  renderManual();
+  showToast(t('font.triglavianToast'), t('font.triglavianSub'), 'info');
 }
 
 function toggleFont() {
@@ -1021,7 +1040,7 @@ function renderChrome() {
   if (freeBanner) {
     freeBanner.hidden = !free;
     if (free) {
-      freeBanner.innerHTML = `${icon('radar')} ${esc(t('free.kicker'))} // ${esc(t('free.kb', { id: state.freeKillId }))} <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
+      freeBanner.innerHTML = `${icon('radar')} ${esc(t('free.kicker'))} // ${esc(t('free.kb', { id: state.freeKillToken }))} <button type="button" data-action="play-today">${esc(t('header.playToday'))}</button>`;
     }
   }
   const archiveWrap = $('#archive-wrap');
@@ -1053,7 +1072,7 @@ function renderChrome() {
     : `<span>${esc(t('end.next'))}</span><strong>${esc(nextDowntime())}</strong>`;
   document.documentElement.lang = state.locale;
   document.documentElement.dataset.gameMode = state.mode;
-  document.title = free ? `FITDLE — ${t('free.badge')} ${state.freeKillId}` : `FITDLE — ${state.date}`;
+  document.title = free ? `FITDLE — ${t('free.badge')} ${state.freeKillToken}` : `FITDLE — ${state.date}`;
   syncFontControls();
 }
 
@@ -1076,7 +1095,7 @@ function renderHero() {
   const target = ended ? answer : t('hero.target');
   const free = isFree();
   const heroDate = free
-    ? `${t('free.badge')} // ${t('free.kb', { id: state.freeKillId })}`
+    ? `${t('free.badge')} // ${t('free.kb', { id: state.freeKillToken })}`
     : `${state.date} // UTC`;
   hero.innerHTML = `
     <div class="hero-copy">
@@ -1772,7 +1791,7 @@ function shareLink() {
     url.pathname = new URL('.', location.href).pathname;
     url.search = '';
     url.hash = '';
-    url.searchParams.set('kb', state.freeKillId);
+    url.searchParams.set('kb', state.freeKillToken || freeKillToken(state.freeKillId));
     url.searchParams.set('mode', state.mode === 'abyss' ? 'abyss' : 'normal');
     url.searchParams.set('lang', state.locale);
     return url.toString();
@@ -1953,7 +1972,7 @@ function openFreeModal() {
       <h2 id="free-title">${esc(t('freeModal.title'))}</h2>
       <p class="mode-modal-body">${esc(t('freeModal.body'))}</p>
       <label class="mode-modal-label" for="free-kb-input">${esc(t('freeModal.kbLabel'))}</label>
-      <input id="free-kb-input" class="mode-modal-input" type="text" inputmode="numeric" autocomplete="off" placeholder="${esc(t('freeModal.placeholder'))}">
+      <input id="free-kb-input" class="mode-modal-input" type="text" autocomplete="off" placeholder="${esc(t('freeModal.placeholder'))}">
       <div class="mode-modal-error" id="free-error" aria-live="polite"></div>
       <div class="mode-modal-actions">
         <button type="button" class="button primary" data-action="free-submit">${icon('target')} ${esc(t('freeModal.open'))}</button>
@@ -1966,50 +1985,20 @@ function openFreeModal() {
 
 async function submitFreeKill() {
   const input = $('#free-kb-input');
-  const error = $('#free-error');
-  const button = $('[data-action="free-submit"]');
   const killId = parseKillId(input?.value);
   if (!killId) {
-    if (error) error.textContent = t('freeModal.invalid');
+    closeModal();
+    playToday();
     return;
   }
-  if (button) {
-    button.disabled = true;
-    button.textContent = t('freeModal.loading');
-  }
-  if (error) error.textContent = '';
-  try {
-    const data = await fetchZkill(`/api/killID/${killId}/`);
-    const killmail = Array.isArray(data) ? data[0] : null;
-    if (!killmail?.victim?.ship_type_id) throw new Error('invalid');
-    if (String(killmail.killmail_time || '') < `${KILL_HISTORY_START}T00:00:00Z`) {
-      if (error) error.textContent = t('freeModal.old');
-      return;
-    }
-    if (!state.allowEmptyKb && !killHasFittedModules(killmail)) {
-      if (error) error.textContent = t('freeModal.empty');
-      return;
-    }
-    if (!state.catalogMap.has(Number(killmail.victim.ship_type_id))) {
-      if (error) error.textContent = t('freeModal.invalid');
-      return;
-    }
-    const url = new URL(location.href);
-    url.pathname = new URL('.', location.href).pathname;
-    url.search = '';
-    url.hash = '';
-    url.searchParams.set('kb', String(killId));
-    if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
-    url.searchParams.set('lang', state.locale);
-    location.assign(url.toString());
-  } catch {
-    if (error) error.textContent = t('freeModal.invalid');
-  } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = t('freeModal.open');
-    }
-  }
+  const url = new URL(location.href);
+  url.pathname = new URL('.', location.href).pathname;
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('kb', freeKillToken(killId));
+  if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
+  url.searchParams.set('lang', state.locale);
+  location.assign(url.toString());
 }
 
 function submitArchiveDate() {
@@ -2066,15 +2055,15 @@ function renderManual() {
           <div class="manual-section">
             <h3>${icon('slots')} ${esc(t('manual.settingsTitle'))}</h3>
             <div class="setting-row">
-              <span>${esc(t('font.label'))}</span>
+              <button type="button" class="setting-secret" data-action="font-secret">${esc(t('font.label'))}</button>
               <div class="segmented">
-                ${[['neue', 'font.neue'], ['classic', 'font.classic'], ['triglavian', 'font.triglavian']].map(([value, key]) => `<button type="button" class="${state.font === value ? 'is-active' : ''}" data-action="set-font" data-font="${value}" aria-pressed="${state.font === value}">${esc(t(key))}</button>`).join('')}
+                ${[['neue', 'font.neue'], ['classic', 'font.classic']].map(([value, key]) => `<button type="button" class="${state.font === value ? 'is-active' : ''}" data-action="set-font" data-font="${value}" aria-pressed="${state.font === value}">${esc(t(key))}</button>`).join('')}
               </div>
             </div>
             <div class="setting-row">
               <span>${esc(t('settings.fontSize'))}</span>
               <div class="segmented">
-                ${[['normal', 'settings.sizeNormal'], ['large', 'settings.sizeLarge'], ['xlarge', 'settings.sizeXLarge']].map(([value, key]) => `<button type="button" class="${state.fontSize === value ? 'is-active' : ''}" data-action="set-font-size" data-size="${value}" aria-pressed="${state.fontSize === value}">${esc(t(key))}</button>`).join('')}
+                ${[['smallest', 'settings.sizeSmallest'], ['smaller', 'settings.sizeSmaller'], ['normal', 'settings.sizeNormal'], ['larger', 'settings.sizeLarger'], ['largest', 'settings.sizeLargest']].map(([value, key]) => `<button type="button" class="${state.fontSize === value ? 'is-active' : ''}" data-action="set-font-size" data-size="${value}" aria-pressed="${state.fontSize === value}">${esc(t(key))}</button>`).join('')}
               </div>
             </div>
             <button type="button" class="setting-toggle" data-action="toggle-empty-kb" role="switch" aria-checked="${state.allowEmptyKb}">
@@ -2305,6 +2294,7 @@ document.addEventListener('click', (event) => {
     if (action === 'toggle-empty-kb') { setAllowEmptyKb(!state.allowEmptyKb); return; }
     if (action === 'set-font') { setFontStyle(actionEl.dataset.font); return; }
     if (action === 'set-font-size') { setFontSize(actionEl.dataset.size); return; }
+    if (action === 'font-secret') { secretFontClick(); return; }
     if (action === 'help') { renderManual(); return; }
     if (action === 'submit') { submitGuess(); return; }
     if (action === 'debrief') { renderDebrief(); return; }
@@ -2465,29 +2455,61 @@ async function boot() {
     const resetHour = manifest.downtimeUtcHour || 11;
     state.today = gameDateKey(now, resetHour);
     const locationDate = dateKeyFromLocation(location.search, now, resetHour);
-    state.freeKillId = freeKillIdFromLocation(location.search);
-    state.date = state.freeKillId ? `free-${state.freeKillId}` : locationDate.date;
+    const freeTarget = freeKillFromLocation(location.search);
+    state.freeKillId = freeTarget?.id || null;
+    state.freeKillToken = freeTarget?.token || null;
+    state.date = state.freeKillId ? `free-${state.freeKillToken}` : locationDate.date;
+    if (freeTarget?.legacy) {
+      const clean = new URL(location.href);
+      clean.searchParams.set('kb', state.freeKillToken);
+      history.replaceState(null, '', clean);
+    }
     state.locale = detectLocale();
     if (!isLocale(state.locale) || !manifest.locales.includes(state.locale)) state.locale = manifest.defaultLocale || 'en';
     state.i18n = createI18n(state.locale);
     state.stats = loadStats(localStorage);
 
+    const rawFree = new URLSearchParams(location.search).get('kb')
+      || new URLSearchParams(location.search).get('killmail')
+      || new URLSearchParams(location.search).get('kill');
+    if (rawFree && !state.freeKillId) {
+      const clean = new URL(location.href);
+      for (const key of ['kb', 'killmail', 'kill']) clean.searchParams.delete(key);
+      history.replaceState(null, '', clean);
+    }
+    let freeReady = false;
     if (state.freeKillId) {
-      const data = await fetchZkill(`/api/killID/${state.freeKillId}/`);
-      const killmail = Array.isArray(data) ? data[0] : null;
-      if (!killmail?.victim?.ship_type_id) throw new Error('free target unavailable');
-      if (String(killmail.killmail_time || '') < `${KILL_HISTORY_START}T00:00:00Z`) {
-        throw new Error('free killmail before kill history');
+      try {
+        const data = await fetchZkill(`/api/killID/${state.freeKillId}/`);
+        const killmail = Array.isArray(data) ? data[0] : null;
+        if (!killmail?.victim?.ship_type_id) throw new Error('free target unavailable');
+        if (String(killmail.killmail_time || '') < `${KILL_HISTORY_START}T00:00:00Z`) {
+          throw new Error('free killmail before kill history');
+        }
+        if (!state.allowEmptyKb && !killHasFittedModules(killmail)) {
+          throw new Error('empty free killmail disabled');
+        }
+        state.freeKillmail = killmail;
+        state.answerId = Number(killmail.victim.ship_type_id);
+        state.answerKillId = state.freeKillId;
+        state.answerShip = state.catalogMap.get(state.answerId);
+        if (!state.answerShip) throw new Error('free target hull unavailable');
+        freeReady = true;
+      } catch {
+        state.freeKillId = null;
+        state.freeKillToken = null;
+        state.freeKillmail = null;
+        state.date = locationDate.date;
+        const clean = new URL(location.href);
+        for (const key of ['kb', 'killmail', 'kill']) clean.searchParams.delete(key);
+        history.replaceState(null, '', clean);
       }
-      if (!state.allowEmptyKb && !killHasFittedModules(killmail)) {
-        throw new Error('empty free killmail disabled');
-      }
-      state.freeKillmail = killmail;
-      state.answerId = Number(killmail.victim.ship_type_id);
-      state.answerKillId = state.freeKillId;
-      state.answerShip = state.catalogMap.get(state.answerId);
-      if (!state.answerShip) throw new Error('free target hull unavailable');
-    } else {
+    }
+    if (!freeReady) {
+      state.freeKillId = null;
+      state.freeKillToken = null;
+      state.freeKillmail = null;
+      state.date = locationDate.date;
       const killShipPool = state.mode === 'abyss'
         ? (manifest.abyssKillShipPool || manifest.killShipPool)
         : (manifest.normalShipPool || manifest.killShipPool);

@@ -3567,6 +3567,16 @@ html[data-game-mode="abyss"] {
   width: 13px;
   height: 13px;
 }
+.setting-secret {
+  padding: 0;
+  color: var(--muted);
+  border: 0;
+  background: transparent;
+  font: 600 9px/1.3 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: default;
+}
 .setting-row {
   display: flex;
   align-items: center;
@@ -4489,47 +4499,109 @@ html[data-game-mode="abyss"] {
   to { opacity: 0; transform: translateX(20px); }
 }
 
-/* Font size preference */
-html[data-font-size="large"] .attr-label,
-html[data-font-size="large"] .equipment-slot-head,
-html[data-font-size="large"] .group-title { font-size: 11px; }
-html[data-font-size="large"] .attr-value .sub,
-html[data-font-size="large"] .attr-value .unit,
-html[data-font-size="large"] .dossier-count span,
-html[data-font-size="large"] .attempt-meta,
-html[data-font-size="large"] .attempt-status strong { font-size: 10px; }
-html[data-font-size="large"] .module-line-name,
-html[data-font-size="large"] .module-line .module-count { font-size: 14.5px; }
-html[data-font-size="large"] .badge-hull { font-size: 9.5px; }
-html[data-font-size="large"] .debrief-stat span,
-html[data-font-size="large"] .debrief-bonus-title { font-size: 9.5px; }
-html[data-font-size="large"] .bonus-list li { font-size: 13px; }
-html[data-font-size="large"] .debrief-description,
-html[data-font-size="large"] .debrief-body,
-html[data-font-size="large"] .manual-section p { font-size: 13.5px; }
-html[data-font-size="large"] .mode-button,
-html[data-font-size="large"] .banner { font-size: 10px; }
-html[data-font-size="large"] .victim-lines { font-size: 8.5px; }
-html[data-font-size="large"] .victim-body > .zkb-item-link { font-size: 13px; }
+/* Font size preference: normal is the new default (former XL). */
+html[data-font-size="smallest"] .attr-label,
+html[data-font-size="smallest"] .equipment-slot-head,
+html[data-font-size="smallest"] .group-title { font-size: 9.5px; }
+html[data-font-size="smallest"] .attr-value .sub,
+html[data-font-size="smallest"] .attr-value .unit,
+html[data-font-size="smallest"] .dossier-count span,
+html[data-font-size="smallest"] .attempt-meta,
+html[data-font-size="smallest"] .attempt-status strong { font-size: 8.5px; }
+html[data-font-size="smallest"] .module-line-name,
+html[data-font-size="smallest"] .module-line .module-count { font-size: 12.5px; }
+html[data-font-size="smallest"] .badge-hull { font-size: 8px; }
+html[data-font-size="smallest"] .debrief-stat span,
+html[data-font-size="smallest"] .debrief-bonus-title { font-size: 8.5px; }
+html[data-font-size="smallest"] .bonus-list li { font-size: 11.5px; }
+html[data-font-size="smallest"] .debrief-description,
+html[data-font-size="smallest"] .debrief-body,
+html[data-font-size="smallest"] .manual-section p { font-size: 12px; }
+html[data-font-size="smallest"] .mode-button,
+html[data-font-size="smallest"] .banner { font-size: 8.5px; }
 
-html[data-font-size="xlarge"] .attr-label,
-html[data-font-size="xlarge"] .equipment-slot-head,
-html[data-font-size="xlarge"] .group-title { font-size: 12.5px; }
-html[data-font-size="xlarge"] .attr-value .sub,
-html[data-font-size="xlarge"] .attr-value .unit,
-html[data-font-size="xlarge"] .dossier-count span,
-html[data-font-size="xlarge"] .attempt-meta,
-html[data-font-size="xlarge"] .attempt-status strong { font-size: 11.5px; }
-html[data-font-size="xlarge"] .module-line-name,
-html[data-font-size="xlarge"] .module-line .module-count { font-size: 16px; }
-html[data-font-size="xlarge"] .badge-hull { font-size: 10.5px; }
-html[data-font-size="xlarge"] .debrief-stat span,
-html[data-font-size="xlarge"] .debrief-bonus-title { font-size: 10.5px; }
-html[data-font-size="xlarge"] .bonus-list li { font-size: 14px; }
-html[data-font-size="xlarge"] .debrief-description,
-html[data-font-size="xlarge"] .debrief-body,
-html[data-font-size="xlarge"] .manual-section p { font-size: 15px; }
-html[data-font-size="xlarge"] .mode-button,
-html[data-font-size="xlarge"] .banner { font-size: 11px; }
-html[data-font-size="xlarge"] .victim-lines { font-size: 9.5px; }
-html[data-font-size="xlarge"] .victim-body > .zkb-item-link { font-size: 14px; }
+html[data-font-size="smaller"] .attr-label,
+html[data-font-size="smaller"] .equipment-slot-head,
+html[data-font-size="smaller"] .group-title { font-size: 11px; }
+html[data-font-size="smaller"] .attr-value .sub,
+html[data-font-size="smaller"] .attr-value .unit,
+html[data-font-size="smaller"] .dossier-count span,
+html[data-font-size="smaller"] .attempt-meta,
+html[data-font-size="smaller"] .attempt-status strong { font-size: 10px; }
+html[data-font-size="smaller"] .module-line-name,
+html[data-font-size="smaller"] .module-line .module-count { font-size: 14.5px; }
+html[data-font-size="smaller"] .badge-hull { font-size: 9.5px; }
+html[data-font-size="smaller"] .debrief-stat span,
+html[data-font-size="smaller"] .debrief-bonus-title { font-size: 9.5px; }
+html[data-font-size="smaller"] .bonus-list li { font-size: 13px; }
+html[data-font-size="smaller"] .debrief-description,
+html[data-font-size="smaller"] .debrief-body,
+html[data-font-size="smaller"] .manual-section p { font-size: 13.5px; }
+html[data-font-size="smaller"] .mode-button,
+html[data-font-size="smaller"] .banner { font-size: 10px; }
+
+html[data-font-size="normal"] .attr-label,
+html[data-font-size="normal"] .equipment-slot-head,
+html[data-font-size="normal"] .group-title { font-size: 12.5px; }
+html[data-font-size="normal"] .attr-value .sub,
+html[data-font-size="normal"] .attr-value .unit,
+html[data-font-size="normal"] .dossier-count span,
+html[data-font-size="normal"] .attempt-meta,
+html[data-font-size="normal"] .attempt-status strong { font-size: 11.5px; }
+html[data-font-size="normal"] .module-line-name,
+html[data-font-size="normal"] .module-line .module-count { font-size: 16px; }
+html[data-font-size="normal"] .badge-hull { font-size: 10.5px; }
+html[data-font-size="normal"] .debrief-stat span,
+html[data-font-size="normal"] .debrief-bonus-title { font-size: 10.5px; }
+html[data-font-size="normal"] .bonus-list li { font-size: 14px; }
+html[data-font-size="normal"] .debrief-description,
+html[data-font-size="normal"] .debrief-body,
+html[data-font-size="normal"] .manual-section p { font-size: 15px; }
+html[data-font-size="normal"] .mode-button,
+html[data-font-size="normal"] .banner { font-size: 11px; }
+html[data-font-size="normal"] .victim-lines { font-size: 9.5px; }
+html[data-font-size="normal"] .victim-body > .zkb-item-link { font-size: 14px; }
+
+html[data-font-size="larger"] .attr-label,
+html[data-font-size="larger"] .equipment-slot-head,
+html[data-font-size="larger"] .group-title { font-size: 14px; }
+html[data-font-size="larger"] .attr-value .sub,
+html[data-font-size="larger"] .attr-value .unit,
+html[data-font-size="larger"] .dossier-count span,
+html[data-font-size="larger"] .attempt-meta,
+html[data-font-size="larger"] .attempt-status strong { font-size: 13px; }
+html[data-font-size="larger"] .module-line-name,
+html[data-font-size="larger"] .module-line .module-count { font-size: 18px; }
+html[data-font-size="larger"] .badge-hull { font-size: 11.5px; }
+html[data-font-size="larger"] .debrief-stat span,
+html[data-font-size="larger"] .debrief-bonus-title { font-size: 12px; }
+html[data-font-size="larger"] .bonus-list li { font-size: 15.5px; }
+html[data-font-size="larger"] .debrief-description,
+html[data-font-size="larger"] .debrief-body,
+html[data-font-size="larger"] .manual-section p { font-size: 16.5px; }
+html[data-font-size="larger"] .mode-button,
+html[data-font-size="larger"] .banner { font-size: 12px; }
+html[data-font-size="larger"] .victim-lines { font-size: 10.5px; }
+html[data-font-size="larger"] .victim-body > .zkb-item-link { font-size: 15px; }
+
+html[data-font-size="largest"] .attr-label,
+html[data-font-size="largest"] .equipment-slot-head,
+html[data-font-size="largest"] .group-title { font-size: 15.5px; }
+html[data-font-size="largest"] .attr-value .sub,
+html[data-font-size="largest"] .attr-value .unit,
+html[data-font-size="largest"] .dossier-count span,
+html[data-font-size="largest"] .attempt-meta,
+html[data-font-size="largest"] .attempt-status strong { font-size: 14.5px; }
+html[data-font-size="largest"] .module-line-name,
+html[data-font-size="largest"] .module-line .module-count { font-size: 20px; }
+html[data-font-size="largest"] .badge-hull { font-size: 12.5px; }
+html[data-font-size="largest"] .debrief-stat span,
+html[data-font-size="largest"] .debrief-bonus-title { font-size: 13px; }
+html[data-font-size="largest"] .bonus-list li { font-size: 17px; }
+html[data-font-size="largest"] .debrief-description,
+html[data-font-size="largest"] .debrief-body,
+html[data-font-size="largest"] .manual-section p { font-size: 18px; }
+html[data-font-size="largest"] .mode-button,
+html[data-font-size="largest"] .banner { font-size: 13px; }
+html[data-font-size="largest"] .victim-lines { font-size: 11.5px; }
+html[data-font-size="largest"] .victim-body > .zkb-item-link { font-size: 16px; }

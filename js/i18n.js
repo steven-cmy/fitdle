@@ -1968,14 +1968,14 @@ Object.assign(RENAMES, {
     ja: 'フリー目標', ko: '자유 목표', ru: 'Свободная цель', zh: '自由模式',
   },
   'freeModal.body': {
-    en: 'Enter a killmail ID or a full zKillboard kill link. The target is validated before the run starts.',
+    en: 'Enter a killmail ID or a full zKillboard kill link to use as the puzzle.',
     de: 'Killmail-ID oder vollständigen zKillboard-Link eingeben. Das Ziel wird vor dem Start geprüft.',
     es: 'Introduce un ID de killmail o un enlace completo de zKillboard. El objetivo se valida antes de empezar.',
     fr: 'Entrez un ID de killmail ou un lien zKillboard complet. La cible est validée avant le départ.',
     ja: 'キルメールIDまたはzKillboardの完全なリンクを入力してください。開始前に目標を検証します。',
     ko: '킬메일 ID 또는 전체 zKillboard 링크를 입력하세요. 시작 전에 목표를 검증합니다.',
     ru: 'Введите ID киллмейла или полную ссылку zKillboard. Цель проверяется перед запуском.',
-    zh: '输入击杀 ID 或完整 zKillboard 击杀链接；开始前会验证目标。',
+    zh: '输入击杀 ID 或完整 zKillboard 击杀链接，用来当作谜题。',
   },
   'freeModal.kbLabel': {
     en: 'Killmail ID / zKill link', de: 'Killmail-ID / zKill-Link', es: 'ID de killmail / enlace zKill',
@@ -2025,14 +2025,14 @@ Object.assign(RENAMES, {
     ja: 'アーカイブ実行', ko: '아카이브 실행', ru: 'Архивный запуск', zh: '档案模式',
   },
   'archiveModal.body': {
-    en: 'Pick any past UTC day. The date seeds the run; killmail search still starts on 2012-05-22.',
+    en: 'Pick any past UTC day to replay an earlier puzzle.',
     de: 'Wähle einen beliebigen vergangenen UTC-Tag. Das Datum ist nur der Seed; die Killmail-Suche beginnt weiterhin am 22.05.2012.',
     es: 'Elige cualquier día UTC pasado. La fecha solo es la semilla; la búsqueda de killmails sigue empezando el 22/05/2012.',
     fr: 'Choisissez n’importe quel jour UTC passé. La date sert de graine ; la recherche de killmails commence toujours le 22/05/2012.',
     ja: '過去の任意のUTC日を選択。日付はシードで、キルメール検索は引き続き2012年5月22日からです。',
     ko: '과거의 모든 UTC 날짜를 선택하세요. 날짜는 시드이며 킬메일 검색은 계속 2012-05-22부터 시작합니다.',
     ru: 'Выберите любой прошедший день UTC. Дата — только seed; поиск киллмейлов по-прежнему начинается 22.05.2012.',
-    zh: '选择任意过去的 UTC 日期；日期只作为随机种子，击杀搜索仍从 2012-05-22 开始。',
+    zh: '选择任意过去的 UTC 日期，来游玩之前的谜题。',
   },
   'archiveModal.select': {
     en: 'Date', de: 'Datum', es: 'Fecha', fr: 'Date',
@@ -2056,6 +2056,22 @@ Object.assign(RENAMES, {
   'settings.fontSize': {
     en: 'FONT SIZE', de: 'SCHRIFTGRÖSSE', es: 'TAMAÑO DE FUENTE', fr: 'TAILLE DE POLICE',
     ja: '文字サイズ', ko: '글자 크기', ru: 'РАЗМЕР ШРИФТА', zh: '字体大小',
+  },
+  'settings.sizeSmallest': {
+    en: 'SMALLEST', de: 'MINIMAL', es: 'MÍNIMO', fr: 'MINIMALE',
+    ja: '最小', ko: '최소', ru: 'МИНИМАЛЬНЫЙ', zh: '最小',
+  },
+  'settings.sizeSmaller': {
+    en: 'SMALLER', de: 'KLEINER', es: 'MENOR', fr: 'PETITE',
+    ja: '小さめ', ko: '작게', ru: 'МЕНЬШЕ', zh: '更小',
+  },
+  'settings.sizeLarger': {
+    en: 'LARGER', de: 'GRÖSSER', es: 'MAYOR', fr: 'PLUS GRANDE',
+    ja: '大きめ', ko: '크게', ru: 'БОЛЬШЕ', zh: '更大',
+  },
+  'settings.sizeLargest': {
+    en: 'LARGEST', de: 'MAXIMAL', es: 'MÁXIMO', fr: 'MAXIMALE',
+    ja: '最大', ko: '최대', ru: 'МАКСИМАЛЬНЫЙ', zh: '最大',
   },
   'settings.sizeNormal': {
     en: 'NORMAL', de: 'NORMAL', es: 'NORMAL', fr: 'NORMALE',

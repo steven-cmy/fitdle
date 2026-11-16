@@ -189,7 +189,9 @@ npm run hooks:install     # enable shared Git hooks
 - `og:image` is score- and locale-specific, absolute using `SITE_URL` or CI
   `CI_PAGES_URL`. Local builds may read `.cache/local.env` (ignored by Git and CI);
   never commit the local domain into build-dist or docs.
-- Free share: `?kb=...&mode=...&lang=...`; no score page/stats.
+- Free share: `?kb=<opaque-token>&mode=...&lang=...`; no score page/stats.
+- Free kill IDs are stored in URLs as reversible opaque tokens (`freeKillToken`),
+  never as raw IDs, so a shared free link does not spoil the killmail.
 - Cargo/type names not in SDE refs are fetched from ESI with `language=<locale>`;
   never reuse `extraTypeNames` across locales. Resolved names are cached in
   localStorage per locale (`fitdle:v1:typeNames:<locale>`) to avoid repeat ESI
@@ -246,4 +248,6 @@ test reads `dist/`.
 - Free mode is not counted and not persisted.
 - Archive mode is not counted in the service record.
 - The field manual setting `fitdle:v1:allowEmptyKb` controls whether empty-hull killmails are eligible (default on).
+- Font face and five-step font size are stored in `fitdle:v1:font` and
+  `fitdle:v1:font-size`; the default `normal` step is the former XL scale.
 - Stats are origin-local; different domains have separate localStorage.

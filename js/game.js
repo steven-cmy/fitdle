@@ -70,6 +70,26 @@ export function shiftDateKey(value, days) {
   return date.toISOString().slice(0, 10);
 }
 
+const FREE_KILL_SALT = 0x5bd1e995;
+
+export function freeKillToken(id) {
+  const value = Number(id) >>> 0;
+  const mixed = (value ^ FREE_KILL_SALT) >>> 0;
+  const check = (((mixed >>> 16) ^ mixed) & 0xffff).toString(36).slice(-2).padStart(2, '0');
+  return `k${mixed.toString(36)}${check}`;
+}
+
+export function freeKillIdFromToken(raw) {
+  const value = String(raw || '').trim();
+  if (/^\d+$/.test(value) && Number(value) > 0) return Number(value);
+  const match = /^k([0-9a-z]+)([0-9a-z]{2})$/.exec(value);
+  if (!match) return null;
+  const mixed = Number.parseInt(match[1], 36) >>> 0;
+  const check = (((mixed >>> 16) ^ mixed) & 0xffff).toString(36).slice(-2).padStart(2, '0');
+  if (match[2] !== check) return null;
+  return (mixed ^ FREE_KILL_SALT) >>> 0;
+}
+
 export function parseKillId(raw) {
   const value = String(raw || '').trim();
   if (/^\d+$/.test(value) && Number(value) > 0) return Number(value);
