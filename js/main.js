@@ -1072,8 +1072,8 @@ function renderShell() {
               <p class="panel-sub">${esc(t('board.subtitle'))}</p>
             </div>
             <div class="dossier-count" aria-hidden="true">
-              <strong id="board-count-text">${String(state.guesses.length).padStart(2, '0')} / 06</strong>
-              <span>${esc(t('hero.attempts'))}</span>
+              <strong id="board-count-text">${isTimed() ? '00:00' : `${String(state.guesses.length).padStart(2, '0')} / 06`}</strong>
+              <span>${esc(isTimed() ? t('timed.label') : t('hero.attempts'))}</span>
             </div>
           </header>
           <div id="acquire-slot"></div>
