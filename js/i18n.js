@@ -1508,6 +1508,24 @@ const EXTRAS = {
   'free.kicker': { en: 'FREE PLAY // UNRANKED', de: 'FREIES SPIEL // UNGEWERTET', es: 'JUEGO LIBRE // SIN CLASIFICAR', fr: 'JEU LIBRE // NON CLASSÉ', ja: 'フリープレイ // ランキング外', ko: '자유 플레이 // 비집계', ru: 'СВОБОДНАЯ ИГРА // БЕЗ РЕЙТИНГА', zh: '自由模式 // 不计入数据' },
   'free.title': { en: 'FREE TARGET', de: 'FREIES ZIEL', es: 'OBJETIVO LIBRE', fr: 'CIBLE LIBRE', ja: 'フリー目標', ko: '자유 목표', ru: 'СВОБОДНАЯ ЦЕЛЬ', zh: '自由目标' },
   'free.noStats': { en: 'Free play does not count toward stats or leaderboards.', de: 'Freies Spiel zählt nicht zu Statistiken oder Ranglisten.', es: 'El juego libre no cuenta para estadísticas ni clasificaciones.', fr: 'Le jeu libre ne compte pas dans les statistiques ni les classements.', ja: 'フリープレイは統計やランキングに反映されません。', ko: '자유 플레이는 통계나 순위에 반영되지 않습니다.', ru: 'Свободная игра не учитывается в статистике и рейтингах.', zh: '自由模式不计入统计，也不会写入本地进度。' },
+  'free.refresh': {
+    en: 'REFRESH', de: 'NEU LADEN', es: 'RECARGAR', fr: 'RAFRAÎCHIR',
+    ja: '更新', ko: '새로고침', ru: 'ОБНОВИТЬ', zh: '刷新',
+  },
+  'free.input': {
+    en: 'SELECT KB', de: 'KB WÄHLEN', es: 'ELEGIR KB', fr: 'CHOISIR KB',
+    ja: 'KB指定', ko: 'KB 지정', ru: 'УКАЗАТЬ KB', zh: '指定KB',
+  },
+  'free.share': {
+    en: 'SHARE', de: 'TEILEN', es: 'COMPARTIR', fr: 'PARTAGER',
+    ja: '共有', ko: '공유', ru: 'ПОДЕЛИТЬСЯ', zh: '分享',
+  },
+  'free.randomFailed': {
+    en: 'Could not find a free target. Try again.', de: 'Kein freies Ziel gefunden. Versuche es erneut.',
+    es: 'No se encontró un objetivo libre. Inténtalo de nuevo.', fr: 'Aucune cible libre trouvée. Réessayez.',
+    ja: 'フリー目標が見つかりません。再試行してください。', ko: '자유 목표를 찾지 못했습니다. 다시 시도하세요.',
+    ru: 'Не удалось найти свободную цель. Попробуйте снова.', zh: '没有找到自由目标，请重试。',
+  },
   'free.kb': { en: 'KB #{id}', de: 'KB #{id}', es: 'KB #{id}', fr: 'KB #{id}', ja: 'KB #{id}', ko: 'KB #{id}', ru: 'KB #{id}', zh: 'KB #{id}' },
   'free.reset': { en: 'FREE PLAY', de: 'FREIES SPIEL', es: 'JUEGO LIBRE', fr: 'JEU LIBRE', ja: 'フリープレイ', ko: '자유 플레이', ru: 'СВОБОДНАЯ ИГРА', zh: '自由模式' },
   'free.next': { en: 'Free play has no daily reset.', de: 'Freies Spiel hat keinen täglichen Reset.', es: 'El juego libre no tiene reinicio diario.', fr: 'Le jeu libre n’a pas de réinitialisation quotidienne.', ja: 'フリープレイに毎日のリセットはありません。', ko: '자유 플레이에는 일일 초기화가 없습니다.', ru: 'В свободной игре нет ежедневного сброса.', zh: '自由模式没有每日重置。' },
@@ -2191,14 +2209,14 @@ Object.assign(RENAMES, {
     zh: '普通与深渊模式的无计分替代规则。',
   },
   'mode.helpTimed': {
-    en: 'No clues are shown before you press start.\nPressing start begins the timer, reveals the opening intel, and shows the ship input.\nAttempts are unlimited; clues follow the selected Standard or Abyss rules.\nThe timed target uses a different daily killmail seed.\nCorrectly naming the ship stops the timer and settles your elapsed time.\nHold the timer button for 3 seconds to give up; the red fill marks the hold. The answer is then revealed.\nProgress is saved without affecting score or streaks; data updates and progress reset clear it.',
-    de: 'Vor dem Start werden keine Hinweise gezeigt.\nStart startet den Timer, deckt die Anfangsinformationen auf und zeigt die Schiffseingabe.\nUnbegrenzte Versuche; Hinweise folgen den Regeln von Standard oder Abyss.\nDas Zeit-Ziel nutzt einen anderen täglichen Killmail-Seed.\nDie richtige Schiffsnennung stoppt den Timer und zeigt die Zeit.\nTimer 3 Sekunden halten zum Aufgeben; die rote Füllung markiert das Halten. Danach wird die Antwort gezeigt.\nFortschritt wird ohne Wertung gespeichert; Datenupdates und Zurücksetzen löschen ihn.',
-    es: 'No se muestran pistas antes de empezar.\nIniciar arranca el cronómetro, revela la información inicial y muestra la entrada de nave.\nIntentos ilimitados; las pistas siguen las reglas de Estándar o Abismo.\nEl objetivo cronometrado usa otra semilla diaria de killmail.\nAcertar el nombre detiene el cronómetro y muestra el tiempo.\nMantén el botón del cronómetro 3 segundos para rendirte; el relleno rojo marca la pulsación. Después se revela la respuesta.\nEl progreso se guarda sin afectar a la puntuación ni a las rachas; las actualizaciones de datos y el reinicio lo borran.',
-    fr: 'Aucun indice avant le départ.\nDémarrer lance le chrono, révèle les informations initiales et affiche la saisie du vaisseau.\nTentatives illimitées ; les indices suivent les règles Standard ou Abysse.\nLa cible chronométrée utilise une autre graine quotidienne de killmail.\nTrouver le nom arrête le chrono et affiche le temps.\nMaintenez le bouton du chrono 3 secondes pour abandonner ; le remplissage rouge marque l’appui. La réponse est alors révélée.\nLa progression est sauvegardée sans affecter le score ni les séries ; les mises à jour de données et la réinitialisation l’effacent.',
-    ja: '開始前はヒントが表示されません。\n開始するとタイマーが動き、初期情報が公開され、船名入力が表示されます。\n試行は無制限で、ヒントは選択中のスタンダード／アビスのルールに従います。\nタイム対象は通常とは異なるデイリーkillmailシードを使います。\n正しい船名でタイマーが停止し、経過時間が確定します。\nタイマーボタンを3秒長押しすると放棄できます。赤い塗りつぶしが長押しを示し、その後答えが表示されます。\n進行状況はスコアや連勝に影響せず保存されます。データ更新と進行リセットで消去されます。',
-    ko: '시작 전에는 단서가 표시되지 않습니다.\n시작하면 타이머가 작동하고 초기 정보가 공개되며 함선 입력이 표시됩니다.\n시도는 무제한이며 단서는 선택한 스탠다드/어비스 규칙을 따릅니다.\n타임 목표는 다른 일일 킬메일 시드를 사용합니다.\n함선 이름을 맞히면 타이머가 멈추고 경과 시간이 확정됩니다.\n타이머 버튼을 3초간 길게 누르면 포기합니다. 빨간 채움이 길게 누름을 표시하며 이후 정답이 공개됩니다.\n진행 상황은 점수와 연승에 영향을 주지 않고 저장됩니다. 데이터 업데이트와 진행 초기화 시 삭제됩니다.',
-    ru: 'До старта подсказки не показываются.\nСтарт запускает таймер, открывает начальные данные и показывает ввод корабля.\nПопытки не ограничены; подсказки следуют правилам стандартного или безднового режима.\nЦель на время использует другую ежедневную основу киллмейла.\nВерное название корабля останавливает таймер и фиксирует время.\nУдерживайте кнопку таймера 3 секунды, чтобы сдаться; красная заливка отмечает удержание, затем открывается ответ.\nПрогресс сохраняется без влияния на очки и серии; обновление данных и сброс прогресса его очищают.',
-    zh: '开始前不显示任何线索。\n按下开始后启动计时、揭示初始情报并显示船名输入。\n尝试次数不限，线索遵循当前普通或深渊规则。\n计时目标使用不同的每日击杀种子。\n猜中船名后停止计时并结算用时。\n长按计时器按钮 3 秒可放弃；红色填充表示长按进度，结束后显示答案。\n进度会保存，但不计分、不影响连胜；数据更新和重置进度会清空计时进度。',
+    en: 'No clues are shown before you press start.\nPressing start begins the timer, reveals the opening intel, and shows the ship input.\nAttempts are unlimited. A weighted clue is released every 30 seconds; guesses do not release clues. Each target lock has a 5-second cooldown. If every usable clue is already revealed, the next scheduled release fails the run.\nThe timed target uses a different daily killmail seed.\nCorrectly naming the ship stops the timer and settles your elapsed time.\nHold the timer button for 3 seconds to give up; the red fill marks the hold. The answer is then revealed.\nProgress is saved without affecting score or streaks; data updates and progress reset clear it.',
+    de: 'Vor dem Start werden keine Hinweise gezeigt.\nStart startet den Timer, deckt die Anfangsinformationen auf und zeigt die Schiffseingabe.\nUnbegrenzte Versuche. Alle 30 Sekunden wird ein gewichteter Hinweis freigegeben; falsche Versuche geben keine Hinweise. Jede Zielerfassung hat 5 Sekunden Abklingzeit. Sind alle nutzbaren Hinweise bereits offen, scheitert der Lauf bei der nächsten Freigabe.\nDas Zeit-Ziel nutzt einen anderen täglichen Killmail-Seed.\nDie richtige Schiffsnennung stoppt den Timer und zeigt die Zeit.\nTimer 3 Sekunden halten zum Aufgeben; die rote Füllung markiert das Halten. Danach wird die Antwort gezeigt.\nFortschritt wird ohne Wertung gespeichert; Datenupdates und Zurücksetzen löschen ihn.',
+    es: 'No se muestran pistas antes de empezar.\nIniciar arranca el cronómetro, revela la información inicial y muestra la entrada de nave.\nIntentos ilimitados. Cada 30 segundos se revela una pista ponderada; los intentos no revelan pistas. Cada bloqueo tiene 5 segundos de recarga. Si todas las pistas útiles ya están reveladas, el siguiente aviso hace fallar la partida.\nEl objetivo cronometrado usa otra semilla diaria de killmail.\nAcertar el nombre detiene el cronómetro y muestra el tiempo.\nMantén el botón del cronómetro 3 segundos para rendirte; el relleno rojo marca la pulsación. Después se revela la respuesta.\nEl progreso se guarda sin afectar a la puntuación ni a las rachas; las actualizaciones de datos y el reinicio lo borran.',
+    fr: 'Aucun indice avant le départ.\nDémarrer lance le chrono, révèle les informations initiales et affiche la saisie du vaisseau.\nTentatives illimitées. Un indice pondéré est révélé toutes les 30 secondes ; les tentatives n’en révèlent pas. Chaque verrouillage a 5 secondes de recharge. Si tous les indices utiles sont déjà révélés, la prochaine révélation fait échouer la partie.\nLa cible chronométrée utilise une autre graine quotidienne de killmail.\nTrouver le nom arrête le chrono et affiche le temps.\nMaintenez le bouton du chrono 3 secondes pour abandonner ; le remplissage rouge marque l’appui. La réponse est alors révélée.\nLa progression est sauvegardée sans affecter le score ni les séries ; les mises à jour de données et la réinitialisation l’effacent.',
+    ja: '開始前はヒントが表示されません。\n開始するとタイマーが動き、初期情報が公開され、船名入力が表示されます。\n試行は無制限です。30秒ごとに重み付きヒントが1つ公開され、推測ではヒントは公開されません。ターゲットロックごとに5秒のクールダウンがあります。有効なヒントをすべて公開済みの場合、次の公開タイミングで失敗します。\nタイム対象は通常とは異なるデイリーkillmailシードを使います。\n正しい船名でタイマーが停止し、経過時間が確定します。\nタイマーボタンを3秒長押しすると放棄できます。赤い塗りつぶしが長押しを示し、その後答えが表示されます。\n進行状況はスコアや連勝に影響せず保存されます。データ更新と進行リセットで消去されます。',
+    ko: '시작 전에는 단서가 표시되지 않습니다.\n시작하면 타이머가 작동하고 초기 정보가 공개되며 함선 입력이 표시됩니다.\n시도는 무제한입니다. 30초마다 가중 단서 하나가 공개되며, 추측으로는 단서가 공개되지 않습니다. 목표 락마다 5초 쿨다운이 있습니다. 유효한 단서가 모두 공개되면 다음 공개 시점에 실패합니다.\n타임 목표는 다른 일일 킬메일 시드를 사용합니다.\n함선 이름을 맞히면 타이머가 멈추고 경과 시간이 확정됩니다.\n타이머 버튼을 3초간 길게 누르면 포기합니다. 빨간 채움이 길게 누름을 표시하며 이후 정답이 공개됩니다.\n진행 상황은 점수와 연승에 영향을 주지 않고 저장됩니다. 데이터 업데이트와 진행 초기화 시 삭제됩니다.',
+    ru: 'До старта подсказки не показываются.\nСтарт запускает таймер, открывает начальные данные и показывает ввод корабля.\nПопытки не ограничены. Каждые 30 секунд открывается одна взвешенная подсказка; попытки не открывают подсказки. Каждый захват цели имеет 5 секунд перезарядки. Если все полезные подсказки уже открыты, следующий выпуск приводит к поражению.\nЦель на время использует другую ежедневную основу киллмейла.\nВерное название корабля останавливает таймер и фиксирует время.\nУдерживайте кнопку таймера 3 секунды, чтобы сдаться; красная заливка отмечает удержание, затем открывается ответ.\nПрогресс сохраняется без влияния на очки и серии; обновление данных и сброс прогресса его очищают.',
+    zh: '开始前不显示任何线索。\n按下开始后启动计时、揭示初始情报并显示船名输入。\n尝试次数不限。每 30 秒揭示一条加权线索，猜错不会揭示线索。每次锁定目标有 5 秒冷却。如果所有有效线索都已揭示，下一次线索发布时自动失败。\n计时目标使用不同的每日击杀种子。\n猜中船名后停止计时并结算用时。\n长按计时器按钮 3 秒可放弃；红色填充表示长按进度，结束后显示答案。\n进度会保存，但不计分、不影响连胜；数据更新和重置进度会清空计时进度。',
   },
   'timed.start': {
     en: 'START TIMED RUN', de: 'ZEITLAUF STARTEN', es: 'INICIAR CRONO', fr: 'LANCER LE CHRONO',
@@ -2250,6 +2268,24 @@ Object.assign(RENAMES, {
     ru: 'Сигнал захвачен на время. Цель опознана: {name}.',
     zh: '计时信号锁定完成，目标身份已解析：{name}。',
   },
+  'timed.failKicker': {
+    en: 'TIMED INTEL EXHAUSTED', de: 'ZEIT-INTEL ERSCHÖPFT', es: 'INTEL CRONO AGOTADA', fr: 'RENSEIGNEMENTS ÉPUISÉS',
+    ja: 'タイム情報を使い切り', ko: '타임 정보 소진', ru: 'ВРЕМЯ И ИНФОРМАЦИЯ ИСЧЕРПАНЫ', zh: '计时情报耗尽',
+  },
+  'timed.failTitle': {
+    en: 'SIGNAL LOST', de: 'SIGNAL VERLOREN', es: 'SEÑAL PERDIDA', fr: 'SIGNAL PERDU',
+    ja: '信号喪失', ko: '신호 상실', ru: 'СИГНАЛ ПОТЕРЯН', zh: '信号丢失',
+  },
+  'timed.failBody': {
+    en: 'All intel was revealed and no more will arrive. The target remains unidentified: {name}.',
+    de: 'Alle Informationen wurden aufgedeckt. Das Ziel bleibt unidentifiziert: {name}.',
+    es: 'Se reveló toda la información y no llegará más. El objetivo sigue sin identificar: {name}.',
+    fr: 'Tous les renseignements ont été révélés. La cible reste non identifiée : {name}.',
+    ja: 'すべての情報が公開され、追加はありません。目標は未識別のままです：{name}。',
+    ko: '모든 정보가 공개되었고 더 이상 제공되지 않습니다. 목표는 미확인 상태입니다: {name}.',
+    ru: 'Вся информация раскрыта, новых данных не будет. Цель не опознана: {name}.',
+    zh: '所有情报均已揭示，不会再有新线索。目标仍未识别：{name}。',
+  },
   'timed.giveUpKicker': {
     en: 'TIMED RUN ABANDONED', de: 'ZEITLAUF AUFGEGEBEN', es: 'CRONO ABANDONADO', fr: 'CHRONO ABANDONNÉ',
     ja: 'タイム計測を放棄', ko: '타임 런 포기', ru: 'ЗАБЕГ ПРЕРВАН', zh: '计时中止',
@@ -2268,6 +2304,20 @@ Object.assign(RENAMES, {
     ru: 'Вы отказались от захвата на время. Целью был {name}.',
     zh: '你放弃了计时锁定。目标是 {name}。',
   },
+  'share.freeTitle': {
+    en: 'FITDLE — Free target', de: 'FITDLE — Freies Ziel', es: 'FITDLE — Objetivo libre', fr: 'FITDLE — Cible libre',
+    ja: 'FITDLE — フリー目標', ko: 'FITDLE — 자유 목표', ru: 'FITDLE — Свободная цель', zh: 'FITDLE — 自由目标',
+  },
+  'share.freeDescription': {
+    en: 'A free FITDLE puzzle from a specific killmail. Open the link and identify the hull.',
+    de: 'Ein freies FITDLE-Rätsel aus einem bestimmten Killmail. Öffne den Link und identifiziere die Hülle.',
+    es: 'Un puzzle libre de FITDLE a partir de un killmail concreto. Abre el enlace e identifica el casco.',
+    fr: 'Un puzzle FITDLE libre issu d’un killmail précis. Ouvrez le lien et identifiez la coque.',
+    ja: '特定のキルメールから作られたFITDLEのフリーパズル。リンクを開いて船体を特定しよう。',
+    ko: '특정 킬메일로 만든 FITDLE 자유 퍼즐. 링크를 열고 선체를 맞혀 보세요.',
+    ru: 'Свободная головоломка FITDLE по конкретному киллмейлу. Откройте ссылку и определите корпус.',
+    zh: '来自特定击杀邮件的 FITDLE 自由谜题。打开链接并识别船体。',
+  },
   'share.timedTitle': {
     en: 'FITDLE — Timed signal run', de: 'FITDLE — Zeitlauf', es: 'FITDLE — Crono', fr: 'FITDLE — Chrono',
     ja: 'FITDLE — タイム計測', ko: 'FITDLE — 타임 런', ru: 'FITDLE — Забег на время', zh: 'FITDLE — 计时挑战',
@@ -2281,6 +2331,340 @@ Object.assign(RENAMES, {
     ko: 'FITDLE 타임 런. 퍼즐을 열고 기록에 도전하세요.',
     ru: 'Забег FITDLE на время. Откройте головоломку и побейте таймер.',
     zh: 'FITDLE 计时挑战。打开谜题，尝试刷新用时。',
+  },
+});
+
+
+Object.assign(RENAMES, {
+  'mode.standardHint': {
+    en: `Six attempts. Fittings on misses, shared clues on matches.`,
+    de: `Sechs Versuche. Fittings bei Fehlversuchen, gemeinsame Hinweise bei Treffern.`,
+    es: `Seis intentos. Ajustes al fallar, pistas compartidas al acertar.`,
+    fr: `Six tentatives. Fittings sur erreur, indices partagés sur correspondance.`,
+    ja: `6回の挑戦。誤答で装備、一致で共通ヒント。`,
+    ko: `6회 시도. 오답은 장비, 일치는 공통 단서.`,
+    ru: `Шесть попыток. Модули за промах, общие подсказки при совпадении.`,
+    zh: `六次尝试。猜错揭示装备，猜中共同线索才揭示。`,
+  },
+  'mode.abyssHint': {
+    en: `Six attempts. Simulated fittings, rarer hulls, larger reveal steps.`,
+    de: `Sechs Versuche. Simulierte Fittings, seltenere Hüllen, größere Schritte.`,
+    es: `Seis intentos. Ajustes simulados, cascos más raros, revelaciones mayores.`,
+    fr: `Six tentatives. Fittings simulés, coques plus rares, révélations plus larges.`,
+    ja: `6回の挑戦。装備シミュレーション、希少船体、より大きな開示。`,
+    ko: `6회 시도. 장비 시뮬레이션, 희귀 선체, 더 큰 공개 단위.`,
+    ru: `Шесть попыток. Симуляция фитинга, редкие корпуса, больше подсказок.`,
+    zh: `六次尝试。模拟装配、稀有船体、更大揭示步长。`,
+  },
+  'mode.timedHint': {
+    en: `Unlimited attempts against the clock. Unscored.`,
+    de: `Unbegrenzte Versuche gegen die Uhr. Ohne Wertung.`,
+    es: `Intentos ilimitados contra el reloj. Sin puntuación.`,
+    fr: `Tentatives illimitées contre le chrono. Non classé.`,
+    ja: `時間との勝負で試行無制限。スコア対象外。`,
+    ko: `시간과의 승부, 시도 무제한. 점수 미반영.`,
+    ru: `Неограниченные попытки на время. Без очков.`,
+    zh: `无限尝试，与时间赛跑；不计分。`,
+  },
+  'mode.freeHint': {
+    en: `Play a chosen killboard or roll a random one. Unscored.`,
+    de: `Spiele ein gewähltes oder zufälliges Killboard. Ohne Wertung.`,
+    es: `Juega un killboard elegido o uno aleatorio. Sin puntuación.`,
+    fr: `Jouez un killboard choisi ou aléatoire. Non classé.`,
+    ja: `指定またはランダムなキルボードで遊べます。スコア対象外。`,
+    ko: `지정 또는 무작위 킬보드로 플레이. 점수 미반영.`,
+    ru: `Играйте выбранный или случайный киллборд. Без очков.`,
+    zh: `游玩指定击杀，或随机刷新一个目标；不计分。`,
+  },
+  'help.step1': {
+    en: `Each UTC day has one target. Standard and Abyss give six attempts; Timed is unlimited.`,
+    de: `Jeder UTC-Tag hat ein Ziel. Standard und Abyss geben sechs Versuche; Timed ist unbegrenzt.`,
+    es: `Cada día UTC tiene un objetivo. Estándar y Abismo dan seis intentos; Crono es ilimitado.`,
+    fr: `Chaque jour UTC a une cible. Standard et Abysse donnent six tentatives ; Chrono est illimité.`,
+    ja: `UTCごとに1つの目標。スタンダードとアビスは6回、タイムは無制限です。`,
+    ko: `UTC 기준 하루에 목표 하나. 스탠다드와 어비스는 6회, 타임은 무제한입니다.`,
+    ru: `На каждый день UTC — одна цель. В стандартном и бездновом режимах шесть попыток, на время — без ограничений.`,
+    zh: `每个 UTC 日一个目标。普通和深渊有六次尝试；计时模式不限次数。`,
+  },
+  'help.step2': {
+    en: `Search by ship name, race, hull class or abbreviation in any supported language.`,
+    de: `Suche nach Schiffsname, Rasse, Hüllenklasse oder Abkürzung in jeder unterstützten Sprache.`,
+    es: `Busca por nombre, raza, clase de casco o abreviatura en cualquier idioma compatible.`,
+    fr: `Cherchez par nom, race, classe de coque ou abréviation dans toute langue prise en charge.`,
+    ja: `船名、種族、船体クラス、略称で検索できます。対応言語はすべて利用可能です。`,
+    ko: `함선 이름, 종족, 선체 등급, 약어로 검색할 수 있습니다. 모든 지원 언어를 사용할 수 있습니다.`,
+    ru: `Ищите по названию, расе, классу корпуса или аббревиатуре на любом поддерживаемом языке.`,
+    zh: `按船名、种族、舰船类别或缩写搜索，支持所有官方语言。`,
+  },
+  'help.step3': {
+    en: `Read the dossier and use the revealed intel to identify the hull.`,
+    de: `Lies das Dossier und nutze die aufgedeckten Infos, um die Hülle zu identifizieren.`,
+    es: `Lee el dossier y usa la información revelada para identificar el casco.`,
+    fr: `Lisez le dossier et utilisez les informations révélées pour identifier la coque.`,
+    ja: `ドシエを読み、公開された情報から船体を特定します。`,
+    ko: `문서를 읽고 공개된 정보로 선체를 식별하세요.`,
+    ru: `Читайте досье и используйте раскрытые данные, чтобы определить корпус.`,
+    zh: `读取击杀档案，利用已揭示的情报识别船体。`,
+  },
+  'help.step4': {
+    en: `Share your result without revealing the answer.`,
+    de: `Teile dein Ergebnis, ohne die Antwort zu verraten.`,
+    es: `Comparte tu resultado sin revelar la respuesta.`,
+    fr: `Partagez votre résultat sans révéler la réponse.`,
+    ja: `答えを明かさずに結果を共有できます。`,
+    ko: `정답을 공개하지 않고 결과를 공유하세요.`,
+    ru: `Делитесь результатом, не раскрывая ответ.`,
+    zh: `分享结果，但不要剧透答案。`,
+  },
+  'help.sharedRules': {
+    en: `One target per UTC day; reset at 11:00 UTC.
+Standard and Abyss: six attempts.
+Timed: unlimited attempts.
+Free and Timed runs do not affect score or streaks.`,
+    de: `Ein Ziel pro UTC-Tag; Reset um 11:00 UTC.
+Standard und Abyss: sechs Versuche.
+Timed: unbegrenzte Versuche.
+Freies Spiel und Timed beeinflussen weder Wertung noch Serie.`,
+    es: `Un objetivo por día UTC; reinicio a las 11:00 UTC.
+Estándar y Abismo: seis intentos.
+Crono: intentos ilimitados.
+Libre y Crono no afectan a la puntuación ni a las rachas.`,
+    fr: `Une cible par jour UTC ; réinitialisation à 11:00 UTC.
+Standard et Abysse : six tentatives.
+Chrono : tentatives illimitées.
+Libre et Chrono n’affectent ni le score ni les séries.`,
+    ja: `UTCごとに目標は1つ。11:00 UTCにリセット。
+スタンダードとアビスは6回、タイムは無制限。
+フリーとタイムはスコアや連勝に影響しません。`,
+    ko: `UTC 기준 하루에 목표 하나. 11:00 UTC 초기화.
+스탠다드와 어비스는 6회, 타임은 무제한.
+자유와 타임은 점수와 연승에 영향을 주지 않습니다.`,
+    ru: `Одна цель на день UTC; сброс в 11:00 UTC.
+Стандарт и Бездна: шесть попыток.
+На время: без ограничений.
+Свободная игра и режим на время не влияют на очки и серии.`,
+    zh: `每个 UTC 日一个目标，11:00 UTC 重置。
+普通和深渊：六次尝试。
+计时：无限次尝试。
+自由和计时模式不计分、不影响连胜。`,
+  },
+  'mode.helpNormal': {
+    en: `Six attempts.
+Opening clues are revealed when the puzzle starts.
+Each wrong guess reveals up to two fitted modules.
+Other clues are revealed only when your guess shares the target's value.
+Cargo has its own clues.
+Structure resists are always shown and do not narrow the hull.`,
+    de: `Sechs Versuche.
+Start-Hinweise werden zu Beginn aufgedeckt.
+Jeder Fehlversuch deckt bis zu zwei montierte Module auf.
+Andere Hinweise erscheinen nur bei einem zum Ziel passenden Wert.
+Fracht hat eigene Hinweise.
+Strukturresistenzen sind immer sichtbar und grenzen die Hülle nicht ein.`,
+    es: `Seis intentos.
+Las pistas iniciales se revelan al empezar.
+Cada fallo revela hasta dos módulos equipados.
+Otras pistas solo aparecen si tu nave comparte el valor del objetivo.
+La carga tiene sus propias pistas.
+Las resistencias de estructura siempre se muestran y no reducen el casco.`,
+    fr: `Six tentatives.
+Les indices initiaux sont révélés au départ.
+Chaque erreur révèle jusqu’à deux modules équipés.
+Les autres indices n’apparaissent que si votre vaisseau partage la valeur de la cible.
+La soute a ses propres indices.
+Les résistances de structure sont toujours visibles et ne réduisent pas la coque.`,
+    ja: `6回の挑戦。
+開始時に初期ヒントが公開されます。
+誤答ごとに最大2つの装着モジュールを公開。
+その他のヒントは推測船が目標と同じ値のときだけ公開。
+貨物には専用のヒントがあります。
+構造レジストは常に表示され、船体を絞り込みません。`,
+    ko: `6회 시도.
+시작 시 초기 단서가 공개됩니다.
+오답마다 장착 모듈 최대 2개를 공개합니다.
+다른 단서는 추측 선체가 목표와 같은 값을 가질 때만 공개됩니다.
+화물은 별도 단서가 있습니다.
+구조 저항은 항상 표시되며 선체 범위를 좁히지 않습니다.`,
+    ru: `Шесть попыток.
+Начальные подсказки открываются при старте.
+Каждый промах раскрывает до двух установленных модулей.
+Остальные подсказки — только при совпадении значения с целью.
+У груза свои подсказки.
+Сопротивления структуры видны всегда и не сужают выбор корпуса.`,
+    zh: `六次尝试。
+开局展示初始线索。
+每次猜错最多揭示两件已装配装备。
+其他线索只在猜测与目标数值相同时揭示。
+货仓有独立线索。
+结构抗性始终显示，但不会缩小船体范围。`,
+  },
+  'mode.helpAbyss': {
+    en: `Six attempts.
+Fittings and navigation/defense are simulated from the killmail.
+Rare and low-usage hulls are more likely.
+Each miss reveals 1–5 equipment clues plus one other clue.
+If equipment runs out, the missing clues become other clues.
+Cargo has its own clues.
+Assault Damage Control can make structure resists decisive.`,
+    de: `Sechs Versuche.
+Fittings sowie Navigation/Verteidigung werden aus dem Killmail simuliert.
+Seltene und wenig genutzte Hüllen sind wahrscheinlicher.
+Jeder Fehlversuch deckt 1–5 Ausrüstungshinweise plus einen weiteren Hinweis auf.
+Fehlt Ausrüstung, werden die restlichen Hinweise zu anderen Hinweisen.
+Fracht hat eigene Hinweise.
+Ein Assault Damage Control kann Strukturresistenzen entscheidend machen.`,
+    es: `Seis intentos.
+Los ajustes y la navegación/defensa se simulan desde el killmail.
+Los cascos raros y poco usados son más probables.
+Cada fallo revela 1–5 pistas de equipo y una pista adicional.
+Si falta equipo, esas pistas se convierten en otras pistas.
+La carga tiene sus propias pistas.
+Un Assault Damage Control puede hacer decisivas las resistencias de estructura.`,
+    fr: `Six tentatives.
+Les fittings et la navigation/défense sont simulés depuis le killmail.
+Les coques rares et peu utilisées sont plus probables.
+Chaque erreur révèle 1 à 5 indices d’équipement et un autre indice.
+Si l’équipement manque, ces indices deviennent d’autres indices.
+La soute a ses propres indices.
+Un Assault Damage Control peut rendre les résistances de structure décisives.`,
+    ja: `6回の挑戦。
+キルメールから装備と航行・防御をシミュレーション。
+希少で使用頻度の低い船体が出やすくなります。
+誤答ごとに装備ヒント1～5個と、その他のヒント1個を公開。
+装備が足りない分は他のヒントに変わります。
+貨物には専用のヒントがあります。
+アサルト・ダメージコントロールがあると構造レジストが決め手になります。`,
+    ko: `6회 시도.
+킬메일에서 장비와 항법/방어를 시뮬레이션합니다.
+희귀하고 사용 빈도가 낮은 선체가 더 자주 나옵니다.
+오답마다 장비 단서 1~5개와 다른 단서 1개를 공개합니다.
+장비가 부족하면 남은 단서는 다른 단서로 바뀝니다.
+화물은 별도 단서가 있습니다.
+어설트 대미지 컨트롤이 있으면 구조 저항이 결정적일 수 있습니다.`,
+    ru: `Шесть попыток.
+Фитинг, навигация и защита моделируются по киллмейлу.
+Редкие и редко используемые корпуса встречаются чаще.
+Каждый промах раскрывает 1–5 подсказок об оборудовании и ещё одну подсказку.
+Если оборудования не хватает, эти подсказки заменяются другими.
+У груза свои подсказки.
+Assault Damage Control может сделать сопротивления структуры решающими.`,
+    zh: `六次尝试。
+按击杀装配模拟导航与防御。
+稀有和低使用率船体更容易出现。
+每次猜错揭示 1–5 条装备线索，并额外揭示一条其他线索。
+装备线索不足时，剩余名额转为其他线索。
+货仓有独立线索。
+突击损控可能让结构抗性成为决定性线索。`,
+  },
+  'mode.helpTimed': {
+    en: `Unlimited attempts.
+Opening clues are revealed when you start.
+Wrong guesses do not reveal clues.
+One clue is revealed every 30 seconds.
+A 5-second cooldown follows every lock.
+If all clues are revealed, the next clue time fails the run.
+Hold the timer for 3 seconds to give up and reveal the answer.
+Progress is saved but not scored.`,
+    de: `Unbegrenzte Versuche.
+Start-Hinweise werden beim Start aufgedeckt.
+Falsche Versuche geben keine Hinweise.
+Alle 30 Sekunden wird ein Hinweis aufgedeckt.
+Nach jeder Zielerfassung folgen 5 Sekunden Abklingzeit.
+Sind alle Hinweise offen, scheitert der Lauf beim nächsten Hinweis.
+Timer 3 Sekunden halten, um aufzugeben und die Antwort zu sehen.
+Fortschritt wird gespeichert, aber nicht gewertet.`,
+    es: `Intentos ilimitados.
+Las pistas iniciales se revelan al empezar.
+Los fallos no revelan pistas.
+Cada 30 segundos se revela una pista.
+Tras cada bloqueo hay 5 segundos de recarga.
+Si todas las pistas están reveladas, el siguiente aviso hace fallar la partida.
+Mantén el cronómetro 3 segundos para rendirte y ver la respuesta.
+El progreso se guarda, pero no puntúa.`,
+    fr: `Tentatives illimitées.
+Les indices initiaux sont révélés au départ.
+Les erreurs ne révèlent pas d’indices.
+Un indice est révélé toutes les 30 secondes.
+Chaque verrouillage impose 5 secondes de recharge.
+Si tous les indices sont révélés, le prochain indice fait échouer la partie.
+Maintenez le chrono 3 secondes pour abandonner et voir la réponse.
+La progression est sauvegardée, mais non classée.`,
+    ja: `試行は無制限。
+開始時に初期ヒントが公開されます。
+誤答ではヒントは公開されません。
+30秒ごとにヒントが1つ公開されます。
+ターゲットロックごとに5秒のクールダウン。
+すべてのヒントが公開済みだと、次の公開タイミングで失敗します。
+タイマーを3秒長押しすると放棄し、答えが表示されます。
+進行状況は保存されますが、スコア対象外です。`,
+    ko: `시도는 무제한입니다.
+시작 시 초기 단서가 공개됩니다.
+오답으로는 단서가 공개되지 않습니다.
+30초마다 단서 하나가 공개됩니다.
+목표 락마다 5초 쿨다운이 있습니다.
+모든 단서가 공개되면 다음 공개 시점에 실패합니다.
+타이머를 3초 길게 누르면 포기하고 정답이 표시됩니다.
+진행 상황은 저장되지만 점수에는 반영되지 않습니다.`,
+    ru: `Попытки не ограничены.
+Начальные подсказки открываются при старте.
+Промахи не открывают подсказки.
+Каждые 30 секунд открывается одна подсказка.
+После каждого захвата — 5 секунд перезарядки.
+Если все подсказки открыты, следующий выпуск приводит к поражению.
+Удерживайте таймер 3 секунды, чтобы сдаться и увидеть ответ.
+Прогресс сохраняется, но очки не начисляются.`,
+    zh: `无限次尝试。
+开始计时时展示该模式的初始线索。
+猜错不会揭示线索。
+每 30 秒揭示一条线索。
+每次锁定目标后有 5 秒冷却。
+所有线索都已揭示后，下一次线索发布时自动失败。
+长按计时器 3 秒可放弃并显示答案。
+进度会保存，但不计分。`,
+  },
+  'mode.helpFree': {
+    en: `Open a shared killboard link or refresh for a random target.
+A shared link always opens the same puzzle.
+You can paste a killmail ID or zKill link.
+Free runs do not affect score or streaks.`,
+    de: `Öffne einen geteilten Killboard-Link oder lade ein zufälliges Ziel neu.
+Ein geteilter Link öffnet immer dasselbe Rätsel.
+Du kannst eine Killmail-ID oder einen zKill-Link einfügen.
+Freies Spiel beeinflusst weder Wertung noch Serie.`,
+    es: `Abre un enlace de killboard compartido o recarga un objetivo aleatorio.
+Un enlace compartido abre siempre el mismo puzzle.
+Puedes pegar un ID de killmail o un enlace de zKill.
+El modo libre no afecta a la puntuación ni a las rachas.`,
+    fr: `Ouvrez un lien de killboard partagé ou rechargez une cible aléatoire.
+Un lien partagé ouvre toujours le même puzzle.
+Vous pouvez coller un ID de killmail ou un lien zKill.
+Le mode libre n’affecte ni le score ni les séries.`,
+    ja: `共有されたキルボードリンクを開くか、ランダム目標に更新できます。
+共有リンクは常に同じパズルを開きます。
+キルメールIDまたはzKillリンクを貼り付けられます。
+フリーはスコアや連勝に影響しません。`,
+    ko: `공유된 킬보드 링크를 열거나 무작위 목표로 새로고침하세요.
+공유 링크는 항상 같은 퍼즐을 엽니다.
+킬메일 ID 또는 zKill 링크를 붙여넣을 수 있습니다.
+자유 모드는 점수와 연승에 영향을 주지 않습니다.`,
+    ru: `Откройте общую ссылку на киллборд или обновите случайную цель.
+Общая ссылка всегда открывает одну и ту же головоломку.
+Можно вставить ID киллмейла или ссылку zKill.
+Свободная игра не влияет на очки и серии.`,
+    zh: `打开分享的击杀链接，或刷新随机目标。
+同一个分享链接始终打开同一个谜题。
+可以粘贴击杀 ID 或 zKill 链接。
+自由模式不计分、不影响连胜。`,
+  },
+  'help.weightBody': {
+    en: `Weight shows how strongly a clue narrows the hull. Low means many hulls fit; high means few.`,
+    de: `Das Gewicht zeigt, wie stark ein Hinweis die Hülle eingrenzt. Niedrig = viele passen, hoch = wenige.`,
+    es: `El peso indica cuánto reduce el casco una pista. Bajo = muchos encajan; alto = pocos.`,
+    fr: `Le poids indique à quel point un indice réduit la coque. Faible = beaucoup ; élevé = peu.`,
+    ja: `重量はヒントが船体をどれだけ絞るかを示します。低い＝多くの船が該当、高い＝少数。`,
+    ko: `가중치는 단서가 선체를 얼마나 좁히는지 보여줍니다. 낮음=많은 선체, 높음=소수.`,
+    ru: `Вес показывает, насколько подсказка сужает выбор корпуса. Низкий — подходит много, высокий — мало.`,
+    zh: `权重表示线索能在多大程度上缩小船体范围。低=符合的船多，高=符合的船少。`,
   },
 });
 

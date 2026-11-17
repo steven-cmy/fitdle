@@ -315,3 +315,26 @@ export function computeRevealed({
   addCargo({ revealed, count: misses, clues, random });
   return revealed;
 }
+
+
+/**
+ * Timed mode releases one weighted clue every 30 seconds. It never reacts to
+ * guesses; the caller supplies the number of elapsed 30-second buckets.
+ */
+export function computeTimedRevealed({ clues, count, seed = 'timed', exclude = new Set() }) {
+  const total = Array.isArray(clues) ? clues.length : 0;
+  if (!total || count <= 0) return new Set();
+  const random = makeRandom(`${seed}:timed`);
+  const pool = clues
+    .map((clue, index) => ({ clue, index }))
+    .filter(({ clue, index }) => (Number(clue?.w) || 0) > 0 && !exclude.has(index));
+  const revealed = new Set();
+  for (let picked = 0; picked < count && pool.length; picked++) {
+    const chosen = weightedPick(pool, random);
+    if (!chosen) break;
+    revealed.add(chosen.index);
+    const at = pool.findIndex((entry) => entry.index === chosen.index);
+    if (at >= 0) pool.splice(at, 1);
+  }
+  return revealed;
+}

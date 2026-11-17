@@ -6,7 +6,7 @@ instructions live in [README.md](README.md).
 ## Non-negotiable rules
 
 - Never reveal today's target ship, killmail ID, victim name, or answer render in
-  tests, logs, commits, screenshots, or chat. Use archive dates in screenshots.
+  tests, logs, commits, screenshots, or chat. Use non-target/public data in screenshots.
 - Every commit bumps **patch** by default. Use `VERSION_BUMP=minor` or
   `VERSION_BUMP=major` only when the user explicitly asks for that release level.
 - Do not commit `.cache/`, `dist/`, browser state, or the GitLab token.
@@ -70,8 +70,7 @@ instructions live in [README.md](README.md).
 ## KB selection
 
 - zKill kill reports before **2012-05-22** do not exist; never select them.
-- Archive dates may be any past day since EVE launch (2003-05-06); the date is only
-  the deterministic seed, not the KB month anchor.
+- There is no archive mode anymore; the daily target is always today's UTC puzzle.
 - Build a deterministic weighted hull candidate order from the mode pool.
 - For each hull fetch `/api/losses/shipTypeID/{id}/page/1/` directly; select a
   kill by the date/hull/page hash. If the page has no usable kill (or all entries
@@ -117,6 +116,8 @@ instructions live in [README.md](README.md).
   weapons raise weight from 5.8 to at least 7.4.
 - Limited modules get a scarcity bonus from how many catalog hulls their
   `fitRestrictions` cover: fewer compatible hulls = higher weight.
+- All fitted modules on Corvettes (group 237) and Zephyr (group 1022) are treated
+  as limited and weighted accordingly, because those hulls carry built-in gear.
 - Fighters are `limited` and weigh 10; Excavator/Pluto/special mining drones are
   `unique` and weigh 10. Jump fuel weighs 10.
 - Rigs weigh at least 8.5; large/capital rigs reach 10.
@@ -189,9 +190,38 @@ npm run hooks:install     # enable shared Git hooks
   error). In that environment run `node scripts/bump-version.mjs` manually, then
   `git commit --no-verify`. On a normal Git install the hook works automatically.
 
+### Dev branch workflow
+
+- Day-to-day work goes on `dev`; `main` stays the release branch.
+- Every commit, including `dev` commits, bumps **patch** by default through the
+  normal version hook. Use `VERSION_BUMP=minor` or `major` only when explicitly
+  requested.
+- Do **not** push `dev` (or open anything upstream) unless asked.
+- When asked to push, do not ask again for a release level unless the user asks
+  for a specific one; the default is patch.
+
+## Runtime URLs and storage
+
+- `?mode=abyss` selects Abyss; absent/other values use Standard.
+- `?lang=<code>` forces a supported locale; invalid values fall back to the saved
+  locale, then browser language, then English.
+- `?kb=<opaque-token>` opens Free mode for that killmail; legacy numeric IDs are
+  accepted and rewritten to tokens. `?free=1` selects a loose-random target.
+- `?timer=1` enables Timed mode; Free mode can also be timed.
+- `?d=` is no longer an archive selector; archive mode was removed.
+- Puzzle state: `fitdle:v1:state:<date>:<mode>` (Timed uses `<mode>:timed`).
+- Stats: `fitdle:v1:stats`; language: `fitdle:v1:lang`; font:
+  `fitdle:v1:font`; font size: `fitdle:v1:font-size`; ESI type-name cache:
+  `fitdle:v1:typeNames:<locale>`; empty-hull setting: `fitdle:v1:allowEmptyKb`.
+- Storage is origin-local; changing domain changes stats and saved language.
+
 ## Sharing
 
-- Non-free share URL: `share/{1..6|lost}/{lang}.html?d=...&mode=...&lang=...`.
+- Non-free share URL: `share/{1..6|lost}/{lang}.html?d=...&mode=...` (no `lang`
+  query; the path locale controls preview language).
+- Free share URL: `share/free/{lang}.html?kb=...&mode=...` (plus `timer=1` when
+  timed). The preview redirects to the app without forcing a language.
+- Timed share URL: `share/timed/{lang}.html?t=<seconds>&mode=...&timer=1`.
 - Legacy `share/{score}.html` pages remain for old links.
 - Static pages are generated per locale by `build-dist`; metadata is localized and
   contains only score/attempts, never the answer.
@@ -202,7 +232,6 @@ npm run hooks:install     # enable shared Git hooks
 - `og:image` is score- and locale-specific, absolute using `SITE_URL` or CI
   `CI_PAGES_URL`. Local builds may read `.cache/local.env` (ignored by Git and CI);
   never commit the local domain into build-dist or docs.
-- Free share: `?kb=<opaque-token>&mode=...&lang=...`; no score page/stats.
 - Free kill IDs are stored in URLs as reversible opaque tokens (`freeKillToken`),
   never as raw IDs, so a shared free link does not spoil the killmail.
 - Cargo/type names not in SDE refs are fetched from ESI with `language=<locale>`;
@@ -229,7 +258,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 41 cases, including downtime boundaries, target/KB
+`npm test` currently covers 46 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.
@@ -239,7 +268,9 @@ test reads `dist/`.
 
 ## CI / deployment
 
-- `.gitlab-ci.yml`: `sde:check`, `build`, `pages`.
+- `.gitlab-ci.yml`: `sde:check`, `build`, `release`, `pages`.
+- On a `main` push that changes `package.json`, after a successful build the
+  `release` job creates a `v<version>` tag and a source `.tar.gz` artifact.
 - `sde:check` compares remote SDE ETag/Last-Modified with deployed
   `data/manifest.json`; writes `.cache/sde-check.env`.
 - Build caches `.cache/normalized.json`, `.cache/killpool.json`,
@@ -258,14 +289,18 @@ test reads `dist/`.
 - Dogma cannot recover the victim's real skills/mutations; simulates all-V and
   active modules.
 - Some hulls have no usable zKill page; static fallback may be empty.
+- Free mode opens `?kb=<token>` directly. `?free=1` or the free-mode button picks
+  a random hull and a random loss from its page 1; this loose random selection is
+  intentionally not shared between players. The reveal seed uses the zKill hash or
+  killmail time so a shared `?kb=` link reveals identically for everyone.
+- Free mode has no persistence or stats.
 - Timed mode is an unscored alternate rule set selected with `timer=1`; it starts
-  with sealed placeholder dossier blocks and no clues, has unlimited attempts, a
-  live timer button with long-press forfeit, and uses a timed share page. Cargo
-  has its own dossier block/reveal quota; cargo capacity is shown there but is not
-  part of the cargo quota.
-- Free mode is not counted and not persisted. It ignores empty-hull/date filters;
-  a kill that exists on zKill opens, otherwise the app falls back to the daily puzzle.
-- Archive mode is not counted in the service record.
+  with sealed placeholder dossier blocks. After start it reveals the mode's opening
+  clues and releases one weighted clue every 30 seconds; guesses do not release
+  clues. Each lock has a 5-second cooldown with a bottom-up fill. The orb shows an
+  ASCII spinner and a 30-second ring; if all usable clues are revealed, the next
+  scheduled clue fails the run. It has unlimited attempts, a live timer button with
+  long-press forfeit, and a timed share page. Abyss mode uses a darker red background.
 - The field manual setting `fitdle:v1:allowEmptyKb` controls whether empty-hull killmails are eligible (default on).
 - Font face (one NEW/CLASSIC toggle) and five-step font size are stored in
   `fitdle:v1:font` and `fitdle:v1:font-size`; the default `normal` step is the

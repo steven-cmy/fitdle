@@ -263,6 +263,21 @@ function makeRefs(locale) {
   return { lang: locale, groups, races: raceMap, factions: factionMap, metaGroups: metaMap, modules };
 }
 
+function searchNameList(entry) {
+  if (!entry?.names) return [];
+  return [...new Set(locales
+    .map((locale) => localized(entry.names, locale))
+    .filter(Boolean))];
+}
+
+const searchAliases = {
+  groups: Object.fromEntries([...usedGroupIDs].map((id) => [id, searchNameList(groupNames[id])])),
+  races: Object.fromEntries([...new Set(catalog.map((ship) => ship.raceID))].filter(Boolean)
+    .map((id) => [id, searchNameList(races[id])])),
+  factions: Object.fromEntries([...new Set(catalog.map((ship) => ship.factionID))].filter(Boolean)
+    .map((id) => [id, searchNameList(factions[id])])),
+};
+
 function moduleSizeKey(name) {
   const match = String(name || '').match(/\b(X-Large|Small|Medium|Large|Capital|\d+MN|\d+mm|Micro|Heavy|Light)\b/i);
   return match ? match[1].toLowerCase() : '';
@@ -301,7 +316,7 @@ const moduleFallbacks = {};
   }
 }
 
-const RULESET_VERSION = 'v39';
+const RULESET_VERSION = 'v45';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
 const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
@@ -376,6 +391,7 @@ await fsp.rm(OUT, { recursive: true, force: true });
 await fsp.mkdir(path.join(OUT, 'refs'), { recursive: true });
 await fsp.writeFile(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
 await fsp.writeFile(path.join(OUT, 'catalog.json'), JSON.stringify({ ships: catalog }));
+await fsp.writeFile(path.join(OUT, 'search.json'), JSON.stringify(searchAliases));
 for (const locale of locales) {
   await fsp.writeFile(path.join(OUT, 'refs', `${locale}.json`), JSON.stringify(makeRefs(locale)));
 }

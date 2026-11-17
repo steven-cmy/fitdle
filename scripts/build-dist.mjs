@@ -104,11 +104,10 @@ function sharePage({ key, locale, title, description, depth, image = null }) {
 <script>
 const q = new URLSearchParams(location.search);
 const target = new URL('${redirect}', location.href);
-for (const key of ['d', 'mode', 'lang', 't', 'timer']) {
+for (const key of ['kb', 'killmail', 'kill', 'd', 'mode', 'lang', 't', 'timer']) {
   const value = q.get(key);
   if (value) target.searchParams.set(key, value);
 }
-if (!target.searchParams.has('lang')) target.searchParams.set('lang', '${locale}');
 location.replace(target.toString());
 </script>
 </head>
@@ -122,6 +121,17 @@ location.replace(target.toString());
 for (const score of [1, 2, 3, 4, 5, 6]) {
   const scoreKey = String(score);
   for (const locale of LOCALES) {
+  const dir = path.join(shareDir, 'free');
+  await fsp.mkdir(dir, { recursive: true });
+  await fsp.writeFile(path.join(dir, `${locale}.html`), sharePage({
+    key: 'free', locale,
+    title: message(locale, 'share.freeTitle'),
+    description: message(locale, 'share.freeDescription'),
+    depth: 2,
+    image: `${SITE_URL}/assets/share/og.png`,
+  }));
+}
+for (const locale of LOCALES) {
   const dir = path.join(shareDir, 'timed');
   await fsp.mkdir(dir, { recursive: true });
   await fsp.writeFile(path.join(dir, `${locale}.html`), sharePage({

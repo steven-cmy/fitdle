@@ -2,8 +2,6 @@ import {
   ATTEMPT_LIMIT,
   buildGuessResult,
   buildSearchIndex,
-  dateKeyFromLocation,
-  ARCHIVE_START,
   freeKillIdFromToken,
   freeKillToken,
   gameDateKey,
@@ -13,7 +11,6 @@ import {
   modeFromLocation,
   msUntilNextDowntime,
   parseKillId,
-  shiftDateKey,
   normalizeText,
   pickDailyAnswer,
   profileSimilarity,
@@ -28,7 +25,7 @@ import {
 import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
 import { buildClues, getEquipment, selectAbyssFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
 import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
-import { computeRevealed } from './reveal.js';
+import { computeRevealed, computeTimedRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
 import { initStarfield } from './starfield.js';
 
@@ -95,6 +92,7 @@ const state = {
   freeKillId: null,
   freeKillToken: null,
   freeKillmail: null,
+  freeRequested: false,
   answerShip: null,
   answerData: null,
   dataVersionKey: null,
@@ -120,6 +118,12 @@ const state = {
   timerStarted: false,
   timerStartAt: 0,
   timerElapsedMs: 0,
+  timerHoldStart: 0,
+  timedClueCount: 0,
+  timedExpired: false,
+  lockCooldownStart: 0,
+  lockCooldownUntil: 0,
+  cooldownHandle: null,
   timerHandle: null,
   gaveUp: false,
   booted: false,
@@ -193,11 +197,6 @@ function nextDowntime() {
 
 function isFree() {
   return Boolean(state.freeKillId);
-}
-
-function isArchive() {
-  if (isFree()) return false;
-  return state.date !== state.today;
 }
 
 function freeKillFromLocation(search) {
@@ -382,6 +381,25 @@ function currentElapsed() {
   return Math.max(0, Date.now() - state.timerStartAt);
 }
 
+function updateTimedOrb() {
+  if (!isTimed()) return;
+  const orb = $('#dossier-orb');
+  const text = $('#dossier-orb-text');
+  if (!orb || !text) return;
+  if (state.status !== 'playing' || !state.timerStarted) {
+    orb.style.setProperty('--p', 0);
+    orb.setAttribute('aria-valuenow', '0');
+    text.textContent = state.status === 'playing' ? '?' : '—';
+    return;
+  }
+  const cycle = currentElapsed() % 30000;
+  const progress = (cycle / 30000) * 100;
+  orb.style.setProperty('--p', String(progress));
+  orb.setAttribute('aria-valuenow', String(Math.round(progress)));
+  const frames = ['|', '/', '-', '\\'];
+  text.textContent = frames[Math.floor(cycle / 100) % frames.length];
+}
+
 function updateTimedClock() {
   if (!isTimed()) return;
   const text = state.timerStarted ? formatElapsed(currentElapsed()) : '00:00';
@@ -389,20 +407,39 @@ function updateTimedClock() {
   if (board) board.textContent = text;
   const hero = $('#hero-timed');
   if (hero) hero.textContent = text;
+  updateTimedOrb();
+  if (state.timerStarted && state.status === 'playing' && state.answerData) {
+    const count = Math.floor(currentElapsed() / 30000);
+    if (count > state.timedClueCount) {
+      const allRevealed = state.answerData.clues.every((clue, index) => (
+        state.revealed.has(index) || (Number(clue?.w) || 0) <= 0
+      ));
+      if (allRevealed) {
+        failTimedRun();
+        return;
+      }
+      const before = new Set(state.revealed);
+      recomputeRevealed();
+      state.fresh = new Set([...state.revealed].filter((index) => !before.has(index)));
+      renderHero();
+      renderDossier();
+      if (state.fresh.size) showToast(t('toast.intel'), t('toast.clue', { n: state.fresh.size }), 'info');
+    }
+  }
 }
 
 function startTimedClock() {
   stopTimedClock();
   state.timerStartAt = Date.now();
   state.timerStarted = true;
-  state.timerHandle = setInterval(updateTimedClock, 500);
+  state.timerHandle = setInterval(updateTimedClock, 100);
   updateTimedClock();
 }
 
 function resumeTimedClock() {
   if (!isTimed() || !state.timerStarted) return;
   if (state.timerHandle) clearInterval(state.timerHandle);
-  state.timerHandle = setInterval(updateTimedClock, 500);
+  state.timerHandle = setInterval(updateTimedClock, 100);
   updateTimedClock();
 }
 
@@ -412,29 +449,97 @@ function markTimedForfeited() {
 }
 
 function stopTimedClock() {
+  clearLockCooldown();
   if (state.timerHandle) clearInterval(state.timerHandle);
   state.timerHandle = null;
   if (state.timerStarted) state.timerElapsedMs = Math.max(0, Date.now() - state.timerStartAt);
   state.timerStarted = false;
 }
 
+function clearLockCooldown() {
+  if (state.cooldownHandle) clearInterval(state.cooldownHandle);
+  state.cooldownHandle = null;
+  state.lockCooldownUntil = 0;
+  const button = $('.lock-button');
+  if (button) {
+    button.classList.remove('is-cooling');
+    button.style.removeProperty('--cd');
+    button.disabled = !state.inputValue.trim();
+  }
+}
+
+function syncLockCooldown() {
+  const button = $('.lock-button');
+  if (!button) return;
+  const remaining = state.lockCooldownUntil - Date.now();
+  if (!isTimed() || remaining <= 0) {
+    button.classList.remove('is-cooling');
+    button.style.removeProperty('--cd');
+    button.disabled = !state.inputValue.trim();
+    return;
+  }
+  button.classList.add('is-cooling');
+  button.disabled = true;
+  button.style.setProperty('--cd', `${Math.min(100, Math.max(0, (1 - remaining / 5000) * 100))}%`);
+}
+
+function updateLockCooldown() {
+  const remaining = state.lockCooldownUntil - Date.now();
+  if (remaining <= 0) {
+    clearLockCooldown();
+    return;
+  }
+  syncLockCooldown();
+}
+
+function startLockCooldown() {
+  if (!isTimed()) return;
+  state.lockCooldownStart = Date.now();
+  state.lockCooldownUntil = state.lockCooldownStart + 5000;
+  if (state.cooldownHandle) clearInterval(state.cooldownHandle);
+  syncLockCooldown();
+  state.cooldownHandle = setInterval(updateLockCooldown, 100);
+}
+
 function startTimedRun() {
   if (!isTimed() || state.timerStarted || state.status !== 'playing') return;
   startTimedClock();
+  state.timerHoldStart = 0;
   state.gaveUp = false;
+  state.timedExpired = false;
   recomputeRevealed();
   renderAll();
   persist();
   setTimeout(() => $('#ship-input')?.focus(), 80);
 }
 
-function giveUpTimed() {
+function failTimedRun() {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
   state.timerElapsedMs = currentElapsed();
   state.timerStarted = false;
   if (state.timerHandle) clearInterval(state.timerHandle);
   state.timerHandle = null;
+  clearLockCooldown();
+  state.gaveUp = false;
+  state.timedExpired = true;
+  state.status = 'lost';
+  recomputeRevealed();
+  renderAll();
+  persist();
+  setTimeout(() => renderDebrief(), 300);
+}
+
+function giveUpTimed() {
+  if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
+  const holdMs = state.timerHoldStart ? Math.max(0, Date.now() - state.timerHoldStart) : 0;
+  state.timerElapsedMs = Math.max(0, currentElapsed() - holdMs);
+  state.timerHoldStart = 0;
+  state.timerStarted = false;
+  clearLockCooldown();
+  if (state.timerHandle) clearInterval(state.timerHandle);
+  state.timerHandle = null;
   state.gaveUp = true;
+  state.timedExpired = false;
   state.status = 'lost';
   recomputeRevealed();
   renderAll();
@@ -699,6 +804,74 @@ async function resolvePageTarget(hulls, dateKey) {
   return null;
 }
 
+function explicitLangParam() {
+  return new URLSearchParams(location.search).get('lang');
+}
+
+function freeKillUrl(killId) {
+  const url = new URL(location.href);
+  url.pathname = new URL('.', location.href).pathname;
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('kb', freeKillToken(killId));
+  if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
+  if (isTimed()) url.searchParams.set('timer', '1');
+  if (explicitLangParam()) url.searchParams.set('lang', state.locale);
+  return url.toString();
+}
+
+function enterFreeMode() {
+  const url = new URL(location.href);
+  url.pathname = new URL('.', location.href).pathname;
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set('free', '1');
+  if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
+  if (isTimed()) url.searchParams.set('timer', '1');
+  if (explicitLangParam()) url.searchParams.set('lang', state.locale);
+  location.assign(url.toString());
+}
+
+async function pickRandomFreeKill() {
+  const killShipPool = state.mode === 'abyss'
+    ? (state.manifest.abyssKillShipPool || state.manifest.killShipPool)
+    : (state.manifest.normalShipPool || state.manifest.killShipPool);
+  const hulls = weightedHullOrder(
+    killShipPool,
+    `free:${Date.now()}:${Math.random()}:${state.mode}`,
+    10,
+  );
+  for (const shipId of hulls) {
+    for (let page = 1; page <= 3; page++) {
+      let data = null;
+      try {
+        data = await fetchZkill(`/api/losses/shipTypeID/${shipId}/page/${page}/`);
+      } catch {
+        break;
+      }
+      if (!Array.isArray(data) || !data.length) break;
+      const losses = data.filter((kill) => (
+        Number(kill?.victim?.ship_type_id) === Number(shipId)
+        && String(kill?.killmail_time || '') >= `${KILL_HISTORY_START}T00:00:00Z`
+      ));
+      if (losses.length) {
+        return losses[Math.floor(Math.random() * losses.length)];
+      }
+    }
+  }
+  return null;
+}
+
+function freeAnswerSeed() {
+  return String(
+    state.freeKillmail?.zkb?.hash
+    || state.freeKillmail?.killmail_time
+    || state.freeKillId
+    || state.freeKillToken
+    || 'free',
+  );
+}
+
 async function fetchAnswerLive() {
   if (state.liveFetched || !state.answerId) return;
   state.liveFetched = true;
@@ -905,7 +1078,7 @@ function buildAnswerData() {
     refs: state.refs,
     stats: state.liveStats,
     losses: state.liveLosses,
-    dateKey: state.date,
+    dateKey: isFree() ? `free:${freeAnswerSeed()}` : state.date,
     dataVersion: state.dataVersionKey || state.manifest.dataVersion,
     targetKillId: state.answerKillId,
     mode: state.mode,
@@ -929,7 +1102,7 @@ async function loadLocaleData(locale) {
   const refs = await fetchJson(`data/refs/${locale}.json`);
   state.refs = refs;
   state.index = buildSearchIndex(state.catalog, refs.groups, {
-    races: refs.races, factions: refs.factions, locale: state.locale,
+    races: refs.races, factions: refs.factions, locale: state.locale, aliases: state.searchAliases,
   });
   await fetchAnswerLive();
   await fetchCargoTypeNames();
@@ -964,7 +1137,7 @@ function readStoredState() {
   if (stored.answerId && Number(stored.answerId) !== Number(state.answerId)) return { invalidated: true };
   let status = stored.status;
   if (guesses.includes(state.answerId)) status = 'won';
-  else if (isTimed()) status = stored.status === 'lost' && stored.gaveUp ? 'lost' : 'playing';
+  else if (isTimed()) status = stored.status === 'lost' && (stored.gaveUp || stored.timedExpired) ? 'lost' : 'playing';
   else if (guesses.length >= ATTEMPT_LIMIT) status = 'lost';
   else status = 'playing';
   return {
@@ -975,16 +1148,13 @@ function readStoredState() {
     timerStartAt: Number(stored.timerStartAt) || 0,
     timerElapsedMs: Number(stored.timerElapsedMs) || 0,
     gaveUp: stored.gaveUp === true && status === 'lost',
+    timedExpired: stored.timedExpired === true && status === 'lost',
   };
 }
 
 function recomputeRevealed() {
-  if (isTimed() && !state.timerStarted && state.status === 'playing') {
-    state.revealed = new Set();
-    state.visibleCount = 0;
-    return;
-  }
-  state.revealed = computeRevealed({
+  const seed = `${isFree() ? `free:${freeAnswerSeed()}` : `${state.date}:${state.answerKillId || state.answerId}`}:${state.mode}:${state.timed ? 'timed' : 'standard'}`;
+  const base = {
     clues: state.answerData.clues,
     catalog: state.catalog,
     guesses: state.guesses,
@@ -996,8 +1166,29 @@ function recomputeRevealed() {
     answerBonuses: state.answerData.bonuses || [],
     answer: state.answerData,
     fitDelta: state.answerData.fitDelta || null,
-    seed: `${state.date}:${state.answerKillId || state.answerId}:${state.mode}:${state.timed ? 'timed' : 'standard'}`,
-  });
+    seed,
+  };
+  if (isTimed() && state.status === 'playing') {
+    if (!state.timerStarted) {
+      state.revealed = new Set();
+      state.timedClueCount = 0;
+      state.visibleCount = 0;
+      return;
+    }
+    const initial = computeRevealed({ ...base, guesses: [], status: 'playing' });
+    const count = Math.floor(currentElapsed() / 30000);
+    const extras = computeTimedRevealed({
+      clues: state.answerData.clues,
+      count,
+      seed,
+      exclude: initial,
+    });
+    state.revealed = new Set([...initial, ...extras]);
+    state.timedClueCount = count;
+    state.visibleCount = state.revealed.size;
+    return;
+  }
+  state.revealed = computeRevealed(base);
   state.visibleCount = state.revealed.size;
 }
 
@@ -1016,6 +1207,7 @@ function persist() {
       ? (state.timerStarted ? currentElapsed() : state.timerElapsedMs)
       : 0,
     gaveUp: isTimed() && state.gaveUp,
+    timedExpired: isTimed() && state.timedExpired,
   }, storageMode());
 }
 
@@ -1075,31 +1267,27 @@ function renderShell() {
       </div>
     </header>
 
-    <div id="free-banner" class="banner" hidden></div>
-    <div id="archive-wrap" class="archive-wrap" hidden>
-      <button type="button" class="archive-arrow" data-action="archive-prev" aria-label="${esc(t('archive.prev'))}">&larr;</button>
-      <div id="archive-banner" class="banner" hidden></div>
-      <button type="button" class="archive-arrow" data-action="archive-next" aria-label="${esc(t('archive.next'))}">&rarr;</button>
-    </div>
     <div id="new-target-banner" class="banner" hidden></div>
 
     <main id="main" class="shell">
-      <div class="mode-bar" data-mode="${state.mode}">
+      <div class="mode-row">
+        <div class="mode-bar" data-mode="${state.mode}">
         <span class="mode-label">${esc(t('mode.label'))}</span>
         <div class="mode-switch mode-nav" role="group" aria-label="${esc(t('mode.label'))}">
-          <button type="button" class="mode-button${!isFree() && !isArchive() ? ' is-active' : ''}" data-action="play-today" aria-pressed="${!isFree() && !isArchive()}">${esc(t('mode.daily'))}</button>
+          <button type="button" class="mode-button${!isFree() ? ' is-active' : ''}" data-action="play-today" aria-pressed="${!isFree()}">${esc(t('mode.daily'))}</button>
           <button type="button" class="mode-button${isFree() ? ' is-active' : ''}" data-action="free-mode" aria-pressed="${isFree()}">${esc(t('mode.free'))}</button>
-          <button type="button" class="mode-button${isArchive() ? ' is-active' : ''}" data-action="archive-mode" aria-pressed="${isArchive()}">${esc(t('mode.archive'))}</button>
         </div>
         <span class="mode-divider" aria-hidden="true"></span>
         <div class="mode-switch" role="group" aria-label="${esc(t('mode.label'))}">
           <button type="button" class="mode-button${state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
           <button type="button" class="mode-button${state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
         </div>
-        <button type="button" class="timed-toggle${isTimed() ? ' is-active' : ''}" data-action="toggle-timed" role="switch" aria-checked="${isTimed()}" ${isFree() ? 'disabled' : ''}>
+        <button type="button" class="timed-toggle${isTimed() ? ' is-active' : ''}" data-action="toggle-timed" role="switch" aria-checked="${isTimed()}">
           <span>${esc(t('mode.timed'))}</span>
           <i class="toggle-track" aria-hidden="true"><b></b></i>
         </button>
+        </div>
+        <div id="free-actions" class="free-mode-actions" hidden></div>
       </div>
 
       <section class="hero" id="hero" aria-labelledby="hero-title"></section>
@@ -1181,33 +1369,22 @@ function renderChrome() {
   const resetLabel = $('#reset-label');
   const countdown = $('#countdown');
   const dateCaption = $('#date-caption');
-  const archive = isArchive();
-  if (dateCaption) dateCaption.textContent = free ? t('free.kicker') : `${t('common.utc')} // ${archive ? t('header.archive') : t('hero.daily')}`;
-  if (resetLabel) resetLabel.textContent = free ? t('free.reset') : archive ? t('header.archive') : t('header.reset');
-  if (countdown) countdown.textContent = free ? t('free.badge') : archive ? (state.newTargetAvailable ? t('common.today') : t('header.archive')) : nextDowntime();
+  if (dateCaption) dateCaption.textContent = free ? t('free.kicker') : `${t('common.utc')} // ${t('hero.daily')}`;
+  if (resetLabel) resetLabel.textContent = free ? t('free.reset') : t('header.reset');
+  if (countdown) countdown.textContent = free ? t('free.badge') : nextDowntime();
   const countdownWrap = countdown?.closest('.countdown');
-  if (countdownWrap) countdownWrap.style.display = free || archive ? 'none' : '';
+  if (countdownWrap) countdownWrap.style.display = free ? 'none' : '';
 
-  const freeBanner = $('#free-banner');
-  if (freeBanner) {
-    freeBanner.hidden = !free;
+  const freeActions = $('#free-actions');
+  if (freeActions) {
+    freeActions.hidden = !free;
     if (free) {
-      freeBanner.innerHTML = `${icon('radar')} ${esc(t('free.kicker'))} // ${esc(t('free.kb', { id: state.freeKillToken }))}`;
+      freeActions.innerHTML = `
+        <button type="button" class="button ghost free-action" data-action="free-refresh">${icon('refresh')} ${esc(t('free.refresh'))}</button>
+        <button type="button" class="button ghost free-action" data-action="free-input">${icon('key')} ${esc(t('free.input'))}</button>
+        <button type="button" class="button ghost free-action" data-action="free-share">${icon('share')} ${esc(t('free.share'))}</button>`;
     }
   }
-  const archiveWrap = $('#archive-wrap');
-  if (archiveWrap) archiveWrap.hidden = !archive;
-  const archiveBanner = $('#archive-banner');
-  if (archiveBanner) {
-    archiveBanner.hidden = !archive;
-    if (archive) {
-      archiveBanner.innerHTML = `<span>${icon('database')} ${esc(t('header.archive'))} // ${esc(state.date)}</span>`;
-    }
-  }
-  const archivePrev = $('[data-action="archive-prev"]');
-  const archiveNext = $('[data-action="archive-next"]');
-  if (archivePrev) archivePrev.disabled = !archive || shiftDateKey(state.date, -1) < ARCHIVE_START;
-  if (archiveNext) archiveNext.disabled = !archive || shiftDateKey(state.date, 1) > state.today;
   const newBanner = $('#new-target-banner');
   if (newBanner) {
     newBanner.hidden = free || !state.newTargetAvailable;
@@ -1269,10 +1446,10 @@ function renderHero() {
         <div class="hero-stat">
           <span>${esc(t('hero.status'))}</span>
           <strong id="hero-status">${esc(ended ? t('dossier.answer') : t('hero.statusValue'))}</strong>
-          <small>${esc(free ? t('free.kicker') : isArchive() ? t('header.archive') : t('hero.daily'))}</small>
+          <small>${esc(free ? t('free.kicker') : t('hero.daily'))}</small>
         </div>
       </div>
-      <div class="hero-timer" id="hero-timer">${esc(free ? t('free.kicker') : isArchive() ? t('header.archive') : t('header.reset'))} ${free || isArchive() ? '' : `<strong>${esc(nextDowntime())}</strong>`}</div>
+      <div class="hero-timer" id="hero-timer">${esc(free ? t('free.kicker') : t('header.reset'))} ${free ? '' : `<strong>${esc(nextDowntime())}</strong>`}</div>
     </div>
     <div class="hero-radar${ended ? ' resolved' : ''}">
       <div class="radar" aria-hidden="true">
@@ -1367,47 +1544,52 @@ function renderAttempts() {
   }
   const ended = state.status !== 'playing';
   const rows = [];
-  const limit = isTimed()
-    ? Math.max(ATTEMPT_LIMIT, state.guesses.length + (ended ? 0 : 1))
-    : ATTEMPT_LIMIT;
-  for (let i = 0; i < limit; i++) {
+  const actualRow = (i) => {
     const guessId = state.guesses[i];
-    if (guessId != null) {
-      const ship = state.catalogMap.get(guessId);
-      const correct = guessId === state.answerId;
-      const result = buildGuessResult(ship, state.answerShip, i + 1);
-      const similarity = correct ? 100 : result.similarity;
-      rows.push(`
-        <li class="attempt is-complete ${correct ? 'is-correct' : 'is-wrong'}${state.latestIndex === i ? ' is-latest' : ''}" aria-label="${esc(`${displayName(ship)}, ${correct ? t('board.confirmed') : t('board.matchRate')}, ${similarity}%`)}">
-          <span class="attempt-marker">${String(i + 1).padStart(2, '0')}</span>
-          ${attemptIcon(ship)}
-          <span class="attempt-body">
-            <span class="attempt-name">${esc(displayName(ship))}</span>
-            <span class="attempt-meta">${esc(raceName(ship))}<span class="sep"></span>${esc(groupName(ship))}</span>
-            <span class="match-track" style="--match:${similarity}%"><span></span></span>
-          </span>
-          <span class="attempt-status">
-            <strong>${esc(correct ? t('board.confirmed') : t('board.matchRate'))}</strong>
-            <span>${similarity}%</span>
-          </span>
-        </li>
-      `);
-    } else {
-      const active = !ended && i === state.guesses.length;
-      rows.push(`
-        <li class="attempt ${active ? 'is-active' : 'is-empty'}"${active ? ' aria-current="step"' : ''}>
-          <span class="attempt-marker">${String(i + 1).padStart(2, '0')}</span>
-          <span class="attempt-icon"><span class="fallback">${icon(active ? 'crosshair' : 'lock')}</span></span>
-          <span class="attempt-body">
-            <span class="attempt-name">${esc(active ? t('board.attempt', { n: i + 1 }) : t('board.locked'))}</span>
-            <span class="attempt-meta">${esc(active ? t('board.awaiting') : t('dossier.encrypted'))}</span>
-          </span>
-          <span class="attempt-status"><strong>${esc(active ? t('board.ready') : t('board.sealed'))}</strong></span>
-        </li>
-      `);
+    const ship = state.catalogMap.get(guessId);
+    if (!ship) return '';
+    const correct = guessId === state.answerId;
+    const result = buildGuessResult(ship, state.answerShip, i + 1);
+    const similarity = correct ? 100 : result.similarity;
+    return `
+      <li class="attempt is-complete ${correct ? 'is-correct' : 'is-wrong'}${state.latestIndex === i ? ' is-latest' : ''}" aria-label="${esc(`${displayName(ship)}, ${correct ? t('board.confirmed') : t('board.matchRate')}, ${similarity}%`)}">
+        <span class="attempt-marker">${String(i + 1).padStart(2, '0')}</span>
+        ${attemptIcon(ship)}
+        <span class="attempt-body">
+          <span class="attempt-name">${esc(displayName(ship))}</span>
+          <span class="attempt-meta">${esc(raceName(ship))}<span class="sep"></span>${esc(groupName(ship))}</span>
+          <span class="match-track" style="--match:${similarity}%"><span></span></span>
+        </span>
+        <span class="attempt-status">
+          <strong>${esc(correct ? t('board.confirmed') : t('board.matchRate'))}</strong>
+          <span>${similarity}%</span>
+        </span>
+      </li>
+    `;
+  };
+  const emptyRow = (i, active) => `
+    <li class="attempt ${active ? 'is-active' : 'is-empty'}"${active ? ' aria-current="step"' : ''}>
+      <span class="attempt-marker">${String(i + 1).padStart(2, '0')}</span>
+      <span class="attempt-icon"><span class="fallback">${icon(active ? 'crosshair' : 'lock')}</span></span>
+      <span class="attempt-body">
+        <span class="attempt-name">${esc(active ? t('board.attempt', { n: i + 1 }) : t('board.locked'))}</span>
+        <span class="attempt-meta">${esc(active ? t('board.awaiting') : t('dossier.encrypted'))}</span>
+      </span>
+      <span class="attempt-status"><strong>${esc(active ? t('board.ready') : t('board.sealed'))}</strong></span>
+    </li>
+  `;
+  if (isTimed()) {
+    // Timed mode has no fixed slots: newest attempt first, oldest last.
+    for (let i = state.guesses.length - 1; i >= 0; i--) rows.push(actualRow(i));
+  } else {
+    // Standard/Abyss keep the original chronological six-slot board.
+    for (let i = 0; i < ATTEMPT_LIMIT; i++) {
+      if (state.guesses[i] != null) rows.push(actualRow(i));
+      else rows.push(emptyRow(i, !ended && i === state.guesses.length));
     }
   }
   list.innerHTML = rows.join('');
+  if (isTimed() && state.guesses.length) list.scrollTop = 0;
   const boardCount = $('#board-count-text');
   if (boardCount) {
     boardCount.textContent = isTimed()
@@ -1467,7 +1649,9 @@ function renderAcquire() {
       </div>
     </div>
   `;
+  syncLockCooldown();
 }
+
 
 function formatNumberValue(value, unit = '', options = {}) {
   const valueClass = options.small ? '' : ' class="big"';
@@ -1635,7 +1819,8 @@ function renderDossier() {
     const orb = $('#dossier-orb');
     if (orb) orb.style.setProperty('--p', 0);
     const orbText = $('#dossier-orb-text');
-    if (orbText) orbText.textContent = '0%';
+    if (orbText) orbText.textContent = '?';
+    updateTimedOrb();
     if ($('#answer-banner')) $('#answer-banner').innerHTML = '';
     const host = $('#dossier-groups');
     if (host) {
@@ -1673,6 +1858,7 @@ function renderDossier() {
   }
   const orbText = $('#dossier-orb-text');
   if (orbText) orbText.textContent = totalHidden ? '?' : `${progress}%`;
+  updateTimedOrb();
 
   const answerBanner = $('#answer-banner');
   if (answerBanner) {
@@ -1798,12 +1984,24 @@ function renderDossier() {
   }
 }
 
+function syncBoardHeight() {
+  const board = $('#board-panel');
+  const dossier = $('#dossier-panel');
+  if (!board || !dossier) return;
+  if (!isTimed() || window.innerWidth <= 860) {
+    board.style.maxHeight = '';
+    return;
+  }
+  board.style.maxHeight = `${Math.max(0, dossier.getBoundingClientRect().height)}px`;
+}
+
 function renderAll() {
   renderHero();
   renderAttempts();
   renderAcquire();
   renderDossier();
   renderChrome();
+  requestAnimationFrame(syncBoardHeight);
 }
 
 // ---------------------------------------------------------------------------
@@ -1906,6 +2104,11 @@ function selectSuggestion(ship) {
 function updateLockButton() {
   const button = $('.lock-button');
   if (!button) return;
+  if (isTimed() && Date.now() < state.lockCooldownUntil) {
+    button.disabled = true;
+    syncLockCooldown();
+    return;
+  }
   button.disabled = !state.inputValue.trim();
 }
 
@@ -1931,6 +2134,7 @@ function currentGuessShip() {
 
 function submitGuess() {
   if (state.status !== 'playing') return;
+  if (isTimed() && Date.now() < state.lockCooldownUntil) return;
   const ship = currentGuessShip();
   if (!ship) {
     showToast(t('toast.invalid'), '', 'error');
@@ -1969,8 +2173,9 @@ function applyGuess(shipId) {
   }
 
   renderAll();
+  if (isTimed() && !correct) startLockCooldown();
   if (state.status !== 'playing') {
-    if (!isFree() && !isArchive() && !isTimed()) {
+    if (!isFree() && !isTimed()) {
       state.stats = recordResult(localStorage, state.stats, {
         date: state.date,
         status: state.status,
@@ -2001,12 +2206,12 @@ function zkillShipUrl(shipId = state.answerId) {
 function shareLink() {
   if (isFree()) {
     const url = new URL(location.href);
-    url.pathname = new URL('.', location.href).pathname;
+    url.pathname = new URL(`share/free/${state.locale}.html`, location.href).pathname;
     url.search = '';
     url.hash = '';
     url.searchParams.set('kb', state.freeKillToken || freeKillToken(state.freeKillId));
     url.searchParams.set('mode', state.mode === 'abyss' ? 'abyss' : 'normal');
-    url.searchParams.set('lang', state.locale);
+    if (isTimed()) url.searchParams.set('timer', '1');
     return url.toString();
   }
   if (isTimed()) {
@@ -2016,8 +2221,6 @@ function shareLink() {
     url.hash = '';
     url.searchParams.set('t', String(Math.round(state.timerElapsedMs / 1000)));
     url.searchParams.set('mode', state.mode === 'abyss' ? 'abyss' : 'normal');
-    if (isArchive()) url.searchParams.set('d', state.date);
-    url.searchParams.set('lang', state.locale);
     url.searchParams.set('timer', '1');
     return url.toString();
   }
@@ -2039,14 +2242,17 @@ function renderDebrief() {
   const kbLabel = sampleKill ? t('end.killmail') : t('end.killboard');
   const timed = isTimed();
   const oneShot = !timed && won && state.guesses.length === 1;
+  const timedFail = timed && !won && state.timedExpired;
   const kicker = timed
-    ? (won ? t('timed.winKicker') : t('timed.giveUpKicker'))
+    ? (won ? t('timed.winKicker') : timedFail ? t('timed.failKicker') : t('timed.giveUpKicker'))
     : (oneShot ? t('oneShot.kicker') : (won ? t('end.victoryKicker') : t('end.defeatKicker')));
   const title = timed
-    ? (won ? t('timed.winTitle') : t('timed.giveUpTitle'))
+    ? (won ? t('timed.winTitle') : timedFail ? t('timed.failTitle') : t('timed.giveUpTitle'))
     : (oneShot ? t('oneShot.title') : (won ? t('end.victoryTitle') : t('end.defeatTitle')));
   const body = timed
-    ? (won ? t('timed.winBody', { name: displayName(ship) }) : t('timed.giveUpBody', { name: displayName(ship) }))
+    ? (won ? t('timed.winBody', { name: displayName(ship) })
+      : timedFail ? t('timed.failBody', { name: displayName(ship) })
+        : t('timed.giveUpBody', { name: displayName(ship) }))
     : (oneShot
       ? t('oneShot.body')
       : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) })));
@@ -2102,9 +2308,7 @@ function renderDebrief() {
 
           ${free
             ? `<div class="free-note">${esc(t('free.noStats'))}</div>`
-            : isArchive()
-              ? `<div class="free-note">${esc(t('archive.noStats'))}</div>`
-              : ''}
+            : ''}
           <div class="share-box">
             <label for="share-url">${esc(t('end.share'))}</label>
             <input id="share-url" type="text" readonly value="${esc(url)}">
@@ -2161,46 +2365,6 @@ function closeModal() {
   if (focus && typeof focus.focus === 'function' && focus.isConnected) focus.focus();
 }
 
-function navigateToDate(date) {
-  const url = new URL(location.href);
-  url.pathname = new URL('.', location.href).pathname;
-  url.search = '';
-  url.hash = '';
-  if (date !== state.today) url.searchParams.set('d', date);
-  if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
-  if (isTimed()) url.searchParams.set('timer', '1');
-  url.searchParams.set('lang', state.locale);
-  location.assign(url.toString());
-}
-
-function stepArchive(days) {
-  if (!isArchive()) return;
-  let next = shiftDateKey(state.date, days);
-  if (next < ARCHIVE_START) next = ARCHIVE_START;
-  if (next > state.today) next = state.today;
-  if (next === state.date) return;
-  navigateToDate(next);
-}
-
-function openArchiveModal() {
-  const selected = isArchive() ? state.date : state.today;
-  openModal(`
-    <div class="modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="archive-title" data-kind="archive">
-      <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
-      <div class="panel-kicker">${icon('database')} // ${esc(t('mode.archive'))}</div>
-      <h2 id="archive-title">${esc(t('archiveModal.title'))}</h2>
-      <p class="mode-modal-body">${esc(t('archiveModal.body'))}</p>
-      <label class="mode-modal-label" for="archive-date">${esc(t('archiveModal.select'))}</label>
-      <input id="archive-date" class="mode-modal-input" type="date" min="${ARCHIVE_START}" max="${state.today}" value="${selected}">
-      <div class="mode-modal-error" id="archive-error" aria-live="polite"></div>
-      <div class="mode-modal-actions">
-        <button type="button" class="button primary" data-action="archive-submit">${icon('calendar')} ${esc(t('archiveModal.open'))}</button>
-        <button type="button" class="button ghost" data-action="close-modal">${esc(t('common.close'))}</button>
-      </div>
-    </div>
-  `, 'archive');
-}
-
 function openFreeModal() {
   openModal(`
     <div class="modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="free-title" data-kind="free">
@@ -2224,29 +2388,11 @@ async function submitFreeKill() {
   const input = $('#free-kb-input');
   const killId = parseKillId(input?.value);
   if (!killId) {
-    closeModal();
-    playToday();
+    const error = $('#free-error');
+    if (error) error.textContent = t('freeModal.invalid');
     return;
   }
-  const url = new URL(location.href);
-  url.pathname = new URL('.', location.href).pathname;
-  url.search = '';
-  url.hash = '';
-  url.searchParams.set('kb', freeKillToken(killId));
-  if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
-  url.searchParams.set('lang', state.locale);
-  location.assign(url.toString());
-}
-
-function submitArchiveDate() {
-  const input = $('#archive-date');
-  const error = $('#archive-error');
-  const value = input?.value;
-  if (!value || value < ARCHIVE_START || value > state.today) {
-    if (error) error.textContent = t('archiveModal.invalid');
-    return;
-  }
-  navigateToDate(value);
+  location.assign(freeKillUrl(killId));
 }
 
 function renderManual() {
@@ -2272,6 +2418,11 @@ function renderManual() {
           <div class="manual-section">
             <h3>${icon('help')} ${esc(t('help.sharedTitle'))}</h3>
             <ul class="manual-mode-list">${t('help.sharedRules').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+          </div>
+          <div class="manual-section">
+            <h3>${icon('radar')} ${esc(t('mode.free'))}</h3>
+            <p class="manual-mode-hint">${esc(t('mode.freeHint'))}</p>
+            <ul class="manual-mode-list">${t('mode.helpFree').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
           </div>
           <div class="manual-section">
             <h3>${icon('layers')} ${esc(t('mode.standard'))}</h3>
@@ -2394,6 +2545,13 @@ async function copyText(text) {
   }
 }
 
+async function copyFreeShare() {
+  if (!isFree()) return;
+  const ok = await copyText(shareLink());
+  if (ok) showToast(t('toast.copied'), '', 'success');
+  else showToast(t('toast.copyFailed'), '', 'error');
+}
+
 async function copyShare() {
   const ok = await copyText(shareLink());
   if (ok) {
@@ -2449,7 +2607,7 @@ async function changeLocale(nextLocale) {
     state.i18n = createI18n(nextLocale);
     await loadLocaleData(nextLocale);
     state.index = buildSearchIndex(state.catalog, state.refs.groups, {
-      races: state.refs.races, factions: state.refs.factions, locale: state.locale,
+      races: state.refs.races, factions: state.refs.factions, locale: state.locale, aliases: state.searchAliases,
     });
     try {
       localStorage.setItem('fitdle:v1:lang', nextLocale);
@@ -2507,16 +2665,13 @@ function startTicker() {
     const countdown = $('#countdown');
     if (countdown) {
       if (isFree()) countdown.textContent = t('free.badge');
-      else if (isArchive()) countdown.textContent = state.newTargetAvailable ? t('common.today') : t('header.archive');
       else countdown.textContent = nextDowntime();
     }
     const heroTimer = $('#hero-timer');
     if (heroTimer) {
       heroTimer.innerHTML = isFree()
         ? esc(t('free.kicker'))
-        : isArchive()
-          ? esc(t('header.archive'))
-          : `${esc(t('header.reset'))} <strong>${esc(nextDowntime())}</strong>`;
+        : `${esc(t('header.reset'))} <strong>${esc(nextDowntime())}</strong>`;
     }
     const dbNext = $('#debrief-next');
     if (dbNext) dbNext.innerHTML = isFree()
@@ -2538,6 +2693,7 @@ function clearTimerPress() {
   timerPressTimer = null;
   if (timerPressButton) timerPressButton.classList.remove('is-holding');
   timerPressButton = null;
+  if (state.status === 'playing') state.timerHoldStart = 0;
 }
 document.addEventListener('pointerdown', (event) => {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
@@ -2546,6 +2702,7 @@ document.addEventListener('pointerdown', (event) => {
   if (!button) return;
   clearTimerPress();
   timerPressButton = button;
+  state.timerHoldStart = Date.now();
   button.classList.remove('is-holding');
   void button.offsetWidth;
   button.classList.add('is-holding');
@@ -2559,6 +2716,7 @@ document.addEventListener('pointerdown', (event) => {
 for (const name of ['pointerup', 'pointercancel', 'blur']) {
   window.addEventListener(name, clearTimerPress);
 }
+window.addEventListener('resize', syncBoardHeight);
 
 document.addEventListener('click', (event) => {
   const actionEl = event.target.closest('[data-action]');
@@ -2566,12 +2724,10 @@ document.addEventListener('click', (event) => {
     const action = actionEl.dataset.action;
     if (action === 'toggle-timed') { setTimed(!isTimed()); return; }
     if (action === 'start-timed') { startTimedRun(); return; }
-    if (action === 'free-mode') { openFreeModal(); return; }
-    if (action === 'archive-mode') { openArchiveModal(); return; }
+    if (action === 'free-mode' || action === 'free-refresh') { enterFreeMode(); return; }
+    if (action === 'free-input') { openFreeModal(); return; }
+    if (action === 'free-share') { void copyFreeShare(); return; }
     if (action === 'free-submit') { void submitFreeKill(); return; }
-    if (action === 'archive-submit') { submitArchiveDate(); return; }
-    if (action === 'archive-prev') { stepArchive(-1); return; }
-    if (action === 'archive-next') { stepArchive(1); return; }
     if (action === 'toggle-empty-kb') { setAllowEmptyKb(!state.allowEmptyKb); return; }
     if (action === 'set-font') { setFontStyle(actionEl.dataset.font); return; }
     if (action === 'set-font-size') { setFontSize(actionEl.dataset.size); return; }
@@ -2622,11 +2778,6 @@ document.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && state.modal?.kind === 'free') {
       event.preventDefault();
       void submitFreeKill();
-      return;
-    }
-    if (event.key === 'Enter' && state.modal?.kind === 'archive') {
-      event.preventDefault();
-      submitArchiveDate();
       return;
     }
     if (event.key === 'Tab') {
@@ -2730,6 +2881,7 @@ async function boot() {
     const catalog = await fetchJson('data/catalog.json');
     state.catalog = catalog.ships;
     state.catalogMap = new Map(state.catalog.map((ship) => [ship.id, ship]));
+    state.searchAliases = await fetchJson('data/search.json').catch(() => null);
     state.mode = modeFromLocation(location.search);
     state.timed = timedFromLocation(location.search);
     document.documentElement.dataset.gameMode = state.mode;
@@ -2738,12 +2890,16 @@ async function boot() {
     const now = serverNow();
     const resetHour = manifest.downtimeUtcHour || 11;
     state.today = gameDateKey(now, resetHour);
-    const locationDate = dateKeyFromLocation(location.search, now, resetHour);
     const freeTarget = freeKillFromLocation(location.search);
+    state.freeRequested = new URLSearchParams(location.search).get('free') === '1';
     state.freeKillId = freeTarget?.id || null;
-    if (state.freeKillId) state.timed = false;
     state.freeKillToken = freeTarget?.token || null;
-    state.date = state.freeKillId ? `free-${state.freeKillToken}` : locationDate.date;
+    state.date = state.freeKillId ? `free-${state.freeKillToken}` : state.today;
+    const staleDate = new URL(location.href);
+    if (staleDate.searchParams.has('d')) {
+      staleDate.searchParams.delete('d');
+      history.replaceState(null, '', staleDate);
+    }
     if (freeTarget?.legacy) {
       const clean = new URL(location.href);
       clean.searchParams.set('kb', state.freeKillToken);
@@ -2753,6 +2909,18 @@ async function boot() {
     if (!isLocale(state.locale) || !manifest.locales.includes(state.locale)) state.locale = manifest.defaultLocale || 'en';
     state.i18n = createI18n(state.locale);
     state.stats = loadStats(localStorage);
+
+    if (state.freeRequested && !state.freeKillId) {
+      const kill = await pickRandomFreeKill();
+      if (kill) {
+        location.replace(freeKillUrl(kill.killmail_id));
+        return;
+      }
+      showToast(t('free.randomFailed'), '', 'warn', 5000);
+      const clean = new URL(location.href);
+      clean.searchParams.delete('free');
+      history.replaceState(null, '', clean);
+    }
 
     const rawFree = new URLSearchParams(location.search).get('kb')
       || new URLSearchParams(location.search).get('killmail')
@@ -2778,7 +2946,7 @@ async function boot() {
         state.freeKillId = null;
         state.freeKillToken = null;
         state.freeKillmail = null;
-        state.date = locationDate.date;
+        state.date = state.today;
         const clean = new URL(location.href);
         for (const key of ['kb', 'killmail', 'kill']) clean.searchParams.delete(key);
         history.replaceState(null, '', clean);
@@ -2788,7 +2956,7 @@ async function boot() {
       state.freeKillId = null;
       state.freeKillToken = null;
       state.freeKillmail = null;
-      state.date = locationDate.date;
+      state.date = state.today;
       const killShipPool = state.mode === 'abyss'
         ? (manifest.abyssKillShipPool || manifest.killShipPool)
         : (manifest.normalShipPool || manifest.killShipPool);
@@ -2827,6 +2995,7 @@ async function boot() {
       state.timerStartAt = 0;
       state.timerElapsedMs = 0;
       state.gaveUp = false;
+      state.timedExpired = false;
       persist();
     } else {
       state.guesses = restored.guesses || [];
@@ -2836,6 +3005,7 @@ async function boot() {
       state.timerElapsedMs = Number(restored.timerElapsedMs) || 0;
       if (state.timerStarted && !state.timerStartAt) state.timerStartAt = Date.now() - state.timerElapsedMs;
       state.gaveUp = isTimed() && state.status === 'lost' && restored.gaveUp === true;
+      state.timedExpired = isTimed() && state.status === 'lost' && restored.timedExpired === true;
     }
     recomputeRevealed();
     state.fresh = new Set();
@@ -2849,7 +3019,6 @@ async function boot() {
       markTimedForfeited();
     }
 
-    if (!isFree() && locationDate.invalid) showToast(t('error.date'), '', 'warn', 4200);
     if (!state.timeVerified) showToast(t('error.time'), '', 'warn', 5200);
     if (state.liveError) showToast(t('error.zkb'), '', 'warn', 5200);
     if (restored.invalidated) showToast(t('error.oldState'), '', 'warn', 4600);
