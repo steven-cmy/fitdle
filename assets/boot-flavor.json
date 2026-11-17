@@ -1,0 +1,88 @@
+{
+  "flavor": {
+    "en": [
+      "Resolving killboard telemetry",
+      "Triangulating hull signatures",
+      "Cross-checking wreckage telemetry",
+      "Scanning for drive signatures",
+      "Reading the last fitting",
+      "Aligning the killboard lens"
+    ],
+    "de": [
+      "Killboard-Telemetrie wird aufgelöst",
+      "Schiffssignaturen werden trianguliert",
+      "Wrack-Telemetrie wird abgeglichen",
+      "Antriebssignaturen werden gescannt",
+      "Die letzte Fitting-Aufzeichnung wird gelesen",
+      "Die Killboard-Linse wird ausgerichtet"
+    ],
+    "es": [
+      "Resolviendo telemetría del killboard",
+      "Triangulando firmas de casco",
+      "Cruzando telemetría de los restos",
+      "Escaneando firmas de propulsión",
+      "Leyendo el último ajuste",
+      "Alineando la lente del killboard"
+    ],
+    "fr": [
+      "Résolution de la télémétrie killboard",
+      "Triangulation des signatures de coque",
+      "Recoupement de la télémétrie des épaves",
+      "Scan des signatures de propulsion",
+      "Lecture du dernier fitting",
+      "Alignement de la lentille killboard"
+    ],
+    "ja": [
+      "キルボード遠隔測定を解析中",
+      "船体信号を三角測量中",
+      "残骸の遠隔測定を照合中",
+      "推進器信号をスキャン中",
+      "最後の fitting 記録を読み込み中",
+      "キルボードレンズを調整中"
+    ],
+    "ko": [
+      "킬보드 원격 측정 분석 중",
+      "선체 신호 삼각측량 중",
+      "잔해 원격 측정 대조 중",
+      "추진기 신호 스캔 중",
+      "마지막 피팅 기록 읽는 중",
+      "킬보드 렌즈 정렬 중"
+    ],
+    "ru": [
+      "Обработка телеметрии киллборда",
+      "Триангуляция сигнатур корпуса",
+      "Сверка телеметрии обломков",
+      "Сканирование сигнатур двигателей",
+      "Чтение последней конфигурации",
+      "Юстировка линзы киллборда"
+    ],
+    "zh": [
+      "正在解析击杀板遥测",
+      "正在三角定位船体信号",
+      "正在比对残骸遥测",
+      "正在扫描推进器信号",
+      "正在读取最后的装配",
+      "正在校准击杀板镜头"
+    ]
+  },
+  "eggs": [
+    { "lang": "zh", "text": "少女祈祷中" },
+    { "lang": "en", "text": "All your killmail are belong to us" },
+    { "lang": "zh", "text": "非常好游戏，使我伊什塔旋转。爱来自新伊甸<3" },
+    { "lang": "zh", "text": "新伊甸的大事，大快所有人心的大好事。" },
+    { "lang": "zh", "text": "根本赢不了，我听不懂" },
+    { "lang": "zh", "text": "正在处理一些事情" },
+    { "lang": "ja", "text": "やらないか" },
+    { "lang": "ja", "text": "謎はすべて解けた！" },
+    { "lang": "zh", "text": "我得了一种不猜kb就会死的病" },
+    { "lang": "zh", "text": "这里是猜不中船名就出不去的房间" },
+    { "lang": "zh", "text": "已经不用再战斗了" },
+    { "lang": "ja", "text": "ドロー！モンスターカード！" },
+    { "lang": "ja", "text": "知らない天井だ" },
+    { "lang": "ja", "text": "見せてもらおうか、ガレンテ連邦の宇宙船の性能とやらを" },
+    { "lang": "zh", "text": "真相永远只有一个" },
+    { "lang": "zh", "text": "欢迎回来，指挥官" },
+    { "lang": "zh", "text": "尸体在说话" },
+    { "lang": "ja", "text": "死体が喋っている" }
+  ]
+}

@@ -29,6 +29,23 @@ instructions live in [README.md](README.md).
 - `dist/` contains authored `js/`, `styles/`, `assets/`, generated `data/`,
   `vendor/dogma-engine/`, and static share pages.
 
+### Boot flavor
+
+- Authored file: `assets/boot-flavor.json` (not generated, not in `data/`).
+- Normal subtitle pools per locale plus tagged eggs (`en`, `ja`, `zh`).
+- Each load picks one normal line; with a 5% chance it picks an egg whose
+  `lang` matches the active interface locale.
+- The main boot title and the localized scanning status stay fixed.
+
+### Hidden watchlist
+
+- Authored file: `assets/watchlist.json` (not generated, not in `data/`); ships empty.
+- Arrays: `characters`, `corporations`, `alliances`; numeric IDs or numeric strings.
+- When the current victim matches any watched character/corporation/alliance ID,
+  every revealed victim avatar gets an animated rainbow glow.
+- Do not expose the list or its match state in the UI, metadata, share pages, or
+  any public text. The effect appears only after the puzzle is revealed.
+
 ### Main modules
 
 - `js/main.js` — boot, target/KB resolution, rendering, radar, free mode,
@@ -52,8 +69,8 @@ instructions live in [README.md](README.md).
    and stores recent/all ship-loss counts in `.cache/ship-weights.json`.
 4. `build` reads normalized SDE + weights + killpool and writes `data/` and
    `dist/`.
-5. Runtime: build a weighted hull candidate list, fetch page 1 (then later pages)
-   for each hull, hash-pick one killmail, fetch it live.
+5. Runtime: build a weighted hull candidate list, fetch page 1 for each hull,
+   pick a baseline/fallback pair, then fetch the chosen killmail live.
 
 ## Target selection
 
@@ -70,19 +87,35 @@ instructions live in [README.md](README.md).
 ## KB selection
 
 - zKill kill reports before **2012-05-22** do not exist; never select them.
-- There is no archive mode anymore; the daily target is always today's UTC puzzle.
-- Build a deterministic weighted hull candidate order from the mode pool.
-- For each hull fetch `/api/losses/shipTypeID/{id}/page/1/` directly; select a
-  kill by the date/hull/page hash. If the page has no usable kill (or all entries
-  were already seen), continue to page 2, then the next hull.
-- A runtime `Set` prevents duplicate kill IDs within the candidate walk. There is
-  no stored history of prior days; the date seed makes the selection deterministic.
-- If every candidate/page is exhausted, use `killPoolsByShip` as the static
-  fallback, otherwise the SDE-only dossier.
-- Page endpoints are fetched in order (1, 2, ...); the same date/hull/page hashes
-  keep every player on the same result.
-- Empty-hull filtering never changes the baseline pick: choose the normal hashed
-  kill first; only replace it when that pick is empty and the setting is off.
+- There is no archive mode; the daily target is always today's UTC puzzle.
+- Generate a deterministic weighted hull candidate order from the mode pool. The
+  Standard and Abyss seeds include the mode, so the two variants are independent.
+  Timed mode adds its own suffix and follows the current daily/free mode.
+- Request **page 1 only** for each hull in order. Skip the hull when no usable
+  record remains.
+- Remove entries whose `killmail_time` is on the **current UTC calendar date**
+  (00:00–24:00 UTC), as well as pre-2012 entries. This keeps the pool stable
+  during the day.
+- Shuffle the remaining records with the daily seed plus a mild recency weight:
+  newer page-1 records are somewhat more likely to appear first, but the order
+  stays meaningfully random.
+- The first shuffled record is the **baseline**. Traverse the same shuffled list
+  and use the first non-empty record as the **fallback**. If the baseline is
+  non-empty, baseline and fallback are the same record.
+- A hull is usable only when both baseline and fallback exist. If either is
+  missing, continue with the next hull.
+- Empty setting on: use the baseline. Empty setting off: use the fallback.
+- Empty means no modules, rigs, subsystems, drones or launched fighters with
+  quantity > 0. Cargo, spare fighter-bay contents and zero-quantity entries do not
+  count. Free-mode random/direct targets follow the same setting.
+- If every hull is exhausted without a baseline/fallback pair, show the
+  localized no-target screen with a Free mode entry. Never fall back to the
+  static kill pool or SDE-only dossier.
+- A page-1 fetch failure aborts the selection rather than silently moving to
+  another hull, so a transient API problem cannot give players different targets.
+- Page 1 is still live data. Excluding the current UTC date stabilizes normal
+  hulls, but extremely high-volume hulls can roll older entries off page 1 during
+  the day. Strict cross-player equality still requires a published daily snapshot.
 
 ## Reveal rules
 
@@ -148,6 +181,16 @@ instructions live in [README.md](README.md).
 - Official SDE de/ru item names are almost entirely English (5,370+ of 5,378);
   this is upstream behavior, not a locale fallback bug. Displaying English there
   matches the EVE client and EVE Ref. Only zh/es/fr/ja/ko have broad SDE names.
+
+## Release notes
+
+- Every release must include a changelog covering changes from the previous
+  released version to the new one.
+- Write only player-visible changes and behavior changes. Do not include numeric
+  values, balance figures, seed values, hashes, or internal implementation details.
+- Put the changelog in the GitLab Release description (and keep a matching
+  `CHANGELOG.md` entry when one exists). Do not publish a release with an empty
+  or generic description.
 
 ## Data version
 
@@ -258,7 +301,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 46 cases, including downtime boundaries, target/KB
+`npm test` currently covers 52 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.
@@ -270,7 +313,8 @@ test reads `dist/`.
 
 - `.gitlab-ci.yml`: `sde:check`, `build`, `release`, `pages`.
 - On a `main` push that changes `package.json`, after a successful build the
-  `release` job creates a `v<version>` tag and a source `.tar.gz` artifact.
+  `release` job creates a `v<version>` tag/release. GitLab's automatic source
+  archives are used; no custom source tarball is built.
 - `sde:check` compares remote SDE ETag/Last-Modified with deployed
   `data/manifest.json`; writes `.cache/sde-check.env`.
 - Build caches `.cache/normalized.json`, `.cache/killpool.json`,
@@ -285,10 +329,12 @@ test reads `dist/`.
 
 ## Known limitations
 
-- zKill APIs can rate-limit; runtime degrades to SDE-only clues.
+- zKill APIs can rate-limit; a page-1 failure aborts daily selection and shows
+  the retry screen rather than selecting a different target or falling back to SDE.
 - Dogma cannot recover the victim's real skills/mutations; simulates all-V and
   active modules.
-- Some hulls have no usable zKill page; static fallback may be empty.
+- Some hulls have no usable zKill page; if every hull is exhausted, the daily
+  target shows the no-target screen instead of a static fallback.
 - Free mode opens `?kb=<token>` directly. `?free=1` or the free-mode button picks
   a random hull and a random loss from its page 1; this loose random selection is
   intentionally not shared between players. The reveal seed uses the zKill hash or

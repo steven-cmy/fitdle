@@ -109,11 +109,48 @@ export function parseKillId(raw) {
 
 const FITTED_KILL_FLAGS = new Set([
   11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
-  87, 92, 93, 94, 155, 158, 159, 160, 161,
+  87, 92, 93, 94, 95, 96, 97, 98, 99,
+  125, 126, 127, 128, 129, 130, 131, 132,
+  158, 159, 160, 161,
 ]);
 
+function itemHasQuantity(item) {
+  const hasQuantity = item?.quantity_destroyed !== undefined
+    || item?.quantity_dropped !== undefined;
+  if (!hasQuantity) return true;
+  return (Number(item.quantity_destroyed) || 0) + (Number(item.quantity_dropped) || 0) > 0;
+}
+
+export function victimIsWatched(victim, watchlist) {
+  if (!victim || !watchlist) return false;
+  const normalize = (values) => new Set(
+    (Array.isArray(values) ? values : [])
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0),
+  );
+  const characterId = Number(victim.character_id);
+  const corporationId = Number(victim.corporation_id);
+  const allianceId = Number(victim.alliance_id);
+  return normalize(watchlist.characters).has(characterId)
+    || normalize(watchlist.corporations).has(corporationId)
+    || normalize(watchlist.alliances).has(allianceId);
+}
+
+export function filterDailyKillPool(losses, shipId, utcToday) {
+  return (losses || []).filter((kill) => {
+    const time = String(kill?.killmail_time || '');
+    return Number(kill?.victim?.ship_type_id) === Number(shipId)
+      && time >= `${KILL_HISTORY_START}T00:00:00Z`
+      && time.slice(0, 10) !== utcToday;
+  });
+}
+
 export function killHasFittedModules(killmail) {
-  return (killmail?.victim?.items || []).some((item) => FITTED_KILL_FLAGS.has(Number(item.flag)));
+  // Cargo (flag 5), spare fighter-bay contents (155) and zero-quantity records
+  // do not make a hull non-empty.
+  return (killmail?.victim?.items || []).some((item) => (
+    FITTED_KILL_FLAGS.has(Number(item.flag)) && itemHasQuantity(item)
+  ));
 }
 
 export function weightedHullOrder(pool, seed, limit = 8) {
@@ -142,6 +179,44 @@ export function weightedHullOrder(pool, seed, limit = 8) {
     counts.delete(picked);
   }
   return order;
+}
+
+export function weightedKillOrder(losses, seed) {
+  const items = (losses || []).map((kill, index) => ({ kill, index }));
+  let state = cyrb53(String(seed || 'kills'), 0x4b1d5eed);
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  const order = [];
+  const last = Math.max(1, items.length - 1);
+  while (items.length) {
+    let total = 0;
+    for (let i = 0; i < items.length; i++) {
+      // Mild recency bias: the newest page-1 entry is at most ~2.2x the oldest,
+      // so the result stays meaningfully shuffled.
+      total += 1 + 1.2 * (1 - items[i].index / last);
+    }
+    let roll = random() * total;
+    let picked = items.length - 1;
+    for (let i = 0; i < items.length; i++) {
+      roll -= 1 + 1.2 * (1 - items[i].index / last);
+      if (roll <= 0) {
+        picked = i;
+        break;
+      }
+    }
+    order.push(items[picked].kill);
+    items.splice(picked, 1);
+  }
+  return order;
+}
+
+export function selectDailyKillPair(losses, seed) {
+  const order = weightedKillOrder(losses, seed);
+  const baseline = order[0] || null;
+  const fallback = order.find(killHasFittedModules) || null;
+  return { baseline, fallback, order };
 }
 
 export function selectRuntimeKill(losses, seed, allowEmpty = true) {

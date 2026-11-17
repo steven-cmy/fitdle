@@ -1,6 +1,6 @@
 {
   "name": "fitdle",
-  "version": "0.3.2",
+  "version": "0.3.14",
   "private": true,
   "type": "module",
   "description": "EVE Online daily killmail puzzle — static frontend with live zKillboard and SDE data.",

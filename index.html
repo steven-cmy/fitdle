@@ -32,6 +32,15 @@
       if (localStorage.getItem('fitdle:v1:font') === 'classic') {
         document.documentElement.dataset.eveFont = 'classic';
       }
+      const params = new URLSearchParams(location.search);
+      if (params.get('mode') === 'abyss') {
+        document.documentElement.dataset.gameMode = 'abyss';
+        const theme = document.querySelector('meta[name="theme-color"]');
+        if (theme) theme.setAttribute('content', '#070203');
+      }
+      if (params.get('timer') === '1' || params.get('timed') === '1') {
+        document.documentElement.dataset.timed = '1';
+      }
     } catch {}
   </script>
   <link rel="stylesheet" href="styles/app.css">
@@ -55,6 +64,46 @@
       <div class="boot-bar"><span></span></div>
     </div>
   </div>
+
+  <script>
+    (function () {
+      const copy = {
+        en: ['SCANNING FOR SHIP SIGNALS', 'Resolving killboard telemetry'],
+        de: ['SCHIFFSSIGNALE WERDEN GESUCHT', 'Killboard-Telemetrie wird aufgelöst'],
+        es: ['ESCANEANDO SEÑALES DE NAVES', 'Resolviendo telemetría del killboard'],
+        fr: ['SCAN DES SIGNAUX DE VAISSEAUX', 'Résolution de la télémétrie killboard'],
+        ja: ['艦船信号をスキャン中', 'キルボード遠隔測定を解析中'],
+        ko: ['함선 신호 스캔 중', '킬보드 원격 측정 분석 중'],
+        ru: ['СКАНИРОВАНИЕ СИГНАЛОВ КОРАБЛЕЙ', 'Обработка телеметрии киллборда'],
+        zh: ['正在扫描舰船信号', '正在解析击杀板遥测'],
+      };
+      const supported = Object.keys(copy);
+      const normalize = (value) => {
+        const raw = String(value || '').toLowerCase();
+        if (/^zh([-_]|$)/.test(raw)) return 'zh';
+        const base = raw.split(/[-_]/)[0];
+        return supported.includes(base) ? base : null;
+      };
+      let locale = null;
+      try {
+        locale = normalize(new URLSearchParams(location.search).get('lang'))
+          || normalize(localStorage.getItem('fitdle:v1:lang'));
+      } catch {}
+      if (!locale && navigator.languages) {
+        for (const candidate of navigator.languages) {
+          locale = normalize(candidate);
+          if (locale) break;
+        }
+      }
+      locale = locale || normalize(navigator.language) || 'en';
+      const text = copy[locale];
+      document.documentElement.lang = locale;
+      const status = document.querySelector('.boot-status');
+      const sub = document.querySelector('.boot-sub');
+      if (status) status.textContent = text[0];
+      if (sub) sub.textContent = text[1];
+    })();
+  </script>
 
   <div id="suggestions" class="suggestions" role="listbox" hidden></div>
   <div id="modal-root" class="modal-root" aria-hidden="true"></div>
