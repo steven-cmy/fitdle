@@ -228,19 +228,63 @@ export function normalizeText(value) {
     .trim();
 }
 
-export function buildSearchIndex(catalog, groupNames = {}, { races = {}, factions = {}, locale = 'en' } = {}) {
+function acronymsFor(value) {
+  const words = normalizeText(value).split(' ').filter((word) => word && !/^\d+$/.test(word));
+  if (words.length < 2) return [];
+  const acronym = words.map((word) => word[0]).join('');
+  return acronym.length >= 2 ? [acronym] : [];
+}
+
+function chineseNameAliases(value) {
+  const match = /^(.+?)[级級](.+?)[型]$/.exec(String(value || ''));
+  if (!match) return [];
+  const base = match[1];
+  const variant = match[2];
+  const aliases = new Set();
+  const maxVariant = Math.min(2, variant.length);
+  const maxBase = Math.min(2, base.length);
+  for (let vi = 1; vi <= maxVariant; vi++) {
+    for (let bi = 1; bi <= maxBase; bi++) {
+      const variantPart = variant.slice(0, vi);
+      const basePart = base.slice(0, bi);
+      if (variantPart.length + basePart.length >= 2) aliases.add(variantPart + basePart);
+    }
+  }
+  aliases.add(variant + base);
+  aliases.add(variant[0] + base);
+  return [...aliases];
+}
+
+export function buildSearchIndex(catalog, groupNames = {}, { races = {}, factions = {}, locale = 'en', aliases = null } = {}) {
+  const termsFor = (id, localizedName, aliasMap) => [...new Set([
+    localizedName,
+    ...(aliasMap?.[id] || []),
+  ].map(normalizeText).filter(Boolean))];
   return catalog.map((ship) => {
     const names = [...new Set(Object.values(ship.names || {}).map(normalizeText).filter(Boolean))];
-    const group = normalizeText(groupNames[ship.groupID] || '');
+    const groupTerms = termsFor(ship.groupID, groupNames[ship.groupID] || '', aliases?.groups);
+    const raceTerms = termsFor(ship.raceID, races[ship.raceID] || '', aliases?.races);
+    const factionTerms = termsFor(ship.factionID, factions[ship.factionID] || '', aliases?.factions);
+    const acronyms = [...new Set(names.flatMap(acronymsFor))];
+    const groupAcronyms = [...new Set(groupTerms.flatMap(acronymsFor))];
+    const nameAliases = [...new Set(names.flatMap(chineseNameAliases))];
     return {
       ship,
       names,
-      group,
+      group: groupTerms[0] || '',
+      race: raceTerms[0] || '',
+      faction: factionTerms[0] || '',
+      groupTerms,
+      raceTerms,
+      factionTerms,
+      acronyms,
+      groupAcronyms,
+      nameAliases,
       sortGroup: groupNames[ship.groupID] || '',
       sortRace: races[ship.raceID] || '',
       sortFaction: factions[ship.factionID] || '',
       sortName: ship.names?.[locale] || ship.names?.en || '',
-      haystack: [...names, group].join(' '),
+      haystack: [...names, ...groupTerms, ...raceTerms, ...factionTerms, ...acronyms, ...groupAcronyms, ...nameAliases].join(' '),
     };
   });
 }
@@ -261,14 +305,47 @@ export function searchShips(index, query, { exclude = new Set(), limit = 8 } = {
       else if (name.includes(q)) score = Math.max(score, 70 - Math.min(15, name.indexOf(q)));
       else if (terms.every((term) => name.includes(term))) score = Math.max(score, 55);
     }
-    if (entry.group === q) score = Math.max(score, 65);
-    else if (entry.group.startsWith(q)) score = Math.max(score, 45);
+    if (entry.nameAliases.includes(q)) score = Math.max(score, 108);
+    else if (entry.nameAliases.some((alias) => alias.startsWith(q))) score = Math.max(score, 92);
+    if (entry.acronyms.includes(q)) score = Math.max(score, 65);
+    if (entry.groupAcronyms.includes(q)) score = Math.max(score, 60);
+    if (entry.groupTerms.some((term) => term === q)) score = Math.max(score, 65);
+    else if (entry.groupTerms.some((term) => term.startsWith(q))) score = Math.max(score, 45);
+    if (entry.raceTerms.some((term) => term === q)) score = Math.max(score, 60);
+    else if (entry.raceTerms.some((term) => term.startsWith(q))) score = Math.max(score, 40);
+    if (entry.factionTerms.some((term) => term === q)) score = Math.max(score, 58);
+    else if (entry.factionTerms.some((term) => term.startsWith(q))) score = Math.max(score, 38);
     if (score > 0) results.push({ ship, score, entry });
   }
+
+  // Race + hull-class combinations such as "艾玛战列" or "CaldariBattleship".
+  const raceTerms = [...new Set(index.flatMap((entry) => entry.raceTerms))];
+  const groupTerms = [...new Set(index.flatMap((entry) => [...entry.groupTerms, ...entry.groupAcronyms]))];
+  const findTerm = (list, value) => list.find((term) => term === value)
+    || list.find((term) => value.length >= 2 && term.startsWith(value));
+  let combination = null;
+  for (const race of raceTerms) {
+    if (!q.startsWith(race) || q.length <= race.length) continue;
+    const rest = q.slice(race.length).trim();
+    const group = findTerm(groupTerms, rest);
+    if (group) { combination = { race, group }; break; }
+  }
+  if (combination) {
+    const seen = new Set(results.map((result) => result.ship.id));
+    for (const entry of index) {
+      if (exclude.has(entry.ship.id) || seen.has(entry.ship.id)) continue;
+      const raceOk = entry.raceTerms.includes(combination.race);
+      const groupOk = entry.groupTerms.includes(combination.group)
+        || entry.groupAcronyms.includes(combination.group);
+      if (raceOk && groupOk) results.push({ ship: entry.ship, score: 90, entry });
+    }
+  }
+
   // Browse order: tech level → hull class/group → race → faction. Localized
   // names are used when available, numeric IDs are the stable fallback.
   results.sort((a, b) => (
-    Number(a.ship.techLevel || 0) - Number(b.ship.techLevel || 0)
+    b.score - a.score
+    || Number(a.ship.techLevel || 0) - Number(b.ship.techLevel || 0)
     || a.entry.sortGroup.localeCompare(b.entry.sortGroup)
     || Number(a.ship.groupID || 0) - Number(b.ship.groupID || 0)
     || a.entry.sortRace.localeCompare(b.entry.sortRace)
@@ -360,7 +437,6 @@ export function shareUrl(locationLike, date, mode = 'normal', status = 'playing'
   url.hash = '';
   url.searchParams.set('d', date);
   url.searchParams.set('mode', mode === 'abyss' ? 'abyss' : 'normal');
-  url.searchParams.set('lang', safeLocale);
   return url.toString();
 }
 

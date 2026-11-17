@@ -43,6 +43,10 @@ export const EQUIPMENT_SLOT_ORDER = {
 const COMMON_MODULE_GROUPS = new Set([46, 52, 57, 38, 60, 62, 65]);
 
 // Low-slot weapon upgrades and the weapon family they improve.
+// Hulls with built-in equipment. Their fitted modules are effectively
+// hull-limited even when the module itself has no SDE fit restriction.
+const BUILTIN_EQUIPMENT_GROUPS = new Set([237, 1022]); // Corvette, Zephyr
+
 const WEAPON_UPGRADE_FAMILIES = new Map([
   [59, 'projectile'],   // Gyrostabilizer
   [205, 'energy'],      // Heat Sink
@@ -486,7 +490,13 @@ export function clueMatchesShip(clue, ship, fitDelta = null) {
 function weightFor(clue, ship, catalog, fitDelta = null) {
   if (clue.k === 'bonus') return 9.5;
   if (clue.k === 'equipment') return clue.w;
-  const economyWeights = { losses30: 7.5, usageRank: 7.0, danger: 6.8, avgValue: 8.2 };
+  if (clue.k === 'usageRank') {
+    // Asymmetric U: rank 1 is the strongest signal (10), rank 100 peaks at 8.
+    const rank = clamp(Number(clue.v) || 50, 1, 100);
+    if (rank <= 50) return round(4 + 6 * ((50 - rank) / 49), 1);
+    return round(4 + 4 * ((rank - 50) / 50), 1);
+  }
+  const economyWeights = { losses30: 7.5, danger: 6.8, avgValue: 8.2 };
   if (economyWeights[clue.k] != null) return economyWeights[clue.k];
   const matches = Math.max(1, catalog.reduce((count, other) => count + (matchesCatalog(clue, other, fitDelta) ? 1 : 0), 0));
   const weight = clue.prior + 1.8 * Math.log2(catalog.length / matches);
@@ -579,6 +589,9 @@ export function buildClues({
     // limited. Specialized capital mining drones are Rorqual-only: unique.
     if (isFighter) restriction = 'limited';
     if (isMiningSpecial) restriction = 'unique';
+    if (BUILTIN_EQUIPMENT_GROUPS.has(Number(ship.groupID)) && item.slot !== 'cargo') {
+      restriction = 'limited';
+    }
     const common = COMMON_MODULE_GROUPS.has(module?.groupID);
     const meta = Number(module?.metaGroupID || 0);
     const tags = [];

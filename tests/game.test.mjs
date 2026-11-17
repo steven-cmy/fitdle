@@ -37,7 +37,7 @@ import {
   utcDateKey,
 } from '../js/game.js';
 import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, selectAbyssFallbacks } from '../js/clues.js';
-import { computeRevealed } from '../js/reveal.js';
+import { computeRevealed, computeTimedRevealed } from '../js/reveal.js';
 import { MESSAGES, resolveLocale } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -127,6 +127,21 @@ test('abyssal reveal cadence matches the six-attempt design', () => {
   assert.equal(INITIAL_REVEAL, 3);
 });
 
+test('timed reveal releases one weighted clue per 30-second bucket', () => {
+  const clues = [
+    { k: 'speed', c: 'nav', v: 100, w: 8 },
+    { k: 'sig', c: 'targeting', v: 50, w: 4 },
+    { k: 'mass', c: 'nav', v: 1000, w: 0 },
+  ];
+  assert.equal(computeTimedRevealed({ clues, count: 0, seed: 'test' }).size, 0);
+  const one = computeTimedRevealed({ clues, count: 1, seed: 'test' });
+  assert.equal(one.size, 1);
+  assert.ok(!one.has(2));
+  const two = computeTimedRevealed({ clues, count: 2, seed: 'test' });
+  assert.equal(two.size, 2);
+  assert.deepEqual([...computeTimedRevealed({ clues, count: 2, seed: 'test' })].sort(), [...two].sort());
+});
+
 test('abyss misses reveal nested equipment plus one other clue', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const built = buildClues({
@@ -185,6 +200,48 @@ test('search works across official language names', () => {
   }
 });
 
+test('ship search accepts race and hull class names', () => {
+  const index = buildSearchIndex(catalog, refs.groups, {
+    races: refs.races, factions: refs.factions,
+  });
+  const raceId = Object.entries(refs.races).find(([, name]) => /caldari/i.test(name))?.[0];
+  const raceHits = searchShips(index, refs.races[raceId], { limit: 20 });
+  assert.ok(raceHits.length > 0);
+  assert.ok(raceHits.every((ship) => Number(ship.raceID) === Number(raceId)));
+  const groupName = Object.values(refs.groups).find((name) => /frigate/i.test(name));
+  assert.ok(groupName);
+  const classHits = searchShips(index, groupName, { limit: 20 });
+  assert.ok(classHits.length > 0);
+  assert.ok(classHits.every((ship) => refs.groups[ship.groupID] === groupName));
+});
+
+test('race and class search accepts aliases from other languages', () => {
+  const ships = [{ id: 99, names: { en: 'Alias Test' }, techLevel: 1, groupID: 1, raceID: 1 }];
+  const index = buildSearchIndex(ships, { 1: 'Frigate' }, {
+    races: { 1: 'Caldari' },
+    aliases: { groups: { 1: ['フリゲート'] }, races: { 1: ['加达里'] } },
+  });
+  assert.deepEqual(searchShips(index, 'フリゲート', {}).map((ship) => ship.id), [99]);
+  assert.deepEqual(searchShips(index, '加达里', {}).map((ship) => ship.id), [99]);
+});
+
+test('ship search supports initials, class abbreviations and race+class', () => {
+  const index = buildSearchIndex(catalog, refs.groups, { races: refs.races, factions: refs.factions });
+  const drake = catalog.find((ship) => ship.names?.en === 'Drake Navy Issue');
+  assert.ok(drake);
+  assert.ok(searchShips(index, 'dNi', { limit: 50 }).some((ship) => ship.id === drake.id));
+  const dst = Object.entries(refs.groups).find(([, name]) => name === 'Deep Space Transport');
+  assert.ok(dst);
+  assert.ok(searchShips(index, 'dst', { limit: 50 }).some((ship) => ship.groupID === Number(dst[0])));
+
+  const ships = [{ id: 42, names: { en: 'Amarr Battleship' }, raceID: 1, groupID: 1 }];
+  const combo = buildSearchIndex(ships, { 1: 'Battleship' }, {
+    races: { 1: 'Amarr' },
+    aliases: { groups: { 1: ['战列舰'] }, races: { 1: ['艾玛'] } },
+  });
+  assert.deepEqual(searchShips(combo, '艾玛战列', {}).map((ship) => ship.id), [42]);
+});
+
 test('ship search results follow tech, class, race and faction order', () => {
   const ships = [
     { id: 1, names: { en: 'Aardvark' }, techLevel: 2, groupID: 1, raceID: 1, factionID: 1 },
@@ -194,13 +251,21 @@ test('ship search results follow tech, class, race and faction order', () => {
   const index = buildSearchIndex(ships, {});
   assert.deepEqual(
     searchShips(index, 'a', { limit: 10 }).map((ship) => ship.id),
-    [3, 2, 1],
+    [1, 2, 3],
   );
   const localized = buildSearchIndex(ships, { 1: 'Zeta', 2: 'Alpha' }, { locale: 'de' });
   assert.deepEqual(
     searchShips(localized, 'a', { limit: 10 }).map((ship) => ship.id),
-    [2, 3, 1],
+    [1, 2, 3],
   );
+
+  const aliases = buildSearchIndex(catalog, refs.groups);
+  const raven = catalog.find((ship) => ship.names?.zh === '乌鸦级海军型');
+  const stabber = catalog.find((ship) => ship.names?.zh === '刺客级舰队型');
+  assert.ok(raven && stabber);
+  assert.equal(searchShips(aliases, '海乌鸦', { limit: 5 })[0]?.id, raven.id);
+  assert.equal(searchShips(aliases, '舰队刺客', { limit: 5 })[0]?.id, stabber.id);
+  assert.equal(searchShips(aliases, '舰刺', { limit: 5 })[0]?.id, stabber.id);
 });
 
 test('empty-hull setting preserves non-empty baseline KB picks', () => {
@@ -241,13 +306,13 @@ test('service record streaks survive consecutive days only', () => {
 
 test('share URLs and result grids are spoiler-safe', () => {
   const url = shareUrl({ href: 'https://example.test/fitdle/index.html?d=2026-11-01&lang=de#x' }, '2026-11-14', 'normal', 'won', 3);
-  assert.equal(url, 'https://example.test/fitdle/share/3/en.html?d=2026-11-14&mode=normal&lang=en');
+  assert.equal(url, 'https://example.test/fitdle/share/3/en.html?d=2026-11-14&mode=normal');
   assert.equal(new URL(url).origin, 'https://example.test');
   const abyssUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, '2026-11-14', 'abyss', 'won', 4, 'zh-Hant');
-  assert.equal(abyssUrl, 'https://example.test/fitdle/share/4/zh.html?d=2026-11-14&mode=abyss&lang=zh');
+  assert.equal(abyssUrl, 'https://example.test/fitdle/share/4/zh.html?d=2026-11-14&mode=abyss');
   const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, '2026-11-14', 'abyss', 'lost', 6, 'de');
-  assert.equal(lostUrl, 'https://example.test/fitdle/share/lost/de.html?d=2026-11-14&mode=abyss&lang=de');
-  assert.ok(url.includes('lang=en'));
+  assert.equal(lostUrl, 'https://example.test/fitdle/share/lost/de.html?d=2026-11-14&mode=abyss');
+  assert.equal(url.includes('lang='), false);
   const storage = { data: new Map(), getItem(k) { return this.data.get(k) ?? null; }, setItem(k, v) { this.data.set(k, v); } };
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [1], status: 'playing' }, 'normal');
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [2], status: 'playing' }, 'abyss');
@@ -278,6 +343,11 @@ test('localized static share pages carry the score for link previews', () => {
     assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-lost-de.png')));
     const timed = fs.readFileSync(path.join(ROOT, 'dist', 'share', 'timed', 'en.html'), 'utf8');
     assert.match(timed, /'t', 'timer'/);
+    assert.match(timed, /location\.replace/);
+    assert.equal(timed.includes("searchParams.set('lang'"), false);
+    const freeShare = fs.readFileSync(path.join(ROOT, 'dist', 'share', 'free', 'en.html'), 'utf8');
+    assert.match(freeShare, /'kb'/);
+    assert.equal(freeShare.includes("searchParams.set('lang'"), false);
     assert.match(timed, /share\.timedTitle|Timed signal run/);
   }
 });
@@ -580,6 +650,24 @@ test('fighter bays separate real fighters from carried modules', () => {
   for (const clue of fitted.clues.filter((entry) => entry.k === 'equipment')) {
     assert.ok(clue.w <= 10);
   }
+});
+
+test('built-in equipment on corvettes and Zephyr is limited', () => {
+  const build = (shipId, moduleId, flag) => buildClues({
+    ship: catalog.find((entry) => entry.id === shipId),
+    catalog, refs, stats: null,
+    losses: [{ killmail_id: 615, zkb: { totalValue: 1000 }, victim: { items: [
+      { flag, item_type_id: moduleId, quantity_destroyed: 1, quantity_dropped: 0 },
+    ] } }],
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion,
+  }).clues.find((clue) => clue.k === 'equipment' && clue.v?.module === moduleId);
+  const corvette = build(601, 21857, 19);
+  assert.ok(corvette.tags.includes('limited'));
+  assert.ok(corvette.w >= 8.2);
+  const zephyr = build(2078, 2083, 27);
+  assert.ok(zephyr.tags.includes('limited'));
+  assert.ok(!zephyr.tags.includes('unique'));
+  assert.ok(zephyr.w >= 8.2);
 });
 
 test('assault damage control raises abyss structure resist weight', () => {

@@ -57,14 +57,52 @@ build:
       fi
     - npm run build
     - npm test
+    - VERSION="$(node -p "require('./package.json').version")"
+    - ARCHIVE="fitdle-v${VERSION}-source.tar.gz"
+    - echo "VERSION=$VERSION" > release.env
+    - echo "ARCHIVE=$ARCHIVE" >> release.env
+    - git archive --format=tar.gz --prefix="fitdle-v${VERSION}/" -o "$ARCHIVE" HEAD
+    - test -s "$ARCHIVE"
   artifacts:
     paths:
       - dist
+      - fitdle-v*-source.tar.gz
+    reports:
+      dotenv: release.env
     expire_in: 1 week
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "web"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# On a new main version, publish a tagged release with a source tarball.
+release:
+  stage: deploy
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: build
+      artifacts: true
+  script:
+    - test -s "$ARCHIVE"
+    - mkdir -p release
+    - cp "$ARCHIVE" release/
+  artifacts:
+    paths:
+      - release/*.tar.gz
+    expire_in: never
+  release:
+    tag_name: "v$VERSION"
+    name: "FITDLE v$VERSION"
+    description: "Source release for FITDLE v$VERSION."
+    ref: "$CI_COMMIT_SHA"
+    assets:
+      links:
+        - name: "Source archive (tar.gz)"
+          url: "$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_SHA/raw/release/$ARCHIVE?job=release"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - package.json
 
 pages:
   stage: deploy

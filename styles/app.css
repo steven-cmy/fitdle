@@ -4937,3 +4937,275 @@ html[data-timed="1"] #hero-timed {
   background: rgba(126, 196, 216, 0.1);
   box-shadow: none;
 }
+
+/* Free target controls */
+#free-banner {
+  justify-content: space-between;
+  gap: 10px;
+}
+.free-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.free-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  color: var(--cyan);
+  border: 1px solid rgba(126, 196, 216, 0.3);
+  background: rgba(126, 196, 216, 0.06);
+  font: 600 8px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.free-action:hover {
+  border-color: var(--cyan);
+  background: rgba(126, 196, 216, 0.13);
+}
+.free-action svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Attempt list: newest first, grows to dossier height, then scrolls */
+@media (min-width: 861px) {
+  html[data-timed="1"] .board-panel {
+    display: flex;
+    flex-direction: column;
+  }
+  html[data-timed="1"] .board-panel > .panel-head,
+  html[data-timed="1"] .board-panel > #acquire-slot {
+    flex: 0 0 auto;
+  }
+  html[data-timed="1"] .attempts {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(126, 196, 216, 0.3) transparent;
+  }
+}
+
+/* Free mode status and actions */
+.free-status-banner {
+  justify-content: center;
+  text-align: center;
+}
+.free-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: min(1440px, calc(100% - 48px));
+  margin: 12px auto 0;
+}
+.free-actions-bar[hidden] {
+  display: none;
+}
+#free-actions .free-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 138px;
+  padding: 12px 20px;
+  color: var(--cyan);
+  border: 1px solid rgba(126, 196, 216, 0.45);
+  background: rgba(126, 196, 216, 0.08);
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+#free-actions .free-action:hover {
+  color: #041015;
+  border-color: var(--cyan);
+  background: var(--cyan);
+}
+#free-actions .free-action svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Free status centered; free actions sit at the right edge of the mode bar */
+.mode-bar {
+  width: 100%;
+  justify-content: flex-start;
+}
+#free-banner.free-status-banner {
+  justify-content: center;
+  text-align: center;
+}
+#free-banner.free-status-banner > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+#free-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+#free-actions[hidden] {
+  display: none;
+}
+#free-actions .free-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 10px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+  font: 600 9px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+#free-actions .free-action:hover {
+  color: var(--text-soft);
+  border-color: var(--line);
+  background: transparent;
+}
+#free-actions .free-action svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Mode selector stays centered; free actions sit outside it on the right. */
+.mode-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.mode-row .mode-bar {
+  width: max-content;
+  max-width: 100%;
+  justify-content: center;
+  margin: 0 auto 14px;
+}
+.mode-row #free-actions {
+  position: absolute;
+  right: 0;
+  top: calc(50% - 7px);
+  transform: translateY(-50%);
+  margin: 0;
+}
+@media (max-width: 1100px) {
+  .mode-row {
+    flex-direction: column;
+    align-items: center;
+  }
+  .mode-row #free-actions {
+    position: static;
+    transform: none;
+    margin: 0 auto 10px;
+    justify-content: center;
+  }
+}
+
+/* Larger, clearer free actions */
+#free-actions .free-action {
+  min-width: 128px;
+  padding: 10px 16px;
+  gap: 8px;
+  color: var(--cyan);
+  border: 1px solid rgba(126, 196, 216, 0.45);
+  background: rgba(126, 196, 216, 0.08);
+  font: 700 11px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+#free-actions .free-action:hover {
+  color: #041015;
+  border-color: var(--cyan);
+  background: var(--cyan);
+}
+#free-actions .free-action svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Keep free actions at their larger size, but use the same visual language
+   as the other mode buttons. */
+#free-actions .free-action {
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+  font-weight: 600;
+}
+#free-actions .free-action:hover {
+  color: var(--text-soft);
+  border-color: var(--line);
+  background: transparent;
+}
+
+/* Free actions: field-manual ghost button styling, compact width. */
+#free-actions .free-action {
+  height: 32px;
+  min-width: 0;
+  padding: 0 10px;
+  gap: 5px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  background: transparent;
+  font: 600 10px/1 var(--font-mono);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+#free-actions .free-action:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: rgba(126, 196, 216, 0.08);
+}
+#free-actions .free-action svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Abyssal space: deeper, darker red background. */
+html[data-game-mode="abyss"] {
+  --bg: #070203;
+  --bg-2: #120406;
+  --bg-3: #1a0709;
+  --panel: rgba(20, 6, 8, 0.9);
+  --panel-solid: #0d0305;
+  --panel-raised: #180609;
+}
+html[data-game-mode="abyss"] body {
+  background:
+    radial-gradient(circle at 72% 10%, rgba(132, 20, 24, 0.22), transparent 42%),
+    radial-gradient(circle at 18% 78%, rgba(82, 7, 12, 0.3), transparent 48%),
+    var(--bg);
+}
+
+/* Timed lock cooldown: top-to-bottom fill. */
+.lock-button {
+  overflow: hidden;
+}
+.lock-button.is-cooling::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: var(--cd, 0%);
+  background: linear-gradient(180deg, rgba(242, 166, 59, 0.55), rgba(232, 107, 99, 0.35));
+  pointer-events: none;
+  transition: height 100ms linear;
+}
+
+
+html[data-timed="1"] #dossier-orb {
+  background: conic-gradient(var(--green) calc(var(--p, 0) * 1%), rgba(99, 245, 166, 0.08) 0);
+}
+html[data-timed="1"] #dossier-orb strong {
+  color: var(--green);
+}
