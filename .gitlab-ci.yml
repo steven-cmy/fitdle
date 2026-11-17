@@ -88,13 +88,10 @@ release:
     - |
       VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n1)"
       test -n "$VERSION"
-      export VERSION
-      echo "Creating v$VERSION release"
-  release:
-    tag_name: "v$VERSION"
-    name: "FITDLE v$VERSION"
-    description: "FITDLE v$VERSION release. Source archives are provided by GitLab."
-    ref: "$CI_COMMIT_SHA"
+      NOTES="$(awk -v section="## v$VERSION" '$0 == section {found=1; next} found && /^## / {exit} found {print}' CHANGELOG.md)"
+      test -n "$NOTES"
+      echo "$NOTES"
+      release-cli create --name "FITDLE v$VERSION" --tag-name "v$VERSION" --description "$NOTES" --ref "$CI_COMMIT_SHA"
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
