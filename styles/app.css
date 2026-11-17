@@ -492,7 +492,6 @@ select {
   font-size: 12px;
   letter-spacing: 0.04em;
 }
-
 .boot-bar {
   width: min(240px, 60vw);
   height: 2px;
@@ -508,8 +507,16 @@ select {
   animation: boot-scan 1.4s var(--ease) infinite;
 }
 
+
+
 .fatal-screen {
   gap: 14px;
+}
+.fatal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
 }
 .fatal-code {
   color: var(--red);
@@ -2774,6 +2781,61 @@ html[data-game-mode="abyss"] {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.victim-portrait.is-watched {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  border-color: transparent;
+}
+.victim-portrait.is-watched::before,
+.victim-portrait.is-watched::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  z-index: 0;
+  border-radius: 0;
+  background: conic-gradient(
+    from 0deg,
+    #ff4d6d,
+    #ffb347,
+    #ffe66d,
+    #5dff9b,
+    #4dd7ff,
+    #7a7dff,
+    #ff6ad5,
+    #ff4d6d
+  );
+  pointer-events: none;
+}
+.victim-portrait.is-watched::before {
+  filter: blur(6px);
+  opacity: 0.85;
+  animation: watchlist-rainbow-hue 4s linear infinite;
+}
+.victim-portrait.is-watched::after {
+  inset: -1px;
+  opacity: 1;
+  animation: watchlist-rainbow-hue-sharp 4s linear infinite;
+}
+.victim-portrait.is-watched img {
+  position: relative;
+  z-index: 1;
+}
+@keyframes watchlist-rainbow-hue {
+  from { filter: hue-rotate(0deg) blur(6px); }
+  to { filter: hue-rotate(360deg) blur(6px); }
+}
+@keyframes watchlist-rainbow-hue-sharp {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .victim-portrait.is-watched::before,
+  .victim-portrait.is-watched::after {
+    animation: none;
+  }
 }
 .victim-body {
   min-width: 0;

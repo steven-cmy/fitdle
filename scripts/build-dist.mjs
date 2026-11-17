@@ -26,6 +26,12 @@ for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share
   if (!fs.existsSync(source)) continue;
   await fsp.cp(source, path.join(DIST, dir), { recursive: true });
 }
+for (const file of ['assets/boot-flavor.json', 'assets/watchlist.json']) {
+  const source = path.join(ROOT, file);
+  if (!fs.existsSync(source)) continue;
+  await fsp.mkdir(path.dirname(path.join(DIST, file)), { recursive: true });
+  await fsp.copyFile(source, path.join(DIST, file));
+}
 
 // Localized static score pages give Discord/other crawlers real Open Graph
 // metadata. Humans are redirected into the puzzle; crawlers never see the

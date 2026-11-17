@@ -3,23 +3,25 @@ import {
   buildGuessResult,
   buildSearchIndex,
   freeKillIdFromToken,
+  filterDailyKillPool,
   freeKillToken,
   gameDateKey,
   KILL_HISTORY_START,
+  killHasFittedModules,
   loadState,
   loadStats,
   modeFromLocation,
   msUntilNextDowntime,
   parseKillId,
   normalizeText,
-  pickDailyAnswer,
   profileSimilarity,
   recordResult,
   saveState,
   saveStats,
   searchShips,
-  selectRuntimeKill,
+  selectDailyKillPair,
   shareUrl,
+  victimIsWatched,
   weightedHullOrder,
 } from './game.js';
 import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
@@ -79,6 +81,8 @@ const state = {
   victimInfoKey: null,
   victimInfoLoading: false,
   mode: 'normal',
+  utcDate: '',
+  watchlist: null,
   serverAnchor: null,
   monotonicAnchor: 0,
   timeVerified: false,
@@ -195,6 +199,23 @@ function nextDowntime() {
   return state.i18n.duration(msUntilNextDowntime(serverNow(), state.manifest?.downtimeUtcHour || 11));
 }
 
+async function applyBootFlavor() {
+  try {
+    const data = await fetchJson('assets/boot-flavor.json');
+    const sub = $('.boot-sub');
+    if (!sub) return;
+    const eggs = (data.eggs || []).filter((egg) => egg?.lang === state.locale && egg?.text);
+    const normal = (data.flavor?.[state.locale] || []).filter(Boolean);
+    const pool = eggs.length && Math.random() < 0.05
+      ? eggs
+      : normal.map((text) => ({ text }));
+    if (!pool.length) return;
+    sub.textContent = pool[Math.floor(Math.random() * pool.length)].text;
+  } catch {
+    // leave the localized static subtitle in place
+  }
+}
+
 function isFree() {
   return Boolean(state.freeKillId);
 }
@@ -309,6 +330,11 @@ function setAllowEmptyKb(enabled) {
     localStorage.setItem('fitdle:v1:allowEmptyKb', state.allowEmptyKb ? '1' : '0');
   } catch {
     // ignore
+  }
+  const current = state.liveLosses?.[0];
+  if (!state.allowEmptyKb && current && !killHasFittedModules(current)) {
+    location.reload();
+    return;
   }
   renderManual();
   showToast(t('manual.emptyKb'), t(state.allowEmptyKb ? 'manual.emptyKbOn' : 'manual.emptyKbOff'), 'info', 3200);
@@ -595,8 +621,9 @@ function victimMetaHtml() {
   const corporation = info.corporationName || t('dossier.corpFallback', { id: corporationId || '?' });
   const alliance = info.allianceName || t('dossier.allianceFallback', { id: allianceId || '?' });
   const zkillBase = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
+  const watched = victimIsWatched(victim, state.watchlist);
   const portrait = characterId && imageBase() && zkillBase
-    ? `<a class="victim-portrait zkb-item-link" href="${esc(`${zkillBase}/character/${characterId}/`)}" target="_blank" rel="noopener noreferrer"><img src="${esc(`${imageBase()}/characters/${characterId}/portrait?size=64`)}" alt="${esc(t('dossier.victimAlt'))}" onerror="this.parentElement.remove()"></a>`
+    ? `<a class="victim-portrait zkb-item-link${watched ? ' is-watched' : ''}" href="${esc(`${zkillBase}/character/${characterId}/`)}" target="_blank" rel="noopener noreferrer"><img src="${esc(`${imageBase()}/characters/${characterId}/portrait?size=64`)}" alt="${esc(t('dossier.victimAlt'))}" onerror="this.parentElement.remove()"></a>`
     : '';
   const corpIcon = corporationId && imageBase()
     ? `<img class="victim-org-icon" src="${esc(`${imageBase()}/corporations/${corporationId}/logo?size=32`)}" alt="" onerror="this.remove()">`
@@ -774,32 +801,24 @@ async function fetchZkill(path) {
 }
 
 
-async function resolvePageTarget(hulls, dateKey) {
-  const seen = new Set();
-  const seedBase = `${dateKey}:${state.dataVersionKey || state.manifest.dataVersion}:${state.timed ? 'timed' : 'standard'}`;
+async function resolveDailyTarget(hulls, dateKey) {
+  const seedBase = `${dateKey}:${state.dataVersionKey || state.manifest.dataVersion}:${state.mode}:${state.timed ? 'timed' : 'standard'}`;
+  const utcToday = state.utcDate || new Date().toISOString().slice(0, 10);
   for (const shipId of hulls) {
-    for (let page = 1; page <= 10; page++) {
-      let data = null;
-      try {
-        data = await fetchZkill(`/api/losses/shipTypeID/${shipId}/page/${page}/`);
-      } catch {
-        break;
-      }
-      if (!Array.isArray(data) || !data.length) break;
-      const losses = data.filter((kill) => (
-        Number(kill?.victim?.ship_type_id) === Number(shipId)
-        && String(kill?.killmail_time || '') >= `${KILL_HISTORY_START}T00:00:00Z`
-      ));
-      if (!losses.length) break;
-      const available = losses.filter((kill) => !seen.has(Number(kill.killmail_id)));
-      if (!available.length) continue;
-      const chosen = selectRuntimeKill(available, `${seedBase}:${shipId}:${page}`, state.allowEmptyKb);
-      if (chosen) {
-        seen.add(Number(chosen.killmail_id));
-        return { shipId: Number(shipId), killmail: chosen };
-      }
-      // The whole page was unusable (all empty/duplicate); try the next page.
+    let data = null;
+    try {
+      data = await fetchZkill(`/api/losses/shipTypeID/${shipId}/page/1/`);
+    } catch (error) {
+      // Do not silently move to another hull on a network/API error: that would
+      // give players different targets. Fail consistently instead.
+      throw error;
     }
+    if (!Array.isArray(data) || !data.length) continue;
+    const losses = filterDailyKillPool(data, shipId, utcToday);
+    if (!losses.length) continue;
+    const pair = selectDailyKillPair(losses, `${seedBase}:${shipId}:kills`);
+    if (!pair.baseline || !pair.fallback) continue;
+    return { shipId: Number(shipId), baseline: pair.baseline, fallback: pair.fallback };
   }
   return null;
 }
@@ -853,6 +872,7 @@ async function pickRandomFreeKill() {
       const losses = data.filter((kill) => (
         Number(kill?.victim?.ship_type_id) === Number(shipId)
         && String(kill?.killmail_time || '') >= `${KILL_HISTORY_START}T00:00:00Z`
+        && (state.allowEmptyKb || killHasFittedModules(kill))
       ));
       if (losses.length) {
         return losses[Math.floor(Math.random() * losses.length)];
@@ -2846,10 +2866,30 @@ window.addEventListener('pagehide', () => {
 // Boot
 // ---------------------------------------------------------------------------
 
+class NoTargetError extends Error {
+  constructor() {
+    super('no-target');
+    this.name = 'NoTargetError';
+  }
+}
+
 function showFatal(error) {
   console.error(error);
   const app = $('#app');
   if (!app) return;
+  if (error instanceof NoTargetError) {
+    app.innerHTML = `<div class="fatal-screen">
+      <div class="fatal-glyph">${icon('alert')}</div>
+      <div class="fatal-code">${esc(t('error.noTargetCode'))}</div>
+      <h1>${esc(t('error.noTargetTitle'))}</h1>
+      <p>${esc(t('error.noTargetBody'))}</p>
+      <div class="fatal-actions">
+        <button class="button primary" type="button" data-action="free-mode">${icon('radar')} ${esc(t('error.freeMode'))}</button>
+        <button class="button" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
+      </div>
+    </div>`;
+    return;
+  }
   app.innerHTML = `<div class="fatal-screen">
     <div class="fatal-glyph">${icon('alert')}</div>
     <div class="fatal-code">${esc(t('error.title'))}</div>
@@ -2863,6 +2903,7 @@ async function boot() {
   initStarfield($('#starfield'));
   state.locale = detectLocale();
   state.i18n = createI18n(state.locale);
+  await applyBootFlavor();
   state.fontClicks = readFontClicks();
   state.allowEmptyKb = readAllowEmptyKb();
   try {
@@ -2882,6 +2923,7 @@ async function boot() {
     state.catalog = catalog.ships;
     state.catalogMap = new Map(state.catalog.map((ship) => [ship.id, ship]));
     state.searchAliases = await fetchJson('data/search.json').catch(() => null);
+    state.watchlist = await fetchJson('assets/watchlist.json').catch(() => null);
     state.mode = modeFromLocation(location.search);
     state.timed = timedFromLocation(location.search);
     document.documentElement.dataset.gameMode = state.mode;
@@ -2890,6 +2932,7 @@ async function boot() {
     const now = serverNow();
     const resetHour = manifest.downtimeUtcHour || 11;
     state.today = gameDateKey(now, resetHour);
+    state.utcDate = now.toISOString().slice(0, 10);
     const freeTarget = freeKillFromLocation(location.search);
     state.freeRequested = new URLSearchParams(location.search).get('free') === '1';
     state.freeKillId = freeTarget?.id || null;
@@ -2936,6 +2979,7 @@ async function boot() {
         const data = await fetchZkill(`/api/killID/${state.freeKillId}/`);
         const killmail = Array.isArray(data) ? data[0] : null;
         if (!killmail?.victim?.ship_type_id) throw new Error('free target unavailable');
+        if (!state.allowEmptyKb && !killHasFittedModules(killmail)) throw new Error('empty free target');
         state.freeKillmail = killmail;
         state.answerId = Number(killmail.victim.ship_type_id);
         state.answerKillId = state.freeKillId;
@@ -2963,26 +3007,14 @@ async function boot() {
       const hulls = weightedHullOrder(
         killShipPool,
         `${state.date}:${manifest.dataVersion}:${state.mode}:${state.timed ? 'timed' : 'standard'}:hulls`,
-        8,
+        Number.MAX_SAFE_INTEGER,
       );
-      const pageTarget = await resolvePageTarget(hulls, state.date);
-      const targetShipId = pageTarget?.shipId
-        || hulls[0]
-        || pickDailyAnswer(killShipPool, state.date, manifest.dataVersion);
-      const targetKill = pageTarget?.killmail || null;
-      const fallbackKillId = (() => {
-        if (targetKill) return null;
-        const shipKills = manifest.killPoolsByShip?.[targetShipId] || [];
-        return pickDailyAnswer(shipKills, `${state.date}:kb:${state.timed ? 'timed' : 'standard'}`, manifest.dataVersion);
-      })();
-      const fallbackKill = fallbackKillId
-        ? (manifest.killPool || []).find((entry) => Number(entry.killmail_id) === Number(fallbackKillId))
-        : null;
-      state.answerId = Number(targetShipId);
-      state.answerKillId = targetKill
-        ? Number(targetKill.killmail_id)
-        : (fallbackKill ? Number(fallbackKill.killmail_id) : null);
-      if (!state.answerId || !state.catalogMap.has(state.answerId)) throw new Error('daily target unavailable');
+      const target = await resolveDailyTarget(hulls, state.date);
+      if (!target) throw new NoTargetError();
+      const chosen = state.allowEmptyKb ? target.baseline : target.fallback;
+      if (!chosen || !state.catalogMap.has(target.shipId)) throw new NoTargetError();
+      state.answerId = Number(target.shipId);
+      state.answerKillId = Number(chosen.killmail_id);
       state.answerShip = state.catalogMap.get(state.answerId);
     }
     await loadLocaleData(state.locale);

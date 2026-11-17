@@ -12,6 +12,7 @@ import {
   dateKeyFromLocation,
   dailyAnswerIndex,
   freeKillIdFromToken,
+  filterDailyKillPool,
   freeKillToken,
   gameDateKey,
   isValidDateKey,
@@ -31,10 +32,13 @@ import {
   revealCountFor,
   saveState,
   searchShips,
+  selectDailyKillPair,
   selectRuntimeKill,
+  weightedKillOrder,
   shareUrl,
   shiftDateKey,
   utcDateKey,
+  victimIsWatched,
 } from '../js/game.js';
 import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, selectAbyssFallbacks } from '../js/clues.js';
 import { computeRevealed, computeTimedRevealed } from '../js/reveal.js';
@@ -268,6 +272,73 @@ test('ship search results follow tech, class, race and faction order', () => {
   assert.equal(searchShips(aliases, '舰刺', { limit: 5 })[0]?.id, stabber.id);
 });
 
+test('hidden authored JSON files are shipped to dist', () => {
+  for (const file of ['boot-flavor.json', 'watchlist.json']) {
+    assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'assets', file)), true, file);
+  }
+});
+
+test('watchlist matches victim character, corporation, or alliance IDs', () => {
+  const victim = { character_id: 101, corporation_id: 202, alliance_id: 303 };
+  const watchlist = {
+    characters: ['101'],
+    corporations: [202],
+    alliances: [303],
+  };
+  assert.equal(victimIsWatched(victim, watchlist), true);
+  assert.equal(victimIsWatched({ character_id: 999, corporation_id: 202, alliance_id: 999 }, watchlist), true);
+  assert.equal(victimIsWatched({ character_id: 999, corporation_id: 999, alliance_id: 999 }, watchlist), false);
+  assert.equal(victimIsWatched(victim, null), false);
+});
+
+test('daily kill pool excludes the current UTC date and pre-2012 kills', () => {
+  const make = (id, ship, time) => ({
+    killmail_id: id,
+    killmail_time: time,
+    victim: { ship_type_id: ship, items: [{ flag: 19, item_type_id: 1, quantity_destroyed: 1 }] },
+  });
+  const data = [
+    make(1, 670, '2026-11-17T00:30:00Z'),
+    make(2, 670, '2026-11-16T23:59:59Z'),
+    make(3, 670, '2012-05-21T23:59:59Z'),
+    make(4, 671, '2026-11-16T22:00:00Z'),
+  ];
+  assert.deepEqual(
+    filterDailyKillPool(data, 670, '2026-11-17').map((kill) => kill.killmail_id),
+    [2],
+  );
+});
+
+test('daily pair keeps a non-empty baseline and finds a non-empty fallback', () => {
+  const empty = { killmail_id: 1, victim: { items: [{ flag: 5, item_type_id: 1, quantity_destroyed: 1 }] } };
+  const fittedA = { killmail_id: 2, victim: { items: [{ flag: 19, item_type_id: 2, quantity_destroyed: 1 }] } };
+  const fittedB = { killmail_id: 3, victim: { items: [{ flag: 87, item_type_id: 3, quantity_destroyed: 1 }] } };
+  const losses = [empty, fittedA, fittedB];
+  const first = selectDailyKillPair(losses, 'daily-seed');
+  const second = selectDailyKillPair(losses, 'daily-seed');
+  assert.deepEqual(first.order.map((kill) => kill.killmail_id), second.order.map((kill) => kill.killmail_id));
+  assert.ok(first.baseline && first.fallback);
+  assert.equal(killHasFittedModules(first.fallback), true);
+  if (killHasFittedModules(first.baseline)) assert.equal(first.fallback, first.baseline);
+  else assert.notEqual(first.fallback, first.baseline);
+  const allEmpty = selectDailyKillPair([empty], 'empty-only');
+  assert.equal(allEmpty.baseline, empty);
+  assert.equal(allEmpty.fallback, null);
+  assert.equal(weightedKillOrder(losses, 'daily-seed').length, losses.length);
+});
+
+test('empty hulls ignore cargo, spare fighter bays, and zero quantities', () => {
+  const kill = (items) => ({ victim: { items } });
+  assert.equal(killHasFittedModules(kill([{ flag: 5, item_type_id: 1, quantity_destroyed: 10 }])), false);
+  assert.equal(killHasFittedModules(kill([{ flag: 155, item_type_id: 2, quantity_destroyed: 1 }])), false);
+  assert.equal(killHasFittedModules(kill([{ flag: 19, item_type_id: 3, quantity_destroyed: 0, quantity_dropped: 0 }])), false);
+  assert.equal(killHasFittedModules(kill([{ flag: 19, item_type_id: 3, quantity_destroyed: 1 }])), true);
+  assert.equal(killHasFittedModules(kill([{ flag: 92, item_type_id: 4, quantity_destroyed: 1 }])), true);
+  assert.equal(killHasFittedModules(kill([{ flag: 87, item_type_id: 5, quantity_dropped: 1 }])), true);
+  assert.equal(killHasFittedModules(kill([{ flag: 125, item_type_id: 6, quantity_destroyed: 1 }])), true);
+  assert.equal(killHasFittedModules(kill([{ flag: 158, item_type_id: 7, quantity_destroyed: 1 }])), true);
+});
+
 test('empty-hull setting preserves non-empty baseline KB picks', () => {
   const empty = { killmail_id: 1, victim: { items: [{ flag: 5, item_type_id: 1 }] } };
   const fittedA = { killmail_id: 2, victim: { items: [{ flag: 19, item_type_id: 2 }] } };
@@ -350,6 +421,17 @@ test('localized static share pages carry the score for link previews', () => {
     assert.equal(freeShare.includes("searchParams.set('lang'"), false);
     assert.match(timed, /share\.timedTitle|Timed signal run/);
   }
+});
+
+test('boot flavor file covers all locales and tags every egg', () => {
+  const boot = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'boot-flavor.json'), 'utf8'));
+  assert.deepEqual(Object.keys(boot.flavor).sort(), ['de', 'en', 'es', 'fr', 'ja', 'ko', 'ru', 'zh']);
+  for (const lines of Object.values(boot.flavor)) {
+    assert.ok(Array.isArray(lines) && lines.length >= 2);
+    assert.ok(lines.every((line) => typeof line === 'string' && line.trim()));
+  }
+  assert.ok(Array.isArray(boot.eggs) && boot.eggs.length >= 18);
+  assert.ok(boot.eggs.every((egg) => ['en', 'ja', 'zh'].includes(egg.lang) && egg.text?.trim()));
 });
 
 test('every locale provides the same message keys', () => {
