@@ -495,18 +495,31 @@ export function shareText({ date, status, attempts, url, t }) {
   return `${headline}\n${grid}\n${url}`;
 }
 
-export function shareUrl(locationLike, killId, mode = 'normal', status = 'playing', attempts = 0, locale = 'en', timed = false) {
-  // A localized static score page carries the Open Graph metadata used by
-  // Discord and other link previews. The page itself redirects into the puzzle.
+export function shareUrl(locationLike, killId, mode = 'normal', status = 'playing', attempts = 0, locale = 'en', timed = false, free = false, elapsedSeconds = 0) {
+  // A localized static page carries the Open Graph metadata used by Discord
+  // and other link previews. The page itself redirects into the puzzle.
   const url = new URL(locationLike.href);
-  const key = status === 'lost' ? 'lost' : String(Math.max(1, Math.min(6, Number(attempts) || 1)));
   const language = String(locale || 'en').toLowerCase().split(/[-_]/)[0];
   const safeLocale = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'].includes(language) ? language : 'en';
-  url.pathname = new URL(`share/${key}/${safeLocale}.html`, url).pathname;
+  const rule = timed ? 'timed' : mode === 'abyss' ? 'abyss' : 'standard';
   url.search = '';
   url.hash = '';
+  if (timed) {
+    url.pathname = new URL(`share/timed/${safeLocale}.html`, url).pathname;
+    url.searchParams.set('t', String(Math.max(0, Math.round(Number(elapsedSeconds) || 0))));
+    if (Number(killId)) url.searchParams.set('kb', freeKillToken(killId));
+    url.searchParams.set('rule', 'timed');
+    return url.toString();
+  }
+  if (free) {
+    url.pathname = new URL(`share/free/${safeLocale}.html`, url).pathname;
+    if (Number(killId)) url.searchParams.set('kb', freeKillToken(killId));
+    if (rule !== 'standard') url.searchParams.set('rule', rule);
+    return url.toString();
+  }
+  const key = status === 'lost' ? 'lost' : String(Math.max(1, Math.min(6, Number(attempts) || 1)));
+  url.pathname = new URL(`share/${key}/${safeLocale}.html`, url).pathname;
   if (Number(killId)) url.searchParams.set('kb', freeKillToken(killId));
-  const rule = timed ? 'timed' : mode === 'abyss' ? 'abyss' : 'standard';
   if (rule !== 'standard') url.searchParams.set('rule', rule);
   return url.toString();
 }

@@ -359,7 +359,15 @@ test reads `dist/`.
 
 ## CI / deployment
 
-- `.gitlab-ci.yml`: `sde:check`, `build`, `release`, `pages`.
+- `.gitlab-ci.yml`: `sde:check`, `build`, `publish:builder`, `release`, `pages`.
+- On a `main` push that changes `package.json`, `publish:builder` builds
+  `Dockerfile.oneshot` with Kaniko and pushes
+  `<CI_REGISTRY_IMAGE>/builder:<version>` and `:latest` to the project's GitLab
+  Container Registry. `release` depends on that job, so a release is not created
+  if the builder image push fails.
+- `publish:builder:test` is a manual web/MR pipeline smoke test; it pushes only
+  `:test` and is never automatic. It uses the automatic `CI_JOB_TOKEN`; no Docker
+  Hub credentials or registry variables are needed.
 - On a `main` push that changes `package.json`, after a successful build the
   `release` job creates a `v<version>` tag/release. GitLab's automatic source
   archives are used; no custom source tarball is built.

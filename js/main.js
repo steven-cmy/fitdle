@@ -691,8 +691,9 @@ function moduleIconPath(moduleID) {
 function weightPips(weight) {
   const numeric = Number(weight) || 0;
   const lit = numeric <= 0 ? 0 : Math.max(1, Math.min(5, Math.ceil(numeric / 2)));
+  const zero = numeric <= 0 && state.status === 'playing';
   const shown = String(Number(numeric.toFixed(2)));
-  return `<span class="weight${lit === 0 ? ' is-zero' : ''}" title="${esc(t('dossier.signal'))} ${esc(shown)}/10" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
+  return `<span class="weight${zero ? ' is-zero' : ''}" title="${esc(t('dossier.signal'))} ${esc(shown)}/10" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 
 function categoryLabel(category) {
@@ -1335,6 +1336,7 @@ function renderShell() {
           <button type="button" class="mode-button${isFree() ? ' is-active' : ''}" data-action="free-mode" aria-pressed="${isFree()}">${esc(t('mode.free'))}</button>
         </div>
         <span class="mode-divider" aria-hidden="true"></span>
+        <span class="mode-label">${esc(t('mode.ruleLabel'))}</span>
         <div class="mode-switch" role="group" aria-label="${esc(t('help.gameplayTitle'))}">
           <button type="button" class="mode-button${!isTimed() && state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${!isTimed() && state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
           <button type="button" class="mode-button${!isTimed() && state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${!isTimed() && state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
@@ -1872,7 +1874,7 @@ function renderClueRow(clue, index, revealed) {
     value = revealed ? (state.answerData.bonuses?.[clue.v] || '') : '';
   }
   if (revealed && !value) value = '—';
-  const zeroWeight = (Number(clue.w) || 0) <= 0;
+  const zeroWeight = (Number(clue.w) || 0) <= 0 && state.status === 'playing';
   return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-category="${category}">
     <span class="attr-label">${esc(label)}</span>
     <span class="attr-value">${revealed ? value : '<span class="attr-redacted" aria-label="?">?</span>'}</span>
@@ -2422,27 +2424,18 @@ function zkillShipUrl(shipId = state.answerId) {
 }
 
 function shareLink() {
-  if (isFree()) {
-    const url = new URL(location.href);
-    url.pathname = new URL(`share/free/${state.locale}.html`, location.href).pathname;
-    url.search = '';
-    url.hash = '';
-    url.searchParams.set('kb', state.freeKillToken || freeKillToken(state.freeKillId));
-    const rule = isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
-    if (rule !== 'standard') url.searchParams.set('rule', rule);
-    return url.toString();
-  }
-  if (isTimed()) {
-    const url = new URL(location.href);
-    url.pathname = new URL(`share/timed/${state.locale}.html`, location.href).pathname;
-    url.search = '';
-    url.hash = '';
-    url.searchParams.set('t', String(Math.round(state.timerElapsedMs / 1000)));
-    url.searchParams.set('kb', freeKillToken(state.answerKillId));
-    url.searchParams.set('rule', 'timed');
-    return url.toString();
-  }
-  return shareUrl(location, state.answerKillId, state.mode, state.status, state.guesses.length, state.locale);
+  const timed = isTimed();
+  return shareUrl(
+    location,
+    state.answerKillId,
+    state.mode,
+    state.status,
+    state.guesses.length,
+    state.locale,
+    timed,
+    isFree(),
+    timed ? Math.round(state.timerElapsedMs / 1000) : 0,
+  );
 }
 
 function renderDebrief() {

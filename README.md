@@ -1,6 +1,6 @@
 # FITDLE
 
-**v0.3.30**
+**v0.4.0**
 
 FITDLE 是一个纯前端、无需登录的 EVE Online 每日击杀谜题。每天有一个目标击杀，
 玩家通过逐步揭示的装配、属性和 zKillboard 情报识别被击毁的舰船。
@@ -73,6 +73,154 @@ npm run build
 ```
 
 更新后建议执行 `npm test`，并手动打开一次深渊模式确认装配模拟正常。
+
+## 容器部署
+
+仓库提供两种容器用法：单容器直接提供网站，以及适合定时任务的一次性全量构建容器。
+容器构建阶段需要访问官方 SDE、zKillboard 和 npm registry，耗时取决于网络和 zKillboard
+的响应速度。
+
+### 方案一：单容器 All-in-One
+
+镜像在构建阶段完成 SDE、击杀池、使用率权重和 `dist/` 的生成，运行阶段只包含静态产品和
+一个零依赖 Node 静态服务器。启动容器并映射端口即可访问，不需要额外挂载数据卷。
+
+```bash
+# 在仓库根目录构建；把 SITE_URL 换成实际对外地址
+docker build \
+  --build-arg SITE_URL=https://fitdle.example.com \
+  -t fitdle:local .
+
+# 容器内监听 4173，映射到宿主机 8080
+docker run -d \
+  --name fitdle \
+  --restart unless-stopped \
+  -p 8080:4173 \
+  fitdle:local
+```
+
+访问 `http://<宿主机>:8080/`。
+
+`SITE_URL` 是构建参数，不是运行参数。它决定分享页 Open Graph 图片和 canonical URL 的
+绝对地址；不设置时会回退到本地地址，外部分享预览可能不正确。
+
+更新时重新拉取代码、构建镜像并替换容器：
+
+```bash
+git pull
+docker build --build-arg SITE_URL=https://fitdle.example.com -t fitdle:local .
+docker stop fitdle
+docker rm fitdle
+docker run -d --name fitdle --restart unless-stopped -p 8080:4173 fitdle:local
+```
+
+### 方案二：一次性全量构建容器
+
+这个容器不长期运行。每次启动都会从仓库重新克隆最新版本，重新下载并生成 SDE、击杀池、
+使用率权重和静态产物，测试通过后把最新的 `dist/` 写入挂载卷。
+
+先构建构建器镜像：
+
+```bash
+docker build -f Dockerfile.oneshot -t fitdle-build:local .
+```
+
+手动执行一次全量构建：
+
+```bash
+docker run --rm \
+  -e PUID=99 \
+  -e PGID=100 \
+  -e SITE_URL=https://fitdle.example.com \
+  -v /mnt/user/appdata/fitdle:/out \
+  fitdle-build:local
+```
+
+执行完成后，静态网站根目录就是挂载卷：
+
+```text
+/mnt/user/appdata/fitdle/index.html
+/mnt/user/appdata/fitdle/share/...
+/mnt/user/appdata/fitdle/data/...
+```
+
+可以用任意静态服务器或反向代理直接指向该目录。
+
+#### UID / GID 与文件权限
+
+- `PUID`：产物所有者 UID，默认 `99`
+- `PGID`：产物所有者 GID，默认 `100`
+- Unraid 常见的 `nobody:users` 对应 `PUID=99`、`PGID=100`
+- 其他系统可用 `id nobody` 或 `id <用户名>` 查询后传入
+
+容器在构建成功并跑完测试后才会替换输出目录，随后执行：
+
+- 目录权限 `0755`
+- 普通静态文件权限 `0644`
+- 递归 `chown` 到 `PUID:PGID`
+
+输出卷会被清空并替换为最新 `dist/`，请使用**专用于 FITDLE 的卷**，不要指向包含其他文件的
+目录。
+
+#### 定时执行
+
+Linux cron 示例：
+
+```cron
+0 4 * * * docker run --rm -e PUID=99 -e PGID=100 -e SITE_URL=https://fitdle.example.com -v /mnt/user/appdata/fitdle:/out fitdle-build:local >> /var/log/fitdle-build.log 2>&1
+```
+
+Unraid 可在 User Scripts 中放置同样的 `docker run --rm ...` 命令并设置计划任务。
+
+可选环境变量：
+
+- `FITDLE_REPO`：仓库地址，默认 `https://gitlab.com/cmy/fitdle.git`
+- `FITDLE_REF`：分支或标签，默认 `main`
+- `OUTPUT_DIR`：容器内输出目录，默认 `/out`
+- `SITE_URL`：对外站点地址，影响分享预览
+
+#### 自动发布构建器镜像
+
+GitLab CI 会在 `main` 上新版本发布时自动构建一次性构建器镜像，并推送到项目自带的
+GitLab Container Registry；不需要 Docker Hub 账号或额外 Token。
+
+镜像地址：
+
+```text
+registry.gitlab.com/cmy/fitdle/builder:<version>
+registry.gitlab.com/cmy/fitdle/builder:latest
+```
+
+发布流程：
+
+1. `publish:builder` 用 Kaniko 构建 `Dockerfile.oneshot`；
+2. 推送版本标签和 `latest`；
+3. 推送成功后 `release` 才创建 GitLab Release。
+
+首次使用前确认项目的 **Settings → General → Visibility, project features, permissions**
+中 Container Registry 已启用。镜像默认跟随项目可见性；如果项目是私有的，拉取前需要
+`docker login registry.gitlab.com`，或把镜像设为公开。
+
+在合并发布 MR 前，可以先手动运行一次冒烟测试任务：
+
+```text
+publish:builder:test
+```
+
+它只推送 `:test` 标签，用来验证 Dockerfile 和 CI 的 Registry 登录，不会触发正式发布。
+
+拉取并运行构建器：
+
+```bash
+docker pull registry.gitlab.com/cmy/fitdle/builder:latest
+
+docker run --rm \
+  -e PUID=99 \
+  -e PGID=100 \
+  -e SITE_URL=https://fitdle.example.com \
+  -v /mnt/user/appdata/fitdle:/out \
+  registry.gitlab.com/cmy/fitdle/builder:latest
+```
 
 ## 鸣谢
 

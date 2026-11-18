@@ -431,8 +431,14 @@ test('share URLs and result grids are spoiler-safe', () => {
   assert.equal(abyssUrl, `https://example.test/fitdle/share/4/zh.html?kb=${token}&rule=abyss`);
   const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'lost', 6, 'de');
   assert.equal(lostUrl, `https://example.test/fitdle/share/lost/de.html?kb=${token}&rule=abyss`);
+  const freeUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'playing', 0, 'zh-Hant', false, true);
+  assert.equal(freeUrl, `https://example.test/fitdle/share/free/zh.html?kb=${token}&rule=abyss`);
+  const timedUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'won', 4, 'de', true, true, 125);
+  assert.equal(timedUrl, `https://example.test/fitdle/share/timed/de.html?t=125&kb=${token}&rule=timed`);
   assert.equal(url.includes('lang='), false);
   assert.equal(url.includes('d='), false);
+  assert.equal(timedUrl.includes('timer='), false);
+  assert.equal(freeUrl.includes('mode='), false);
   const storage = { data: new Map(), getItem(k) { return this.data.get(k) ?? null; }, setItem(k, v) { this.data.set(k, v); } };
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [1], status: 'playing' }, 'normal');
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [2], status: 'playing' }, 'abyss');
