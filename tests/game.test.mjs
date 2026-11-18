@@ -44,7 +44,7 @@ import {
   victimIsWatched,
 } from '../js/game.js';
 import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, selectAbyssFallbacks } from '../js/clues.js';
-import { computeRevealed, computeTimedRevealed } from '../js/reveal.js';
+import { computeRevealed, computeTimedRevealed, timedRevealTotal } from '../js/reveal.js';
 import { MESSAGES, resolveLocale } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -128,19 +128,25 @@ test('abyssal reveal cadence matches the six-attempt design', () => {
   assert.equal(INITIAL_REVEAL, 3);
 });
 
-test('timed reveal releases one weighted clue per 30-second bucket', () => {
+test('timed reveal grows by two releases while releasing weighted clues', () => {
   const clues = [
     { k: 'speed', c: 'nav', v: 100, w: 8 },
     { k: 'sig', c: 'targeting', v: 50, w: 4 },
     { k: 'mass', c: 'nav', v: 1000, w: 0 },
   ];
+  assert.deepEqual(
+    [0, 1, 2, 3, 4, 5, 6, 7].map((n) => timedRevealTotal(n)),
+    [0, 1, 2, 4, 6, 9, 12, 16],
+  );
   assert.equal(computeTimedRevealed({ clues, count: 0, seed: 'test' }).size, 0);
-  const one = computeTimedRevealed({ clues, count: 1, seed: 'test' });
+  const one = computeTimedRevealed({ clues, count: timedRevealTotal(1), seed: 'test' });
   assert.equal(one.size, 1);
   assert.ok(!one.has(2));
-  const two = computeTimedRevealed({ clues, count: 2, seed: 'test' });
+  const two = computeTimedRevealed({ clues, count: timedRevealTotal(2), seed: 'test' });
   assert.equal(two.size, 2);
-  assert.deepEqual([...computeTimedRevealed({ clues, count: 2, seed: 'test' })].sort(), [...two].sort());
+  assert.deepEqual([...computeTimedRevealed({ clues, count: timedRevealTotal(2), seed: 'test' })].sort(), [...two].sort());
+  const four = computeTimedRevealed({ clues, count: timedRevealTotal(3), seed: 'test' });
+  assert.equal(four.size, 2);
 });
 
 test('abyss misses reveal nested equipment plus one other clue', () => {
@@ -407,18 +413,19 @@ test('daily stats count plays and wins per gameplay and streak by day', () => {
   assert.equal(losing.streak, 0, 'all three modes losing clears the day streak');
 });
 
-test('legacy aggregate stats survive the per-mode migration', () => {
+test('legacy aggregate stats are ignored', () => {
   const storage = {
     value: JSON.stringify({ played: 12, wins: 4, streak: 2, maxStreak: 3, distribution: [0, 1, 0, 0, 0, 0], lastDate: '2026-11-16' }),
     getItem() { return this.value; },
     setItem(_key, value) { this.value = value; },
   };
   const stats = loadStats(storage);
-  assert.equal(stats.legacyPlayed, 12);
-  assert.equal(stats.legacyWins, 4);
   assert.equal(stats.played.standard, 0);
+  assert.equal(stats.wins.standard, 0);
+  assert.equal(stats.streak, 0);
+  assert.equal('legacyPlayed' in stats, false);
   saveStats(storage, stats);
-  assert.equal(JSON.parse(storage.value).legacyPlayed, 12);
+  assert.equal('legacyPlayed' in JSON.parse(storage.value), false);
 });
 
 test('share URLs and result grids are spoiler-safe', () => {
@@ -504,7 +511,8 @@ test('every locale provides the same message keys', () => {
   const keys = Object.keys(MESSAGES.en).sort();
   for (const locale of manifest.locales) {
     assert.deepEqual(Object.keys(MESSAGES[locale]).sort(), keys, `${locale} key set differs`);
-    assert.ok(MESSAGES[locale]['footer.copyright'].includes('gitlab.com/cmy/fitdle'));
+    assert.ok(MESSAGES[locale]['footer.copyright'].includes('{site}'));
+    assert.equal(MESSAGES[locale]['footer.copyright'].includes('gitlab.com/cmy/fitdle'), false);
     assert.ok(MESSAGES[locale]['help.sharedRules'].length > 20);
     assert.ok(!MESSAGES[locale]['help.step4'].includes('UTC'));
   }
@@ -560,7 +568,7 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   assert.ok(manifest.sde.buildNumber);
   assert.match(manifest.zkillboard.snapshot, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(manifest.timeSource);
-  assert.ok(manifest.links.eveDocs);
+  assert.equal(manifest.links.eveDocs, 'https://developers.eveonline.com/static-data');
   assert.ok(manifest.links.glossary);
   assert.ok(manifest.moduleFallbacks['47804'], 'abyssal modules need a T2/faction fallback');
   for (const ship of catalog) {

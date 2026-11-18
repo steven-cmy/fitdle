@@ -30,7 +30,7 @@ import {
 import { detectLocale, createI18n, isLocale, resolveLocale, LOCALES, LOCALE_META } from './i18n.js';
 import { buildClues, getEquipment, selectAbyssFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
 import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
-import { computeRevealed, computeTimedRevealed } from './reveal.js';
+import { computeRevealed, computeTimedRevealed, timedRevealTotal } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
 import { initStarfield } from './starfield.js';
 
@@ -101,6 +101,12 @@ const state = {
   freeKillToken: null,
   freeKillmail: null,
   freeRequested: false,
+  freeFromRefresh: false,
+  freeRoundActive: false,
+  freeStreaks: { standard: 0, abyss: 0, timed: 0 },
+  freeStreakMode: 'standard',
+  freeStreakBefore: 0,
+  freeStreakEvent: null,
   answerShip: null,
   answerData: null,
   dataVersionKey: null,
@@ -374,6 +380,10 @@ function isTimed() {
   return state.timed;
 }
 
+function usesSimulatedFit() {
+  return state.mode === 'abyss' || isTimed();
+}
+
 function storageMode() {
   return isTimed() ? `${state.mode}:timed` : state.mode;
 }
@@ -429,12 +439,12 @@ function updateTimedClock() {
   if (hero) hero.textContent = text;
   updateTimedOrb();
   if (state.timerStarted && state.status === 'playing' && state.answerData) {
-    const count = Math.floor(currentElapsed() / 30000);
-    if (count > state.timedClueCount) {
-      const allRevealed = state.answerData.clues.every((clue, index) => (
-        state.revealed.has(index) || (Number(clue?.w) || 0) <= 0
+    const releases = Math.floor(currentElapsed() / 30000);
+    if (releases > state.timedClueCount) {
+      const remaining = state.answerData.clues.some((clue, index) => (
+        (Number(clue?.w) || 0) > 0 && !state.revealed.has(index)
       ));
-      if (allRevealed) {
+      if (!remaining) {
         failTimedRun();
         return;
       }
@@ -540,6 +550,7 @@ function startTimedRun() {
 
 function failTimedRun() {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
+  if (isFree()) finishFreeRound(false);
   state.timerElapsedMs = currentElapsed();
   state.timerStarted = false;
   if (state.timerHandle) clearInterval(state.timerHandle);
@@ -557,6 +568,7 @@ function failTimedRun() {
 
 function giveUpTimed() {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
+  if (isFree()) finishFreeRound(false);
   const holdMs = state.timerHoldStart ? Math.max(0, Date.now() - state.timerHoldStart) : 0;
   state.timerElapsedMs = Math.max(0, currentElapsed() - holdMs);
   state.timerHoldStart = 0;
@@ -865,24 +877,80 @@ async function resolveDailySelection() {
   return { shipId: target.shipId, killmail: chosen };
 }
 
-function freeKillUrl(killId) {
+function freeKillUrl(killId, fromRefresh = false, nonce = '') {
   const url = new URL(location.href);
   url.pathname = new URL('.', location.href).pathname;
   url.search = '';
   url.hash = '';
   url.searchParams.set('kb', freeKillToken(killId));
+  if (fromRefresh && nonce) url.searchParams.set('n', nonce);
   const rule = isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
   if (rule !== 'standard') url.searchParams.set('rule', rule);
   else url.searchParams.delete('rule');
   return url.toString();
 }
 
+const FREE_INTENT_KEY = 'fitdle:v1:free-intent';
+const FREE_INTENT_TTL_MS = 10 * 60 * 1000;
+
+function makeFreeNonce() {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+function writeFreeIntent(nonce, mode) {
+  try {
+    sessionStorage.setItem(FREE_INTENT_KEY, JSON.stringify({
+      nonce,
+      mode,
+      at: Date.now(),
+    }));
+  } catch {
+    // best effort
+  }
+}
+
+function clearFreeIntent() {
+  try {
+    sessionStorage.removeItem(FREE_INTENT_KEY);
+  } catch {
+    // best effort
+  }
+}
+
+function freeIntentMatches(nonce, mode) {
+  try {
+    const raw = sessionStorage.getItem(FREE_INTENT_KEY);
+    if (!raw) return false;
+    const intent = JSON.parse(raw);
+    const valid = intent?.nonce === nonce
+      && intent?.mode === mode
+      && Date.now() - Number(intent?.at) < FREE_INTENT_TTL_MS;
+    if (!valid) clearFreeIntent();
+    return valid;
+  } catch {
+    return false;
+  }
+}
+
+function consumeFreeIntent(nonce, mode) {
+  if (!freeIntentMatches(nonce, mode)) return false;
+  clearFreeIntent();
+  return true;
+}
+
 function enterFreeMode() {
+  const nonce = makeFreeNonce();
+  const mode = freeGameplayKey();
+  writeFreeIntent(nonce, mode);
   const url = new URL(location.href);
   url.pathname = new URL('.', location.href).pathname;
   url.search = '';
   url.hash = '';
-  url.searchParams.set('free', '1');
+  url.searchParams.set('n', nonce);
   const rule = isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
   if (rule !== 'standard') url.searchParams.set('rule', rule);
   else url.searchParams.delete('rule');
@@ -928,6 +996,119 @@ function freeAnswerSeed() {
     || state.freeKillToken
     || 'free',
   );
+}
+
+const FREE_STREAK_KEY = 'fitdle:v1:free-streak';
+const FREE_STREAK_MODES = ['standard', 'abyss', 'timed'];
+
+function loadFreeStreaks() {
+  const empty = { standard: 0, abyss: 0, timed: 0 };
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FREE_STREAK_KEY) || '{}');
+    for (const mode of FREE_STREAK_MODES) {
+      empty[mode] = Math.max(0, Math.floor(Number(parsed?.[mode]) || 0));
+    }
+  } catch {
+    // best effort
+  }
+  return empty;
+}
+
+function saveFreeStreaks() {
+  try {
+    localStorage.setItem(FREE_STREAK_KEY, JSON.stringify(state.freeStreaks));
+  } catch {
+    // best effort
+  }
+}
+
+function freeGameplayKey() {
+  return isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+}
+
+function setFreeStreak(mode, value) {
+  state.freeStreaks[mode] = Math.max(0, Math.floor(Number(value) || 0));
+  saveFreeStreaks();
+}
+
+function initFreeRound() {
+  if (!isFree()) return;
+  state.freeStreakMode = freeGameplayKey();
+  state.freeStreakBefore = Number(state.freeStreaks[state.freeStreakMode]) || 0;
+  state.freeStreakEvent = null;
+  // Direct kb/share links are neutral: they never start a streak round.
+  // Only the random refresh flow is eligible to change the counter.
+  state.freeRoundActive = state.freeFromRefresh === true;
+}
+
+function finishFreeRound(won) {
+  if (!isFree() || !state.freeRoundActive) return;
+  const mode = state.freeStreakMode || freeGameplayKey();
+  const before = Number(state.freeStreakBefore) || 0;
+  if (won) {
+    if (state.freeFromRefresh) {
+      setFreeStreak(mode, before + 1);
+      state.freeStreakEvent = 'increment';
+    } else {
+      state.freeStreakEvent = 'none';
+    }
+  } else {
+    setFreeStreak(mode, 0);
+    state.freeStreakEvent = before > 0 ? 'reset' : 'none';
+  }
+  state.freeRoundActive = false;
+}
+
+function abandonFreeRound() {
+  if (!isFree() || !state.freeRoundActive || state.status !== 'playing') return;
+  const mode = state.freeStreakMode || freeGameplayKey();
+  setFreeStreak(mode, 0);
+  state.freeStreakEvent = 'none';
+  state.freeRoundActive = false;
+}
+
+function spawnFreeStreakConfetti(host, count) {
+  if (!host) return;
+  const colors = ['#9bd45a', '#f2a63b', '#6fc6e4', '#f4fdff'];
+  for (let i = 0; i < count; i++) {
+    const particle = document.createElement('i');
+    particle.className = 'debrief-streak-particle';
+    particle.style.setProperty('--dx', `${Math.round((Math.random() - 0.5) * 190)}px`);
+    particle.style.setProperty('--dy', `${Math.round((Math.random() - 0.65) * 140)}px`);
+    particle.style.setProperty('--rot', `${Math.round((Math.random() - 0.5) * 540)}deg`);
+    particle.style.setProperty('--delay', `${Math.round(Math.random() * 120)}ms`);
+    particle.style.background = colors[i % colors.length];
+    host.append(particle);
+  }
+  setTimeout(() => { host.replaceChildren(); }, 1500);
+}
+
+function animateFreeStreak() {
+  const root = document.querySelector('.debrief-streak');
+  const valueEl = root?.querySelector('.debrief-streak-value');
+  if (!root || !valueEl) return;
+  const event = root.dataset.event || 'none';
+  const oldValue = Number(root.dataset.old) || 0;
+  const newValue = Number(root.dataset.new) || 0;
+  root.setAttribute('aria-label', `${t('free.streak')} ${newValue}`);
+  if (event === 'increment') {
+    valueEl.textContent = String(oldValue);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        valueEl.textContent = String(newValue);
+        valueEl.classList.add('is-pop');
+        spawnFreeStreakConfetti(root.querySelector('.debrief-streak-burst'), Math.max(0, newValue));
+        setTimeout(() => valueEl.classList.remove('is-pop'), 450);
+      }, 50);
+    });
+  } else if (event === 'reset') {
+    valueEl.textContent = String(oldValue);
+    requestAnimationFrame(() => valueEl.classList.add('is-reset'));
+    setTimeout(() => { valueEl.textContent = '0'; }, 260);
+    setTimeout(() => valueEl.classList.remove('is-reset'), 950);
+  } else {
+    valueEl.textContent = String(newValue);
+  }
 }
 
 async function fetchAnswerLive() {
@@ -1072,7 +1253,7 @@ function abyssCalculationKillmail(killmail) {
 }
 
 async function fetchModuleDetails() {
-  if (state.mode !== 'abyss' || state.moduleDetails) return;
+  if (!usesSimulatedFit() || state.moduleDetails) return;
   const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
   if (!base) return;
   const equipment = getEquipment(state.liveLosses, state.refs).equipment;
@@ -1139,11 +1320,11 @@ function buildAnswerData() {
     dateKey: isFree() ? `free:${freeAnswerSeed()}` : state.date,
     dataVersion: state.dataVersionKey || state.manifest.dataVersion,
     targetKillId: state.answerKillId,
-    mode: state.mode,
-    moduleDetails: state.mode === 'abyss' ? state.moduleDetails : null,
-    fittedAttrs: state.mode === 'abyss' ? state.dogmaAttrs : null,
-    baselineAttrs: state.mode === 'abyss' ? state.dogmaBaseline : null,
-    moduleFallbacks: state.mode === 'abyss' ? state.manifest.moduleFallbacks || {} : {},
+    mode: usesSimulatedFit() ? 'abyss' : state.mode,
+    moduleDetails: usesSimulatedFit() ? state.moduleDetails : null,
+    fittedAttrs: usesSimulatedFit() ? state.dogmaAttrs : null,
+    baselineAttrs: usesSimulatedFit() ? state.dogmaBaseline : null,
+    moduleFallbacks: usesSimulatedFit() ? state.manifest.moduleFallbacks || {} : {},
   });
   state.answerData = {
     ...ship,
@@ -1164,7 +1345,7 @@ async function loadLocaleData(locale) {
   });
   await fetchAnswerLive();
   await fetchCargoTypeNames();
-  if (state.mode === 'abyss' && state.liveLosses[0]) {
+  if (usesSimulatedFit() && state.liveLosses[0]) {
     try {
       state.dogmaAttrs = await calculateDogmaFit(
         state.answerShip,
@@ -1179,7 +1360,7 @@ async function loadLocaleData(locale) {
       state.dogmaBaseline = null;
     }
   }
-  if (state.mode === 'abyss' && !state.dogmaAttrs) await fetchModuleDetails();
+  if (usesSimulatedFit() && !state.dogmaAttrs) await fetchModuleDetails();
   buildAnswerData();
   if (!state.answerData) throw new Error('answer data unavailable');
 }
@@ -1234,15 +1415,15 @@ function recomputeRevealed() {
       return;
     }
     const initial = computeRevealed({ ...base, guesses: [], status: 'playing' });
-    const count = Math.floor(currentElapsed() / 30000);
+    const releases = Math.floor(currentElapsed() / 30000);
     const extras = computeTimedRevealed({
       clues: state.answerData.clues,
-      count,
+      count: timedRevealTotal(releases),
       seed,
       exclude: initial,
     });
     state.revealed = new Set([...initial, ...extras]);
-    state.timedClueCount = count;
+    state.timedClueCount = releases;
     state.visibleCount = state.revealed.size;
     return;
   }
@@ -1280,11 +1461,12 @@ function localeOptions() {
 function copyrightHtml() {
   const eve = state.manifest?.links?.eveOnline || '#';
   const fenris = state.manifest?.links?.fenris || '#';
-  const repo = state.manifest?.links?.repo || '#';
+  const site = new URL('./', location.href).href.replace(/\/$/, '');
+  const siteLabel = site.replace(/^https?:\/\//, '');
   return esc(t('footer.copyright'))
+    .replace('{site}', `<a href="${esc(site)}" target="_blank" rel="noopener noreferrer">${esc(siteLabel)}</a>`)
     .replace('EVE Online', `<a href="${esc(eve)}" target="_blank" rel="noopener noreferrer">EVE Online</a>`)
-    .replace('Fenris Creations', `<a href="${esc(fenris)}" target="_blank" rel="noopener noreferrer">Fenris Creations</a>`)
-    .replace('gitlab.com/cmy/fitdle', `<a href="${esc(repo)}" target="_blank" rel="noopener noreferrer">gitlab.com/cmy/fitdle</a>`);
+    .replace('Fenris Creations', `<a href="${esc(fenris)}" target="_blank" rel="noopener noreferrer">Fenris Creations</a>`);
 }
 
 function renderShell() {
@@ -1400,9 +1582,9 @@ function renderShell() {
           <div class="footer-copyright">${copyrightHtml()}</div>
         </div>
         <div class="footer-links">
-          <a class="repo-link" href="${esc(state.manifest.links?.repo || '#')}" target="_blank" rel="noopener noreferrer" title="${esc(state.manifest.links?.repo || '')}">GitLab</a>
+          <a class="repo-link" href="${esc(state.manifest.links?.repo || '#')}" target="_blank" rel="noopener noreferrer" title="${esc(state.manifest.links?.repo || '')}">${esc(t('footer.source'))}</a>
           <a class="zkill-link" href="${esc(state.manifest.zkillboard.baseUrl)}" target="_blank" rel="noopener noreferrer">zKillboard</a>
-          <a href="${esc(state.manifest.sde?.url || '#')}" target="_blank" rel="noopener noreferrer">EVE SDE</a>
+          <a href="${esc(state.manifest.links?.eveDocs || '#')}" target="_blank" rel="noopener noreferrer">EVE SDE</a>
           <span class="footer-meta footer-version">v${esc(state.manifest?.version || '0.1.0')} · SDE ${esc(state.manifest?.sde?.buildNumber || state.manifest?.sde?.generatedAt || '—')}${state.manifest.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
         </div>
       </footer>
@@ -1425,7 +1607,15 @@ function renderChrome() {
   const resetLabel = $('#reset-label');
   const countdown = $('#countdown');
   const dateCaption = $('#date-caption');
-  if (dateCaption) dateCaption.textContent = free ? t('free.kicker') : `${t('common.utc')} // ${t('hero.daily')}`;
+    if (dateCaption) {
+    if (free) {
+      dateCaption.textContent = state.freeFromRefresh
+        ? t('free.badge')
+        : `${t('free.badge')} // ${t('free.unscored')}`;
+    } else {
+      dateCaption.textContent = `${t('common.utc')} // ${t('hero.daily')}`;
+    }
+  }
   if (resetLabel) resetLabel.textContent = free ? t('free.reset') : t('header.reset');
   if (countdown) countdown.textContent = free ? t('free.badge') : nextDowntime();
   const countdownWrap = countdown?.closest('.countdown');
@@ -2384,6 +2574,7 @@ function applyGuess(shipId) {
   const correct = shipId === state.answerId;
   if (isTimed() && correct) stopTimedClock();
   state.status = correct ? 'won' : (isTimed() ? 'playing' : (state.guesses.length >= ATTEMPT_LIMIT ? 'lost' : 'playing'));
+  if (isFree() && state.status !== 'playing') finishFreeRound(state.status === 'won');
   recomputeRevealed();
   state.fresh = new Set([...state.revealed].filter((index) => !previousRevealed.has(index)));
   state.latestIndex = previousGuesses;
@@ -2467,10 +2658,27 @@ function renderDebrief() {
     : (oneShot
       ? t('oneShot.body')
       : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) })));
+  const showFreeStreak = free;
+  const freeStreakCounted = free && state.freeFromRefresh === true;
+  const freeStreakMode = showFreeStreak ? freeGameplayKey() : '';
+  const freeStreakValue = showFreeStreak ? Number(state.freeStreaks[freeStreakMode]) || 0 : 0;
+  const freeStreakOld = showFreeStreak ? Number(state.freeStreakBefore) || 0 : 0;
+  const freeStreakEvent = freeStreakCounted ? (state.freeStreakEvent || 'none') : 'neutral';
+  const freeStreakShown = freeStreakEvent === 'increment' || freeStreakEvent === 'reset'
+    ? freeStreakOld
+    : freeStreakValue;
+  const freeStreakHtml = showFreeStreak
+    ? `<div class="debrief-streak${freeStreakCounted ? '' : ' is-neutral'}" data-event="${esc(freeStreakEvent)}" data-old="${freeStreakOld}" data-new="${freeStreakValue}" aria-label="${esc(t('free.streak'))} ${freeStreakValue}">
+        <span>${esc(t('free.streak'))} // ${esc(t(`mode.${freeStreakMode}`))}</span>
+        <strong class="debrief-streak-value">${freeStreakShown}</strong>
+        <span class="debrief-streak-burst" aria-hidden="true"></span>
+      </div>`
+    : '';
   const html = `
     <div class="modal debrief-modal${oneShot ? ' is-one-shot' : ''}" role="dialog" aria-modal="true" aria-labelledby="debrief-title" data-kind="debrief" data-status="${state.status}" data-one-shot="${oneShot}">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
-      <div class="debrief">
+      <div class="debrief${showFreeStreak ? ' has-free-streak' : ''}">
+        ${freeStreakHtml}
         <div class="debrief-visual">
           <div class="debrief-scan"></div>
           <div class="debrief-stamp">${esc(kicker)}</div>
@@ -2534,6 +2742,7 @@ function renderDebrief() {
     </div>
   `;
   openModal(html, 'debrief', state.status);
+  animateFreeStreak();
   void fetchVictimInfo();
 }
 
@@ -2611,8 +2820,7 @@ function renderManual() {
   const stats = state.stats || DEFAULT_STATS;
   const played = stats.played || {};
   const wins = stats.wins || {};
-  const totalPlayed = Object.values(played).reduce((sum, value) => sum + (Number(value) || 0), 0)
-    + (Number(stats.legacyPlayed) || 0);
+  const totalPlayed = Object.values(played).reduce((sum, value) => sum + (Number(value) || 0), 0);
   const html = `
     <div class="modal manual" role="dialog" aria-modal="true" aria-labelledby="manual-title" data-kind="manual">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
@@ -2668,7 +2876,7 @@ function renderManual() {
             <div class="setting-row">
               <span>${esc(t('font.label'))}</span>
               <button type="button" class="font-switch-button" data-action="toggle-font-face" aria-label="${esc(t('font.switch'))}">
-                ${esc(state.font === 'classic' ? t('font.classic') : t('font.neue'))}
+                ${esc(state.font === 'classic' ? t('font.classic') : state.font === 'triglavian' ? t('font.triglavian') : t('font.neue'))}
               </button>
             </div>
             <div class="setting-row">
@@ -2699,7 +2907,6 @@ function renderManual() {
               <div><span>${esc(t('help.statStreak'))}</span><strong>${stats.streak || 0}</strong></div>
               <div><span>${esc(t('help.statBest'))}</span><strong>${stats.maxStreak || 0}</strong></div>
             </div>
-            ${(stats.legacyPlayed || stats.legacyWins) ? `<p class="stats-legacy">${esc(t('help.statLegacy', { played: stats.legacyPlayed || 0, wins: stats.legacyWins || 0 }))}</p>` : ''}
             ${totalPlayed ? '' : `<p class="stats-empty">${esc(t('help.statsEmpty'))}</p>`}
             <div style="margin-top:12px"><button type="button" class="button ghost reset-hold" data-action="reset-hold"><span class="reset-hold-label">${icon('refresh')} ${esc(t('help.resetRecord'))}</span></button></div>
           </div>
@@ -3105,6 +3312,7 @@ window.addEventListener('resize', () => {
 });
 
 window.addEventListener('pagehide', () => {
+  abandonFreeRound();
   if (state.status && state.answerId && !state.resetting) persist();
 });
 
@@ -3191,7 +3399,21 @@ async function boot() {
     state.today = gameDateKey(now, resetHour);
     state.utcDate = now.toISOString().slice(0, 10);
     const freeTarget = freeKillFromLocation(location.search);
-    state.freeRequested = new URLSearchParams(location.search).get('free') === '1';
+    const bootParams = new URLSearchParams(location.search);
+    const freeNonce = bootParams.get('n') || '';
+    const legacyFree = bootParams.get('free') === '1';
+    state.freeFromRefresh = false;
+    if (freeNonce) {
+      if (freeTarget?.id) {
+        state.freeFromRefresh = consumeFreeIntent(freeNonce, freeGameplayKey());
+      } else {
+        state.freeFromRefresh = freeIntentMatches(freeNonce, freeGameplayKey());
+      }
+    }
+    state.freeRequested = Boolean(
+      (freeNonce && state.freeFromRefresh)
+      || (!freeTarget?.id && legacyFree),
+    );
     state.freeKillId = freeTarget?.id || null;
     state.freeKillToken = freeTarget?.token || null;
     state.date = state.freeKillId ? `free-${state.freeKillToken}` : state.today;
@@ -3209,17 +3431,24 @@ async function boot() {
     if (!isLocale(state.locale) || !manifest.locales.includes(state.locale)) state.locale = manifest.defaultLocale || 'en';
     state.i18n = createI18n(state.locale);
     state.stats = settleStats(loadStats(localStorage), state.today);
+    state.freeStreaks = loadFreeStreaks();
     saveStats(localStorage, state.stats);
 
     if (state.freeRequested && !state.freeKillId) {
       const kill = await pickRandomFreeKill();
       if (kill) {
-        location.replace(freeKillUrl(kill.killmail_id));
+        location.replace(freeKillUrl(
+          kill.killmail_id,
+          state.freeFromRefresh,
+          state.freeFromRefresh ? freeNonce : '',
+        ));
         return;
       }
       showToast(t('free.randomFailed'), '', 'warn', 5000);
+      clearFreeIntent();
       const clean = new URL(location.href);
       clean.searchParams.delete('free');
+      clean.searchParams.delete('n');
       history.replaceState(null, '', clean);
     }
 
@@ -3228,7 +3457,7 @@ async function boot() {
       || new URLSearchParams(location.search).get('kill');
     if (rawFree && !state.freeKillId) {
       const clean = new URL(location.href);
-      for (const key of ['kb', 'killmail', 'kill']) clean.searchParams.delete(key);
+      for (const key of ['kb', 'killmail', 'kill', 'n']) clean.searchParams.delete(key);
       history.replaceState(null, '', clean);
     }
     let freeReady = false;
@@ -3254,7 +3483,7 @@ async function boot() {
             state.date = state.today;
             freeReady = false;
             const clean = new URL(location.href);
-            for (const key of ['kb', 'killmail', 'kill', 'free', 't']) clean.searchParams.delete(key);
+            for (const key of ['kb', 'killmail', 'kill', 'free', 'n', 't']) clean.searchParams.delete(key);
             history.replaceState(null, '', clean);
           }
         } catch {
@@ -3266,7 +3495,7 @@ async function boot() {
         state.freeKillmail = null;
         state.date = state.today;
         const clean = new URL(location.href);
-        for (const key of ['kb', 'killmail', 'kill']) clean.searchParams.delete(key);
+        for (const key of ['kb', 'killmail', 'kill', 'n']) clean.searchParams.delete(key);
         history.replaceState(null, '', clean);
       }
     }
@@ -3301,6 +3530,13 @@ async function boot() {
       if (state.timerStarted && !state.timerStartAt) state.timerStartAt = Date.now() - state.timerElapsedMs;
       state.gaveUp = isTimed() && state.status === 'lost' && restored.gaveUp === true;
       state.timedExpired = isTimed() && state.status === 'lost' && restored.timedExpired === true;
+    }
+    if (isFree()) initFreeRound();
+    if (freeNonce || bootParams.has('free')) {
+      const clean = new URL(location.href);
+      clean.searchParams.delete('n');
+      clean.searchParams.delete('free');
+      if (clean.href !== location.href) history.replaceState(null, '', clean);
     }
     if (statsEligible() && (
       state.guesses.length > 0

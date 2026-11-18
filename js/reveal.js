@@ -318,8 +318,18 @@ export function computeRevealed({
 
 
 /**
- * Timed mode releases one weighted clue every 30 seconds. It never reacts to
- * guesses; the caller supplies the number of elapsed 30-second buckets.
+ * Cumulative clues released after N timed release events:
+ * 1, 1, 2, 2, 3, 3, ... clues per event.
+ */
+export function timedRevealTotal(releases) {
+  const count = Math.max(0, Math.floor(Number(releases) || 0));
+  const pairs = Math.floor(count / 2);
+  return count % 2 === 0 ? pairs * (pairs + 1) : (pairs + 1) * (pairs + 1);
+}
+
+/**
+ * Timed mode releases weighted clues in growing batches. It never reacts to
+ * guesses; the caller supplies the total number of clues to release.
  */
 export function computeTimedRevealed({ clues, count, seed = 'timed', exclude = new Set() }) {
   const total = Array.isArray(clues) ? clues.length : 0;

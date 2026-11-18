@@ -38,8 +38,10 @@
         const theme = document.querySelector('meta[name="theme-color"]');
         if (theme) theme.setAttribute('content', '#070203');
       }
-      if (params.get('timer') === '1' || params.get('timed') === '1') {
+      if (params.get('rule') === 'timed' || params.get('timer') === '1' || params.get('timed') === '1' || params.get('mode') === 'timed') {
         document.documentElement.dataset.timed = '1';
+        const theme = document.querySelector('meta[name="theme-color"]');
+        if (theme) theme.setAttribute('content', '#031008');
       }
     } catch {}
   </script>

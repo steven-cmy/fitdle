@@ -325,7 +325,7 @@ const moduleFallbacks = {};
   }
 }
 
-const RULESET_VERSION = 'v49';
+const RULESET_VERSION = 'v50';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
 const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
@@ -359,7 +359,7 @@ const manifest = {
   images: { baseUrl: IMAGE_BASE },
   esi: { baseUrl: 'https://esi.evetech.net' },
   links: {
-    eveDocs: 'https://developers.eveonline.com/docs/',
+    eveDocs: 'https://developers.eveonline.com/static-data',
     eveOnline: 'https://www.eveonline.com/',
     fenris: 'https://fenris.com/',
     glossary: 'https://ddd4512kk-source.github.io/EVE-Online-Tranquility-Chinese-Personas/glossary/',

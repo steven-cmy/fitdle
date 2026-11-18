@@ -571,8 +571,6 @@ export function emptyStats() {
     distribution: [0, 0, 0, 0, 0, 0],
     days: {},
     lastWinDate: null,
-    legacyPlayed: 0,
-    legacyWins: 0,
   };
 }
 
@@ -588,8 +586,6 @@ function cloneStats(stats) {
   while (next.distribution.length < 6) next.distribution.push(0);
   next.days = stats?.days && typeof stats.days === 'object' ? { ...stats.days } : {};
   next.lastWinDate = typeof stats?.lastWinDate === 'string' ? stats.lastWinDate : null;
-  next.legacyPlayed = Math.max(0, Number(stats?.legacyPlayed) || 0);
-  next.legacyWins = Math.max(0, Number(stats?.legacyWins) || 0);
   return next;
 }
 
@@ -598,18 +594,12 @@ export function loadStats(storage) {
     const raw = storage.getItem('fitdle:v1:stats');
     const parsed = raw ? JSON.parse(raw) : null;
     if (!parsed) return emptyStats();
-    const next = cloneStats(parsed);
+    // Pre-per-mode totals are intentionally ignored; do not migrate or display
+    // legacy aggregate data.
     if (typeof parsed.played === 'number' || typeof parsed.wins === 'number') {
-      // Migrate the pre-per-mode totals without discarding them.
-      next.legacyPlayed = Math.max(0, Number(parsed.played) || 0);
-      next.legacyWins = Math.max(0, Number(parsed.wins) || 0);
-      next.played = statCounts();
-      next.wins = statCounts();
+      return emptyStats();
     }
-    if (!next.lastWinDate && typeof parsed.lastDate === 'string' && next.streak > 0) {
-      next.lastWinDate = parsed.lastDate;
-    }
-    return next;
+    return cloneStats(parsed);
   } catch {
     return emptyStats();
   }
