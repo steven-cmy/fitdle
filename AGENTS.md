@@ -67,6 +67,8 @@ instructions live in [README.md](README.md).
    and stores zKill's server `Date` as `serverDate`.
 3. `build:weights` fetches zKill `stats/shipTypeID/{id}/kills/` for all SDE hulls
    and stores recent/all ship-loss counts in `.cache/ship-weights.json`.
+   zKill's `rankings.recent` bucket is a 90-day window; the internal `losses30`
+   clue key is legacy, and the UI must label it as 90 days.
 4. `build` reads normalized SDE + weights + killpool and writes `data/` and
    `dist/`.
 5. Runtime: build a weighted hull candidate list, fetch page 1 for each hull,
@@ -326,6 +328,10 @@ npm run hooks:install     # enable shared Git hooks
 - Dossier layout: groups are balanced across two dynamic columns; equipment/cargo
   are not pinned to a column. Cargo capacity is the first row of the cargo group
   and keeps a labeled placeholder while hidden, including zero-cargo hulls.
+- Newly revealed clues that are outside the viewport show a fixed edge arrow
+  until the player scrolls them into view; clicking the arrow scrolls to the
+  nearest unseen clue. Initial reveals also seed the unseen set when a fresh
+  puzzle is opened with no guesses yet.
 - Manual shared rules are in `help.sharedRules` and appear under General.
 - Mode sections must contain only mode-specific rules.
 - Do not restore the removed sentence about identical UTC target/language in

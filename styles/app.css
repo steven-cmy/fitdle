@@ -3952,6 +3952,65 @@ html[data-game-mode="abyss"] {
 }
 
 /* --------------------------------------------------------------------------
+   Off-screen new clue hint
+   -------------------------------------------------------------------------- */
+
+.new-clue-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 9400;
+  pointer-events: none;
+}
+.new-clue-box {
+  position: absolute;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--cyan) 45%, var(--line-strong));
+  background: rgba(3, 10, 15, 0.94);
+  color: var(--text);
+  clip-path: var(--clip-sm);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(99, 231, 255, 0.12);
+  transform: translateX(-50%);
+  pointer-events: auto;
+  cursor: pointer;
+  appearance: none;
+  animation: new-clue-in 0.28s var(--ease) both;
+}
+.new-clue-box:hover {
+  border-color: var(--cyan);
+}
+.new-clue-hint.is-updating .new-clue-box {
+  animation: none;
+}
+.new-clue-box svg {
+  width: 16px;
+  height: 16px;
+  color: var(--cyan);
+}
+.new-clue-box span {
+  color: var(--cyan);
+  font: 600 9px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+}
+.new-clue-box b {
+  min-width: 18px;
+  padding: 2px 5px;
+  color: var(--text);
+  background: rgba(99, 231, 255, 0.12);
+  font: 600 11px/1 var(--font-mono);
+  text-align: center;
+}
+.new-clue-box.is-top {
+  top: max(12px, env(safe-area-inset-top));
+}
+.new-clue-box.is-bottom {
+  bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+/* --------------------------------------------------------------------------
    Toasts
    -------------------------------------------------------------------------- */
 
@@ -4609,6 +4668,10 @@ html[data-game-mode="abyss"] {
 }
 @keyframes toast-out {
   to { opacity: 0; transform: translateX(20px); }
+}
+@keyframes new-clue-in {
+  from { opacity: 0; transform: translate(-50%, -7px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 /* Font size preference: normal is the new default (former XL). */

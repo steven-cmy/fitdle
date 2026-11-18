@@ -491,6 +491,8 @@ test('every locale provides the same message keys', () => {
     assert.ok(MESSAGES[locale]['help.sharedRules'].length > 20);
     assert.ok(!MESSAGES[locale]['help.step4'].includes('UTC'));
   }
+  assert.ok(MESSAGES.en['clue.losses30'].includes('90'));
+  assert.ok(MESSAGES.zh['clue.losses30'].includes('90'));
 });
 
 test('all Chinese locale variants resolve to Simplified Chinese', () => {

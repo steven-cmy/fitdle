@@ -7,6 +7,8 @@ const PATHS = {
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.6 2.6 0 1 1 3.2 2.5c-.9.4-1.2 1-1.2 2"/><path d="M12 17h.01"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 3 2.6 15 0 18M12 3c-2.6 3-2.6 15 0 18"/>',
   chevron: '<path d="M8 10l4 4 4-4"/>',
+  arrowUp: '<path d="M12 20V4M6 10l6-6 6 6"/>',
+  arrowDown: '<path d="M12 4v16M6 14l6 6 6-6"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.7l7.6-4.4M8.2 13.3l7.6 4.4"/>',
   external: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>',

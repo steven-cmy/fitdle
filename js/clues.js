@@ -630,6 +630,7 @@ function weightFor(clue, ship, catalog, fitDelta = null) {
     if (rank <= 50) return round(4 + 6 * ((50 - rank) / 49), 1);
     return round(4 + 4 * ((rank - 50) / 50), 1);
   }
+  // zKillboard's "recent" bucket is a 90-day window; losses30 is a legacy key.
   const economyWeights = { losses30: 7.5, danger: 6.8, avgValue: 8.2 };
   if (economyWeights[clue.k] != null) return economyWeights[clue.k];
   const matches = Math.max(1, catalog.reduce((count, other) => count + (matchesCatalog(clue, other, fitDelta) ? 1 : 0), 0));
