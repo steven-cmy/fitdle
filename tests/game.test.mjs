@@ -9,9 +9,9 @@ import {
   DOWNTIME_HOUR_UTC,
   buildSearchIndex,
   buildGuessResult,
-  dateKeyFromLocation,
   dailyAnswerIndex,
   freeKillIdFromToken,
+  emptyStats,
   filterDailyKillPool,
   freeKillToken,
   gameDateKey,
@@ -27,10 +27,13 @@ import {
   parseKillId,
   pickDailyAnswer,
   profileSimilarity,
+  recordPlay,
   recordResult,
   resultGrid,
   revealCountFor,
   saveState,
+  saveStats,
+  settleStats,
   searchShips,
   selectDailyKillPair,
   selectRuntimeKill,
@@ -80,18 +83,12 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(msUntilNextUtcMidnight(new Date('2026-11-14T23:59:30Z')), 30000);
   assert.equal(msUntilNextDowntime(new Date('2026-11-14T10:30:00Z')), 30 * 60 * 1000);
   assert.equal(msUntilNextDowntime(new Date('2026-11-14T11:00:00Z')), 24 * 60 * 60 * 1000);
+  assert.equal(modeFromLocation('?rule=abyss'), 'abyss');
+  assert.equal(modeFromLocation('?rule=standard'), 'normal');
+  assert.equal(modeFromLocation('?rule=timed'), 'normal');
   assert.equal(modeFromLocation('?mode=abyss'), 'abyss');
   assert.equal(modeFromLocation('?mode=normal'), 'normal');
-  assert.equal(dateKeyFromLocation('?d=bad', new Date('2026-11-14T12:00:00Z')).invalid, true);
-  const beforeDowntime = dateKeyFromLocation('?d=2026-11-14', new Date('2026-11-14T10:59:00Z'));
-  assert.equal(beforeDowntime.invalid, true);
-  assert.equal(beforeDowntime.date, '2026-11-13');
-  const future = dateKeyFromLocation('?d=2026-11-15', new Date('2026-11-14T12:00:00Z'));
-  assert.equal(future.invalid, true);
-  assert.equal(future.date, '2026-11-14');
-  const beforeHistory = dateKeyFromLocation('?d=2012-05-21', new Date('2026-11-14T12:00:00Z'));
-  assert.equal(beforeHistory.invalid, false);
-  assert.equal(beforeHistory.date, '2012-05-21');
+  assert.equal(modeFromLocation('?mode=timed'), 'normal');
   assert.equal(shiftDateKey('2012-05-22', -1), '2012-05-21');
   assert.equal(shiftDateKey('2026-11-14', 1), '2026-11-15');
   assert.equal(parseKillId('139037509'), 139037509);
@@ -375,15 +372,67 @@ test('service record streaks survive consecutive days only', () => {
   assert.equal(stats.streak, 1);
 });
 
+test('daily stats count plays and wins per gameplay and streak by day', () => {
+  const storage = { value: null, getItem() { return this.value; }, setItem(_key, value) { this.value = value; } };
+  let stats = emptyStats();
+  stats = recordPlay(storage, stats, { date: '2026-11-17', mode: 'standard', isToday: true });
+  stats = recordPlay(storage, stats, { date: '2026-11-17', mode: 'standard', isToday: true });
+  assert.equal(stats.played.standard, 1);
+  stats = recordResult(storage, stats, {
+    date: '2026-11-17', mode: 'standard', status: 'won', attempts: 3, isToday: true,
+  });
+  assert.equal(stats.wins.standard, 1);
+  assert.equal(stats.streak, 1);
+  stats = recordPlay(storage, stats, { date: '2026-11-17', mode: 'abyss', isToday: true });
+  stats = recordResult(storage, stats, {
+    date: '2026-11-17', mode: 'abyss', status: 'won', attempts: 2, isToday: true,
+  });
+  assert.equal(stats.wins.abyss, 1);
+  assert.equal(stats.streak, 1, 'multiple wins on one day count once');
+  stats = recordResult(storage, stats, {
+    date: '2026-11-18', mode: 'timed', status: 'won', attempts: 1, isToday: true,
+  });
+  assert.equal(stats.streak, 2);
+  assert.equal(stats.played.timed, 1);
+  stats = settleStats(stats, '2026-11-20');
+  assert.equal(stats.streak, 0);
+  let losing = recordResult(storage, emptyStats(), {
+    date: '2026-11-21', mode: 'standard', status: 'won', attempts: 1, isToday: true,
+  });
+  for (const mode of ['standard', 'abyss', 'timed']) {
+    losing = recordResult(storage, losing, {
+      date: '2026-11-22', mode, status: 'lost', attempts: 6, isToday: true,
+    });
+  }
+  assert.equal(losing.streak, 0, 'all three modes losing clears the day streak');
+});
+
+test('legacy aggregate stats survive the per-mode migration', () => {
+  const storage = {
+    value: JSON.stringify({ played: 12, wins: 4, streak: 2, maxStreak: 3, distribution: [0, 1, 0, 0, 0, 0], lastDate: '2026-11-16' }),
+    getItem() { return this.value; },
+    setItem(_key, value) { this.value = value; },
+  };
+  const stats = loadStats(storage);
+  assert.equal(stats.legacyPlayed, 12);
+  assert.equal(stats.legacyWins, 4);
+  assert.equal(stats.played.standard, 0);
+  saveStats(storage, stats);
+  assert.equal(JSON.parse(storage.value).legacyPlayed, 12);
+});
+
 test('share URLs and result grids are spoiler-safe', () => {
-  const url = shareUrl({ href: 'https://example.test/fitdle/index.html?d=2026-11-01&lang=de#x' }, '2026-11-14', 'normal', 'won', 3);
-  assert.equal(url, 'https://example.test/fitdle/share/3/en.html?d=2026-11-14&mode=normal');
+  const killId = 424242;
+  const token = freeKillToken(killId);
+  const url = shareUrl({ href: 'https://example.test/fitdle/index.html?d=2026-11-01&lang=de#x' }, killId, 'normal', 'won', 3);
+  assert.equal(url, `https://example.test/fitdle/share/3/en.html?kb=${token}`);
   assert.equal(new URL(url).origin, 'https://example.test');
-  const abyssUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, '2026-11-14', 'abyss', 'won', 4, 'zh-Hant');
-  assert.equal(abyssUrl, 'https://example.test/fitdle/share/4/zh.html?d=2026-11-14&mode=abyss');
-  const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, '2026-11-14', 'abyss', 'lost', 6, 'de');
-  assert.equal(lostUrl, 'https://example.test/fitdle/share/lost/de.html?d=2026-11-14&mode=abyss');
+  const abyssUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'won', 4, 'zh-Hant');
+  assert.equal(abyssUrl, `https://example.test/fitdle/share/4/zh.html?kb=${token}&rule=abyss`);
+  const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'lost', 6, 'de');
+  assert.equal(lostUrl, `https://example.test/fitdle/share/lost/de.html?kb=${token}&rule=abyss`);
   assert.equal(url.includes('lang='), false);
+  assert.equal(url.includes('d='), false);
   const storage = { data: new Map(), getItem(k) { return this.data.get(k) ?? null; }, setItem(k, v) { this.data.set(k, v); } };
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [1], status: 'playing' }, 'normal');
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [2], status: 'playing' }, 'abyss');
@@ -413,7 +462,7 @@ test('localized static share pages carry the score for link previews', () => {
     assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-3-zh.png')));
     assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-lost-de.png')));
     const timed = fs.readFileSync(path.join(ROOT, 'dist', 'share', 'timed', 'en.html'), 'utf8');
-    assert.match(timed, /'t', 'timer'/);
+    assert.match(timed, /'rule', 't'/);
     assert.match(timed, /location\.replace/);
     assert.equal(timed.includes("searchParams.set('lang'"), false);
     const freeShare = fs.readFileSync(path.join(ROOT, 'dist', 'share', 'free', 'en.html'), 'utf8');
@@ -469,6 +518,11 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   for (const shipId of manifest.killShipPool) assert.ok(catalog.some((ship) => ship.id === shipId));
   assert.equal(manifest.counts.modules, Object.keys(refs.modules).length);
   assert.ok(refs.modules[3186]?.chargeGroups?.includes(377));
+  assert.deepEqual(refs.modules[2048]?.resistLayers, { shield: true, armor: true, structure: true });
+  assert.deepEqual(refs.modules[2281]?.resistLayers, { shield: true, armor: false, structure: false });
+  assert.deepEqual(refs.modules[11642]?.resistLayers, { shield: false, armor: true, structure: false });
+  assert.equal(refs.modules[202]?.resistLayers, null);
+  assert.equal(refs.modules[47257]?.assaultDamageControl, true);
   const abyssFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => entry && typeof entry === 'object');
   assert.ok(abyssFallback);
   assert.ok(Object.values(abyssFallback).some((candidates) => Array.isArray(candidates) && candidates.length));
@@ -493,6 +547,9 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   for (const ship of catalog) {
     assert.ok(ship.id && ship.names?.en);
     assert.ok(ship.attrs && Number.isFinite(ship.attrs.speed));
+    assert.ok(Number.isFinite(ship.attrs.shieldRecharge) && ship.attrs.shieldRecharge > 0);
+    assert.ok(['radar', 'ladar', 'magnetometric', 'gravimetric']
+      .every((key) => Number.isFinite(ship.attrs.sensorStrength?.[key])));
     assert.equal('icon' in ship, false, `${ship.id} still contains a local icon path`);
     assert.equal('render' in ship, false, `${ship.id} still contains a local render path`);
   }
@@ -771,6 +828,106 @@ test('assault damage control raises abyss structure resist weight', () => {
     dateKey: '2026-11-14', dataVersion: manifest.dataVersion,
   }).clues.find((clue) => clue.k === 'structureResists');
   assert.ok(standard.w <= 0.4);
+});
+
+test('sensor strength and shield recharge are exposed as static clues', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const built = buildClues({
+    ship, catalog, refs, stats: null, losses: [], dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion,
+  });
+  const byKind = (kind) => built.clues.find((clue) => clue.k === kind);
+  const sensor = byKind('sensorStrength');
+  const recharge = byKind('shieldRecharge');
+  assert.ok(sensor, 'sensor strength clue missing');
+  assert.ok(recharge, 'shield recharge clue missing');
+  assert.equal(sensor.c, 'targeting');
+  assert.equal(recharge.c, 'defense');
+  assert.deepEqual(sensor.v, ship.attrs.sensorStrength);
+  assert.equal(recharge.v, ship.attrs.shieldRecharge);
+  assert.ok(sensor.w >= 1 && sensor.w <= 10);
+  assert.ok(recharge.w >= 1 && recharge.w <= 10);
+  assert.ok(clueMatchesShip(sensor, ship));
+  assert.ok(clueMatchesShip(recharge, ship));
+  assert.ok(clueMatchesShip({ k: 'shieldRecharge', v: ship.attrs.shieldRecharge * 1.01 }, ship));
+
+  const delta = {
+    ratio: { shieldRecharge: 0.5 },
+    sensorStrength: { ladar: 2 },
+  };
+  assert.ok(clueMatchesShip({ k: 'shieldRecharge', v: ship.attrs.shieldRecharge * 0.5 }, ship, delta));
+  assert.ok(clueMatchesShip({
+    k: 'sensorStrength',
+    v: { ...ship.attrs.sensorStrength, ladar: ship.attrs.sensorStrength.ladar * 2 },
+  }, ship, delta));
+});
+
+test('resistance weights follow fitted resist gear instead of base values alone', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const build = (items) => buildClues({
+    ship, catalog, refs, stats: null,
+    losses: [{ killmail_id: 12, zkb: { totalValue: 1000 }, victim: { items } }],
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+  });
+  const clue = (built, kind) => built.clues.find((entry) => entry.k === kind);
+  const equipment = (built, id) => built.clues.find((entry) => entry.k === 'equipment' && entry.v.module === id);
+  const item = (id, flag = 12) => ({ flag, item_type_id: id, quantity_destroyed: 1 });
+
+  const none = build([]);
+  for (const kind of ['shieldResists', 'armorResists', 'structureResists']) {
+    assert.ok(clue(none, kind).w <= 3.2, `${kind} base weight should stay low`);
+  }
+
+  const t2dc = build([item(2048)]);
+  for (const kind of ['shieldResists', 'armorResists', 'structureResists']) {
+    assert.ok(clue(t2dc, kind).w <= 3.2, `${kind} T2 DC weight should stay low`);
+  }
+
+  const factionDc = build([item(41200)]);
+  const factionDcWeight = equipment(factionDc, 41200).w;
+  assert.ok(factionDcWeight >= 8.2);
+  for (const kind of ['shieldResists', 'armorResists', 'structureResists']) {
+    assert.ok(clue(factionDc, kind).w >= factionDcWeight, `${kind} should inherit the faction DC weight`);
+  }
+
+  const adc = build([item(47257)]);
+  const adcWeight = equipment(adc, 47257).w;
+  assert.ok(clue(adc, 'structureResists').w >= 9.5);
+  assert.ok(clue(adc, 'shieldResists').w >= Math.max(8.8, adcWeight));
+  assert.ok(clue(adc, 'armorResists').w >= Math.max(8.8, adcWeight));
+
+  const shieldHardener = build([item(2281, 19)]);
+  const shieldHardenerWeight = equipment(shieldHardener, 2281).w;
+  assert.ok(clue(shieldHardener, 'shieldResists').w >= Math.max(5.8, shieldHardenerWeight));
+  assert.ok(clue(shieldHardener, 'armorResists').w <= 3.2);
+  assert.ok(clue(shieldHardener, 'structureResists').w <= 3.2);
+
+  // Charges can carry resonance attributes, but they are not fitted resist gear.
+  const missile = build([item(202, 27)]);
+  for (const kind of ['shieldResists', 'armorResists', 'structureResists']) {
+    assert.ok(clue(missile, kind).w <= 3.2, `${kind} should ignore charge resonance data`);
+  }
+
+  // Group-60 capital energizers are structure-only, not plain damage controls.
+  const energizer = build([item(40714)]);
+  const energizerWeight = equipment(energizer, 40714).w;
+  assert.ok(clue(energizer, 'structureResists').w >= energizerWeight);
+  assert.ok(clue(energizer, 'shieldResists').w <= 3.2);
+  assert.ok(clue(energizer, 'armorResists').w <= 3.2);
+});
+
+test('abyss weather boosts non-uniform structure resists', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const build = (structureResists) => buildClues({
+    ship, catalog, refs, stats: null,
+    losses: [{ killmail_id: 77, zkb: { totalValue: 1000 }, victim: { items: [] } }],
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+    fittedAttrs: { ...ship.attrs, structureResists },
+  }).clues.find((clue) => clue.k === 'structureResists');
+  const uniform = build({ em: 33, thermal: 33, kinetic: 33, explosive: 33 });
+  const weather = build({ em: 33, thermal: 50, kinetic: 33, explosive: 33 });
+  assert.ok(weather.w >= 9.5);
+  assert.ok(weather.w > uniform.w);
 });
 
 test('low-slot weapon upgrades are weighted by matching weapon family', () => {
@@ -1146,7 +1303,7 @@ test('normal mode releases equipment on misses and shared clues on matching gues
   assert.ok([...initial].some((index) => built.clues[index].k === 'structureResists'));
   const initialStatic = [...initial]
     .map((index) => built.clues[index])
-    .filter((clue) => ['identity', 'hull', 'slots', 'nav', 'defense', 'fitting'].includes(clue.c));
+    .filter((clue) => ['identity', 'hull', 'slots', 'nav', 'defense', 'targeting', 'fitting'].includes(clue.c));
   const candidates = catalog.filter((entry) => initialStatic.every((clue) => clueMatchesShip(clue, entry)));
   assert.ok(candidates.length >= 6, 'opening must keep a usable candidate set');
 
@@ -1156,7 +1313,7 @@ test('normal mode releases equipment on misses and shared clues on matching gues
   const newlyMatched = [...shared]
     .filter((index) => !initial.has(index))
     .map((index) => built.clues[index])
-    .filter((clue) => ['identity', 'hull', 'slots', 'nav', 'defense', 'fitting'].includes(clue.c));
+    .filter((clue) => ['identity', 'hull', 'slots', 'nav', 'defense', 'targeting', 'fitting'].includes(clue.c));
   assert.ok(newlyMatched.length > 0, 'matching guesses should reveal shared static clues');
 
   const afterUnknown = compute([999999]);

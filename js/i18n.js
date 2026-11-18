@@ -1523,6 +1523,34 @@ const EXTRAS = {
     zh: '深渊：装备模拟、稀有船体，+1~+5 装备线索 +1 其他线索。',
   },
   'clue.kbValue': { en: 'KILLMAIL VALUE', de: 'KILLMAIL-WERT', es: 'VALOR DEL KILLMAIL', fr: 'VALEUR DU KILLMAIL', ja: 'キルメール価値', ko: '킬메일 가치', ru: 'СТОИМОСТЬ КИЛМЕЙЛА', zh: '击杀总价值' },
+  'clue.sensorStrength': {
+    en: 'SENSOR STRENGTH', de: 'SENSORSTÄRKE', es: 'INTENSIDAD DE SENSORES',
+    fr: 'INTENSITÉ DES CAPTEURS', ja: 'センサー強度', ko: '센서 강도',
+    ru: 'СИЛА СЕНСОРОВ', zh: '传感器强度',
+  },
+  'clue.shieldRecharge': {
+    en: 'SHIELD RECHARGE', de: 'SCHILD-AUFLADUNG', es: 'RECARGA DE ESCUDO',
+    fr: 'RECHARGE DU BOUCLIER', ja: 'シールド再充電', ko: '실드 재충전',
+    ru: 'ПЕРЕЗАРЯДКА ЩИТА', zh: '护盾回充时间',
+  },
+  'sensor.radar': {
+    en: 'RADAR', de: 'RADAR', es: 'RADAR', fr: 'RADAR',
+    ja: 'レーダー', ko: '레이더', ru: 'РАДАР', zh: '雷达',
+  },
+  'sensor.ladar': {
+    en: 'LADAR', de: 'LADAR', es: 'LÁDAR', fr: 'LADAR',
+    ja: 'ライダー', ko: '라이다', ru: 'ЛИДАР', zh: '光雷达',
+  },
+  'sensor.magnetometric': {
+    en: 'MAGNETOMETRIC', de: 'MAGNETOMETRISCH', es: 'MAGNETOMÉTRICO',
+    fr: 'MAGNÉTOMÉTRIQUE', ja: 'マグネトメトリック', ko: '자기장',
+    ru: 'МАГНИТОМЕТРИЧЕСКИЙ', zh: '磁力',
+  },
+  'sensor.gravimetric': {
+    en: 'GRAVIMETRIC', de: 'GRAVIMETRISCH', es: 'GRAVIMÉTRICO',
+    fr: 'GRAVIMÉTRIQUE', ja: 'グラビメトリック', ko: '중력',
+    ru: 'ГРАВИМЕТРИЧЕСКИЙ', zh: '引力',
+  },
   'cat.targeting': { en: 'TARGETING', de: 'ZIELERFASSUNG', es: 'FIJACIÓN', fr: 'CIBLAGE', ja: 'ターゲティング', ko: '타게팅', ru: 'НАВЕДЕНИЕ', zh: '目标锁定' },
   'clue.maxLockedTargets': { en: 'MAX LOCKED TARGETS', de: 'MAX. GESPERRTE ZIELE', es: 'OBJETIVOS FIJADOS MÁX.', fr: 'CIBLES VERROUILLÉES MAX.', ja: '最大ロック数', ko: '최대 록 수', ru: 'МАКС. ЗАХВАЧЕННЫХ ЦЕЛЕЙ', zh: '最大锁定数量' },
   'clue.resists': { en: 'RESISTS', de: 'RESISTENZEN', es: 'RESISTENCIAS', fr: 'RÉSISTANCES', ja: '耐性', ko: '저항', ru: 'СОПРОТИВЛЕНИЕ', zh: '抗性' },
@@ -2736,10 +2764,6 @@ function localeFromTag(raw) {
 }
 
 export function detectLocale() {
-  const params = new URLSearchParams(location.search);
-  const fromUrl = params.get('lang');
-  const urlLocale = localeFromTag(fromUrl);
-  if (urlLocale) return urlLocale;
   try {
     const stored = localStorage.getItem('fitdle:v1:lang');
     const storedLocale = localeFromTag(stored);
@@ -2793,4 +2817,204 @@ export function createI18n(locale) {
   };
 
   return { lang, intl, t, integer, decimal, compact, isk, percent, date, duration };
+}
+
+Object.assign(RENAMES, {
+  'help.modesTitle': {
+    en: `MODES`, de: `MODI`, es: `MODOS`, fr: `MODES`,
+    ja: `モード`, ko: `모드`, ru: `РЕЖИМЫ`, zh: `模式说明`,
+  },
+  'help.gameplayTitle': {
+    en: `GAMEPLAY`, de: `SPIELWEISEN`, es: `MODALIDADES`, fr: `MODES DE JEU`,
+    ja: `ゲームモード`, ko: `게임 모드`, ru: `ИГРОВЫЕ РЕЖИМЫ`, zh: `玩法说明`,
+  },
+  'help.generalTitle': {
+    en: `GENERAL`, de: `ALLGEMEIN`, es: `GENERAL`, fr: `GÉNÉRAL`,
+    ja: `共通`, ko: `공통`, ru: `ОБЩИЕ`, zh: `通用`,
+  },
+  'help.dailyBody': {
+    en: `One target per UTC day, reset at 11:00 UTC. Standard and Abyss are scored; Timed follows the same daily target source but is unscored.`,
+    de: `Ein Ziel pro UTC-Tag, Reset um 11:00 UTC. Standard und Abyss werden gewertet; Timed nutzt dieselbe tägliche Zielquelle, wird aber nicht gewertet.`,
+    es: `Un objetivo por día UTC, reinicio a las 11:00 UTC. Estándar y Abismo puntúan; Crono usa la misma fuente diaria pero no puntúa.`,
+    fr: `Une cible par jour UTC, réinitialisation à 11:00 UTC. Standard et Abysse sont classés ; Chrono utilise la même source quotidienne mais n’est pas classé.`,
+    ja: `UTC ごとに1日1目標、11:00 UTC にリセット。スタンダードとアビスは採点対象、タイムドは同じデイリー目標を使いますが採点されません。`,
+    ko: `UTC 기준 하루 하나의 목표, 11:00 UTC 초기화. 스탠다드와 어비스는 점수에 반영되며, 타임드는 같은 일일 목표를 사용하지만 점수는 없습니다.`,
+    ru: `Одна цель на сутки UTC, сброс в 11:00 UTC. Standard и Abyss идут в зачёт; Timed использует тот же ежедневный источник, но не оценивается.`,
+    zh: `每个 UTC 日一个目标，11:00 UTC 重置。标准和深渊计入成绩；计时模式同样使用每日目标，但不计分。`,
+  },
+  'help.sharedRules': {
+    en: `The selected Daily or Free source determines the target.
+Standard and Abyss use six attempts; Timed uses unlimited attempts.
+A guess reveals values shared with the target.
+Only Daily Standard and Abyss affect score and streaks.`,
+    de: `Die gewählte Daily- oder Free-Quelle bestimmt das Ziel.
+Standard und Abyss haben sechs Versuche; Timed ist unbegrenzt.
+Ein Tipp deckt Werte auf, die mit dem Ziel übereinstimmen.
+Nur Daily-Standard und Daily-Abyss beeinflussen Wertung und Serie.`,
+    es: `La fuente Diaria o Libre seleccionada determina el objetivo.
+Estándar y Abismo usan seis intentos; Crono usa intentos ilimitados.
+Cada intento revela valores compartidos con el objetivo.
+Solo Diaria Estándar y Diaria Abismo afectan a la puntuación y las rachas.`,
+    fr: `La source Quotidien ou Libre sélectionnée détermine la cible.
+Standard et Abysse utilisent six tentatives ; Chrono est illimité.
+Chaque tentative révèle les valeurs partagées avec la cible.
+Seuls Quotidien Standard et Quotidien Abysse affectent le score et les séries.`,
+    ja: `選択中のデイリーまたはフリーの目標ソースに従います。
+スタンダードとアビスは6回、タイムドは無制限です。
+推測すると、目標と共通する値が公開されます。
+スコアと連勝に影響するのはデイリーのスタンダードとアビスだけです。`,
+    ko: `선택한 데일리 또는 자유 목표 소스가 목표를 결정합니다.
+스탠다드와 어비스는 6회, 타임드는 무제한 시도입니다.
+추측하면 목표와 공유하는 값이 공개됩니다.
+점수와 연승에는 데일리 스탠다드와 데일리 어비스만 영향을 줍니다.`,
+    ru: `Выбранный источник Daily или Free определяет цель.
+Standard и Abyss дают шесть попыток; Timed — неограниченно.
+Догадка раскрывает значения, совпадающие с целью.
+На счёт и серию влияют только Daily Standard и Daily Abyss.`,
+    zh: `目标来源由当前选择的每日或自由模式决定。
+标准和深渊有六次尝试；计时模式尝试次数不限。
+每次猜测会揭示与目标相同的数值。
+只有每日模式下的标准和深渊计入成绩与连胜。`,
+  },
+  'mode.timedHint': {
+    en: `Timed gameplay. Uses the selected Daily or Free target source. Unlimited attempts against the clock; unscored.`,
+    de: `Timed-Spielweise. Nutzt die gewählte Daily- oder Free-Zielquelle. Unbegrenzte Versuche gegen die Uhr; ohne Wertung.`,
+    es: `Modalidad Crono. Usa la fuente de objetivo Diaria o Libre seleccionada. Intentos ilimitados contra el reloj; sin puntuación.`,
+    fr: `Mode Chrono. Utilise la source de cible Quotidien ou Libre sélectionnée. Tentatives illimitées contre le chrono ; non classé.`,
+    ja: `タイムド玩法。選択中のデイリーまたはフリーの目標ソースに従います。時間制限付きで試行は無制限、採点なし。`,
+    ko: `타임드 플레이. 선택한 데일리 또는 자유 목표 소스를 따릅니다. 시간 제한과 무제한 시도, 점수 없음.`,
+    ru: `Режим Timed. Использует выбранный источник цели Daily или Free. Неограниченные попытки на время; без оценки.`,
+    zh: `计时玩法。目标来源遵循当前选择的每日或自由模式。无限尝试，与时间赛跑；不计分。`,
+  },
+  'mode.helpTimed': {
+    en: `Unlimited attempts.
+Opening clues are revealed when you start.
+Wrong guesses do not reveal clues.
+One clue is revealed every 30 seconds; each lock has a 5-second cooldown.
+If all clues are revealed, the next clue time fails the run.
+Hold the timer for 3 seconds to give up and reveal the answer.
+With Daily selected, Timed uses its own daily target. With Free selected, it uses the chosen or random free target.
+Progress is saved but not scored.`,
+    de: `Unbegrenzte Versuche.
+Start-Hinweise werden beim Start aufgedeckt.
+Falsche Versuche geben keine Hinweise.
+Alle 30 Sekunden wird ein Hinweis aufgedeckt; nach jeder Erfassung folgen 5 Sekunden Abklingzeit.
+Sind alle Hinweise offen, scheitert der Lauf beim nächsten Hinweis.
+Timer 3 Sekunden halten, um aufzugeben und die Antwort zu sehen.
+Bei Daily nutzt Timed ein eigenes Tagesziel. Bei Free wird das gewählte oder zufällige freie Ziel verwendet.
+Fortschritt wird gespeichert, aber nicht gewertet.`,
+    es: `Intentos ilimitados.
+Las pistas iniciales se revelan al empezar.
+Los fallos no revelan pistas.
+Cada 30 segundos se revela una pista; tras cada bloqueo hay 5 segundos de recarga.
+Si todas las pistas están reveladas, el siguiente aviso hace fallar la partida.
+Mantén el cronómetro 3 segundos para rendirte y ver la respuesta.
+Con Diaria, Crono usa su propio objetivo diario. Con Libre, usa el objetivo libre elegido o aleatorio.
+El progreso se guarda, pero no puntúa.`,
+    fr: `Tentatives illimitées.
+Les indices initiaux sont révélés au départ.
+Les erreurs ne révèlent pas d’indices.
+Un indice est révélé toutes les 30 secondes ; chaque verrouillage impose 5 secondes de recharge.
+Si tous les indices sont révélés, le prochain indice fait échouer la partie.
+Maintenez le chrono 3 secondes pour abandonner et voir la réponse.
+En Quotidien, Chrono utilise sa propre cible quotidienne. En Libre, il utilise la cible libre choisie ou aléatoire.
+La progression est sauvegardée, mais non classée.`,
+    ja: `試行は無制限です。
+開始時に初期ヒントが公開されます。
+誤答ではヒントは公開されません。
+30秒ごとにヒントが1つ公開され、各ロック後には5秒のクールダウンがあります。
+すべてのヒントが公開されると、次のヒント公開時に失敗します。
+タイマーを3秒長押しすると諦めて答えが表示されます。
+デイリー選択時は専用のデイリー目標、フリー選択時は選択またはランダムなフリー目標を使います。
+進行状況は保存されますが、採点されません。`,
+    ko: `시도 횟수는 무제한입니다.
+시작하면 초기 단서가 공개됩니다.
+틀린 추측은 단서를 공개하지 않습니다.
+30초마다 단서 하나가 공개되며, 각 잠금 후 5초의 재사용 대기시간이 있습니다.
+모든 단서가 공개되면 다음 단서 공개 시 실패합니다.
+타이머를 3초간 길게 누르면 포기하고 정답이 공개됩니다.
+데일리 선택 시 타임드는 전용 일일 목표를, 자유 선택 시 선택하거나 무작위로 고른 자유 목표를 사용합니다.
+진행 상황은 저장되지만 점수는 없습니다.`,
+    ru: `Неограниченное число попыток.
+При старте открываются начальные подсказки.
+Неверные догадки не открывают подсказки.
+Каждые 30 секунд открывается одна подсказка; после каждой фиксации — 5 секунд перезарядки.
+Если все подсказки открыты, следующее открытие приводит к поражению.
+Удерживайте таймер 3 секунды, чтобы сдаться и увидеть ответ.
+В Daily Timed использует отдельную дневную цель. В Free — выбранную или случайную свободную цель.
+Прогресс сохраняется, но не оценивается.`,
+    zh: `尝试次数不限。
+开始计时时展示开局线索。
+猜错不会揭示线索。
+每 30 秒揭示一条线索；每次锁定目标后有 5 秒冷却。
+所有线索都揭示后，下一次线索发布时自动失败。
+长按计时器 3 秒可放弃并显示答案。
+选择每日模式时，计时玩法使用独立的每日目标；选择自由模式时，使用指定或随机的自由目标。
+进度会保存，但不计分。`,
+  },
+});
+
+for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}
+
+Object.assign(RENAMES, {
+  'help.statStreak': {
+    en: `WIN STREAK (DAYS)`, de: `SIEGESSERIE (TAGE)`, es: `RACHA (DÍAS)`, fr: `SÉRIE (JOURS)`,
+    ja: `連勝日数`, ko: `연승 일수`, ru: `СЕРИЯ ПОБЕД (ДНЕЙ)`, zh: `连胜天数`,
+  },
+  'help.statBest': {
+    en: `BEST STREAK (DAYS)`, de: `BESTE SERIE (TAGE)`, es: `MEJOR RACHA (DÍAS)`, fr: `MEILLEURE SÉRIE (JOURS)`,
+    ja: `最高連勝日数`, ko: `최고 연승 일수`, ru: `ЛУЧШАЯ СЕРИЯ (ДНЕЙ)`, zh: `最高连胜天数`,
+  },
+  'end.streak': {
+    en: `DAY STREAK`, de: `TAGES-SERIE`, es: `RACHA DE DÍAS`, fr: `SÉRIE DE JOURS`,
+    ja: `連勝日数`, ko: `연승 일수`, ru: `СЕРИЯ ДНЕЙ`, zh: `连胜天数`,
+  },
+  'help.statLegacy': {
+    en: `LEGACY TOTAL: {played} played / {wins} won`,
+    de: `ALTES GESAMT: {played} gespielt / {wins} gewonnen`,
+    es: `TOTAL ANTERIOR: {played} jugadas / {wins} ganadas`,
+    fr: `TOTAL HÉRITÉ : {played} jouées / {wins} gagnées`,
+    ja: `旧集計: プレイ {played} / 勝利 {wins}`,
+    ko: `이전 합계: 플레이 {played} / 승리 {wins}`,
+    ru: `ПРЕЖНИЙ ИТОГ: {played} игр / {wins} побед`,
+    zh: `迁移前总计：游玩 {played} / 击杀 {wins}`,
+  },
+  'help.resetRecord': {
+    en: `HOLD 5s TO RESET ALL PROGRESS`,
+    de: `5 SEK. HALTEN ZUM ZURÜCKSETZEN`,
+    es: `MANTÉN 5 s PARA REINICIAR`,
+    fr: `MAINTENIR 5 s POUR RÉINITIALISER`,
+    ja: `5秒長押しで全進行をリセット`,
+    ko: `5초 길게 눌러 전체 진행 초기화`,
+    ru: `УДЕРЖИВАЙТЕ 5 СЕК. ДЛЯ СБРОСА`,
+    zh: `长按 5 秒重置全部进度`,
+  },
+});
+
+for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}
+
+Object.assign(RENAMES, {
+  'help.resetRecord': {
+    en: `RESET ALL PROGRESS`,
+    de: `GESAMTEN FORTSCHRITT ZURÜCKSETZEN`,
+    es: `REINICIAR TODO EL PROGRESO`,
+    fr: `RÉINITIALISER TOUTE LA PROGRESSION`,
+    ja: `全進行をリセット`,
+    ko: `전체 진행 초기화`,
+    ru: `СБРОСИТЬ ВЕСЬ ПРОГРЕСС`,
+    zh: `重置全部进度`,
+  },
+});
+for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
 }

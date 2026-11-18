@@ -108,9 +108,10 @@ function sharePage({ key, locale, title, description, depth, image = null }) {
 <meta name="twitter:image" content="${safeImage}">
 <meta name="twitter:image:alt" content="${safeTitle}">
 <script>
+try { localStorage.setItem('fitdle:v1:lang', '${locale}'); } catch {}
 const q = new URLSearchParams(location.search);
 const target = new URL('${redirect}', location.href);
-for (const key of ['kb', 'killmail', 'kill', 'd', 'mode', 'lang', 't', 'timer']) {
+for (const key of ['kb', 'killmail', 'kill', 'rule', 't']) {
   const value = q.get(key);
   if (value) target.searchParams.set(key, value);
 }

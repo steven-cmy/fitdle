@@ -1,14 +1,31 @@
-# Changelog
+# 更新日志
+
+## v0.3.29
+
+- 计时模式改为与标准、深渊并列的独立玩法，目标跟随当前每日或自由模式；手册拆分为模式说明与玩法说明。
+- 界面语言保存在本地，旧语言参数会被清理；每日分享链接改用击杀哈希，打开匹配链接会进入每日模式并恢复进度，否则保持自由模式。
+- 三种玩法的地址参数统一为 `rule`，标准模式省略；重置按钮不再显示按住时长。
+- 总数据统计不再随构建重置，旧版累计保留；连胜改为按天计算，任意玩法成功计一天，缺勤或当天全部失败后归零。
+- 每日游玩与击杀按标准、深渊、计时分别统计；开始计时或首次猜船计为游玩；重置进度改为长按并显示红色进度条。
+- 击杀档案的分组改为自动平衡的流式两栏，装备与货仓不再固定在右栏；窄屏自动单栏。
+- 货仓容量固定在货仓区块顶部，未揭示时保留占位，没有货仓容量的舰船也会显示该条目。
+- 新增传感器强度线索，只显示有值的传感器类型，并用对应种族主色的雷达图标与文字标识。
+- 新增护盾回充时间线索，统一以秒显示。
+- 深渊抗性线索改为按实际装配判断：普通损控保持低权重，势力及以上损控、抗性装备、突击损控和天象等会显著提高权重；结构抗性偏斜更明显。
+- 势力及以上损控与抗性装备的装备权重同步提高，避免抗性线索权重低于其来源装备；修复非抗性装备的抗性属性被误用于抗性线索。
+- 目标锁定类线索纳入开局候选保护，避免强线索过早锁死答案。
+- 击杀档案在锁定目标时播放雷达扫描/流光效果，未揭示条目使用灰蓝色，新揭示条目保留左侧颜色条。
+- 击杀档案中的 zKill 链接在谜题结束前不可用。
+- 本次规则更新后，未完成的当日谜题会重新开始。
 
 ## v0.3.15
 
-- Daily target selection now uses a stable baseline and a non-empty fallback, and excludes entries from the current UTC day.
-- Empty-hull filtering now matches fitted modules, rigs, subsystems, drones and launched fighters while ignoring cargo, spare fighter-bay contents and zero-quantity entries.
-- Free mode now respects the empty-hull setting for random and direct targets.
-- Daily selection now shows a localized no-target screen with a Free mode entry instead of using static fallback killmails.
-- Loading text is localized and the Abyss theme is applied before startup.
-- Existing sharing, timed mode, manual and accessibility improvements are retained.
+- 每日选题使用稳定基准与非空备用，并排除当前 UTC 日期的条目。
+- 空船判定覆盖装备、船插、子系统、无人机和舰载机，忽略货仓、备用舰载机仓与零数量记录。
+- 自由模式同样遵守空船设置。
+- 无合法每日目标时显示本地化提示并引导进入自由模式，不再使用静态备用目标。
+- 加载文案本地化，深渊主题在启动前生效。
 
 ## v0.3.2
 
-- Initial public daily puzzle release.
+- 首个公开每日谜题版本。

@@ -1943,21 +1943,19 @@ html[data-game-mode="abyss"] {
   padding: 18px;
 }
 
-/* Grouped attribute manifest: every slot is visible, values stay redacted. */
+/* Grouped attribute manifest: groups flow into balanced columns. */
 .dossier-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  column-count: 1;
+  column-fill: balance;
+  column-gap: 12px;
+}
+.dossier-group {
+  break-inside: avoid;
+  margin-bottom: 12px;
 }
 @media (min-width: 1200px) {
   .dossier-groups {
-    display: block;
-    columns: 2;
-    column-gap: 12px;
-  }
-  .dossier-group {
-    break-inside: avoid;
-    margin-bottom: 12px;
+    column-count: 2;
   }
 }
 
@@ -2420,6 +2418,33 @@ html[data-game-mode="abyss"] {
   letter-spacing: 0.03em;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.sensor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.sensor-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.sensor-line svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  color: var(--c);
+}
+.sensor-kind {
+  color: var(--c);
+  font: 600 9.5px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sensor-value {
+  color: var(--text);
+  font: 500 13px/1.35 var(--font-ui);
 }
 .hardpoint-row {
   display: flex;
@@ -4547,13 +4572,11 @@ html[data-game-mode="abyss"] {
     transform: translateX(-6px);
     filter: brightness(2.1);
     background: rgba(255, 181, 71, 0.24);
-    box-shadow: inset 0 0 0 1px rgba(255, 181, 71, 0.5), 0 0 18px rgba(255, 181, 71, 0.12);
   }
   22% {
     opacity: 1;
     filter: brightness(1.65);
     background: rgba(255, 181, 71, 0.19);
-    box-shadow: inset 0 0 0 1px rgba(255, 181, 71, 0.38), 0 0 18px rgba(255, 181, 71, 0.1);
   }
   58% {
     filter: brightness(1.18);
@@ -4564,7 +4587,6 @@ html[data-game-mode="abyss"] {
     transform: translateX(0);
     filter: brightness(1);
     background: transparent;
-    box-shadow: none;
   }
 }
 @keyframes modal-bg {
@@ -5270,4 +5292,146 @@ html[data-timed="1"] #dossier-orb {
 }
 html[data-timed="1"] #dossier-orb strong {
   color: var(--green);
+}
+
+/* Timed is a peer gameplay mode, not an extra modifier. */
+.mode-button[data-mode="timed"].is-active {
+  color: var(--green);
+  border-color: rgba(99, 245, 166, 0.5);
+  background: rgba(99, 245, 166, 0.08);
+}
+.mode-bar[data-mode="abyss"] .mode-button[data-mode="timed"].is-active {
+  color: var(--green);
+  border-color: rgba(99, 245, 166, 0.5);
+  background: rgba(99, 245, 166, 0.08);
+}
+
+/* Manual: mode and gameplay descriptions. */
+.manual-mode-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.manual-mode-block:first-of-type {
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: 0;
+}
+.manual-mode-block h4 {
+  margin: 0;
+  color: var(--text);
+  font: 600 10px/1.2 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.manual-mode-block p {
+  margin-top: 5px;
+}
+
+/* Per-gameplay daily stats. */
+.stats-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+.stats-mode {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: rgba(99, 231, 255, 0.025);
+  text-align: center;
+}
+.stats-mode span,
+.stats-mode small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font: 500 7px/1.2 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.stats-mode strong {
+  display: block;
+  margin: 5px 0 4px;
+  color: var(--text);
+  font: 600 15px/1 var(--font-mono);
+}
+.stats-streak-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.stats-legacy {
+  margin-top: 8px;
+  color: var(--dim);
+  font: 500 9px/1.4 var(--font-mono);
+}
+
+/* Long-press reset control. */
+.reset-hold {
+  position: relative;
+  overflow: hidden;
+}
+.reset-hold::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: color-mix(in srgb, var(--red) 28%, transparent);
+  pointer-events: none;
+}
+.reset-hold.is-holding::before {
+  animation: reset-hold-fill 5s linear forwards;
+}
+.reset-hold-label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+@keyframes reset-hold-fill {
+  to { width: 100%; }
+}
+
+/* One left-to-right radar sweep per lock across sealed and newly revealed rows. */
+.attr-row.is-scanning {
+  --scan-color: var(--cyan);
+  position: relative;
+}
+.attr-row.is-scanning.is-hidden {
+  --scan-color: var(--text-soft);
+}
+.attr-row.is-scanning::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--scan-color) 2%, transparent) 42%,
+    color-mix(in srgb, var(--scan-color) 14%, transparent) 47%,
+    color-mix(in srgb, var(--scan-color) 42%, transparent) 49.4%,
+    color-mix(in srgb, var(--scan-color) 72%, transparent) 50%,
+    color-mix(in srgb, var(--scan-color) 42%, transparent) 50.6%,
+    color-mix(in srgb, var(--scan-color) 14%, transparent) 53%,
+    color-mix(in srgb, var(--scan-color) 2%, transparent) 58%,
+    transparent 100%
+  );
+  pointer-events: none;
+  transform: translateX(-50%);
+  opacity: 1;
+  animation:
+    dossier-radar-sweep 1s cubic-bezier(0.25, 0.1, 0.25, 1) both,
+    dossier-radar-fade 1s ease-in-out 0s both;
+}
+@keyframes dossier-radar-sweep {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(50%); }
+}
+@keyframes dossier-radar-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }

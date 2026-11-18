@@ -3,6 +3,7 @@ import {
   buildGuessResult,
   buildSearchIndex,
   freeKillIdFromToken,
+  emptyStats,
   filterDailyKillPool,
   freeKillToken,
   gameDateKey,
@@ -15,16 +16,18 @@ import {
   parseKillId,
   normalizeText,
   profileSimilarity,
+  recordPlay,
   recordResult,
   saveState,
   saveStats,
   searchShips,
   selectDailyKillPair,
+  settleStats,
   shareUrl,
   victimIsWatched,
   weightedHullOrder,
 } from './game.js';
-import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
+import { detectLocale, createI18n, isLocale, resolveLocale, LOCALES, LOCALE_META } from './i18n.js';
 import { buildClues, getEquipment, selectAbyssFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
 import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
 import { computeRevealed, computeTimedRevealed } from './reveal.js';
@@ -35,11 +38,12 @@ const CATEGORIES = ['traits', 'hull', 'nav', 'defense', 'targeting', 'fitting', 
 const CATEGORY_ALIASES = { identity: 'hull', slots: 'fitting' };
 const DEFENSE_ORDER = {
   shield: 0,
-  armor: 1,
-  structure: 2,
-  shieldResists: 3,
-  armorResists: 4,
-  structureResists: 5,
+  shieldRecharge: 1,
+  armor: 2,
+  structure: 3,
+  shieldResists: 4,
+  armorResists: 5,
+  structureResists: 6,
 };
 const FITTING_ORDER = {
   turretHardpoints: 0,
@@ -106,6 +110,7 @@ const state = {
   revealed: new Set(),
   fresh: new Set(),
   latestIndex: -1,
+  scanPulse: false,
   inputValue: '',
   selectedId: null,
   activeSuggestion: -1,
@@ -139,14 +144,7 @@ const state = {
 
 const BASE = new URL('.', document.baseURI);
 const JSON_CACHE = new Map();
-const DEFAULT_STATS = {
-  played: 0,
-  wins: 0,
-  streak: 0,
-  maxStreak: 0,
-  distribution: [0, 0, 0, 0, 0, 0],
-  lastDate: null,
-};
+const DEFAULT_STATS = emptyStats();
 
 function $(selector, root = document) {
   return root.querySelector(selector);
@@ -379,17 +377,10 @@ function storageMode() {
 
 function timedFromLocation(search) {
   const params = new URLSearchParams(search);
-  return params.get('timer') === '1' || params.get('timed') === '1';
-}
-
-function setTimed(enabled) {
-  const url = new URL(location.href);
-  if (enabled) url.searchParams.set('timer', '1');
-  else {
-    url.searchParams.delete('timer');
-    url.searchParams.delete('timed');
-  }
-  location.assign(url.toString());
+  return params.get('rule') === 'timed'
+    || params.get('timer') === '1'
+    || params.get('timed') === '1'
+    || params.get('mode') === 'timed';
 }
 
 function formatElapsed(ms) {
@@ -529,6 +520,7 @@ function startLockCooldown() {
 
 function startTimedRun() {
   if (!isTimed() || state.timerStarted || state.status !== 'playing') return;
+  recordDailyPlay();
   startTimedClock();
   state.timerHoldStart = 0;
   state.gaveUp = false;
@@ -549,6 +541,7 @@ function failTimedRun() {
   state.gaveUp = false;
   state.timedExpired = true;
   state.status = 'lost';
+  recordDailyResult();
   recomputeRevealed();
   renderAll();
   persist();
@@ -567,6 +560,7 @@ function giveUpTimed() {
   state.gaveUp = true;
   state.timedExpired = false;
   state.status = 'lost';
+  recordDailyResult();
   recomputeRevealed();
   renderAll();
   markTimedForfeited();
@@ -575,11 +569,16 @@ function giveUpTimed() {
 }
 
 function setMode(mode) {
+  const nextTimed = mode === 'timed';
   const next = mode === 'abyss' ? 'abyss' : 'normal';
-  if (next === state.mode) return;
+  if (next === state.mode && nextTimed === state.timed) return;
   const url = new URL(location.href);
-  if (next === 'abyss') url.searchParams.set('mode', 'abyss');
-  else url.searchParams.delete('mode');
+  url.searchParams.delete('mode');
+  url.searchParams.delete('timer');
+  url.searchParams.delete('timed');
+  if (nextTimed) url.searchParams.set('rule', 'timed');
+  else if (next === 'abyss') url.searchParams.set('rule', 'abyss');
+  else url.searchParams.delete('rule');
   location.assign(url.toString());
 }
 
@@ -592,21 +591,25 @@ function zkillItemUrl(id) {
   return base && Number(id) ? `${base}/item/${Number(id)}/` : '';
 }
 
+function zkillLinksEnabled() {
+  return state.status !== 'playing';
+}
+
 function zkillItemLink(text, id) {
   const url = zkillItemUrl(id);
-  if (!url) return esc(text);
+  if (!url || !zkillLinksEnabled()) return esc(text);
   return `<a class="zkb-item-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
 }
 
 function zkillShipLink(text, id) {
   const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
-  if (!base || !Number(id)) return esc(text);
+  if (!base || !Number(id) || !zkillLinksEnabled()) return esc(text);
   return `<a class="zkb-item-link" href="${esc(`${base}/ship/${Number(id)}/`)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
 }
 
 function zkillEntityLink(kind, id, text) {
   const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
-  if (!base || !Number(id)) return esc(text);
+  if (!base || !Number(id) || !zkillLinksEnabled()) return esc(text);
   return `<a class="zkb-item-link" href="${esc(`${base}/${kind}/${Number(id)}/`)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
 }
 
@@ -646,7 +649,7 @@ function victimMetaHtml() {
 function zkillGroupTextLink(text, groupID) {
   const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
   const id = Number(groupID);
-  if (!base || !id) return esc(text);
+  if (!base || !id || !zkillLinksEnabled()) return esc(text);
   return `<a class="zkb-item-link" href="${esc(`${base}/group/${id}/`)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
 }
 
@@ -823,8 +826,35 @@ async function resolveDailyTarget(hulls, dateKey) {
   return null;
 }
 
-function explicitLangParam() {
-  return new URLSearchParams(location.search).get('lang');
+function captureUrlLocale() {
+  const url = new URL(location.href);
+  const raw = url.searchParams.get('lang');
+  if (!raw) return;
+  url.searchParams.delete('lang');
+  history.replaceState(null, '', url);
+  if (!/^(en|de|es|fr|ja|ko|ru|zh)([-_]|$)/i.test(raw)) return;
+  try {
+    localStorage.setItem('fitdle:v1:lang', resolveLocale(raw));
+  } catch {
+    // best effort
+  }
+}
+
+async function resolveDailySelection() {
+  const manifest = state.manifest;
+  const killShipPool = state.mode === 'abyss'
+    ? (manifest.abyssKillShipPool || manifest.killShipPool)
+    : (manifest.normalShipPool || manifest.killShipPool);
+  const hulls = weightedHullOrder(
+    killShipPool,
+    `${state.today}:${manifest.dataVersion}:${state.mode}:${state.timed ? 'timed' : 'standard'}:hulls`,
+    Number.MAX_SAFE_INTEGER,
+  );
+  const target = await resolveDailyTarget(hulls, state.today);
+  if (!target) throw new NoTargetError();
+  const chosen = state.allowEmptyKb ? target.baseline : target.fallback;
+  if (!chosen || !state.catalogMap.has(target.shipId)) throw new NoTargetError();
+  return { shipId: target.shipId, killmail: chosen };
 }
 
 function freeKillUrl(killId) {
@@ -833,9 +863,9 @@ function freeKillUrl(killId) {
   url.search = '';
   url.hash = '';
   url.searchParams.set('kb', freeKillToken(killId));
-  if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
-  if (isTimed()) url.searchParams.set('timer', '1');
-  if (explicitLangParam()) url.searchParams.set('lang', state.locale);
+  const rule = isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+  if (rule !== 'standard') url.searchParams.set('rule', rule);
+  else url.searchParams.delete('rule');
   return url.toString();
 }
 
@@ -845,9 +875,9 @@ function enterFreeMode() {
   url.search = '';
   url.hash = '';
   url.searchParams.set('free', '1');
-  if (state.mode === 'abyss') url.searchParams.set('mode', 'abyss');
-  if (isTimed()) url.searchParams.set('timer', '1');
-  if (explicitLangParam()) url.searchParams.set('lang', state.locale);
+  const rule = isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+  if (rule !== 'standard') url.searchParams.set('rule', rule);
+  else url.searchParams.delete('rule');
   location.assign(url.toString());
 }
 
@@ -1293,19 +1323,16 @@ function renderShell() {
       <div class="mode-row">
         <div class="mode-bar" data-mode="${state.mode}">
         <span class="mode-label">${esc(t('mode.label'))}</span>
-        <div class="mode-switch mode-nav" role="group" aria-label="${esc(t('mode.label'))}">
+        <div class="mode-switch mode-nav" role="group" aria-label="${esc(t('help.modesTitle'))}">
           <button type="button" class="mode-button${!isFree() ? ' is-active' : ''}" data-action="play-today" aria-pressed="${!isFree()}">${esc(t('mode.daily'))}</button>
           <button type="button" class="mode-button${isFree() ? ' is-active' : ''}" data-action="free-mode" aria-pressed="${isFree()}">${esc(t('mode.free'))}</button>
         </div>
         <span class="mode-divider" aria-hidden="true"></span>
-        <div class="mode-switch" role="group" aria-label="${esc(t('mode.label'))}">
-          <button type="button" class="mode-button${state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
-          <button type="button" class="mode-button${state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
+        <div class="mode-switch" role="group" aria-label="${esc(t('help.gameplayTitle'))}">
+          <button type="button" class="mode-button${!isTimed() && state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${!isTimed() && state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
+          <button type="button" class="mode-button${!isTimed() && state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${!isTimed() && state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
+          <button type="button" class="mode-button${isTimed() ? ' is-active' : ''}" data-action="set-mode" data-mode="timed" aria-pressed="${isTimed()}">${esc(t('mode.timed'))}</button>
         </div>
-        <button type="button" class="timed-toggle${isTimed() ? ' is-active' : ''}" data-action="toggle-timed" role="switch" aria-checked="${isTimed()}">
-          <span>${esc(t('mode.timed'))}</span>
-          <i class="toggle-track" aria-hidden="true"><b></b></i>
-        </button>
         </div>
         <div id="free-actions" class="free-mode-actions" hidden></div>
       </div>
@@ -1729,6 +1756,23 @@ function clueValue(clue) {
       return formatNumberValue(value, 'm/s', { prefix: '≈ ' });
     case 'sig':
       return formatNumberValue(value, 'm');
+    case 'sensorStrength': {
+      const sensors = [
+        ['radar', 'sensor.radar', '#7F6C50'],                 // Amarr
+        ['gravimetric', 'sensor.gravimetric', '#4A6C7F'],     // Caldari
+        ['magnetometric', 'sensor.magnetometric', '#366565'], // Gallente
+        ['ladar', 'sensor.ladar', '#653834'],                 // Minmatar
+      ].filter(([key]) => Number(value?.[key]) > 0);
+      if (!sensors.length) return '<span class="big">—</span>';
+      return `<span class="sensor-list">${sensors.map(([key, label, color]) => `
+        <span class="sensor-line" style="--c:${color}">
+          ${icon('radar')}
+          <span class="sensor-kind">${esc(t(label))}</span>
+          <span class="sensor-value">${esc(int(value[key]))}</span>
+        </span>`).join('')}</span>`;
+    }
+    case 'shieldRecharge':
+      return `<span class="big">${esc(dec(value, 2))}</span><span class="unit">s</span>`;
     case 'align':
       return `<span class="big">${esc(dec(value, 1))}</span><span class="unit">s</span>`;
     case 'warp':
@@ -1829,6 +1873,14 @@ function renderClueRow(clue, index, revealed) {
   </div>`;
 }
 
+function renderCargoCapacityPlaceholder() {
+  return `<div class="attr-row cat-cargo is-hidden equipment-sealed">
+    <span class="attr-label">${esc(t('clue.cargo'))}</span>
+    <span class="attr-value"><span class="attr-redacted" aria-label="?">?</span></span>
+    <span class="attr-meta"><span class="attr-lock">${icon('lock')}</span></span>
+  </div>`;
+}
+
 function renderDossier() {
   if (!state.answerData) return;
   if (isTimed() && !state.timerStarted && state.status === 'playing') {
@@ -1909,13 +1961,30 @@ function renderDossier() {
     host.innerHTML = groups.map(({ category, entries }) => {
       if (category === 'equipment' || category === 'cargo') {
         const ordered = [...entries].sort((a, b) => (
-          (EQUIPMENT_SLOT_ORDER[a.clue.v.slot] ?? 9) - (EQUIPMENT_SLOT_ORDER[b.clue.v.slot] ?? 9)
+          Number(b.clue.k === 'cargoCapacity') - Number(a.clue.k === 'cargoCapacity')
+          || (EQUIPMENT_SLOT_ORDER[a.clue.v.slot] ?? 9) - (EQUIPMENT_SLOT_ORDER[b.clue.v.slot] ?? 9)
           || a.index - b.index
         ));
         const revealed = ordered.filter((entry) => state.revealed.has(entry.index));
         const hidden = ordered.length - revealed.length;
+        const capacityEntry = category === 'cargo'
+          ? ordered.find((entry) => entry.clue.k === 'cargoCapacity') || null
+          : null;
+        const capacityIndex = capacityEntry?.index;
+        const capacityRevealed = Boolean(capacityEntry && state.revealed.has(capacityIndex));
+        const capacityRow = capacityEntry
+          ? (capacityRevealed
+            ? renderClueRow(capacityEntry.clue, capacityEntry.index, true)
+            : renderCargoCapacityPlaceholder())
+          : '';
+        const revealedOthers = category === 'cargo'
+          ? revealed.filter((entry) => entry.index !== capacityIndex)
+          : revealed;
+        const hiddenOthers = category === 'cargo' && capacityEntry && !capacityRevealed
+          ? hidden - 1
+          : hidden;
         const sealedKey = category === 'cargo' ? 'dossier.cargoSealed' : 'dossier.equipmentSealed';
-        const sealed = hidden
+        const sealed = hiddenOthers > 0
           ? `<div class="attr-row cat-${category} is-hidden equipment-sealed">
               <span class="attr-label">${esc(t(sealedKey))}</span>
               <span class="attr-value"><span class="attr-redacted" aria-label="?">?</span></span>
@@ -1923,7 +1992,7 @@ function renderDossier() {
             </div>`
           : '';
         const slotGroups = category === 'cargo'
-          ? revealed.map(({ clue, index }) => renderClueRow(clue, index, true)).join('')
+          ? `${capacityRow}${revealedOthers.map(({ clue, index }) => renderClueRow(clue, index, true)).join('')}`
           : Object.entries(EQUIPMENT_SLOT_ORDER)
             .map(([slot]) => ({
               slot,
@@ -1994,6 +2063,12 @@ function renderDossier() {
         </div>
       </section>`;
     }).join('');
+    if (state.scanPulse) {
+      state.scanPulse = false;
+      const scanRows = host.querySelectorAll('.attr-row.is-hidden, .attr-row.is-fresh');
+      scanRows.forEach((row) => row.classList.add('is-scanning'));
+      setTimeout(() => scanRows.forEach((row) => row.classList.remove('is-scanning')), 1100);
+    }
   }
 
   if (state.fresh.size) {
@@ -2167,9 +2242,38 @@ function submitGuess() {
   applyGuess(ship.id);
 }
 
+function statMode() {
+  return isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+}
+
+function statsEligible() {
+  return !isFree() && state.date === state.today;
+}
+
+function recordDailyPlay() {
+  if (!statsEligible()) return;
+  state.stats = recordPlay(localStorage, state.stats, {
+    date: state.date,
+    mode: statMode(),
+    isToday: true,
+  });
+}
+
+function recordDailyResult() {
+  if (!statsEligible()) return;
+  state.stats = recordResult(localStorage, state.stats, {
+    date: state.date,
+    mode: statMode(),
+    status: state.status,
+    attempts: state.guesses.length,
+    isToday: true,
+  });
+}
+
 function applyGuess(shipId) {
   const ship = state.catalogMap.get(shipId);
   if (!ship) return;
+  recordDailyPlay();
   const previousRevealed = new Set(state.revealed);
   const previousGuesses = state.guesses.length;
   hideSuggestions();
@@ -2192,17 +2296,11 @@ function applyGuess(shipId) {
     else showToast(t('toast.noMatch'), '', 'warn');
   }
 
+  state.scanPulse = true;
   renderAll();
   if (isTimed() && !correct) startLockCooldown();
   if (state.status !== 'playing') {
-    if (!isFree() && !isTimed()) {
-      state.stats = recordResult(localStorage, state.stats, {
-        date: state.date,
-        status: state.status,
-        attempts: state.guesses.length,
-        isToday: state.date === state.today,
-      });
-    }
+    recordDailyResult();
     setTimeout(() => renderDebrief(), 850);
   } else if (window.innerWidth < 860 && newlyRevealed > 0) {
     setTimeout(() => $('#dossier-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250);
@@ -2230,8 +2328,8 @@ function shareLink() {
     url.search = '';
     url.hash = '';
     url.searchParams.set('kb', state.freeKillToken || freeKillToken(state.freeKillId));
-    url.searchParams.set('mode', state.mode === 'abyss' ? 'abyss' : 'normal');
-    if (isTimed()) url.searchParams.set('timer', '1');
+    const rule = isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+    if (rule !== 'standard') url.searchParams.set('rule', rule);
     return url.toString();
   }
   if (isTimed()) {
@@ -2240,11 +2338,11 @@ function shareLink() {
     url.search = '';
     url.hash = '';
     url.searchParams.set('t', String(Math.round(state.timerElapsedMs / 1000)));
-    url.searchParams.set('mode', state.mode === 'abyss' ? 'abyss' : 'normal');
-    url.searchParams.set('timer', '1');
+    url.searchParams.set('kb', freeKillToken(state.answerKillId));
+    url.searchParams.set('rule', 'timed');
     return url.toString();
   }
-  return shareUrl(location, state.date, state.mode, state.status, state.guesses.length, state.locale);
+  return shareUrl(location, state.answerKillId, state.mode, state.status, state.guesses.length, state.locale);
 }
 
 function renderDebrief() {
@@ -2311,7 +2409,8 @@ function renderDebrief() {
             ${timed
               ? `<div class="debrief-stat"><span>${esc(t('timed.time'))}</span><strong>${esc(formatElapsed(state.timerElapsedMs))}</strong></div>
                  <div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length}</strong></div>
-                 <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>`
+                 <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>
+                 <div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`
               : `<div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length} / 6</strong></div>
                  <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>
                  <div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`}
@@ -2417,8 +2516,10 @@ async function submitFreeKill() {
 
 function renderManual() {
   const stats = state.stats || DEFAULT_STATS;
-  const played = stats.played || 0;
-  const wins = stats.wins || 0;
+  const played = stats.played || {};
+  const wins = stats.wins || {};
+  const totalPlayed = Object.values(played).reduce((sum, value) => sum + (Number(value) || 0), 0)
+    + (Number(stats.legacyPlayed) || 0);
   const html = `
     <div class="modal manual" role="dialog" aria-modal="true" aria-labelledby="manual-title" data-kind="manual">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
@@ -2430,34 +2531,38 @@ function renderManual() {
       <div class="manual-body">
         <div class="manual-column">
           <div class="manual-section">
-            <div class="manual-step"><span class="manual-step-num">01</span><div><h4>${esc(t('help.step1Title'))}</h4><p>${esc(t('help.step1'))}</p></div></div>
-            <div class="manual-step"><span class="manual-step-num">02</span><div><h4>${esc(t('help.step2Title'))}</h4><p>${esc(t('help.step2'))}</p></div></div>
-            <div class="manual-step"><span class="manual-step-num">03</span><div><h4>${esc(t('help.step3Title'))}</h4><p>${esc(t('help.step3'))}</p></div></div>
-            <div class="manual-step"><span class="manual-step-num">04</span><div><h4>${esc(t('help.step4Title'))}</h4><p>${esc(t('help.step4'))}</p></div></div>
+            <h3>${icon('calendar')} ${esc(t('help.modesTitle'))}</h3>
+            <div class="manual-mode-block">
+              <h4>${esc(t('mode.daily'))}</h4>
+              <p>${esc(t('help.dailyBody'))}</p>
+            </div>
+            <div class="manual-mode-block">
+              <h4>${esc(t('mode.free'))}</h4>
+              <p>${esc(t('mode.freeHint'))}</p>
+              <ul class="manual-mode-list">${t('mode.helpFree').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+            </div>
           </div>
           <div class="manual-section">
-            <h3>${icon('help')} ${esc(t('help.sharedTitle'))}</h3>
-            <ul class="manual-mode-list">${t('help.sharedRules').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
-          </div>
-          <div class="manual-section">
-            <h3>${icon('radar')} ${esc(t('mode.free'))}</h3>
-            <p class="manual-mode-hint">${esc(t('mode.freeHint'))}</p>
-            <ul class="manual-mode-list">${t('mode.helpFree').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
-          </div>
-          <div class="manual-section">
-            <h3>${icon('layers')} ${esc(t('mode.standard'))}</h3>
-            <p class="manual-mode-hint">${esc(t('mode.standardHint'))}</p>
-            <ul class="manual-mode-list">${t('mode.helpNormal').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
-          </div>
-          <div class="manual-section">
-            <h3>${icon('radar')} ${esc(t('mode.abyss'))}</h3>
-            <p class="manual-mode-hint">${esc(t('mode.abyssHint'))}</p>
-            <ul class="manual-mode-list">${t('mode.helpAbyss').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
-          </div>
-          <div class="manual-section">
-            <h3>${icon('clock')} ${esc(t('mode.timed'))}</h3>
-            <p class="manual-mode-hint">${esc(t('mode.timedHint'))}</p>
-            <ul class="manual-mode-list">${t('mode.helpTimed').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+            <h3>${icon('layers')} ${esc(t('help.gameplayTitle'))}</h3>
+            <div class="manual-mode-block">
+              <h4>${esc(t('help.generalTitle'))}</h4>
+              <ul class="manual-mode-list">${t('help.sharedRules').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+            </div>
+            <div class="manual-mode-block">
+              <h4>${esc(t('mode.standard'))}</h4>
+              <p class="manual-mode-hint">${esc(t('mode.standardHint'))}</p>
+              <ul class="manual-mode-list">${t('mode.helpNormal').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+            </div>
+            <div class="manual-mode-block">
+              <h4>${esc(t('mode.abyss'))}</h4>
+              <p class="manual-mode-hint">${esc(t('mode.abyssHint'))}</p>
+              <ul class="manual-mode-list">${t('mode.helpAbyss').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+            </div>
+            <div class="manual-mode-block">
+              <h4>${esc(t('mode.timed'))}</h4>
+              <p class="manual-mode-hint">${esc(t('mode.timedHint'))}</p>
+              <ul class="manual-mode-list">${t('mode.helpTimed').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+            </div>
           </div>
           <div class="manual-section">
             <h3>${icon('globe')} ${esc(t('help.langTitle'))}</h3>
@@ -2489,14 +2594,21 @@ function renderManual() {
           </div>
           <div class="manual-section">
             <h3>${icon('database')} ${esc(t('help.statsTitle'))}</h3>
-            <div class="stats-grid">
-              <div><span>${esc(t('help.statPlayed'))}</span><strong>${played}</strong></div>
-              <div><span>${esc(t('help.statWon'))}</span><strong>${wins}</strong></div>
+            <div class="stats-mode-grid">
+              ${[['standard', t('mode.standard')], ['abyss', t('mode.abyss')], ['timed', t('mode.timed')]].map(([mode, label]) => `
+                <div class="stats-mode">
+                  <span>${esc(label)}</span>
+                  <strong>${Number(played[mode]) || 0} / ${Number(wins[mode]) || 0}</strong>
+                  <small>${esc(t('help.statPlayed'))} / ${esc(t('help.statWon'))}</small>
+                </div>`).join('')}
+            </div>
+            <div class="stats-grid stats-streak-grid">
               <div><span>${esc(t('help.statStreak'))}</span><strong>${stats.streak || 0}</strong></div>
               <div><span>${esc(t('help.statBest'))}</span><strong>${stats.maxStreak || 0}</strong></div>
             </div>
-            ${played ? '' : `<p class="stats-empty">${esc(t('help.statsEmpty'))}</p>`}
-            <div style="margin-top:12px"><button type="button" class="button ghost" data-action="reset-all">${icon('refresh')} ${esc(t('help.resetRecord'))}</button></div>
+            ${(stats.legacyPlayed || stats.legacyWins) ? `<p class="stats-legacy">${esc(t('help.statLegacy', { played: stats.legacyPlayed || 0, wins: stats.legacyWins || 0 }))}</p>` : ''}
+            ${totalPlayed ? '' : `<p class="stats-empty">${esc(t('help.statsEmpty'))}</p>`}
+            <div style="margin-top:12px"><button type="button" class="button ghost reset-hold" data-action="reset-hold"><span class="reset-hold-label">${icon('refresh')} ${esc(t('help.resetRecord'))}</span></button></div>
           </div>
           <div class="manual-section manual-legal">
             <h3>${icon('external')} ${esc(t('footer.copyrightTitle'))}</h3>
@@ -2592,12 +2704,10 @@ function playToday() {
   url.searchParams.delete('kb');
   url.searchParams.delete('killmail');
   url.searchParams.delete('kill');
-  url.searchParams.set('lang', state.locale);
   location.href = url.toString();
 }
 
 function resetAllProgress() {
-  if (!window.confirm(t('help.resetConfirm'))) return;
   state.resetting = true;
   if (state.timerHandle) clearInterval(state.timerHandle);
   state.timerHandle = null;
@@ -2634,9 +2744,6 @@ async function changeLocale(nextLocale) {
     } catch {
       // ignore
     }
-    const url = new URL(location.href);
-    url.searchParams.set('lang', nextLocale);
-    history.replaceState(null, '', url);
     const modalKind = state.modal?.kind;
     if (modalKind) closeModal();
     state.localeLoading = false;
@@ -2738,11 +2845,55 @@ for (const name of ['pointerup', 'pointercancel', 'blur']) {
 }
 window.addEventListener('resize', syncBoardHeight);
 
+let resetHoldTimer = null;
+let resetHoldButton = null;
+
+function clearResetHold() {
+  if (resetHoldTimer) clearTimeout(resetHoldTimer);
+  resetHoldTimer = null;
+  if (resetHoldButton) resetHoldButton.classList.remove('is-holding');
+  resetHoldButton = null;
+}
+
+function beginResetHold(button) {
+  if (!button) return;
+  if (resetHoldButton === button && resetHoldTimer) return;
+  clearResetHold();
+  resetHoldButton = button;
+  button.classList.add('is-holding');
+  resetHoldTimer = setTimeout(() => {
+    resetHoldTimer = null;
+    button.classList.remove('is-holding');
+    resetAllProgress();
+  }, 5000);
+}
+
+document.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  const button = event.target.closest('[data-action="reset-hold"]');
+  if (!button) return;
+  event.preventDefault();
+  beginResetHold(button);
+});
+for (const name of ['pointerup', 'pointercancel', 'blur']) {
+  window.addEventListener(name, clearResetHold);
+}
+document.addEventListener('keydown', (event) => {
+  if (event.key !== ' ' && event.key !== 'Enter') return;
+  const button = event.target.closest('[data-action="reset-hold"]');
+  if (!button) return;
+  event.preventDefault();
+  beginResetHold(button);
+});
+document.addEventListener('keyup', (event) => {
+  if (event.key === ' ' || event.key === 'Enter') clearResetHold();
+});
+
+
 document.addEventListener('click', (event) => {
   const actionEl = event.target.closest('[data-action]');
   if (actionEl) {
     const action = actionEl.dataset.action;
-    if (action === 'toggle-timed') { setTimed(!isTimed()); return; }
     if (action === 'start-timed') { startTimedRun(); return; }
     if (action === 'free-mode' || action === 'free-refresh') { enterFreeMode(); return; }
     if (action === 'free-input') { openFreeModal(); return; }
@@ -2759,7 +2910,6 @@ document.addEventListener('click', (event) => {
     if (action === 'close-modal') { closeModal(); return; }
     if (action === 'copy-share') { copyShare(); return; }
     if (action === 'play-today') { playToday(); return; }
-    if (action === 'reset-all') { resetAllProgress(); return; }
     if (action === 'toggle-font') { toggleFont(); return; }
     if (action === 'set-mode') { setMode(actionEl.dataset.mode); return; }
   }
@@ -2901,6 +3051,7 @@ function showFatal(error) {
 
 async function boot() {
   initStarfield($('#starfield'));
+  captureUrlLocale();
   state.locale = detectLocale();
   state.i18n = createI18n(state.locale);
   await applyBootFlavor();
@@ -2924,8 +3075,18 @@ async function boot() {
     state.catalogMap = new Map(state.catalog.map((ship) => [ship.id, ship]));
     state.searchAliases = await fetchJson('data/search.json').catch(() => null);
     state.watchlist = await fetchJson('assets/watchlist.json').catch(() => null);
-    state.mode = modeFromLocation(location.search);
     state.timed = timedFromLocation(location.search);
+    state.mode = state.timed ? 'normal' : modeFromLocation(location.search);
+    {
+      const canonical = new URL(location.href);
+      canonical.searchParams.delete('mode');
+      canonical.searchParams.delete('timer');
+      canonical.searchParams.delete('timed');
+      if (state.timed) canonical.searchParams.set('rule', 'timed');
+      else if (state.mode === 'abyss') canonical.searchParams.set('rule', 'abyss');
+      else canonical.searchParams.delete('rule');
+      if (canonical.href !== location.href) history.replaceState(null, '', canonical);
+    }
     document.documentElement.dataset.gameMode = state.mode;
     document.documentElement.dataset.timed = state.timed ? '1' : '0';
 
@@ -2951,7 +3112,8 @@ async function boot() {
     state.locale = detectLocale();
     if (!isLocale(state.locale) || !manifest.locales.includes(state.locale)) state.locale = manifest.defaultLocale || 'en';
     state.i18n = createI18n(state.locale);
-    state.stats = loadStats(localStorage);
+    state.stats = settleStats(loadStats(localStorage), state.today);
+    saveStats(localStorage, state.stats);
 
     if (state.freeRequested && !state.freeKillId) {
       const kill = await pickRandomFreeKill();
@@ -2986,6 +3148,22 @@ async function boot() {
         state.answerShip = state.catalogMap.get(state.answerId);
         if (!state.answerShip) throw new Error('free target hull unavailable');
         freeReady = true;
+        try {
+          const daily = await resolveDailySelection();
+          if (daily && Number(daily.killmail.killmail_id) === Number(state.freeKillId)) {
+            state.freeKillId = null;
+            state.freeKillToken = null;
+            state.freeKillmail = null;
+            state.freeRequested = false;
+            state.date = state.today;
+            freeReady = false;
+            const clean = new URL(location.href);
+            for (const key of ['kb', 'killmail', 'kill', 'free', 't']) clean.searchParams.delete(key);
+            history.replaceState(null, '', clean);
+          }
+        } catch {
+          // A daily lookup failure must not block the requested free target.
+        }
       } catch {
         state.freeKillId = null;
         state.freeKillToken = null;
@@ -3001,20 +3179,9 @@ async function boot() {
       state.freeKillToken = null;
       state.freeKillmail = null;
       state.date = state.today;
-      const killShipPool = state.mode === 'abyss'
-        ? (manifest.abyssKillShipPool || manifest.killShipPool)
-        : (manifest.normalShipPool || manifest.killShipPool);
-      const hulls = weightedHullOrder(
-        killShipPool,
-        `${state.date}:${manifest.dataVersion}:${state.mode}:${state.timed ? 'timed' : 'standard'}:hulls`,
-        Number.MAX_SAFE_INTEGER,
-      );
-      const target = await resolveDailyTarget(hulls, state.date);
-      if (!target) throw new NoTargetError();
-      const chosen = state.allowEmptyKb ? target.baseline : target.fallback;
-      if (!chosen || !state.catalogMap.has(target.shipId)) throw new NoTargetError();
+      const target = await resolveDailySelection();
       state.answerId = Number(target.shipId);
-      state.answerKillId = Number(chosen.killmail_id);
+      state.answerKillId = Number(target.killmail.killmail_id);
       state.answerShip = state.catalogMap.get(state.answerId);
     }
     await loadLocaleData(state.locale);
@@ -3038,6 +3205,14 @@ async function boot() {
       if (state.timerStarted && !state.timerStartAt) state.timerStartAt = Date.now() - state.timerElapsedMs;
       state.gaveUp = isTimed() && state.status === 'lost' && restored.gaveUp === true;
       state.timedExpired = isTimed() && state.status === 'lost' && restored.timedExpired === true;
+    }
+    if (statsEligible() && (
+      state.guesses.length > 0
+      || (isTimed() && state.timerStarted)
+      || state.status !== 'playing'
+    )) {
+      recordDailyPlay();
+      if (state.status !== 'playing') recordDailyResult();
     }
     recomputeRevealed();
     state.fresh = new Set();

@@ -261,6 +261,8 @@ async function main() {
   const fitRestrictions = new Map();
   const moduleChargeGroups = new Map();
   const moduleMetaLevels = new Map();
+  const moduleResistLayers = new Map();
+  const assaultDamageControls = new Set();
   await stream('typeDogma.jsonl', (o) => {
     const t = types.get(o._key);
     if (!t) return;
@@ -268,6 +270,10 @@ async function main() {
     const canFitShipTypes = [];
     const canFitShipGroups = [];
     const chargeGroups = [];
+    const resistLayers = { shield: false, armor: false, structure: false };
+    const groupName = String(groups.get(t.groupID)?.names?.en || '');
+    const shieldGroup = /shield/i.test(groupName);
+    const armorGroup = /armor/i.test(groupName);
     let metaLevel = null;
     for (const a of o.dogmaAttributes || []) {
       const id = a.attributeID;
@@ -284,6 +290,24 @@ async function main() {
         chargeGroups.push(Number(a.value));
       }
       if (id === 633 && a.value != null) metaLevel = Number(a.value);
+      if (t.categoryID === 7) {
+        const value = Number(a.value);
+        if ([271, 272, 273, 274].includes(id) && value < 1) resistLayers.shield = true;
+        if ([267, 268, 269, 270].includes(id) && value < 1) resistLayers.armor = true;
+        if ([974, 975, 976, 977, 109, 110, 111, 113].includes(id) && value < 1) {
+          resistLayers.structure = true;
+        }
+        // 984-987 are the generic "damage resistance bonus" used by both
+        // shield and armor hardeners; the module group decides the layer.
+        if ([984, 985, 986, 987].includes(id) && value !== 0) {
+          if (shieldGroup) resistLayers.shield = true;
+          else if (armorGroup) resistLayers.armor = true;
+          else {
+            resistLayers.shield = true;
+            resistLayers.armor = true;
+          }
+        }
+      }
     }
     if (t.categoryID === SHIP_CATEGORY) shipAttrs.set(o._key, attrs);
     if (canFitShipTypes.length || canFitShipGroups.length) {
@@ -293,6 +317,12 @@ async function main() {
       moduleChargeGroups.set(o._key, [...new Set(chargeGroups)]);
     }
     if (metaLevel != null) moduleMetaLevels.set(o._key, metaLevel);
+    if (t.categoryID === 7 && Object.values(resistLayers).some(Boolean)) {
+      moduleResistLayers.set(o._key, resistLayers);
+    }
+    if (t.categoryID === 7 && /assault damage control/i.test(t.names?.en || '')) {
+      assaultDamageControls.add(o._key);
+    }
   });
 
   console.log('Loading ship bonuses...');
@@ -378,6 +408,11 @@ async function main() {
         armorHP: number(265),
         droneCapacity: number(283),
         techLevelAttr: number(422),
+        sensorRadarStrength: number(208),
+        sensorLadarStrength: number(209),
+        sensorMagnetometricStrength: number(210),
+        sensorGravimetricStrength: number(211),
+        shieldRechargeRate: number(479),
         capacitorCapacity: number(482),
         signatureRadius: number(552),
         scanResolution: number(564),
@@ -421,6 +456,8 @@ async function main() {
       fitRestrictions: fitRestrictions.get(t.id) || null,
       chargeGroups: moduleChargeGroups.get(t.id) || [],
       metaLevel: moduleMetaLevels.get(t.id) ?? null,
+      resistLayers: moduleResistLayers.get(t.id) || null,
+      assaultDamageControl: assaultDamageControls.has(t.id),
     });
   }
 
@@ -446,11 +483,11 @@ async function main() {
     factions: Object.fromEntries([...usedFactionIDs].map((id) => [id, factions.get(id)]).filter(([, v]) => v)),
     metaGroups: Object.fromEntries([...usedMetaGroupIDs].map((id) => [id, metaGroups.get(id)]).filter(([, v]) => v)),
     attributes: Object.fromEntries(
-      [4, 9, 11, 12, 13, 14, 37, 38, 48, 55, 70, 76, 101, 102, 263, 265, 283, 422, 482, 552, 564, 600, 1132, 1137, 1271, 1281]
+      [4, 9, 11, 12, 13, 14, 37, 38, 48, 55, 70, 76, 101, 102, 208, 209, 210, 211, 263, 265, 283, 422, 479, 482, 552, 564, 600, 1132, 1137, 1271, 1281]
         .map((id) => [id, attributes.get(id)])
         .filter(([, v]) => v)
     ),
-    units: Object.fromEntries([...units.entries()].filter(([id]) => [1, 2, 9, 11, 101, 102, 104, 105, 106, 107, 113, 114, 128, 140, 141, 144].includes(id))),
+    units: Object.fromEntries([...units.entries()].filter(([id]) => [1, 2, 9, 11, 101, 102, 104, 105, 106, 107, 113, 114, 120, 128, 140, 141, 144].includes(id))),
   };
 
   await fsp.mkdir(path.dirname(OUT), { recursive: true });
