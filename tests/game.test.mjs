@@ -478,6 +478,17 @@ test('localized static share pages carry the score for link previews', () => {
   }
 });
 
+test('container build scripts create the catalog before the kill pool', () => {
+  const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
+  const oneshot = fs.readFileSync(path.join(ROOT, 'docker', 'oneshot-entrypoint.sh'), 'utf8');
+  for (const script of [dockerfile, oneshot]) {
+    const catalogBuild = script.indexOf('npm run build:catalog');
+    const killPool = script.indexOf('npm run build:killpool');
+    assert.ok(catalogBuild >= 0, 'missing catalog build');
+    assert.ok(killPool > catalogBuild, 'kill pool must run after catalog build');
+  }
+});
+
 test('boot flavor file covers all locales and tags every egg', () => {
   const boot = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'boot-flavor.json'), 'utf8'));
   assert.deepEqual(Object.keys(boot.flavor).sort(), ['de', 'en', 'es', 'fr', 'ja', 'ko', 'ru', 'zh']);

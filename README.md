@@ -1,6 +1,6 @@
 # FITDLE
 
-**v0.4.0**
+**v0.4.1**
 
 FITDLE 是一个纯前端、无需登录的 EVE Online 每日击杀谜题。每天有一个目标击杀，
 玩家通过逐步揭示的装配、属性和 zKillboard 情报识别被击毁的舰船。
@@ -25,15 +25,15 @@ git clone https://gitlab.com/cmy/fitdle.git
 cd fitdle
 npm install
 npm run prepare:sde
+npm run build:catalog
 npm run build:killpool
-npm run build
 npm run build:weights -- --refresh
 npm run build
 npm test
 ```
 
-第一次 `npm run build` 用于生成 catalog，`build:weights` 需要读取它，因此权重准备好后
-需要再执行一次 `npm run build`。
+第一次 `npm run build:catalog` 用 SDE 生成 `data/catalog.json`；`build:killpool` 和
+`build:weights` 都需要读取 catalog，因此权重和击杀池准备好后再执行一次 `npm run build`。
 
 ### 本地预览
 

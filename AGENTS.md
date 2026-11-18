@@ -248,8 +248,9 @@ npm run hooks:install     # enable shared Git hooks
 ```
 
 `npm run build` requires `data/catalog.json`; on a fresh checkout run
-`prepare:sde` then `build` once before `build:weights` (weights read the catalog).
-`build:killpool` is independent.
+`prepare:sde` then `build` once before `build:killpool` or `build:weights`, since
+both read the catalog. Container builders use `build:catalog` to create only the
+catalog, then run both refreshes before the final `build`.
 
 ## Version bump
 
@@ -349,10 +350,10 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 57 cases, including downtime boundaries, target/KB
+`npm test` currently covers 58 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
-and no hard-coded deployment domains.
+container build order, and no hard-coded deployment domains.
 
 Add tests for any new selection/reveal/share rule. Build before tests when the
 test reads `dist/`.

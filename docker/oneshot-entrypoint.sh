@@ -46,11 +46,11 @@ npm install --no-audit --no-fund
 log "fetching official SDE"
 npm run prepare:sde
 
+log "building initial catalog"
+npm run build:catalog
+
 log "building fallback kill pool"
 npm run build:killpool
-
-log "building catalog and first dist"
-npm run build
 
 log "refreshing ship usage weights"
 npm run build:weights -- --refresh
