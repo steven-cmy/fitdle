@@ -8,7 +8,7 @@
  */
 import { cyrb53 } from './game.js';
 
-export const CLUE_VERSION = 2;
+export const CLUE_VERSION = 3;
 
 const FITTED_FLAGS = (() => {
   const map = new Map();
@@ -90,15 +90,17 @@ const VALUE_TOLERANCE = {
   cargo: 0.05, shield: 0.05, armor: 0.05, structure: 0.05,
   capacitor: 0.05, targetRange: 0.05, scanRes: 0.05,
   pg: 0.05, cpu: 0.05, calibration: 0.05, resist: 0.05,
+  sensor: 0.05, shieldRecharge: 0.01,
 };
 const VALUE_MIN_TOLERANCE = {
   speed: 5, sig: 5, align: 0.1, warp: 0.1, mass: 1000,
   cargo: 10, shield: 10, armor: 10, structure: 10,
   capacitor: 10, targetRange: 1000, scanRes: 10,
   pg: 1, cpu: 1, calibration: 1,
+  sensor: 0.5, shieldRecharge: 0.1,
 };
 const FIT_ADDITIVE = ['mass', 'sig', 'shield', 'armor', 'structure', 'capacitor', 'cargo', 'targetRange', 'scanRes', 'pg', 'cpu', 'calibration'];
-const FIT_RATIO = ['speed', 'align', 'warp'];
+const FIT_RATIO = ['speed', 'align', 'warp', 'shieldRecharge'];
 const ABYSS_FITTED_WEIGHT_FACTOR = 0.7;
 
 function deriveFitDelta(base = {}, fitted = null) {
@@ -122,6 +124,12 @@ function deriveFitDelta(base = {}, fitted = null) {
     const before = Number(base[key]);
     const after = Number(fitted[key]);
     if (before && Number.isFinite(after)) delta.ratio[key] = after / before;
+  }
+  delta.sensorStrength = {};
+  for (const key of ['radar', 'ladar', 'magnetometric', 'gravimetric']) {
+    const before = Number(base.sensorStrength?.[key]);
+    const after = Number(fitted.sensorStrength?.[key]);
+    if (before > 0 && Number.isFinite(after)) delta.sensorStrength[key] = after / before;
   }
   return delta;
 }
@@ -154,6 +162,22 @@ function sameValue(kind, a, b) {
   return Math.abs(left - right) <= tolerance;
 }
 
+const SENSOR_KEYS = ['radar', 'ladar', 'magnetometric', 'gravimetric'];
+
+function adjustedSensorStrength(value, fitDelta) {
+  if (!value) return null;
+  return Object.fromEntries(SENSOR_KEYS.map((key) => {
+    const ratio = Number(fitDelta?.sensorStrength?.[key]);
+    const base = Number(value[key]) || 0;
+    return [key, Number.isFinite(ratio) && ratio > 0 ? base * ratio : base];
+  }));
+}
+
+function sameSensorStrength(left, right) {
+  if (!left || !right) return false;
+  return SENSOR_KEYS.every((key) => sameValue('sensor', left[key], right[key]));
+}
+
 function seededRandom(seed) {
   let state = seed >>> 0;
   return () => {
@@ -163,6 +187,12 @@ function seededRandom(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function resistsAreUniform(value) {
+  if (!value) return true;
+  const values = ['em', 'thermal', 'kinetic', 'explosive'].map((key) => Number(value[key]) || 0);
+  return Math.max(...values) - Math.min(...values) <= 0.5;
 }
 
 function sameResists(left, right, delta = null) {
@@ -191,6 +221,17 @@ function moduleSizeRank(name) {
 
 const MICRO_JUMP_GROUPS = new Set([1189, 4769]);
 const PLEX_TYPES = new Set([29668, 44992]);
+
+const DAMAGE_CONTROL_GROUP = 60;
+const HIGH_END_META_GROUP = 4;
+const LOW_RESIST_WEIGHT = 3.2;
+const RESIST_MODULE_FLOOR = 5.8;
+const HIGH_END_RESIST_FLOOR = 8.2;
+const RESIST_KIND_LAYER = {
+  shieldResists: 'shield',
+  armorResists: 'armor',
+  structureResists: 'structure',
+};
 
 /**
  * Abyssal modules use the representative matching the highest meta module in
@@ -256,6 +297,95 @@ export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
     if (best && Number(refs.modules?.[best]?.groupID) === Number(sourceGroup)) result.set(item.module, best);
   }
   return result;
+}
+
+function isDamageControl(module) {
+  if (Number(module?.groupID) !== DAMAGE_CONTROL_GROUP) return false;
+  const layers = module?.resistLayers;
+  // Capital emergency hull energizers and similar group-60 modules only move
+  // structure resists; do not treat them as a plain/T1/T2 damage control.
+  if (layers) return Boolean(layers.shield && layers.armor && layers.structure);
+  return true;
+}
+
+function isAssaultDamageControl(module) {
+  return module?.assaultDamageControl === true
+    || /assault damage control/i.test(module?.name || '');
+}
+
+function isResistGear(module) {
+  const layers = module?.resistLayers;
+  return Boolean(layers && (layers.shield || layers.armor || layers.structure));
+}
+
+/**
+ * Collect the fitted modules that can move a resist layer. Cargo, spare
+ * fighter-bay modules and fuel do not affect the simulated fit.
+ */
+function resistanceInfluences(equipmentClues, refs) {
+  const byLayer = { shield: [], armor: [], structure: [] };
+  for (const clue of equipmentClues) {
+    const slot = clue?.v?.slot;
+    if (!slot || ['cargo', 'fighterBay', 'fuelBay'].includes(slot)) continue;
+    const module = refs?.modules?.[clue.v.module];
+    if (Number(module?.categoryID) !== 7) continue;
+    const layers = module?.resistLayers
+      || (isDamageControl(module) ? { shield: true, armor: true, structure: true } : null);
+    if (!layers) continue;
+    const entry = {
+      clue,
+      weight: Math.max(0, Number(clue.w) || 0),
+      damageControl: isDamageControl(module),
+      assault: isAssaultDamageControl(module),
+      highEnd: Number(module?.metaGroupID || 0) >= HIGH_END_META_GROUP,
+    };
+    for (const layer of Object.keys(byLayer)) {
+      if (layers[layer]) byLayer[layer].push(entry);
+    }
+  }
+  return byLayer;
+}
+
+/**
+ * Resist clues are only as strong as the fit that produced them.
+ *
+ * - No resist gear, or only a plain/T1/T2 damage control: calculated values
+ *   are shared by many hulls, so keep the clue quiet.
+ * - Faction+ damage control, any resistance module, ADC or a non-uniform
+ *   structure profile (abyssal weather) is a deliberate fit signal: never let
+ *   it weigh less than the module that caused it.
+ */
+function resistanceWeight(clue, baseWeight, influences) {
+  const layer = RESIST_KIND_LAYER[clue.k];
+  const entries = influences?.[layer] || [];
+  const meaningful = entries.filter((entry) => entry.weight > 0);
+  const maxEquipmentWeight = meaningful.reduce((max, entry) => Math.max(max, entry.weight), 0);
+  const hasHighEnd = meaningful.some((entry) => entry.highEnd);
+  const hasAssault = meaningful.some((entry) => entry.assault);
+  const hasResistModule = meaningful.some((entry) => !entry.damageControl);
+  const onlyLowDamageControl = meaningful.length > 0
+    && !hasHighEnd
+    && !hasAssault
+    && !hasResistModule;
+  let weight = Number(baseWeight) || 0;
+
+  if (!meaningful.length || onlyLowDamageControl) {
+    weight = Math.min(weight, LOW_RESIST_WEIGHT);
+  }
+  if (hasHighEnd || hasResistModule) {
+    const moduleFloor = hasHighEnd ? HIGH_END_RESIST_FLOOR : RESIST_MODULE_FLOOR;
+    weight = Math.max(weight, maxEquipmentWeight, moduleFloor);
+  }
+  if (hasAssault) {
+    weight = Math.max(weight, maxEquipmentWeight, layer === 'structure' ? 9.5 : 8.8);
+  }
+  // Base structure resists are uniform, so a skew is abyssal weather rather
+  // than a hull trait. Shield/armour are naturally asymmetric and keep their
+  // equipment-derived weight.
+  if (layer === 'structure' && !resistsAreUniform(clue.v)) {
+    weight = Math.max(weight, 9.8);
+  }
+  return clamp(round(weight, 1), 1, 10);
 }
 
 function restrictionBreadth(module, catalog) {
@@ -420,15 +550,17 @@ function staticClues(ship, attrs = ship.attrs || {}) {
   if (attrs.align) add('align', 'nav', attrs.align, 1.5);
   if (attrs.warp) add('warp', 'nav', attrs.warp, 1.45);
   if (attrs.mass) add('mass', 'nav', attrs.mass, 1.4);
-  if (attrs.cargo) add('cargoCapacity', 'cargo', attrs.cargo, 1.4);
+  if (attrs.cargo != null) add('cargoCapacity', 'cargo', attrs.cargo, 1.4);
   if (attrs.capacitor) add('capacitor', 'fitting', attrs.capacitor, 1.4);
 
   if (attrs.sig) add('sig', 'targeting', attrs.sig, 1.35);
+  if (attrs.sensorStrength) add('sensorStrength', 'targeting', attrs.sensorStrength, 2.2);
   if (attrs.targetRange) add('targetRange', 'targeting', attrs.targetRange, 2.0);
   if (attrs.scanRes) add('scanRes', 'targeting', attrs.scanRes, 2.0);
   if (attrs.maxLockedTargets) add('maxLockedTargets', 'targeting', attrs.maxLockedTargets, 1.8);
 
   if (attrs.shield) add('shield', 'defense', attrs.shield, 1.25);
+  if (attrs.shieldRecharge) add('shieldRecharge', 'defense', attrs.shieldRecharge, 1.6);
   if (attrs.armor) add('armor', 'defense', attrs.armor, 1.25);
   if (attrs.structure) add('structure', 'defense', attrs.structure, 1.25);
   if (attrs.shieldResists) add('shieldResists', 'defense', attrs.shieldResists, 2.4);
@@ -461,11 +593,13 @@ function matchesCatalog(clue, other, fitDelta = null) {
       }, clue.v);
     case 'speed': return sameValue('speed', adjustedAttr('speed', attrs, fitDelta), clue.v);
     case 'sig': return sameValue('sig', adjustedAttr('sig', attrs, fitDelta), clue.v);
+    case 'sensorStrength': return sameSensorStrength(adjustedSensorStrength(attrs.sensorStrength, fitDelta), clue.v);
     case 'align': return sameValue('align', adjustedAttr('align', attrs, fitDelta), clue.v);
     case 'warp': return sameValue('warp', adjustedAttr('warp', attrs, fitDelta), clue.v);
     case 'mass': return sameValue('mass', adjustedAttr('mass', attrs, fitDelta), clue.v);
     case 'cargoCapacity': return sameValue('cargo', adjustedAttr('cargo', attrs, fitDelta), clue.v);
     case 'shield': return sameValue('shield', adjustedAttr('shield', attrs, fitDelta), clue.v);
+    case 'shieldRecharge': return sameValue('shieldRecharge', adjustedAttr('shieldRecharge', attrs, fitDelta), clue.v);
     case 'armor': return sameValue('armor', adjustedAttr('armor', attrs, fitDelta), clue.v);
     case 'structure': return sameValue('structure', adjustedAttr('structure', attrs, fitDelta), clue.v);
     case 'capacitor': return sameValue('capacitor', adjustedAttr('capacitor', attrs, fitDelta), clue.v);
@@ -574,10 +708,6 @@ export function buildClues({
   const droneBoat = equipment.some((item) => item.slot === 'drone')
     || Number(ship.attrs?.drones?.bandwidth) > 0
     || Number(ship.attrs?.drones?.capacity) > 0;
-  const hasAssaultDamageControl = equipment.some((item) => (
-    item.slot === 'low'
-    && /assault damage control/i.test(refs.modules?.[item.module]?.name || '')
-  ));
   for (const item of equipment) {
     const module = refs.modules?.[item.module];
     const isCharge = !module || Number(module.categoryID) === 8;
@@ -634,6 +764,12 @@ export function buildClues({
     }
     if (mode === 'abyss' && restriction === 'unique') weight = Math.max(weight, 10);
     if (mode === 'abyss' && restriction === 'limited') weight = Math.max(weight, 8.8);
+    // Faction+ damage controls and resistance modules are rare even when their
+    // module group is common; the resistance clue inherits this floor.
+    if (item.slot !== 'cargo' && Number(module?.categoryID) === 7 && meta >= HIGH_END_META_GROUP
+      && (isDamageControl(module) || isResistGear(module))) {
+      weight = Math.max(weight, HIGH_END_RESIST_FLOOR);
+    }
     const cargo = item.slot === 'cargo';
     const clue = {
       k: cargo ? 'cargo' : 'equipment',
@@ -697,6 +833,9 @@ export function buildClues({
     clue.tags = [];
     clue.sig = false;
   }
+  const resistanceContext = mode === 'abyss'
+    ? resistanceInfluences(equipmentClues, refs)
+    : null;
 
   if (stats) {
     const recent = stats.rankings?.recent?.all;
@@ -747,11 +886,10 @@ export function buildClues({
           clue.w = round(Math.max(1, clue.w * ABYSS_FITTED_WEIGHT_FACTOR), 1);
         }
       }
-      // An Assault Damage Control pushes structure resistances into a range
-      // ordinary hardeners cannot reach, so make that clue near-definitive.
-      if (hasAssaultDamageControl && clue.k === 'structureResists') {
-        clue.w = Math.max(clue.w, 9.5);
-      }
+    }
+    if (mode === 'abyss' && RESIST_KIND_LAYER[clue.k]) {
+      // Resistance strength follows the fit, not only the base hull profile.
+      clue.w = resistanceWeight(clue, clue.w, resistanceContext);
     } else if (clue.k === 'structureResists') {
       // Every hull starts with the same base structure resists. Show it as a
       // free opening fact in Standard mode, but never count it as valid intel.

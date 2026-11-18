@@ -41,7 +41,7 @@ build:
     - job: sde:check
       artifacts: true
   cache:
-    key: fitdle-build-v3
+    key: fitdle-build-v4
     paths:
       - .cache/normalized.json
       - .cache/killpool.json

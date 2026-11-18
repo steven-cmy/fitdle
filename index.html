@@ -33,7 +33,7 @@
         document.documentElement.dataset.eveFont = 'classic';
       }
       const params = new URLSearchParams(location.search);
-      if (params.get('mode') === 'abyss') {
+      if (params.get('rule') === 'abyss' || (!params.get('rule') && params.get('mode') === 'abyss')) {
         document.documentElement.dataset.gameMode = 'abyss';
         const theme = document.querySelector('meta[name="theme-color"]');
         if (theme) theme.setAttribute('content', '#070203');

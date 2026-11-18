@@ -49,7 +49,11 @@ export function msUntilNextDowntime(now = new Date(), resetHourUtc = DOWNTIME_HO
 }
 
 export function modeFromLocation(search = '') {
-  return new URLSearchParams(search).get('mode') === 'abyss' ? 'abyss' : 'normal';
+  const params = new URLSearchParams(search);
+  const rule = params.get('rule');
+  if (rule === 'abyss') return 'abyss';
+  if (rule === 'timed' || rule === 'standard') return 'normal';
+  return params.get('mode') === 'abyss' ? 'abyss' : 'normal';
 }
 
 export const ARCHIVE_START = '2003-05-06';
@@ -228,15 +232,6 @@ export function selectRuntimeKill(losses, seed, allowEmpty = true) {
   if (!fitted.length) return null;
   const fallback = cyrb53(`${seed}:nonempty`, 0x5ca1ab1e) % fitted.length;
   return fitted[fallback];
-}
-
-export function dateKeyFromLocation(search = location.search, now = new Date(), resetHourUtc = DOWNTIME_HOUR_UTC) {
-  const params = new URLSearchParams(search);
-  const raw = params.get('d');
-  const today = gameDateKey(now, resetHourUtc);
-  if (!raw) return { date: today, invalid: false, archive: false };
-  if (!isValidDateKey(raw) || raw > today) return { date: today, invalid: true, archive: false };
-  return { date: raw, invalid: false, archive: raw !== today };
 }
 
 export function msUntilNextUtcMidnight(now = new Date()) {
@@ -500,7 +495,7 @@ export function shareText({ date, status, attempts, url, t }) {
   return `${headline}\n${grid}\n${url}`;
 }
 
-export function shareUrl(locationLike, date, mode = 'normal', status = 'playing', attempts = 0, locale = 'en') {
+export function shareUrl(locationLike, killId, mode = 'normal', status = 'playing', attempts = 0, locale = 'en', timed = false) {
   // A localized static score page carries the Open Graph metadata used by
   // Discord and other link previews. The page itself redirects into the puzzle.
   const url = new URL(locationLike.href);
@@ -510,8 +505,9 @@ export function shareUrl(locationLike, date, mode = 'normal', status = 'playing'
   url.pathname = new URL(`share/${key}/${safeLocale}.html`, url).pathname;
   url.search = '';
   url.hash = '';
-  url.searchParams.set('d', date);
-  url.searchParams.set('mode', mode === 'abyss' ? 'abyss' : 'normal');
+  if (Number(killId)) url.searchParams.set('kb', freeKillToken(killId));
+  const rule = timed ? 'timed' : mode === 'abyss' ? 'abyss' : 'standard';
+  if (rule !== 'standard') url.searchParams.set('rule', rule);
   return url.toString();
 }
 
@@ -543,21 +539,74 @@ export function saveState(storage, date, state, mode = 'normal') {
   }
 }
 
+const STAT_MODES = ['standard', 'abyss', 'timed'];
+
+function normalizeStatMode(mode) {
+  return mode === 'abyss' ? 'abyss' : mode === 'timed' ? 'timed' : 'standard';
+}
+
+function statCounts(value) {
+  return Object.fromEntries(STAT_MODES.map((mode) => [mode, Math.max(0, Number(value?.[mode]) || 0)]));
+}
+
+export function emptyStats() {
+  return {
+    played: statCounts(),
+    wins: statCounts(),
+    streak: 0,
+    maxStreak: 0,
+    distribution: [0, 0, 0, 0, 0, 0],
+    days: {},
+    lastWinDate: null,
+    legacyPlayed: 0,
+    legacyWins: 0,
+  };
+}
+
+function cloneStats(stats) {
+  const next = emptyStats();
+  next.played = statCounts(stats?.played);
+  next.wins = statCounts(stats?.wins);
+  next.streak = Math.max(0, Number(stats?.streak) || 0);
+  next.maxStreak = Math.max(next.streak, Number(stats?.maxStreak) || 0);
+  next.distribution = Array.isArray(stats?.distribution)
+    ? stats.distribution.slice(0, 6).map((value) => Math.max(0, Number(value) || 0))
+    : [0, 0, 0, 0, 0, 0];
+  while (next.distribution.length < 6) next.distribution.push(0);
+  next.days = stats?.days && typeof stats.days === 'object' ? { ...stats.days } : {};
+  next.lastWinDate = typeof stats?.lastWinDate === 'string' ? stats.lastWinDate : null;
+  next.legacyPlayed = Math.max(0, Number(stats?.legacyPlayed) || 0);
+  next.legacyWins = Math.max(0, Number(stats?.legacyWins) || 0);
+  return next;
+}
+
 export function loadStats(storage) {
   try {
     const raw = storage.getItem('fitdle:v1:stats');
     const parsed = raw ? JSON.parse(raw) : null;
-    return parsed || {
-      played: 0,
-      wins: 0,
-      streak: 0,
-      maxStreak: 0,
-      distribution: [0, 0, 0, 0, 0, 0],
-      lastDate: null,
-    };
+    if (!parsed) return emptyStats();
+    const next = cloneStats(parsed);
+    if (typeof parsed.played === 'number' || typeof parsed.wins === 'number') {
+      // Migrate the pre-per-mode totals without discarding them.
+      next.legacyPlayed = Math.max(0, Number(parsed.played) || 0);
+      next.legacyWins = Math.max(0, Number(parsed.wins) || 0);
+      next.played = statCounts();
+      next.wins = statCounts();
+    }
+    if (!next.lastWinDate && typeof parsed.lastDate === 'string' && next.streak > 0) {
+      next.lastWinDate = parsed.lastDate;
+    }
+    return next;
   } catch {
-    return { played: 0, wins: 0, streak: 0, maxStreak: 0, distribution: [0, 0, 0, 0, 0, 0], lastDate: null };
+    return emptyStats();
   }
+}
+
+export function settleStats(stats, today) {
+  const next = cloneStats(stats);
+  const yesterday = shiftDateKey(today, -1);
+  if (!next.lastWinDate || next.lastWinDate < yesterday) next.streak = 0;
+  return next;
 }
 
 export function saveStats(storage, stats) {
@@ -568,25 +617,53 @@ export function saveStats(storage, stats) {
   }
 }
 
-/** Record a completed daily cycle once. Archive games do not affect records. */
-export function recordResult(storage, stats, { date, status, attempts, isToday }) {
+/** Count a daily gameplay attempt when it actually starts. */
+export function recordPlay(storage, stats, { date, mode = 'standard', isToday }) {
   if (!isToday) return stats;
-  if (stats.lastDate === date) return stats;
-  const next = { ...stats, distribution: [...(stats.distribution || [0, 0, 0, 0, 0, 0])] };
-  const day = new Date(`${date}T12:00:00Z`);
-  day.setUTCDate(day.getUTCDate() - 1);
-  const yesterday = day.toISOString().slice(0, 10);
-  next.played = (next.played || 0) + 1;
-  if (status === 'won') {
-    next.wins = (next.wins || 0) + 1;
-    next.streak = stats.lastDate === yesterday ? (next.streak || 0) + 1 : 1;
-    next.maxStreak = Math.max(next.maxStreak || 0, next.streak);
-    const index = Math.max(0, Math.min(5, attempts - 1));
-    next.distribution[index] = (next.distribution[index] || 0) + 1;
-  } else {
-    next.streak = 0;
+  const modeKey = normalizeStatMode(mode);
+  const next = cloneStats(stats);
+  const day = { ...(next.days[date] || {}) };
+  if (day[modeKey]) return stats;
+  day[modeKey] = 'playing';
+  next.days[date] = day;
+  next.played[modeKey] += 1;
+  saveStats(storage, next);
+  return next;
+}
+
+/** Record a completed daily gameplay result. Free modes are not recorded. */
+export function recordResult(storage, stats, { date, status, attempts, isToday, mode = 'standard' }) {
+  if (!isToday) return stats;
+  const modeKey = normalizeStatMode(mode);
+  const next = cloneStats(stats);
+  const yesterday = shiftDateKey(date, -1);
+  if (!next.lastWinDate || next.lastWinDate < yesterday) next.streak = 0;
+  const day = { ...(next.days[date] || {}) };
+  const previous = day[modeKey];
+  if (!previous) {
+    day[modeKey] = 'playing';
+    next.played[modeKey] += 1;
   }
-  next.lastDate = date;
+  if (status === 'won') {
+    if (previous !== 'won') next.wins[modeKey] += 1;
+    const alreadyWonToday = previous === 'won'
+      || Object.entries(day).some(([key, value]) => key !== modeKey && value === 'won');
+    day[modeKey] = 'won';
+    next.days[date] = day;
+    if (!alreadyWonToday) {
+      next.streak = next.lastWinDate === yesterday ? next.streak + 1 : 1;
+      next.lastWinDate = date;
+      next.maxStreak = Math.max(next.maxStreak || 0, next.streak);
+    }
+    if (previous !== 'won') {
+      const index = Math.max(0, Math.min(5, Number(attempts) - 1 || 0));
+      next.distribution[index] += 1;
+    }
+  } else {
+    day[modeKey] = 'lost';
+    next.days[date] = day;
+    if (STAT_MODES.every((key) => day[key] === 'lost')) next.streak = 0;
+  }
   saveStats(storage, next);
   return next;
 }

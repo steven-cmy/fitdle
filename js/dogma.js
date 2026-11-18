@@ -107,6 +107,17 @@ function attrsFromCalculation(ship, calculation) {
   attrs.shieldResists = resistLayer([271, 274, 273, 272]) || attrs.shieldResists;
   attrs.armorResists = resistLayer([267, 270, 269, 268]) || attrs.armorResists;
   attrs.structureResists = resistLayer([109, 113, 111, 110]) || attrs.structureResists;
+  const shieldRecharge = attrValue(attributes, 479);
+  if (shieldRecharge != null) attrs.shieldRecharge = Math.round(shieldRecharge / 10) / 100;
+  const sensorStrength = {
+    radar: attrValue(attributes, 208),
+    ladar: attrValue(attributes, 209),
+    magnetometric: attrValue(attributes, 210),
+    gravimetric: attrValue(attributes, 211),
+  };
+  if (Object.values(sensorStrength).every((value) => value != null)) {
+    attrs.sensorStrength = sensorStrength;
+  }
   const maxLocked = attrValue(attributes, 192);
   if (maxLocked != null) attrs.maxLockedTargets = maxLocked;
   return attrs;

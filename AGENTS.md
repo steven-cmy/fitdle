@@ -7,8 +7,8 @@ instructions live in [README.md](README.md).
 
 - Never reveal today's target ship, killmail ID, victim name, or answer render in
   tests, logs, commits, screenshots, or chat. Use non-target/public data in screenshots.
-- Every commit bumps **patch** by default. Use `VERSION_BUMP=minor` or
-  `VERSION_BUMP=major` only when the user explicitly asks for that release level.
+- Do not bump the version or add `CHANGELOG.md` entries for ordinary changes.
+  Bump only when the user explicitly asks for a release/version change.
 - Do not commit `.cache/`, `dist/`, browser state, or the GitLab token.
 - Keep the puzzle deterministic for every player: fixed date seed, stable hull /
   page hashes, and page-1-first zKill selection.
@@ -121,6 +121,8 @@ instructions live in [README.md](README.md).
 
 - Initial clues: weighted random picks (not a fixed sequence), threshold 9 / max 13 /
   max 7 clues; never fewer than 6 candidate hulls; tagged equipment excluded initially.
+- Targeting clues (including sensor strength) are static candidate facts for the
+  opening six-hull guard.
 - Normal mode misses: equipment budget based on fitted equipment count; low
   weight selected first, high-weight items consume more budget and reveal fewer.
 - Abyss misses: `+1/+2/+3/+4/+5` equipment clues, plus one weighted
@@ -143,7 +145,19 @@ instructions live in [README.md](README.md).
   charges and scripts there are cargo.
 - Standard mode always includes structure resists in the opening clues and gives
   them weight 0 because every hull has the same base structure resists.
-- An Assault Damage Control raises the abyss structure-resist clue to at least 9.5.
+- Abyss resistance clues follow the fitted resist gear, not only the base hull
+  profile. No resist gear, or only a plain/T1/T2 damage control, caps the clue
+  low because calculated values are shared; faction+ damage controls and any
+  resistance module floor the clue to at least that module's weight; Assault
+  Damage Controls raise it sharply (structure at least 9.5, shield/armor at
+  least 8.8); non-uniform structure resists (abyssal weather) reach 9.8.
+- Faction+ damage controls and resistance modules receive an 8.2 equipment
+  weight floor; their resistance clue cannot weigh less than the module.
+- Sensor strength is one clue. It displays only the sensor type(s) with a
+  non-zero value: normally one, in the owning race's colour; two special shuttles
+  have all four equal. Shield recharge time is a static SDE clue. In Abyss their
+  fitted values come from the dogma engine; shield recharge is stored/displayed
+  in seconds.
 - Low-slot weapon upgrades are weighted by the weapon family they improve
   (projectile/energy/hybrid/missile/drone/disintegrator/turret); matching fitted
   weapons raise weight from 5.8 to at least 7.4.
@@ -186,11 +200,25 @@ instructions live in [README.md](README.md).
 
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
+- Write the changelog in Chinese.
 - Write only player-visible changes and behavior changes. Do not include numeric
   values, balance figures, seed values, hashes, or internal implementation details.
-- Put the changelog in the GitLab Release description (and keep a matching
-  `CHANGELOG.md` entry when one exists). Do not publish a release with an empty
-  or generic description.
+- Put the changelog in the GitLab Release description and keep the matching
+  `CHANGELOG.md` section in Chinese. Do not publish a release with an empty or
+  generic description.
+
+## Stats and reset
+
+- Stats live in `fitdle:v1:stats`, independent of `dataVersion` and builds.
+- Daily plays and kills are per gameplay mode: Standard, Abyss, Timed.
+- A play is counted on the first guess, or on starting a Timed run.
+- Free runs never affect stats.
+- Streak is measured in consecutive successful days. Any gameplay win counts
+  that day once; a missed day or a day with no win resets it.
+- Legacy numeric totals are migrated to `legacyPlayed`/`legacyWins` and remain
+  visible.
+- Reset progress uses a five-second press with a left-to-right red fill; there is
+  no confirmation dialog and no duration text in the button label.
 
 ## Data version
 
@@ -225,9 +253,9 @@ npm run hooks:install     # enable shared Git hooks
 
 `.githooks/pre-commit` calls `scripts/bump-version.mjs`.
 
-- Default `patch`.
-- `VERSION_BUMP=minor` / `major` for explicit releases.
-- `VERSION_BUMP=none` to skip.
+- The hook defaults to a patch, but ordinary changes should be committed with
+  `--no-verify` or `VERSION_BUMP=none` so no version bump occurs.
+- Use `VERSION_BUMP=minor` / `major` only for an explicitly requested release.
 - The script also updates the README version strings.
 - In the DSH Windows sandbox, Git shell hooks may be blocked (`sh` signal-pipe
   error). In that environment run `node scripts/bump-version.mjs` manually, then
@@ -236,22 +264,26 @@ npm run hooks:install     # enable shared Git hooks
 ### Dev branch workflow
 
 - Day-to-day work goes on `dev`; `main` stays the release branch.
-- Every commit, including `dev` commits, bumps **patch** by default through the
-  normal version hook. Use `VERSION_BUMP=minor` or `major` only when explicitly
-  requested.
+- Do not bump the version for ordinary `dev` commits. Bump only when the user
+  explicitly asks for a release/version change.
 - Do **not** push `dev` (or open anything upstream) unless asked.
-- When asked to push, do not ask again for a release level unless the user asks
-  for a specific one; the default is patch.
+- When asked to push, push the current work unless a version/release change was
+  explicitly requested.
 
 ## Runtime URLs and storage
 
-- `?mode=abyss` selects Abyss; absent/other values use Standard.
-- `?lang=<code>` forces a supported locale; invalid values fall back to the saved
-  locale, then browser language, then English.
+- `?rule=abyss` selects Abyss; `?rule=timed` selects Timed; `?rule=standard`,
+  an absent rule, or any unknown value selects Standard.
+- `?lang=<code>` is accepted only as a legacy input: the value is stored in
+  `fitdle:v1:lang` and removed from the URL. Language is never shown in the app URL.
 - `?kb=<opaque-token>` opens Free mode for that killmail; legacy numeric IDs are
   accepted and rewritten to tokens. `?free=1` selects a loose-random target.
-- `?timer=1` enables Timed mode; Free mode can also be timed.
-- `?d=` is no longer an archive selector; archive mode was removed.
+- Legacy `?mode=abyss`, `?mode=timed`, `?timer=1` and `?timed=1` are accepted
+  and canonicalized to `rule`.
+- Standard omits `rule` from app and share URLs.
+- Standard, Abyss and Timed are peer gameplay modes. Timed is not combined
+  with Abyss; its target source follows the selected Daily or Free mode.
+- `?d=` is removed/ignored; it is stripped from legacy URLs and never used for selection.
 - Puzzle state: `fitdle:v1:state:<date>:<mode>` (Timed uses `<mode>:timed`).
 - Stats: `fitdle:v1:stats`; language: `fitdle:v1:lang`; font:
   `fitdle:v1:font`; font size: `fitdle:v1:font-size`; ESI type-name cache:
@@ -260,14 +292,19 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Sharing
 
-- Non-free share URL: `share/{1..6|lost}/{lang}.html?d=...&mode=...` (no `lang`
-  query; the path locale controls preview language).
-- Free share URL: `share/free/{lang}.html?kb=...&mode=...` (plus `timer=1` when
-  timed). The preview redirects to the app without forcing a language.
-- Timed share URL: `share/timed/{lang}.html?t=<seconds>&mode=...&timer=1`.
+- Non-free share URL: `share/{1..6|lost}/{lang}.html?kb=...` with optional `rule=abyss`/`rule=timed`
+  (no `d`, `mode`, `timer` or `lang` query; the path locale controls preview
+  language and is stored locally).
+- Free share URL: `share/free/{lang}.html?kb=...` with optional `rule=abyss`/`rule=timed`.
+  The preview redirects to the app without forcing a language.
+- Timed share URL: `share/timed/{lang}.html?t=<seconds>&kb=...&rule=timed`.
 - Legacy `share/{score}.html` pages remain for old links.
+- Opening a `kb` link compares its killmail with the current Daily target for the
+  selected gameplay mode. On a match it enters Daily (restoring completed
+  progress); otherwise it stays in Free mode.
 - Static pages are generated per locale by `build-dist`; metadata is localized and
-  contains only score/attempts, never the answer.
+  contains only score/attempts, never the answer. The page stores its path locale
+  locally before redirecting.
 - OG images: `assets/share/og-{1..6|lost}-{locale}.png`, 1200×630, localized
   headline/tagline/score, no target or killmail data. `1` uses a cyan
   one-shot/burst card; `lost` uses an amber broken-radar card.
@@ -284,7 +321,12 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Manual and legal
 
-- Manual shared rules are in `help.sharedRules` and appear before mode sections.
+- Manual left column is split into Mode descriptions (Daily, Free) and Gameplay
+  descriptions (General, Standard, Abyss, Timed).
+- Dossier layout: groups are balanced across two dynamic columns; equipment/cargo
+  are not pinned to a column. Cargo capacity is the first row of the cargo group
+  and keeps a labeled placeholder while hidden, including zero-cargo hulls.
+- Manual shared rules are in `help.sharedRules` and appear under General.
 - Mode sections must contain only mode-specific rules.
 - Do not restore the removed sentence about identical UTC target/language in
   step 04.
@@ -301,7 +343,7 @@ npm run hooks:install     # enable shared Git hooks
 
 ## Tests
 
-`npm test` currently covers 52 cases, including downtime boundaries, target/KB
+`npm test` currently covers 57 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 and no hard-coded deployment domains.
@@ -340,15 +382,21 @@ test reads `dist/`.
   intentionally not shared between players. The reveal seed uses the zKill hash or
   killmail time so a shared `?kb=` link reveals identically for everyone.
 - Free mode has no persistence or stats.
-- Timed mode is an unscored alternate rule set selected with `timer=1`; it starts
+- Timed is an unscored peer gameplay mode selected with `timer=1`; it starts
   with sealed placeholder dossier blocks. After start it reveals the mode's opening
   clues and releases one weighted clue every 30 seconds; guesses do not release
   clues. Each lock has a 5-second cooldown with a bottom-up fill. The orb shows an
   ASCII spinner and a 30-second ring; if all usable clues are revealed, the next
   scheduled clue fails the run. It has unlimited attempts, a live timer button with
-  long-press forfeit, and a timed share page. Abyss mode uses a darker red background.
+  long-press forfeit, and a timed share page. Its target follows Daily or Free.
 - The field manual setting `fitdle:v1:allowEmptyKb` controls whether empty-hull killmails are eligible (default on).
 - Font face (one NEW/CLASSIC toggle) and five-step font size are stored in
   `fitdle:v1:font` and `fitdle:v1:font-size`; the default `normal` step is the
   former XL scale. Resistance labels scale with the selected size.
-- Stats are origin-local; different domains have separate localStorage.
+- Stats and language are origin-local; different domains have separate localStorage.
+
+## Local preview
+
+- After every change, verify `http://127.0.0.1:4173/` is serving `dist/`.
+- If it is down, start it with `npm start` as a background process and confirm the
+  HTTP response before finishing.

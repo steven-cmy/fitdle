@@ -14,7 +14,7 @@ export const INITIAL_MAX_WEIGHT = 13;
 export const INITIAL_MAX_CLUES = 7;
 export const INITIAL_MIN_CANDIDATES = 6;
 
-const STATIC_CATEGORIES = new Set(['identity', 'hull', 'slots', 'nav', 'defense', 'fitting']);
+const STATIC_CATEGORIES = new Set(['identity', 'hull', 'slots', 'nav', 'defense', 'targeting', 'fitting']);
 
 function isStatic(clue) {
   return STATIC_CATEGORIES.has(clue?.c);

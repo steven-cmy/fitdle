@@ -127,10 +127,17 @@ const catalog = ships.map((ship) => {
       launcher: number(attrs.launcherHardpoints) ?? 0,
       speed: number(attrs.maxVelocity) ?? 0,
       sig: number(attrs.signatureRadius) ?? 0,
+      sensorStrength: {
+        radar: number(attrs.sensorRadarStrength) ?? 0,
+        ladar: number(attrs.sensorLadarStrength) ?? 0,
+        magnetometric: number(attrs.sensorMagnetometricStrength) ?? 0,
+        gravimetric: number(attrs.sensorGravimetricStrength) ?? 0,
+      },
       droneBandwidth: number(attrs.droneBandwidth) ?? 0,
       droneCapacity: number(attrs.droneCapacity) ?? 0,
       mass,
       shield: number(attrs.shieldCapacity) ?? 0,
+      shieldRecharge: Math.round((Number(attrs.shieldRechargeRate) || 0) / 10) / 100,
       armor: number(attrs.armorHP) ?? 0,
       structure: number(attrs.structureHP) ?? 0,
       capacitor: number(attrs.capacitorCapacity) ?? 0,
@@ -252,6 +259,8 @@ function makeRefs(locale) {
       fitRestrictions: module.fitRestrictions || null,
       chargeGroups: module.chargeGroups || [],
       metaLevel: module.metaLevel ?? null,
+      resistLayers: module.resistLayers || null,
+      assaultDamageControl: module.assaultDamageControl === true,
     };
   }
   const raceMap = {};
@@ -316,7 +325,7 @@ const moduleFallbacks = {};
   }
 }
 
-const RULESET_VERSION = 'v48';
+const RULESET_VERSION = 'v49';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
 const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
@@ -325,7 +334,7 @@ const manifest = {
   format: 'fitdle-runtime-v2',
   version: PACKAGE_VERSION,
   dataVersion,
-  clueVersion: '2',
+  clueVersion: '3',
   generatedAt: new Date().toISOString(),
   sdeGeneratedAt: sde.generatedAt || null,
   sde: {
