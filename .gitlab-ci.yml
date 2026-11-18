@@ -85,8 +85,6 @@ release:
   needs:
     - job: build
       artifacts: false
-    - job: publish:builder
-      artifacts: false
   script:
     - |
       VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n1)"
@@ -129,7 +127,7 @@ pages:
     KANIKO_TAG: ""
   before_script:
     - |
-      VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n1)"
+      VERSION="$(tr -d '[:space:]' < docker/BUILDER_VERSION)"
       test -n "$VERSION"
       test -n "${CI_REGISTRY_IMAGE:-}" || { echo "CI_REGISTRY_IMAGE is not set"; exit 1; }
       test -n "${CI_REGISTRY_USER:-}" || { echo "CI_REGISTRY_USER is not set"; exit 1; }
@@ -166,10 +164,8 @@ publish:builder:test:
 
 publish:builder:
   extends: .kaniko_builder
-  needs:
-    - job: build
-      artifacts: false
+  needs: []
   rules:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes:
-        - package.json
+        - docker/BUILDER_VERSION

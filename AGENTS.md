@@ -7,8 +7,11 @@ instructions live in [README.md](README.md).
 
 - Never reveal today's target ship, killmail ID, victim name, or answer render in
   tests, logs, commits, screenshots, or chat. Use non-target/public data in screenshots.
-- Do not bump the version or add `CHANGELOG.md` entries for ordinary changes.
-  Bump only when the user explicitly asks for a release/version change.
+- Default to a **patch** version bump whenever code changes are made, unless the
+  user explicitly says not to patch. Never bump `minor` or `major` automatically.
+- Never create a PR, merge, tag, release, publish Pages, or publish container
+  images automatically. Do those only when the user explicitly asks.
+- Add `CHANGELOG.md` entries only when preparing an explicitly requested release.
 - Do not commit `.cache/`, `dist/`, browser state, or the GitLab token.
 - Keep the puzzle deterministic for every player: fixed date seed, stable hull /
   page hashes, and page-1-first zKill selection.
@@ -217,8 +220,8 @@ instructions live in [README.md](README.md).
 - Free runs never affect stats.
 - Streak is measured in consecutive successful days. Any gameplay win counts
   that day once; a missed day or a day with no win resets it.
-- Legacy numeric totals are migrated to `legacyPlayed`/`legacyWins` and remain
-  visible.
+- Legacy numeric totals are ignored: do not migrate or display `legacyPlayed` /
+  `legacyWins` from older builds.
 - Reset progress uses a five-second press with a left-to-right red fill; there is
   no confirmation dialog and no duration text in the button label.
 
@@ -256,9 +259,17 @@ catalog, then run both refreshes before the final `build`.
 
 `.githooks/pre-commit` calls `scripts/bump-version.mjs`.
 
-- The hook defaults to a patch, but ordinary changes should be committed with
-  `--no-verify` or `VERSION_BUMP=none` so no version bump occurs.
-- Use `VERSION_BUMP=minor` / `major` only for an explicitly requested release.
+- The hook defaults to a patch. Code changes should normally be committed with
+  the hook (or `node scripts/bump-version.mjs` first), so every code change gets a
+  patch bump by default.
+- Use `VERSION_BUMP=none` / `--no-verify` only when the user explicitly says not
+  to patch, or when the commit is docs/CI-only.
+- Automatic/ordinary bumps are **patch only**. Never choose `minor` or `major`
+  on your own.
+- Use `VERSION_BUMP=minor` / `major` only when the user explicitly requests that
+  exact bump for the current release.
+- Never create a commit, PR, tag, release, Pages deployment, or container image
+  automatically. Those require explicit user instruction.
 - The script also updates the README version strings.
 - In the DSH Windows sandbox, Git shell hooks may be blocked (`sh` signal-pipe
   error). In that environment run `node scripts/bump-version.mjs` manually, then
@@ -267,11 +278,10 @@ catalog, then run both refreshes before the final `build`.
 ### Dev branch workflow
 
 - Day-to-day work goes on `dev`; `main` stays the release branch.
-- Do not bump the version for ordinary `dev` commits. Bump only when the user
-  explicitly asks for a release/version change.
-- Do **not** push `dev` (or open anything upstream) unless asked.
-- When asked to push, push the current work unless a version/release change was
+- Code changes get a patch bump by default; do not bump minor/major unless
   explicitly requested.
+- Do **not** push `dev` (or open anything upstream) unless asked.
+- Never release or publish from `dev` unless explicitly asked.
 
 ## Runtime URLs and storage
 
@@ -280,7 +290,9 @@ catalog, then run both refreshes before the final `build`.
 - `?lang=<code>` is accepted only as a legacy input: the value is stored in
   `fitdle:v1:lang` and removed from the URL. Language is never shown in the app URL.
 - `?kb=<opaque-token>` opens Free mode for that killmail; legacy numeric IDs are
-  accepted and rewritten to tokens. `?free=1` selects a loose-random target.
+  accepted and rewritten to tokens. The random free flow uses a temporary
+  `?n=<nonce>` query that is removed after the target loads. Legacy `?free=1`
+  still opens a loose-random target but is neutral for streaks.
 - Legacy `?mode=abyss`, `?mode=timed`, `?timer=1` and `?timed=1` are accepted
   and canonicalized to `rule`.
 - Standard omits `rule` from app and share URLs.
@@ -288,9 +300,11 @@ catalog, then run both refreshes before the final `build`.
   with Abyss; its target source follows the selected Daily or Free mode.
 - `?d=` is removed/ignored; it is stripped from legacy URLs and never used for selection.
 - Puzzle state: `fitdle:v1:state:<date>:<mode>` (Timed uses `<mode>:timed`).
-- Stats: `fitdle:v1:stats`; language: `fitdle:v1:lang`; font:
-  `fitdle:v1:font`; font size: `fitdle:v1:font-size`; ESI type-name cache:
-  `fitdle:v1:typeNames:<locale>`; empty-hull setting: `fitdle:v1:allowEmptyKb`.
+- Stats: `fitdle:v1:stats`; free-mode streaks: `fitdle:v1:free-streak`;
+  free-mode one-time nonce: `fitdle:v1:free-intent` (sessionStorage); language:
+  `fitdle:v1:lang`; font: `fitdle:v1:font`; font size: `fitdle:v1:font-size`;
+  ESI type-name cache: `fitdle:v1:typeNames:<locale>`; empty-hull setting:
+  `fitdle:v1:allowEmptyKb`.
 - Storage is origin-local; changing domain changes stats and saved language.
 
 ## Sharing
@@ -338,15 +352,17 @@ catalog, then run both refreshes before the final `build`.
 - Do not restore the removed sentence about identical UTC target/language in
   step 04.
 - Legal copy follows the ximicon.space CCP notice pattern, localized legally,
-  with Fenris Creations (formerly CCP hf.) and the FITDLE GitLab repository
-  (gitlab.com/cmy/fitdle) as the site subject.
+  with Fenris Creations (formerly CCP hf.) and the deployed site URL as the site
+  subject. Never embed the GitLab repository URL in the legal copy.
 
 ## Footer
 
 - `v<version> · SDE <official buildNumber> · ZKILL <server date>`.
 - Use `manifest.sde.buildNumber` (official SDE `latest.jsonl`), not dataVersion.
 - zKill snapshot uses the server `Date` header captured by `build:killpool`.
-- GitLab repo link comes from `manifest.links.repo`.
+- Source link uses `manifest.links.repo` and is labelled with `footer.source`.
+- SDE link uses `manifest.links.eveDocs` (official documentation), not the SDE
+  download URL.
 
 ## Tests
 
@@ -361,11 +377,15 @@ test reads `dist/`.
 ## CI / deployment
 
 - `.gitlab-ci.yml`: `sde:check`, `build`, `publish:builder`, `release`, `pages`.
-- On a `main` push that changes `package.json`, `publish:builder` builds
+- The one-shot builder image is independent of the application version. On a
+  `main` push that changes `docker/BUILDER_VERSION`, `publish:builder` builds
   `Dockerfile.oneshot` with Kaniko and pushes
-  `<CI_REGISTRY_IMAGE>/builder:<version>` and `:latest` to the project's GitLab
-  Container Registry. `release` depends on that job, so a release is not created
-  if the builder image push fails.
+  `<CI_REGISTRY_IMAGE>/builder:<builder-version>` and `:latest`. Changing only
+  the application/package version does not publish a new builder image.
+- `release` depends only on `build`, not on `publish:builder`; application
+  releases continue even when builder code did not change.
+- When changing `Dockerfile.oneshot` or the builder entrypoint, bump
+  `docker/BUILDER_VERSION` so a new image is published.
 - `publish:builder:test` is a manual web/MR pipeline smoke test; it pushes only
   `:test` and is never automatic. It uses the automatic `CI_JOB_TOKEN`; no Docker
   Hub credentials or registry variables are needed.
@@ -392,18 +412,36 @@ test reads `dist/`.
   active modules.
 - Some hulls have no usable zKill page; if every hull is exhausted, the daily
   target shows the no-target screen instead of a static fallback.
-- Free mode opens `?kb=<token>` directly. `?free=1` or the free-mode button picks
-  a random hull and a random loss from its page 1; this loose random selection is
-  intentionally not shared between players. The reveal seed uses the zKill hash or
-  killmail time so a shared `?kb=` link reveals identically for everyone.
-- Free mode has no persistence or stats.
+- Free mode opens `?kb=<token>` directly. The free-mode button/refresh picks a
+  random hull and a random loss from its page 1 using a temporary nonce; legacy
+  `?free=1` still picks a loose-random target but is neutral for streaks. This
+  loose random selection is intentionally not shared between players. The reveal
+  seed uses the zKill hash or killmail time so a shared `?kb=` link reveals
+  identically for everyone.
+- Free mode has no stats and no daily puzzle persistence; only its separate
+  per-gameplay streak counters persist.
+- Free mode keeps separate Standard/Abyss/Timed streak counters in
+  `fitdle:v1:free-streak`. Only a win from the random refresh flow increments the
+  current gameplay counter; wins opened from a direct `kb` link or a free share
+  link do not increment. The random refresh flow uses a one-time nonce stored in
+  `fitdle:v1:free-intent` (sessionStorage) and binds it to the URL; direct
+  `kb`/share links and forged `free=1` URLs are neutral. A loss or an abandoned
+  active round (page close, refresh, or mode navigation) resets that gameplay
+  counter. After a completed round, mode changes or direct `kb`/share links leave
+  the streak intact until the next random refresh starts a round. The debrief
+  shows the counter at the top right with increment pop/confetti or reset shake
+  effects only for counted random refresh rounds; direct `kb`/share debriefs show
+  the current counter greyed out with no effects.
 - Timed is an unscored peer gameplay mode selected with `timer=1`; it starts
   with sealed placeholder dossier blocks. After start it reveals the mode's opening
-  clues and releases one weighted clue every 30 seconds; guesses do not release
-  clues. Each lock has a 5-second cooldown with a bottom-up fill. The orb shows an
-  ASCII spinner and a 30-second ring; if all usable clues are revealed, the next
-  scheduled clue fails the run. It has unlimited attempts, a live timer button with
-  long-press forfeit, and a timed share page. Its target follows Daily or Free.
+  clues and releases a weighted batch every 30 seconds; guesses do not release
+  clues. The batch grows every two releases: 1, 1, 2, 2, 3, 3, ... clues. Its
+  fitted values are simulated the same way as Abyss. Each lock has a 5-second
+  cooldown with a bottom-up fill. If all usable clues are already revealed, the
+  next release fails the run; if fewer clues remain than the next batch, all
+  remaining clues are released and failure waits until the following release.
+  It has unlimited attempts, a live timer button with long-press forfeit, and a
+  timed share page. Its target follows Daily or Free.
 - The field manual setting `fitdle:v1:allowEmptyKb` controls whether empty-hull killmails are eligible (default on).
 - Font face (one NEW/CLASSIC toggle) and five-step font size are stored in
   `fitdle:v1:font` and `fitdle:v1:font-size`; the default `normal` step is the

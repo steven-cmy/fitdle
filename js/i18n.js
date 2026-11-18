@@ -1569,6 +1569,7 @@ const EXTRAS = {
   'resist.structure': { en: 'STRUCTURE', de: 'STRUKTUR', es: 'ESTRUCTURA', fr: 'STRUCTURE', ja: 'ストラクチャ', ko: '구조', ru: 'КОРПУС', zh: '结构' },
   'free.badge': { en: 'FREE PLAY', de: 'FREIES SPIEL', es: 'JUEGO LIBRE', fr: 'JEU LIBRE', ja: 'フリープレイ', ko: '자유 플레이', ru: 'СВОБОДНАЯ ИГРА', zh: '自由模式' },
   'free.kicker': { en: 'FREE PLAY // UNRANKED', de: 'FREIES SPIEL // UNGEWERTET', es: 'JUEGO LIBRE // SIN CLASIFICAR', fr: 'JEU LIBRE // NON CLASSÉ', ja: 'フリープレイ // ランキング外', ko: '자유 플레이 // 비집계', ru: 'СВОБОДНАЯ ИГРА // БЕЗ РЕЙТИНГА', zh: '自由模式 // 不计入数据' },
+  'free.unscored': { en: 'UNSCORED', de: 'UNGEWERTET', es: 'SIN PUNTUACIÓN', fr: 'NON COMPTÉ', ja: '記録対象外', ko: '미집계', ru: 'БЕЗ ЗАЧЁТА', zh: '不计分' },
   'free.title': { en: 'FREE TARGET', de: 'FREIES ZIEL', es: 'OBJETIVO LIBRE', fr: 'CIBLE LIBRE', ja: 'フリー目標', ko: '자유 목표', ru: 'СВОБОДНАЯ ЦЕЛЬ', zh: '自由目标' },
   'free.noStats': { en: 'Free play does not count toward stats or leaderboards.', de: 'Freies Spiel zählt nicht zu Statistiken oder Ranglisten.', es: 'El juego libre no cuenta para estadísticas ni clasificaciones.', fr: 'Le jeu libre ne compte pas dans les statistiques ni les classements.', ja: 'フリープレイは統計やランキングに反映されません。', ko: '자유 플레이는 통계나 순위에 반영되지 않습니다.', ru: 'Свободная игра не учитывается в статистике и рейтингах.', zh: '自由模式不计入统计，也不会写入本地进度。' },
   'free.refresh': {
@@ -1592,6 +1593,7 @@ const EXTRAS = {
   'free.kb': { en: 'KB #{id}', de: 'KB #{id}', es: 'KB #{id}', fr: 'KB #{id}', ja: 'KB #{id}', ko: 'KB #{id}', ru: 'KB #{id}', zh: 'KB #{id}' },
   'free.reset': { en: 'FREE PLAY', de: 'FREIES SPIEL', es: 'JUEGO LIBRE', fr: 'JEU LIBRE', ja: 'フリープレイ', ko: '자유 플레이', ru: 'СВОБОДНАЯ ИГРА', zh: '自由模式' },
   'free.next': { en: 'Free play has no daily reset.', de: 'Freies Spiel hat keinen täglichen Reset.', es: 'El juego libre no tiene reinicio diario.', fr: 'Le jeu libre n’a pas de réinitialisation quotidienne.', ja: 'フリープレイに毎日のリセットはありません。', ko: '자유 플레이에는 일일 초기화가 없습니다.', ru: 'В свободной игре нет ежедневного сброса.', zh: '自由模式没有每日重置。' },
+  'free.streak': { en: 'STREAK', de: 'SERIE', es: 'RACHA', fr: 'SÉRIE', ja: '連続', ko: '연속', ru: 'СЕРИЯ', zh: '连杀' },
   'share.winTitle': { en: '{score}/6 — Target destroyed 🎯', de: '{score}/6 — Ziel zerstört 🎯', es: '{score}/6 — Objetivo destruido 🎯', fr: '{score}/6 — Cible détruite 🎯', ja: '{score}/6 — 目標撃破 🎯', ko: '{score}/6 — 목표 격파 🎯', ru: '{score}/6 — Цель уничтожена 🎯', zh: '{score}/6 — 目标已击毁 🎯' },
   'share.winBody': { en: 'I cracked the hull in {score} attempts. Can you beat my score? 🛰️', de: 'Ich habe die Hülle in {score} Versuchen geknackt. Schaffst du mehr? 🛰️', es: 'He reventado el casco en {score} intentos. ¿Puedes superarme? 🛰️', fr: 'J’ai percé la coque en {score} tentatives. Peux-tu faire mieux ? 🛰️', ja: '{score}回で船体を撃破。スコアを超えられる？🛰️', ko: '{score}번 만에 선체를 격파했습니다. 내 점수를 넘을 수 있나요? 🛰️', ru: 'Я уничтожил корпус за {score} попыток. Сможешь лучше? 🛰️', zh: '我用了 {score} 次尝试锁定目标。你能超过我吗？🛰️' },
   'share.oneTitle': { en: '1/6 — First-shot kill 💥', de: '1/6 — Treffer beim ersten Schuss 💥', es: '1/6 — Muerte al primer disparo 💥', fr: '1/6 — Élimination au premier tir 💥', ja: '1/6 — 初弾撃破 💥', ko: '1/6 — 첫 발에 격파 💥', ru: '1/6 — Убийство с первого выстрела 💥', zh: '1/6 — 首发命中 💥' },
@@ -1612,6 +1614,10 @@ const EXTRAS = {
   'footer.copyrightTitle': {
     en: 'COPYRIGHT / LEGAL', de: 'COPYRIGHT / RECHTLICHES', es: 'COPYRIGHT / LEGAL', fr: 'COPYRIGHT / MENTIONS LÉGALES',
     ja: '著作権 / 法的情報', ko: '저작권 / 법적 고지', ru: 'АВТОРСКИЕ ПРАВА / ПРАВОВАЯ ИНФОРМАЦИЯ', zh: '版权信息',
+  },
+  'footer.source': {
+    en: 'SOURCE CODE', de: 'QUELLCODE', es: 'CÓDIGO FUENTE', fr: 'CODE SOURCE',
+    ja: 'ソースコード', ko: '소스 코드', ru: 'ИСХОДНЫЙ КОД', zh: '源代码',
   },
   'footer.copyright': {
     en: 'EVE Online and the EVE logo are trademarks of Fenris Creations (formerly CCP hf. / CCP Games). CCP was renamed Fenris Creations in 2026. © 2026 Fenris Creations. All rights reserved.',
@@ -1704,9 +1710,9 @@ const EXTRAS = {
   'font.neue': { en: 'NEW', de: 'NEU', es: 'NUEVA', fr: 'NOUVELLE', ja: '新', ko: '신형', ru: 'НОВЫЙ', zh: '新' },
   'font.triglavian': { en: 'TRIGLAVIAN', de: 'TRIGLAVIAN', es: 'TRIGLAVIAN', fr: 'TRIGLAVIAN', ja: 'トリグラフ', ko: '트리글라비안', ru: 'ТРИГЛАВИАН', zh: '三神裔' },
   'font.triglavianToast': {
-    en: 'TRIGLAVIAN CLADE FONT', de: 'TRIGLAVIAN-CLADE-SCHRIFT', es: 'FUENTE DEL CLADO TRIGLAVIAN',
-    fr: 'POLICE DU CLADE TRIGLAVIAN', ja: 'トリグラフ・クレード書体', ko: '트리글라비안 클레이드 글꼴',
-    ru: 'ШРИФТ КЛАДА ТРИГЛАВИАН', zh: '三神裔字体',
+    en: 'ANCIENT SIGNAL DETECTED', de: 'URALTES SIGNAL ENTDECKT', es: 'SEÑAL ANTIGUA DETECTADA',
+    fr: 'SIGNAL ANCIEN DÉTECTÉ', ja: '古代信号を検出', ko: '고대 신호 감지',
+    ru: 'ОБНАРУЖЕН ДРЕВНИЙ СИГНАЛ', zh: '检测到远古信号',
   },
   'font.triglavianSub': {
     en: 'THE CLADES OBSERVE', de: 'DIE CLADES BEOBACHTEN', es: 'LOS CLADOS OBSERVAN',
@@ -1876,14 +1882,14 @@ const RENAMES = {
 };
 Object.assign(RENAMES, {
   'footer.copyright': {
-    en: 'EVE Online and the EVE logo are the registered trademarks of Fenris Creations (formerly CCP hf.). All rights are reserved worldwide. All other trademarks are the property of their respective owners. EVE Online, the EVE logo, EVE and all associated logos and designs are the intellectual property of Fenris Creations. All artwork, screenshots, characters, vehicles, storylines, world facts or other recognizable features of the intellectual property relating to these trademarks are likewise the intellectual property of Fenris Creations. Fenris Creations has granted permission to the FITDLE GitLab repository (gitlab.com/cmy/fitdle) to use EVE Online and all associated logos and designs for promotional and information purposes on this website, but does not endorse, and is not in any way affiliated with, FITDLE or its GitLab repository. Fenris Creations is in no way responsible for the content on or functioning of this website, nor can it be liable for any damage arising from the use of this website.',
-    de: 'EVE Online und das EVE-Logo sind eingetragene Marken von Fenris Creations (vormals CCP hf.). Alle Rechte weltweit vorbehalten. Alle anderen Marken sind Eigentum ihrer jeweiligen Inhaber. EVE Online, das EVE-Logo, EVE sowie alle zugehörigen Logos und Designs sind geistiges Eigentum von Fenris Creations. Sämtliche Kunstwerke, Screenshots, Charaktere, Fahrzeuge, Handlungsstränge, Weltfakten und sonstigen erkennbaren Merkmale der geistigen Eigentumsrechte im Zusammenhang mit diesen Marken sind ebenfalls geistiges Eigentum von Fenris Creations. Fenris Creations hat dem FITDLE-GitLab-Repository (gitlab.com/cmy/fitdle) die Erlaubnis erteilt, EVE Online und alle zugehörigen Logos und Designs zu Werbe- und Informationszwecken auf dieser Website zu verwenden, befürwortet das FITDLE-GitLab-Repository jedoch nicht und ist in keiner Weise mit ihm verbunden. Fenris Creations ist in keiner Weise für die Inhalte oder die Funktionsweise dieser Website verantwortlich und haftet nicht für Schäden, die aus der Nutzung dieser Website entstehen.',
-    es: 'EVE Online y el logotipo de EVE son marcas registradas de Fenris Creations (anteriormente CCP hf.). Todos los derechos están reservados en todo el mundo. Todas las demás marcas son propiedad de sus respectivos titulares. EVE Online, el logotipo de EVE, EVE y todos los logotipos y diseños asociados son propiedad intelectual de Fenris Creations. Todas las ilustraciones, capturas de pantalla, personajes, vehículos, argumentos, datos del universo u otras características reconocibles de la propiedad intelectual relacionadas con estas marcas son igualmente propiedad intelectual de Fenris Creations. Fenris Creations ha concedido permiso al repositorio de GitLab de FITDLE (gitlab.com/cmy/fitdle) para utilizar EVE Online y todos los logotipos y diseños asociados con fines promocionales e informativos en este sitio web, pero no respalda ni está afiliada de ningún modo al repositorio de GitLab de FITDLE. Fenris Creations no es responsable en modo alguno del contenido ni del funcionamiento de este sitio web, ni podrá ser considerada responsable de ningún daño derivado del uso de este sitio web.',
-    fr: 'EVE Online et le logo EVE sont des marques déposées de Fenris Creations (anciennement CCP hf.). Tous droits réservés dans le monde entier. Toutes les autres marques sont la propriété de leurs détenteurs respectifs. EVE Online, le logo EVE, EVE ainsi que tous les logos et designs associés sont la propriété intellectuelle de Fenris Creations. Toutes les illustrations, captures d’écran, personnages, véhicules, scénarios, faits relatifs à l’univers ou autres éléments reconnaissables de la propriété intellectuelle liés à ces marques sont également la propriété intellectuelle de Fenris Creations. Fenris Creations a autorisé le dépôt GitLab de FITDLE (gitlab.com/cmy/fitdle) à utiliser EVE Online ainsi que tous les logos et designs associés à des fins promotionnelles et informatives sur ce site web, mais ne cautionne pas et n’est en aucune manière affiliée au dépôt GitLab de FITDLE. Fenris Creations n’est en aucun cas responsable du contenu ou du fonctionnement de ce site web et ne saurait être tenue responsable de tout dommage résultant de l’utilisation de ce site web.',
-    ja: 'EVE Online および EVE ロゴは、Fenris Creations（旧 CCP hf.）の登録商標です。世界中で全ての権利が留保されています。その他の商標はすべて、それぞれの所有者の財産です。EVE Online、EVE ロゴ、EVE および関連するすべてのロゴとデザインは、Fenris Creations の知的財産です。これらの商標に関連する知的財産に含まれるすべてのアートワーク、スクリーンショット、キャラクター、乗り物、ストーリー、世界設定その他の識別可能な要素も、同様に Fenris Creations の知的財産です。Fenris Creations は、FITDLE の GitLab リポジトリ（gitlab.com/cmy/fitdle）に対し、本ウェブサイト上で宣伝および情報提供を目的として EVE Online および関連するすべてのロゴとデザインを使用することを許可していますが、FITDLE の GitLab リポジトリを推奨するものではなく、いかなる関係も有していません。Fenris Creations は、本ウェブサイトの内容または動作について一切責任を負わず、本ウェブサイトの使用に起因するいかなる損害についても責任を負いません。',
-    ko: 'EVE Online 및 EVE 로고는 Fenris Creations(구 CCP hf.)의 등록 상표입니다. 전 세계적으로 모든 권리가 보유됩니다. 그 밖의 모든 상표는 각 소유자의 재산입니다. EVE Online, EVE 로고, EVE 및 관련된 모든 로고와 디자인은 Fenris Creations의 지식 재산입니다. 이러한 상표와 관련된 지식 재산에 속하는 모든 아트워크, 스크린샷, 캐릭터, 탈것, 스토리, 세계관 사실 또는 기타 식별 가능한 요소 역시 Fenris Creations의 지식 재산입니다. Fenris Creations는 FITDLE의 GitLab 저장소(gitlab.com/cmy/fitdle)에 본 웹사이트에서 홍보 및 정보 제공 목적으로 EVE Online과 관련된 모든 로고 및 디자인을 사용할 수 있는 허가를 부여했지만, FITDLE의 GitLab 저장소를 보증하지 않으며 어떠한 방식으로도 제휴 관계에 있지 않습니다. Fenris Creations는 본 웹사이트의 콘텐츠나 작동에 대해 어떠한 책임도 지지 않으며, 본 웹사이트의 사용으로 발생하는 어떠한 손해에 대해서도 책임을 지지 않습니다.',
-    ru: 'EVE Online и логотип EVE являются зарегистрированными товарными знаками Fenris Creations (ранее CCP hf.). Все права защищены во всём мире. Все остальные товарные знаки являются собственностью их соответствующих владельцев. EVE Online, логотип EVE, EVE и все связанные с ними логотипы и дизайны являются интеллектуальной собственностью Fenris Creations. Все художественные материалы, скриншоты, персонажи, транспортные средства, сюжетные линии, факты вселенной и другие узнаваемые элементы интеллектуальной собственности, связанные с этими товарными знаками, также являются интеллектуальной собственностью Fenris Creations. Fenris Creations предоставила репозиторию FITDLE на GitLab (gitlab.com/cmy/fitdle) разрешение использовать EVE Online и все связанные с ним логотипы и дизайны в рекламных и информационных целях на этом сайте, но не одобряет репозиторий FITDLE на GitLab и никаким образом не связана с ним. Fenris Creations никоим образом не несёт ответственности за содержание или работу этого сайта и не может нести ответственность за какой-либо ущерб, возникший в результате использования этого сайта.',
-    zh: 'EVE Online 及 EVE 标志是 Fenris Creations（原 CCP hf.）的注册商标。全球范围内保留所有权利。所有其他商标均为其各自所有者的财产。EVE Online、EVE 标志、EVE 及所有相关标志和设计均为 Fenris Creations 的知识产权。与这些商标相关的所有美术作品、截图、角色、载具、故事情节、世界设定或其他可识别特征，同样属于 Fenris Creations 的知识产权。Fenris Creations 已授权 FITDLE 的 GitLab 仓库（gitlab.com/cmy/fitdle）在本网站上为宣传和信息目的使用 EVE Online 及所有相关标志和设计，但不认可、且在任何方面均不隶属于 FITDLE 或其 GitLab 仓库。Fenris Creations 对本网站的内容或运行不承担任何责任，亦不对因使用本网站而产生的任何损害承担责任。',
+    en: 'EVE Online and the EVE logo are the registered trademarks of Fenris Creations (formerly CCP hf.). All rights are reserved worldwide. All other trademarks are the property of their respective owners. EVE Online, the EVE logo, EVE and all associated logos and designs are the intellectual property of Fenris Creations. All artwork, screenshots, characters, vehicles, storylines, world facts or other recognizable features of the intellectual property relating to these trademarks are likewise the intellectual property of Fenris Creations. Fenris Creations has granted permission to this FITDLE deployment ({site}) to use EVE Online and all associated logos and designs for promotional and information purposes on this website, but does not endorse, and is not in any way affiliated with, FITDLE or this deployment. Fenris Creations is in no way responsible for the content on or functioning of this website, nor can it be liable for any damage arising from the use of this website.',
+    de: 'EVE Online und das EVE-Logo sind eingetragene Marken von Fenris Creations (vormals CCP hf.). Alle Rechte weltweit vorbehalten. Alle anderen Marken sind Eigentum ihrer jeweiligen Inhaber. EVE Online, das EVE-Logo, EVE sowie alle zugehörigen Logos und Designs sind geistiges Eigentum von Fenris Creations. Sämtliche Kunstwerke, Screenshots, Charaktere, Fahrzeuge, Handlungsstränge, Weltfakten und sonstigen erkennbaren Merkmale der geistigen Eigentumsrechte im Zusammenhang mit diesen Marken sind ebenfalls geistiges Eigentum von Fenris Creations. Fenris Creations hat diesem FITDLE-Deployment ({site}) die Erlaubnis erteilt, EVE Online und alle zugehörigen Logos und Designs zu Werbe- und Informationszwecken auf dieser Website zu verwenden, befürwortet dieses FITDLE-Deployment jedoch nicht und ist in keiner Weise mit ihm verbunden. Fenris Creations ist in keiner Weise für die Inhalte oder die Funktionsweise dieser Website verantwortlich und haftet nicht für Schäden, die aus der Nutzung dieser Website entstehen.',
+    es: 'EVE Online y el logotipo de EVE son marcas registradas de Fenris Creations (anteriormente CCP hf.). Todos los derechos están reservados en todo el mundo. Todas las demás marcas son propiedad de sus respectivos titulares. EVE Online, el logotipo de EVE, EVE y todos los logotipos y diseños asociados son propiedad intelectual de Fenris Creations. Todas las ilustraciones, capturas de pantalla, personajes, vehículos, argumentos, datos del universo u otras características reconocibles de la propiedad intelectual relacionadas con estas marcas son igualmente propiedad intelectual de Fenris Creations. Fenris Creations ha concedido permiso a esta implementación de FITDLE ({site}) para utilizar EVE Online y todos los logotipos y diseños asociados con fines promocionales e informativos en este sitio web, pero no respalda ni está afiliada de ningún modo a esta implementación de FITDLE. Fenris Creations no es responsable en modo alguno del contenido ni del funcionamiento de este sitio web, ni podrá ser considerada responsable de ningún daño derivado del uso de este sitio web.',
+    fr: 'EVE Online et le logo EVE sont des marques déposées de Fenris Creations (anciennement CCP hf.). Tous droits réservés dans le monde entier. Toutes les autres marques sont la propriété de leurs détenteurs respectifs. EVE Online, le logo EVE, EVE ainsi que tous les logos et designs associés sont la propriété intellectuelle de Fenris Creations. Toutes les illustrations, captures d’écran, personnages, véhicules, scénarios, faits relatifs à l’univers ou autres éléments reconnaissables de la propriété intellectuelle liés à ces marques sont également la propriété intellectuelle de Fenris Creations. Fenris Creations a autorisé ce déploiement FITDLE ({site}) à utiliser EVE Online ainsi que tous les logos et designs associés à des fins promotionnelles et informatives sur ce site web, mais ne cautionne pas et n’est en aucune manière affiliée à ce déploiement FITDLE. Fenris Creations n’est en aucun cas responsable du contenu ou du fonctionnement de ce site web et ne saurait être tenue responsable de tout dommage résultant de l’utilisation de ce site web.',
+    ja: 'EVE Online および EVE ロゴは、Fenris Creations（旧 CCP hf.）の登録商標です。世界中で全ての権利が留保されています。その他の商標はすべて、それぞれの所有者の財産です。EVE Online、EVE ロゴ、EVE および関連するすべてのロゴとデザインは、Fenris Creations の知的財産です。これらの商標に関連する知的財産に含まれるすべてのアートワーク、スクリーンショット、キャラクター、乗り物、ストーリー、世界設定その他の識別可能な要素も、同様に Fenris Creations の知的財産です。Fenris Creations は、FITDLE のデプロイ（{site}）に対し、本ウェブサイト上で宣伝および情報提供を目的として EVE Online および関連するすべてのロゴとデザインを使用することを許可していますが、FITDLE のデプロイを推奨するものではなく、いかなる関係も有していません。Fenris Creations は、本ウェブサイトの内容または動作について一切責任を負わず、本ウェブサイトの使用に起因するいかなる損害についても責任を負いません。',
+    ko: 'EVE Online 및 EVE 로고는 Fenris Creations(구 CCP hf.)의 등록 상표입니다. 전 세계적으로 모든 권리가 보유됩니다. 그 밖의 모든 상표는 각 소유자의 재산입니다. EVE Online, EVE 로고, EVE 및 관련된 모든 로고와 디자인은 Fenris Creations의 지식 재산입니다. 이러한 상표와 관련된 지식 재산에 속하는 모든 아트워크, 스크린샷, 캐릭터, 탈것, 스토리, 세계관 사실 또는 기타 식별 가능한 요소 역시 Fenris Creations의 지식 재산입니다. Fenris Creations는 FITDLE 배포({site})에 본 웹사이트에서 홍보 및 정보 제공 목적으로 EVE Online과 관련된 모든 로고 및 디자인을 사용할 수 있는 허가를 부여했지만, FITDLE 배포를 보증하지 않으며 어떠한 방식으로도 제휴 관계에 있지 않습니다. Fenris Creations는 본 웹사이트의 콘텐츠나 작동에 대해 어떠한 책임도 지지 않으며, 본 웹사이트의 사용으로 발생하는 어떠한 손해에 대해서도 책임을 지지 않습니다.',
+    ru: 'EVE Online и логотип EVE являются зарегистрированными товарными знаками Fenris Creations (ранее CCP hf.). Все права защищены во всём мире. Все остальные товарные знаки являются собственностью их соответствующих владельцев. EVE Online, логотип EVE, EVE и все связанные с ними логотипы и дизайны являются интеллектуальной собственностью Fenris Creations. Все художественные материалы, скриншоты, персонажи, транспортные средства, сюжетные линии, факты вселенной и другие узнаваемые элементы интеллектуальной собственности, связанные с этими товарными знаками, также являются интеллектуальной собственностью Fenris Creations. Fenris Creations предоставила развёртыванию FITDLE по адресу {site} разрешение использовать EVE Online и все связанные с ним логотипы и дизайны в рекламных и информационных целях на этом сайте, но не одобряет это развёртывание FITDLE и никаким образом не связана с ним. Fenris Creations никоим образом не несёт ответственности за содержание или работу этого сайта и не может нести ответственность за какой-либо ущерб, возникший в результате использования этого сайта.',
+    zh: 'EVE Online 及 EVE 标志是 Fenris Creations（原 CCP hf.）的注册商标。全球范围内保留所有权利。所有其他商标均为其各自所有者的财产。EVE Online、EVE 标志、EVE 及所有相关标志和设计均为 Fenris Creations 的知识产权。与这些商标相关的所有美术作品、截图、角色、载具、故事情节、世界设定或其他可识别特征，同样属于 Fenris Creations 的知识产权。Fenris Creations 已授权 FITDLE 部署（{site}）在本网站上为宣传和信息目的使用 EVE Online 及所有相关标志和设计，但不认可、且在任何方面均不隶属于 FITDLE 或其部署。Fenris Creations 对本网站的内容或运行不承担任何责任，亦不对因使用本网站而产生的任何损害承担责任。',
   },
 });
 
@@ -2629,7 +2635,7 @@ Opening clues are revealed when you start.
 Wrong guesses do not reveal clues.
 One clue is revealed every 30 seconds.
 A 5-second cooldown follows every lock.
-If all clues are revealed, the next clue time fails the run.
+If all clues are already revealed, the next release fails the run. If fewer clues remain than the next batch, release all of them and fail only on the following release.
 Hold the timer for 3 seconds to give up and reveal the answer.
 Progress is saved but not scored.`,
     de: `Unbegrenzte Versuche.
@@ -2637,7 +2643,7 @@ Start-Hinweise werden beim Start aufgedeckt.
 Falsche Versuche geben keine Hinweise.
 Alle 30 Sekunden wird ein Hinweis aufgedeckt.
 Nach jeder Zielerfassung folgen 5 Sekunden Abklingzeit.
-Sind alle Hinweise offen, scheitert der Lauf beim nächsten Hinweis.
+Sind alle Hinweise bereits offen, scheitert der Lauf bei der nächsten Freigabe. Sind weniger Hinweise übrig als das nächste Paket, werden alle freigegeben; der Lauf scheitert erst bei der darauffolgenden Freigabe.
 Timer 3 Sekunden halten, um aufzugeben und die Antwort zu sehen.
 Fortschritt wird gespeichert, aber nicht gewertet.`,
     es: `Intentos ilimitados.
@@ -2645,7 +2651,7 @@ Las pistas iniciales se revelan al empezar.
 Los fallos no revelan pistas.
 Cada 30 segundos se revela una pista.
 Tras cada bloqueo hay 5 segundos de recarga.
-Si todas las pistas están reveladas, el siguiente aviso hace fallar la partida.
+Si todas las pistas ya están reveladas, la siguiente entrega hace fallar la partida. Si quedan menos pistas que el siguiente lote, se revelan todas y la partida falla solo en la entrega siguiente.
 Mantén el cronómetro 3 segundos para rendirte y ver la respuesta.
 El progreso se guarda, pero no puntúa.`,
     fr: `Tentatives illimitées.
@@ -2653,7 +2659,7 @@ Les indices initiaux sont révélés au départ.
 Les erreurs ne révèlent pas d’indices.
 Un indice est révélé toutes les 30 secondes.
 Chaque verrouillage impose 5 secondes de recharge.
-Si tous les indices sont révélés, le prochain indice fait échouer la partie.
+Si tous les indices sont déjà révélés, la révélation suivante fait échouer la partie. S’il reste moins d’indices que le prochain lot, ils sont tous révélés et la partie n’échoue qu’à la révélation suivante.
 Maintenez le chrono 3 secondes pour abandonner et voir la réponse.
 La progression est sauvegardée, mais non classée.`,
     ja: `試行は無制限。
@@ -2897,64 +2903,64 @@ Standard и Abyss дают шесть попыток; Timed — неограни
     en: `Unlimited attempts.
 Opening clues are revealed when you start.
 Wrong guesses do not reveal clues.
-One clue is revealed every 30 seconds; each lock has a 5-second cooldown.
-If all clues are revealed, the next clue time fails the run.
+A batch is released every 30 seconds; each lock has a 5-second cooldown. The batch grows every two releases: +1, +1, +2, +2, +3, and so on.
+If all clues are already revealed, the next release fails the run. If fewer clues remain than the next batch, release all of them and fail only on the following release.
 Hold the timer for 3 seconds to give up and reveal the answer.
 With Daily selected, Timed uses its own daily target. With Free selected, it uses the chosen or random free target.
 Progress is saved but not scored.`,
     de: `Unbegrenzte Versuche.
 Start-Hinweise werden beim Start aufgedeckt.
 Falsche Versuche geben keine Hinweise.
-Alle 30 Sekunden wird ein Hinweis aufgedeckt; nach jeder Erfassung folgen 5 Sekunden Abklingzeit.
-Sind alle Hinweise offen, scheitert der Lauf beim nächsten Hinweis.
+Alle 30 Sekunden wird ein Hinweis-Paket freigegeben; nach jeder Erfassung folgen 5 Sekunden Abklingzeit. Alle zwei Freigaben wächst das Paket: +1, +1, +2, +2, +3 und so weiter.
+Sind alle Hinweise bereits offen, scheitert der Lauf bei der nächsten Freigabe. Sind weniger Hinweise übrig als das nächste Paket, werden alle freigegeben; der Lauf scheitert erst bei der darauffolgenden Freigabe.
 Timer 3 Sekunden halten, um aufzugeben und die Antwort zu sehen.
 Bei Daily nutzt Timed ein eigenes Tagesziel. Bei Free wird das gewählte oder zufällige freie Ziel verwendet.
 Fortschritt wird gespeichert, aber nicht gewertet.`,
     es: `Intentos ilimitados.
 Las pistas iniciales se revelan al empezar.
 Los fallos no revelan pistas.
-Cada 30 segundos se revela una pista; tras cada bloqueo hay 5 segundos de recarga.
-Si todas las pistas están reveladas, el siguiente aviso hace fallar la partida.
+Cada 30 segundos se revela un lote de pistas; tras cada bloqueo hay 5 segundos de recarga. El lote crece cada dos entregas: +1, +1, +2, +2, +3 y así sucesivamente.
+Si todas las pistas ya están reveladas, la siguiente entrega hace fallar la partida. Si quedan menos pistas que el siguiente lote, se revelan todas y la partida falla solo en la entrega siguiente.
 Mantén el cronómetro 3 segundos para rendirte y ver la respuesta.
 Con Diaria, Crono usa su propio objetivo diario. Con Libre, usa el objetivo libre elegido o aleatorio.
 El progreso se guarda, pero no puntúa.`,
     fr: `Tentatives illimitées.
 Les indices initiaux sont révélés au départ.
 Les erreurs ne révèlent pas d’indices.
-Un indice est révélé toutes les 30 secondes ; chaque verrouillage impose 5 secondes de recharge.
-Si tous les indices sont révélés, le prochain indice fait échouer la partie.
+Un lot d’indices est révélé toutes les 30 secondes ; chaque verrouillage impose 5 secondes de recharge. Le lot augmente toutes les deux révélations : +1, +1, +2, +2, +3, etc.
+Si tous les indices sont déjà révélés, la révélation suivante fait échouer la partie. S’il reste moins d’indices que le prochain lot, ils sont tous révélés et la partie n’échoue qu’à la révélation suivante.
 Maintenez le chrono 3 secondes pour abandonner et voir la réponse.
 En Quotidien, Chrono utilise sa propre cible quotidienne. En Libre, il utilise la cible libre choisie ou aléatoire.
 La progression est sauvegardée, mais non classée.`,
     ja: `試行は無制限です。
 開始時に初期ヒントが公開されます。
 誤答ではヒントは公開されません。
-30秒ごとにヒントが1つ公開され、各ロック後には5秒のクールダウンがあります。
-すべてのヒントが公開されると、次のヒント公開時に失敗します。
+30秒ごとにヒントの束が公開され、各ロック後には5秒のクールダウンがあります。2回の公開ごとに束の数が増えます：+1、+1、+2、+2、+3…。
+すべてのヒントが公開済みの場合、次の公開で失敗します。残りのヒントが次の束より少ない場合はすべて公開し、その次の公開で失敗します。
 タイマーを3秒長押しすると諦めて答えが表示されます。
 デイリー選択時は専用のデイリー目標、フリー選択時は選択またはランダムなフリー目標を使います。
 進行状況は保存されますが、採点されません。`,
     ko: `시도 횟수는 무제한입니다.
 시작하면 초기 단서가 공개됩니다.
 틀린 추측은 단서를 공개하지 않습니다.
-30초마다 단서 하나가 공개되며, 각 잠금 후 5초의 재사용 대기시간이 있습니다.
-모든 단서가 공개되면 다음 단서 공개 시 실패합니다.
+30초마다 단서 묶음이 공개되며, 각 잠금 후 5초의 재사용 대기시간이 있습니다. 두 번의 공개마다 묶음 크기가 늘어납니다: +1, +1, +2, +2, +3….
+모든 단서가 이미 공개되었다면 다음 공개에서 실패합니다. 남은 단서가 다음 묶음보다 적으면 모두 공개하고, 그다음 공개에서만 실패합니다.
 타이머를 3초간 길게 누르면 포기하고 정답이 공개됩니다.
 데일리 선택 시 타임드는 전용 일일 목표를, 자유 선택 시 선택하거나 무작위로 고른 자유 목표를 사용합니다.
 진행 상황은 저장되지만 점수는 없습니다.`,
     ru: `Неограниченное число попыток.
 При старте открываются начальные подсказки.
 Неверные догадки не открывают подсказки.
-Каждые 30 секунд открывается одна подсказка; после каждой фиксации — 5 секунд перезарядки.
-Если все подсказки открыты, следующее открытие приводит к поражению.
+Каждые 30 секунд открывается пакет подсказок; после каждой фиксации — 5 секунд перезарядки. Каждые две выдачи размер пакета растёт: +1, +1, +2, +2, +3 и так далее.
+Если все подсказки уже открыты, следующая выдача приводит к поражению. Если оставшихся подсказок меньше следующего пакета, открываются все, а поражение наступает только при следующей выдаче.
 Удерживайте таймер 3 секунды, чтобы сдаться и увидеть ответ.
 В Daily Timed использует отдельную дневную цель. В Free — выбранную или случайную свободную цель.
 Прогресс сохраняется, но не оценивается.`,
     zh: `尝试次数不限。
 开始计时时展示开局线索。
 猜错不会揭示线索。
-每 30 秒揭示一条线索；每次锁定目标后有 5 秒冷却。
-所有线索都揭示后，下一次线索发布时自动失败。
+每 30 秒发放一批线索；每次锁定目标后有 5 秒冷却。每两次发放后批量增加：+1、+1、+2、+2、+3，以此类推。
+如果所有线索都已揭示，下一次发放时失败。如果剩余线索少于下一批数量，则全部揭示，并在再下一次发放时才失败。
 长按计时器 3 秒可放弃并显示答案。
 选择每日模式时，计时玩法使用独立的每日目标；选择自由模式时，使用指定或随机的自由目标。
 进度会保存，但不计分。`,

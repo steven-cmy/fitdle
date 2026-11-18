@@ -1,6 +1,6 @@
 # FITDLE
 
-**v0.4.1**
+**v0.4.12**
 
 FITDLE 是一个纯前端、无需登录的 EVE Online 每日击杀谜题。每天有一个目标击杀，
 玩家通过逐步揭示的装配、属性和 zKillboard 情报识别被击毁的舰船。
@@ -181,21 +181,25 @@ Unraid 可在 User Scripts 中放置同样的 `docker run --rm ...` 命令并设
 
 #### 自动发布构建器镜像
 
-GitLab CI 会在 `main` 上新版本发布时自动构建一次性构建器镜像，并推送到项目自带的
-GitLab Container Registry；不需要 Docker Hub 账号或额外 Token。
+构建器镜像独立于软件本体版本。只有 `docker/BUILDER_VERSION` 变化时，GitLab CI 才会
+构建并推送一次性构建器镜像；普通软件版本发布不会产生新的构建器版本。
 
 镜像地址：
 
 ```text
-registry.gitlab.com/cmy/fitdle/builder:<version>
+registry.gitlab.com/cmy/fitdle/builder:<builder-version>
 registry.gitlab.com/cmy/fitdle/builder:latest
 ```
 
+`<builder-version>` 来自 `docker/BUILDER_VERSION`。修改 `Dockerfile.oneshot` 或
+`docker/oneshot-entrypoint.sh` 后，需要同时更新该文件，镜像才会重新发布；只更新软件本体
+不会触发构建器发布。
+
 发布流程：
 
-1. `publish:builder` 用 Kaniko 构建 `Dockerfile.oneshot`；
-2. 推送版本标签和 `latest`；
-3. 推送成功后 `release` 才创建 GitLab Release。
+1. `publish:builder` 在 `docker/BUILDER_VERSION` 变化时用 Kaniko 构建 `Dockerfile.oneshot`；
+2. 推送构建器版本标签和 `latest`；
+3. 软件本体的 `release` 与构建器发布相互独立，构建器未变化时仍可正常发布软件。
 
 首次使用前确认项目的 **Settings → General → Visibility, project features, permissions**
 中 Container Registry 已启用。镜像默认跟随项目可见性；如果项目是私有的，拉取前需要
