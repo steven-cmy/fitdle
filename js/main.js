@@ -109,6 +109,9 @@ const state = {
   visibleCount: 0,
   revealed: new Set(),
   fresh: new Set(),
+  unseen: new Set(),
+  hintRaf: 0,
+  hintKey: '',
   latestIndex: -1,
   scanPulse: false,
   inputValue: '',
@@ -440,6 +443,7 @@ function updateTimedClock() {
       state.fresh = new Set([...state.revealed].filter((index) => !before.has(index)));
       renderHero();
       renderDossier();
+      rememberNewClues(state.fresh);
       if (state.fresh.size) showToast(t('toast.intel'), t('toast.clue', { n: state.fresh.size }), 'info');
     }
   }
@@ -525,8 +529,11 @@ function startTimedRun() {
   state.timerHoldStart = 0;
   state.gaveUp = false;
   state.timedExpired = false;
+  const before = new Set(state.revealed);
   recomputeRevealed();
+  state.fresh = new Set([...state.revealed].filter((index) => !before.has(index)));
   renderAll();
+  rememberNewClues(state.fresh);
   persist();
   setTimeout(() => $('#ship-input')?.focus(), 80);
 }
@@ -1881,6 +1888,99 @@ function renderCargoCapacityPlaceholder() {
   </div>`;
 }
 
+function clearNewClueHint() {
+  const host = $('#new-clue-hint');
+  state.hintKey = '';
+  if (!host) return;
+  host.hidden = true;
+  host.classList.remove('is-updating');
+  host.innerHTML = '';
+}
+
+function newClueHintMarkup(direction, count) {
+  const label = t('dossier.newClue');
+  const arrow = direction === 'up' ? 'arrowUp' : 'arrowDown';
+  const edge = direction === 'up' ? 'top' : 'bottom';
+  return `<button type="button" class="new-clue-box is-${edge}" data-action="new-clue" data-direction="${direction}" aria-label="${esc(`${label} ${count}`)}">
+    ${icon(arrow)}
+    <span>${esc(label)}</span>
+    <b>${int(count)}</b>
+  </button>`;
+}
+
+function updateNewClueHint() {
+  state.hintRaf = 0;
+  const host = $('#new-clue-hint');
+  if (!host) return;
+  if (state.status !== 'playing' || !state.answerData) {
+    state.unseen.clear();
+    clearNewClueHint();
+    return;
+  }
+  let above = 0;
+  let below = 0;
+  for (const index of [...state.unseen]) {
+    const row = document.querySelector(`.attr-row[data-clue-index="${index}"]`);
+    if (!row) continue;
+    const rect = row.getBoundingClientRect();
+    // Only count a clue as seen once the whole row is inside the viewport.
+    const visible = rect.top >= 0
+      && rect.bottom <= window.innerHeight
+      && rect.left >= 0
+      && rect.right <= window.innerWidth;
+    if (visible) {
+      state.unseen.delete(index);
+    } else if (rect.bottom <= 0) {
+      above += 1;
+    } else {
+      below += 1;
+    }
+  }
+  if (!state.unseen.size || (!above && !below)) {
+    clearNewClueHint();
+    return;
+  }
+  const key = `${above}:${below}`;
+  if (key === state.hintKey) return;
+  const wasVisible = !host.hidden;
+  state.hintKey = key;
+  host.classList.toggle('is-updating', wasVisible);
+  host.innerHTML = [
+    above ? newClueHintMarkup('up', above) : '',
+    below ? newClueHintMarkup('down', below) : '',
+  ].join('');
+  host.hidden = false;
+}
+
+function scheduleNewClueHint() {
+  if (state.hintRaf) return;
+  state.hintRaf = requestAnimationFrame(updateNewClueHint);
+}
+
+function rememberNewClues(indices) {
+  if (state.status !== 'playing') return;
+  for (const index of indices) state.unseen.add(index);
+  // Evaluate immediately after the post-guess render; do not wait for a
+  // follow-up scroll event to decide whether the new rows are off-screen.
+  updateNewClueHint();
+}
+
+function scrollToNewClue(direction) {
+  const rows = [...state.unseen]
+    .map((index) => ({
+      index,
+      row: document.querySelector(`.attr-row[data-clue-index="${index}"]`),
+    }))
+    .filter((entry) => entry.row)
+    .map((entry) => ({ ...entry, rect: entry.row.getBoundingClientRect() }));
+  if (!rows.length) return;
+  const nearest = direction === 'up'
+    ? rows.filter((entry) => entry.rect.bottom <= 0).sort((a, b) => b.rect.bottom - a.rect.bottom)[0]
+    : rows.filter((entry) => entry.rect.top >= window.innerHeight).sort((a, b) => a.rect.top - b.rect.top)[0];
+  (nearest || rows[0]).row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  scheduleNewClueHint();
+}
+
 function renderDossier() {
   if (!state.answerData) return;
   if (isTimed() && !state.timerStarted && state.status === 'playing') {
@@ -2077,6 +2177,7 @@ function renderDossier() {
       state.fresh.clear();
     }, 1700);
   }
+  scheduleNewClueHint();
 }
 
 function syncBoardHeight() {
@@ -2298,13 +2399,12 @@ function applyGuess(shipId) {
 
   state.scanPulse = true;
   renderAll();
+  rememberNewClues(state.fresh);
   if (isTimed() && !correct) startLockCooldown();
   if (state.status !== 'playing') {
     recordDailyResult();
     setTimeout(() => renderDebrief(), 850);
-  } else if (window.innerWidth < 860 && newlyRevealed > 0) {
-    setTimeout(() => $('#dossier-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 250);
-  } else {
+  } else if (window.innerWidth >= 860) {
     setTimeout(() => $('#ship-input')?.focus(), 60);
   }
 }
@@ -2907,6 +3007,7 @@ document.addEventListener('click', (event) => {
     if (action === 'help') { renderManual(); return; }
     if (action === 'submit') { submitGuess(); return; }
     if (action === 'debrief') { renderDebrief(); return; }
+    if (action === 'new-clue') { scrollToNewClue(actionEl.dataset.direction); return; }
     if (action === 'close-modal') { closeModal(); return; }
     if (action === 'copy-share') { copyShare(); return; }
     if (action === 'play-today') { playToday(); return; }
@@ -3003,9 +3104,11 @@ document.addEventListener('focusin', (event) => {
 
 window.addEventListener('scroll', () => {
   if (!$('#suggestions')?.hidden) positionSuggestions();
+  scheduleNewClueHint();
 }, true);
 window.addEventListener('resize', () => {
   if (!$('#suggestions')?.hidden) positionSuggestions();
+  scheduleNewClueHint();
 });
 
 window.addEventListener('pagehide', () => {
@@ -3221,6 +3324,12 @@ async function boot() {
 
     renderShell();
     renderAll();
+    if (state.status === 'playing' && state.guesses.length === 0 && state.revealed.size) {
+      // Initial reveals count as unseen too: if the dossier starts below the
+      // fold, point the player to the first batch of intel.
+      for (const index of state.revealed) state.unseen.add(index);
+      updateNewClueHint();
+    }
     if (isTimed()) {
       resumeTimedClock();
       markTimedForfeited();
