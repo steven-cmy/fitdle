@@ -9,6 +9,7 @@ workflow:
 stages:
   - check
   - build
+  - publish
   - deploy
 
 default:
@@ -84,6 +85,8 @@ release:
   needs:
     - job: build
       artifacts: false
+    - job: publish:builder
+      artifacts: false
   script:
     - |
       VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n1)"
@@ -112,3 +115,61 @@ pages:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "web"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# Publish the one-shot builder image to the project's GitLab Container
+# Registry. Kaniko builds the image without a privileged Docker daemon and
+# authenticates with the automatic CI job token; no Docker Hub credentials or
+# repository variables are needed.
+.kaniko_builder:
+  stage: publish
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  variables:
+    KANIKO_TAG: ""
+  before_script:
+    - |
+      VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n1)"
+      test -n "$VERSION"
+      test -n "${CI_REGISTRY_IMAGE:-}" || { echo "CI_REGISTRY_IMAGE is not set"; exit 1; }
+      test -n "${CI_REGISTRY_USER:-}" || { echo "CI_REGISTRY_USER is not set"; exit 1; }
+      test -n "${CI_REGISTRY_PASSWORD:-}" || { echo "CI_REGISTRY_PASSWORD is not set"; exit 1; }
+      IMAGE="${CI_REGISTRY_IMAGE}/builder"
+      TAG="${KANIKO_TAG:-$VERSION}"
+      mkdir -p /kaniko/.docker
+      AUTH="$(printf '%s:%s' "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD" | base64 | tr -d '\n')"
+      printf '{"auths":{"%s":{"auth":"%s"}}}\n' "$CI_REGISTRY" "$AUTH" > /kaniko/.docker/config.json
+      export VERSION IMAGE TAG
+  script:
+    - |
+      /kaniko/executor \
+        --context "$CI_PROJECT_DIR" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile.oneshot" \
+        --destination "$IMAGE:$TAG" \
+        $( [ "$TAG" = "$VERSION" ] && printf '%s' "--destination $IMAGE:latest" ) \
+        --label "org.opencontainers.image.version=$VERSION" \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+        --label "org.opencontainers.image.source=$CI_PROJECT_URL"
+
+# Manual smoke test for the registry token and Dockerfile.oneshot.
+# It pushes only the :test tag and is never run automatically.
+publish:builder:test:
+  extends: .kaniko_builder
+  needs: []
+  variables:
+    KANIKO_TAG: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+
+publish:builder:
+  extends: .kaniko_builder
+  needs:
+    - job: build
+      artifacts: false
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - package.json

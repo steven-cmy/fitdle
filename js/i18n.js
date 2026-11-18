@@ -1496,6 +1496,9 @@ const EXTRAS = {
   'mode.label': {
     en: 'MODE', de: 'MODUS', es: 'MODO', fr: 'MODE', ja: 'モード', ko: '모드', ru: 'РЕЖИМ', zh: '模式',
   },
+  'mode.ruleLabel': {
+    en: 'RULES', de: 'REGELN', es: 'REGLAS', fr: 'RÈGLES', ja: 'ルール', ko: '규칙', ru: 'ПРАВИЛА', zh: '规则',
+  },
   'mode.standard': {
     en: 'STANDARD', de: 'STANDARD', es: 'ESTÁNDAR', fr: 'STANDARD', ja: '標準', ko: '표준', ru: 'СТАНДАРТ', zh: '标准',
   },

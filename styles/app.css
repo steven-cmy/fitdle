@@ -80,6 +80,8 @@
   --font-ui: var(--font-eve-new);
   --font-display: var(--font-eve-new-display);
   --font-mono: var(--font-ui);
+  --unit-size: 0.8571rem;
+  --value-size: 1rem;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.52);
   --clip: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px));
   --clip-sm: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
@@ -194,6 +196,7 @@ html[data-theme="triglavian"] ::selection {
 
 html {
   min-width: 320px;
+  font-size: 14px;
   background: var(--bg);
   scroll-behavior: smooth;
 }
@@ -208,7 +211,7 @@ body {
     radial-gradient(1000px 900px at 50% 110%, rgba(29, 75, 88, 0.12), transparent 65%),
     linear-gradient(180deg, #04070b 0%, #050b10 45%, #04080c 100%);
   font-family: var(--font-ui);
-  font-size: 15px;
+  font-size: 1rem;
   line-height: 1.55;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
@@ -626,14 +629,14 @@ select {
 .cycle-chip span,
 .countdown span {
   color: var(--muted);
-  font: 600 9px/1 var(--font-mono);
+  font: 600 0.6429rem/1 var(--font-mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 .cycle-chip strong {
   margin-top: 5px;
   color: var(--cyan);
-  font: 600 12px/1 var(--font-mono);
+  font: 600 0.8571rem/1 var(--font-mono);
   letter-spacing: 0.08em;
   white-space: nowrap;
 }
@@ -647,7 +650,7 @@ select {
 .countdown strong {
   margin-top: 5px;
   color: var(--text);
-  font: 600 12px/1 var(--font-mono);
+  font: 600 0.8571rem/1 var(--font-mono);
   letter-spacing: 0.08em;
   white-space: nowrap;
 }
@@ -657,6 +660,10 @@ select {
   align-items: center;
   justify-content: flex-end;
   gap: 9px;
+}
+.topbar-actions .icon-button,
+.topbar-actions .lang-select {
+  font-size: 1rem;
 }
 
 .icon-button {
@@ -876,8 +883,8 @@ select {
   align-items: center;
   gap: 10px;
   color: var(--amber);
-  font: 600 9px/1 var(--font-mono);
-  letter-spacing: 0.2em;
+  font: 600 8px/1 var(--font-mono);
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 .hero-kicker .ping {
@@ -929,6 +936,7 @@ select {
 }
 .hero h1 .accent {
   display: block;
+  margin-top: 0.16em;
   color: transparent;
   background: linear-gradient(92deg, var(--cyan) 0%, #b7f7ff 38%, var(--amber) 100%);
   background-clip: text;
@@ -1261,7 +1269,7 @@ select {
 }
 .mode-label {
   color: var(--muted);
-  font: 600 8px/1 var(--font-mono);
+  font: 600 0.5714rem/1 var(--font-mono);
   letter-spacing: 0.14em;
 }
 .mode-switch {
@@ -2019,7 +2027,7 @@ html[data-game-mode="abyss"] {
 .group-count {
   flex: 0 0 auto;
   color: var(--dim);
-  font: 500 8px/1 var(--font-mono);
+  font: 500 1rem/1 var(--font-mono);
   letter-spacing: 0.04em;
 }
 .group-count b {
@@ -2037,7 +2045,7 @@ html[data-game-mode="abyss"] {
   grid-template-columns: minmax(102px, 144px) minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px;
+  padding: 0.57rem 12px;
   overflow: hidden;
   border-bottom: 1px solid rgba(126, 196, 216, 0.06);
 }
@@ -2065,7 +2073,7 @@ html[data-game-mode="abyss"] {
   letter-spacing: 0.08em;
 }
 .equipment-sealed .attr-value {
-  font-size: 14px;
+  font-size: 1rem;
 }
 .attr-label {
   min-width: 0;
@@ -2081,7 +2089,7 @@ html[data-game-mode="abyss"] {
   overflow: hidden;
   overflow-wrap: anywhere;
   color: #e8f6fa;
-  font: 500 13px/1.35 var(--font-ui);
+  font: 500 0.9286rem/1.35 var(--font-ui);
 }
 .attr-row.is-hidden .attr-label {
   color: var(--dim);
@@ -2092,7 +2100,7 @@ html[data-game-mode="abyss"] {
 .attr-redacted {
   display: inline-block;
   color: var(--dim);
-  font: 600 15px/1 var(--font-mono);
+  font: 600 1.0714rem/1 var(--font-mono);
   letter-spacing: 0.16em;
   transform: translateY(1px);
 }
@@ -2116,12 +2124,12 @@ html[data-game-mode="abyss"] {
 }
 .attr-value .big {
   color: #f4fdff;
-  font: 600 16px/1.15 var(--font-mono);
+  font: 600 var(--value-size)/1.15 var(--font-mono);
 }
 .attr-value .unit {
   margin-left: 4px;
   color: var(--muted);
-  font: 500 9px/1 var(--font-mono);
+  font: 500 var(--unit-size)/1 var(--font-mono);
 }
 .attr-value .sub {
   display: block;
@@ -2288,17 +2296,17 @@ html[data-game-mode="abyss"] {
   flex-direction: column-reverse;
   align-items: flex-start;
   justify-content: center;
-  gap: 2px;
+  gap: 0.14rem;
 }
 .weight i {
   display: block;
-  width: 8px;
-  height: 2px;
+  width: 0.57rem;
+  height: 0.14rem;
   background: rgba(126, 196, 216, 0.14);
 }
 .weight i.on {
   background: var(--cat, var(--cyan));
-  box-shadow: 0 0 7px color-mix(in srgb, var(--cat, var(--cyan)) 50%, transparent);
+  box-shadow: 0 0 0.5rem color-mix(in srgb, var(--cat, var(--cyan)) 50%, transparent);
 }
 
 .clue-label {
@@ -2321,7 +2329,7 @@ html[data-game-mode="abyss"] {
 .clue-value .unit {
   margin-left: 4px;
   color: var(--muted);
-  font: 500 9px/1 var(--font-mono);
+  font: 500 var(--unit-size)/1 var(--font-mono);
   letter-spacing: 0.04em;
 }
 .clue-value .sub {
@@ -2438,13 +2446,13 @@ html[data-game-mode="abyss"] {
 }
 .sensor-kind {
   color: var(--c);
-  font: 600 9.5px/1 var(--font-mono);
+  font: 600 var(--unit-size)/1 var(--font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .sensor-value {
-  color: var(--text);
-  font: 500 13px/1.35 var(--font-ui);
+  color: #f4fdff;
+  font: 600 var(--value-size)/1.15 var(--font-mono);
 }
 .hardpoint-row {
   display: flex;
@@ -2465,7 +2473,7 @@ html[data-game-mode="abyss"] {
 }
 .hardpoint span {
   color: var(--muted);
-  font: 500 8px/1 var(--font-mono);
+  font: 500 var(--unit-size)/1 var(--font-mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -3632,7 +3640,7 @@ html[data-game-mode="abyss"] {
   max-width: 670px;
   margin-top: 10px;
   color: var(--text-soft);
-  font-size: 12px;
+  font-size: 0.8571rem;
   line-height: 1.65;
 }
 .manual-body {
@@ -3664,7 +3672,7 @@ html[data-game-mode="abyss"] {
   align-items: center;
   gap: 8px;
   color: var(--amber);
-  font: 600 8px/1 var(--font-mono);
+  font: 600 0.75rem/1 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -3689,7 +3697,7 @@ html[data-game-mode="abyss"] {
   gap: 12px;
   margin-top: 12px;
   color: var(--muted);
-  font: 600 9px/1.3 var(--font-mono);
+  font: 600 0.8571rem/1.3 var(--font-mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -3703,7 +3711,7 @@ html[data-game-mode="abyss"] {
   color: var(--muted);
   border: 1px solid var(--line);
   background: transparent;
-  font: 600 8.5px/1 var(--font-mono);
+  font: 600 0.7857rem/1 var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -3718,7 +3726,7 @@ html[data-game-mode="abyss"] {
   color: var(--amber);
   border: 1px solid rgba(242, 166, 59, 0.4);
   background: rgba(242, 166, 59, 0.08);
-  font: 600 9px/1 var(--font-mono);
+  font: 600 0.7857rem/1 var(--font-mono);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -3737,13 +3745,13 @@ html[data-game-mode="abyss"] {
 }
 .setting-toggle strong {
   display: block;
-  font: 600 11px/1.3 var(--font-ui);
+  font: 600 0.8929rem/1.3 var(--font-ui);
 }
 .setting-toggle small {
   display: block;
   margin-top: 4px;
   color: var(--dim);
-  font: 500 9px/1.45 var(--font-mono);
+  font: 500 0.8571rem/1.45 var(--font-mono);
 }
 .toggle-track {
   position: relative;
@@ -3782,7 +3790,7 @@ html[data-game-mode="abyss"] {
 .manual-mode-hint {
   margin-top: 7px;
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: 0.8571rem;
   line-height: 1.5;
 }
 .manual-legal p + p {
@@ -3794,18 +3802,18 @@ html[data-game-mode="abyss"] {
   margin: 9px 0 0;
   padding-left: 18px;
   color: var(--text-soft);
-  font-size: 11.5px;
+  font-size: 0.8571rem;
   line-height: 1.5;
 }
 .manual-mode-list li::marker {
   color: var(--amber);
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 0.75rem;
 }
 .manual-section p {
   margin-top: 8px;
   color: var(--text-soft);
-  font-size: 11.5px;
+  font-size: 0.8571rem;
   line-height: 1.65;
 }
 .manual-step {
@@ -3821,12 +3829,12 @@ html[data-game-mode="abyss"] {
   place-items: center;
   color: var(--cyan);
   border: 1px solid rgba(99, 231, 255, 0.22);
-  font: 600 9px/1 var(--font-mono);
+  font: 600 0.75rem/1 var(--font-mono);
 }
 .manual-step h4 {
   margin: 1px 0 0;
   color: var(--text);
-  font: 600 10px/1.2 var(--font-mono);
+  font: 600 0.8929rem/1.2 var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -3922,7 +3930,7 @@ html[data-game-mode="abyss"] {
   align-items: center;
   gap: 4px;
   color: var(--muted);
-  font: 500 8px/1.4 var(--font-mono);
+  font: 500 0.6rem/1.4 var(--font-mono);
 }
 .manual-sources a:hover {
   color: var(--cyan);
@@ -3939,7 +3947,7 @@ html[data-game-mode="abyss"] {
   padding: 15px 40px;
   border-top: 1px solid var(--line);
   color: var(--dim);
-  font: 500 7.5px/1.4 var(--font-mono);
+  font: 500 0.6rem/1.4 var(--font-mono);
   letter-spacing: 0.04em;
 }
 .manual-footer .left {
@@ -4356,7 +4364,7 @@ html[data-game-mode="abyss"] {
   .attr-row {
     grid-template-columns: 86px minmax(0, 1fr) auto;
     gap: 8px;
-    padding: 7px 9px;
+    padding: 0.5rem 9px;
   }
   .attr-label {
     font-size: 7px;
@@ -4366,7 +4374,7 @@ html[data-game-mode="abyss"] {
     font-size: 12px;
   }
   .attr-value .big {
-    font-size: 14px;
+    font-size: var(--value-size);
   }
   .module-line {
     gap: 7px;
@@ -4674,213 +4682,49 @@ html[data-game-mode="abyss"] {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* Font size preference: normal is the new default (former XL). */
-html[data-font-size="smallest"] .attr-label,
-html[data-font-size="smallest"] .equipment-slot-head,
-html[data-font-size="smallest"] .group-title { font-size: 9.5px; }
-html[data-font-size="smallest"] .attr-value .sub,
-html[data-font-size="smallest"] .attr-value .unit,
-html[data-font-size="smallest"] .dossier-count span,
-html[data-font-size="smallest"] .attempt-meta,
-html[data-font-size="smallest"] .attempt-status strong { font-size: 8.5px; }
-html[data-font-size="smallest"] .module-line-name,
-html[data-font-size="smallest"] .module-line .module-count { font-size: 12.5px; }
-html[data-font-size="smallest"] .badge-hull { font-size: 8px; }
-html[data-font-size="smallest"] .debrief-stat span,
-html[data-font-size="smallest"] .debrief-bonus-title { font-size: 8.5px; }
-html[data-font-size="smallest"] .bonus-list li { font-size: 11.5px; }
-html[data-font-size="smallest"] .debrief-description,
-html[data-font-size="smallest"] .debrief-body,
-html[data-font-size="smallest"] .manual-section p { font-size: 12px; }
-html[data-font-size="smallest"] .mode-button,
-html[data-font-size="smallest"] .banner { font-size: 8.5px; }
+/* Font size preference: the root size is the base; managed text uses rem. */
+html[data-font-size="smallest"] { font-size: 11px; }
+html[data-font-size="smaller"] { font-size: 12.5px; }
+html[data-font-size="normal"] { font-size: 14px; }
+html[data-font-size="larger"] { font-size: 16px; }
+html[data-font-size="largest"] { font-size: 18px; }
 
-html[data-font-size="smaller"] .attr-label,
-html[data-font-size="smaller"] .equipment-slot-head,
-html[data-font-size="smaller"] .group-title { font-size: 11px; }
-html[data-font-size="smaller"] .attr-value .sub,
-html[data-font-size="smaller"] .attr-value .unit,
-html[data-font-size="smaller"] .dossier-count span,
-html[data-font-size="smaller"] .attempt-meta,
-html[data-font-size="smaller"] .attempt-status strong { font-size: 10px; }
-html[data-font-size="smaller"] .module-line-name,
-html[data-font-size="smaller"] .module-line .module-count { font-size: 14.5px; }
-html[data-font-size="smaller"] .badge-hull { font-size: 9.5px; }
-html[data-font-size="smaller"] .debrief-stat span,
-html[data-font-size="smaller"] .debrief-bonus-title { font-size: 9.5px; }
-html[data-font-size="smaller"] .bonus-list li { font-size: 13px; }
-html[data-font-size="smaller"] .debrief-description,
-html[data-font-size="smaller"] .debrief-body,
-html[data-font-size="smaller"] .manual-section p { font-size: 13.5px; }
-html[data-font-size="smaller"] .mode-button,
-html[data-font-size="smaller"] .banner { font-size: 10px; }
-
-html[data-font-size="normal"] .attr-label,
-html[data-font-size="normal"] .equipment-slot-head,
-html[data-font-size="normal"] .group-title { font-size: 12.5px; }
-html[data-font-size="normal"] .attr-value .sub,
-html[data-font-size="normal"] .attr-value .unit,
-html[data-font-size="normal"] .dossier-count span,
-html[data-font-size="normal"] .attempt-meta,
-html[data-font-size="normal"] .attempt-status strong { font-size: 11.5px; }
-html[data-font-size="normal"] .module-line-name,
-html[data-font-size="normal"] .module-line .module-count { font-size: 16px; }
-html[data-font-size="normal"] .badge-hull { font-size: 10.5px; }
-html[data-font-size="normal"] .debrief-stat span,
-html[data-font-size="normal"] .debrief-bonus-title { font-size: 10.5px; }
-html[data-font-size="normal"] .bonus-list li { font-size: 14px; }
-html[data-font-size="normal"] .debrief-description,
-html[data-font-size="normal"] .debrief-body,
-html[data-font-size="normal"] .manual-section p { font-size: 15px; }
-html[data-font-size="normal"] .mode-button,
-html[data-font-size="normal"] .banner { font-size: 11px; }
-html[data-font-size="normal"] .victim-lines { font-size: 9.5px; }
-html[data-font-size="normal"] .victim-body > .zkb-item-link { font-size: 14px; }
-
-html[data-font-size="larger"] .attr-label,
-html[data-font-size="larger"] .equipment-slot-head,
-html[data-font-size="larger"] .group-title { font-size: 14px; }
-html[data-font-size="larger"] .attr-value .sub,
-html[data-font-size="larger"] .attr-value .unit,
-html[data-font-size="larger"] .dossier-count span,
-html[data-font-size="larger"] .attempt-meta,
-html[data-font-size="larger"] .attempt-status strong { font-size: 13px; }
-html[data-font-size="larger"] .module-line-name,
-html[data-font-size="larger"] .module-line .module-count { font-size: 18px; }
-html[data-font-size="larger"] .badge-hull { font-size: 11.5px; }
-html[data-font-size="larger"] .debrief-stat span,
-html[data-font-size="larger"] .debrief-bonus-title { font-size: 12px; }
-html[data-font-size="larger"] .bonus-list li { font-size: 15.5px; }
-html[data-font-size="larger"] .debrief-description,
-html[data-font-size="larger"] .debrief-body,
-html[data-font-size="larger"] .manual-section p { font-size: 16.5px; }
-html[data-font-size="larger"] .mode-button,
-html[data-font-size="larger"] .banner { font-size: 12px; }
-html[data-font-size="larger"] .victim-lines { font-size: 10.5px; }
-html[data-font-size="larger"] .victim-body > .zkb-item-link { font-size: 15px; }
-
-html[data-font-size="largest"] .attr-label,
-html[data-font-size="largest"] .equipment-slot-head,
-html[data-font-size="largest"] .group-title { font-size: 15.5px; }
-html[data-font-size="largest"] .attr-value .sub,
-html[data-font-size="largest"] .attr-value .unit,
-html[data-font-size="largest"] .dossier-count span,
-html[data-font-size="largest"] .attempt-meta,
-html[data-font-size="largest"] .attempt-status strong { font-size: 14.5px; }
-html[data-font-size="largest"] .module-line-name,
-html[data-font-size="largest"] .module-line .module-count { font-size: 20px; }
-html[data-font-size="largest"] .badge-hull { font-size: 12.5px; }
-html[data-font-size="largest"] .debrief-stat span,
-html[data-font-size="largest"] .debrief-bonus-title { font-size: 13px; }
-html[data-font-size="largest"] .bonus-list li { font-size: 17px; }
-html[data-font-size="largest"] .debrief-description,
-html[data-font-size="largest"] .debrief-body,
-html[data-font-size="largest"] .manual-section p { font-size: 18px; }
-html[data-font-size="largest"] .mode-button,
-html[data-font-size="largest"] .banner { font-size: 13px; }
-html[data-font-size="largest"] .victim-lines { font-size: 11.5px; }
-html[data-font-size="largest"] .victim-body > .zkb-item-link { font-size: 16px; }
-
-html[data-font-size="smallest"] .resist-cell b { font-size: 11px; }
-html[data-font-size="smallest"] .resist-cell small { font-size: 8px; }
-html[data-font-size="smaller"] .resist-cell b { font-size: 12px; }
-html[data-font-size="smaller"] .resist-cell small { font-size: 9px; }
-html[data-font-size="normal"] .resist-cell b { font-size: 13px; }
-html[data-font-size="normal"] .resist-cell small { font-size: 10px; }
-html[data-font-size="larger"] .resist-cell b { font-size: 15px; }
-html[data-font-size="larger"] .resist-cell small { font-size: 11px; }
-html[data-font-size="largest"] .resist-cell b { font-size: 17px; }
-html[data-font-size="largest"] .resist-cell small { font-size: 12px; }
-
-/* Buttons and metadata follow the global font-size preference. */
-html[data-font-size="smallest"] .button,
-html[data-font-size="smallest"] .link-button,
-html[data-font-size="smallest"] .lock-button,
-html[data-font-size="smallest"] .share-box label,
-html[data-font-size="smallest"] .share-box input,
-html[data-font-size="smallest"] .debrief-next,
-html[data-font-size="smallest"] .free-note { font-size: 8.5px; }
-html[data-font-size="smaller"] .button,
-html[data-font-size="smaller"] .link-button,
-html[data-font-size="smaller"] .lock-button,
-html[data-font-size="smaller"] .share-box label,
-html[data-font-size="smaller"] .share-box input,
-html[data-font-size="smaller"] .debrief-next,
-html[data-font-size="smaller"] .free-note { font-size: 10px; }
-html[data-font-size="normal"] .button,
-html[data-font-size="normal"] .link-button,
-html[data-font-size="normal"] .lock-button,
-html[data-font-size="normal"] .share-box label,
-html[data-font-size="normal"] .share-box input,
-html[data-font-size="normal"] .debrief-next,
-html[data-font-size="normal"] .free-note { font-size: 12px; }
-html[data-font-size="larger"] .button,
-html[data-font-size="larger"] .link-button,
-html[data-font-size="larger"] .lock-button,
-html[data-font-size="larger"] .share-box label,
-html[data-font-size="larger"] .share-box input,
-html[data-font-size="larger"] .debrief-next,
-html[data-font-size="larger"] .free-note { font-size: 13.5px; }
-html[data-font-size="largest"] .button,
-html[data-font-size="largest"] .link-button,
-html[data-font-size="largest"] .lock-button,
-html[data-font-size="largest"] .share-box label,
-html[data-font-size="largest"] .share-box input,
-html[data-font-size="largest"] .debrief-next,
-html[data-font-size="largest"] .free-note { font-size: 15px; }
-
-/* Remaining dossier/debrief labels follow the same five steps. */
-html[data-font-size="smallest"] .panel-sub,
-html[data-font-size="smallest"] .dossier-panel .panel-kicker,
-html[data-font-size="smallest"] .modal .panel-kicker { font-size: 10px; }
-html[data-font-size="smallest"] .debrief-kicker,
-html[data-font-size="smallest"] .debrief-visual-caption span { font-size: 9px; }
-html[data-font-size="smallest"] .debrief-answer span { font-size: 8px; }
-html[data-font-size="smallest"] .debrief-stat strong { font-size: 18px; }
-
-html[data-font-size="smaller"] .panel-sub,
-html[data-font-size="smaller"] .dossier-panel .panel-kicker,
-html[data-font-size="smaller"] .modal .panel-kicker { font-size: 11.5px; }
-html[data-font-size="smaller"] .debrief-kicker,
-html[data-font-size="smaller"] .debrief-visual-caption span { font-size: 10px; }
-html[data-font-size="smaller"] .debrief-answer span { font-size: 9px; }
-html[data-font-size="smaller"] .debrief-stat strong { font-size: 19px; }
-
-html[data-font-size="normal"] .panel-sub,
-html[data-font-size="normal"] .dossier-panel .panel-kicker,
-html[data-font-size="normal"] .modal .panel-kicker { font-size: 13px; }
-html[data-font-size="normal"] .debrief-kicker,
-html[data-font-size="normal"] .debrief-visual-caption span { font-size: 11px; }
-html[data-font-size="normal"] .debrief-answer span { font-size: 10px; }
-html[data-font-size="normal"] .debrief-stat strong { font-size: 20px; }
-
-html[data-font-size="larger"] .panel-sub,
-html[data-font-size="larger"] .dossier-panel .panel-kicker,
-html[data-font-size="larger"] .modal .panel-kicker { font-size: 14.5px; }
-html[data-font-size="larger"] .debrief-kicker,
-html[data-font-size="larger"] .debrief-visual-caption span { font-size: 12.5px; }
-html[data-font-size="larger"] .debrief-answer span { font-size: 11px; }
-html[data-font-size="larger"] .debrief-stat strong { font-size: 22px; }
-
-html[data-font-size="largest"] .panel-sub,
-html[data-font-size="largest"] .dossier-panel .panel-kicker,
-html[data-font-size="largest"] .modal .panel-kicker { font-size: 16px; }
-html[data-font-size="largest"] .debrief-kicker,
-html[data-font-size="largest"] .debrief-visual-caption span { font-size: 14px; }
-html[data-font-size="largest"] .debrief-answer span { font-size: 12px; }
-html[data-font-size="largest"] .debrief-stat strong { font-size: 24px; }
-
-/* Toast text follows the global font-size preference. */
-html[data-font-size="smallest"] .toast-title { font-size: 9px; }
-html[data-font-size="smallest"] .toast-body { font-size: 10px; }
-html[data-font-size="smaller"] .toast-title { font-size: 10px; }
-html[data-font-size="smaller"] .toast-body { font-size: 11px; }
-html[data-font-size="normal"] .toast-title { font-size: 12px; }
-html[data-font-size="normal"] .toast-body { font-size: 13px; }
-html[data-font-size="larger"] .toast-title { font-size: 13.5px; }
-html[data-font-size="larger"] .toast-body { font-size: 14.5px; }
-html[data-font-size="largest"] .toast-title { font-size: 15px; }
-html[data-font-size="largest"] .toast-body { font-size: 16px; }
+.attr-label,
+.equipment-slot-head,
+.group-title { font-size: 0.8929rem; }
+.attr-value .sub,
+.dossier-count span,
+.attempt-meta,
+.attempt-status strong { font-size: 0.8214rem; }
+.module-line-name,
+.module-line .module-count { font-size: 1.1429rem; }
+.badge-hull { font-size: 0.75rem; }
+.debrief-stat span,
+.debrief-bonus-title { font-size: 0.75rem; }
+.bonus-list li { font-size: 1rem; }
+.debrief-description,
+.debrief-body { font-size: 1.0714rem; }
+.mode-button,
+.banner { font-size: 0.7857rem; }
+.victim-lines { font-size: 0.6786rem; }
+.victim-body > .zkb-item-link { font-size: 1rem; }
+.resist-cell b { font-size: 0.9286rem; }
+.resist-cell small { font-size: 0.7143rem; }
+.button,
+.link-button,
+.lock-button,
+.share-box label,
+.share-box input,
+.debrief-next,
+.free-note { font-size: 0.8571rem; }
+.panel-sub,
+.modal .panel-kicker { font-size: 0.9286rem; }
+.debrief-kicker,
+.debrief-visual-caption span { font-size: 0.7857rem; }
+.debrief-answer span { font-size: 0.7143rem; }
+.debrief-stat strong { font-size: 1.4286rem; }
+.toast-title { font-size: 0.8571rem; }
+.toast-body { font-size: 0.9286rem; }
 
 /* Timed mode */
 .mode-timed {
@@ -5163,7 +5007,7 @@ html[data-timed="1"] #hero-timed {
   color: var(--cyan);
   border: 1px solid rgba(126, 196, 216, 0.45);
   background: rgba(126, 196, 216, 0.08);
-  font: 700 11px/1 var(--font-mono);
+  font: 700 1rem/1 var(--font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -5303,7 +5147,7 @@ html[data-timed="1"] #hero-timed {
   color: var(--muted);
   border: 1px solid var(--line);
   background: transparent;
-  font: 600 10px/1 var(--font-mono);
+  font: 600 1rem/1 var(--font-mono);
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
@@ -5383,7 +5227,7 @@ html[data-timed="1"] #dossier-orb strong {
 .manual-mode-block h4 {
   margin: 0;
   color: var(--text);
-  font: 600 10px/1.2 var(--font-mono);
+  font: 600 0.8929rem/1.2 var(--font-mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }

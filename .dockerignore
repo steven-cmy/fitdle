@@ -1,0 +1,10 @@
+.git
+.cache
+dist
+data
+node_modules
+assets/ships
+assets/modules
+*.log
+.DS_Store
+Thumbs.db
