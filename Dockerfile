@@ -15,8 +15,8 @@ COPY . .
 
 RUN npm install --no-audit --no-fund
 RUN npm run prepare:sde
+RUN npm run build:catalog
 RUN npm run build:killpool
-RUN npm run build
 RUN npm run build:weights -- --refresh
 RUN SITE_URL="${SITE_URL}" npm run build
 RUN npm test
