@@ -406,6 +406,8 @@ catalog, then run both refreshes before the final `build`.
   until the player scrolls them into view; clicking the arrow scrolls to the
   nearest unseen clue. Initial reveals also seed the unseen set when a fresh
   puzzle is opened with no guesses yet.
+- After the answer is revealed, the radar answer render fills its circular stage
+  with `object-fit: cover` at natural scale; do not add an extra zoom transform.
 - Mass shows a fully written, non-abbreviated number by default in tonnes,
   using spaces as thousands separators and `t` as the unit. Clicking the mass
   row toggles between tonnes and kg; clicking again returns to tonnes. The kg

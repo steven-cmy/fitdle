@@ -35,14 +35,15 @@ sde:check:
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # Every default-branch push and every scheduled run rebuilds/deploys. The SDE
-# refresh itself is skipped unless sde:check detected a new release.
+# Rebuild the normalized SDE from the cached JSONL on every build so code/data
+# schema changes cannot be masked by an older normalized cache.
 build:
   stage: build
   needs:
     - job: sde:check
       artifacts: true
   cache:
-    key: fitdle-build-v4
+    key: fitdle-build-v5
     paths:
       - .cache/normalized.json
       - .cache/killpool.json
@@ -50,8 +51,10 @@ build:
       - .cache/ship-weights.json
   script:
     - |
-      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/normalized.json ]; then
+      if [ "$SDE_CHANGED" = "1" ]; then
         npm run prepare:sde -- --refresh
+      else
+        npm run prepare:sde
       fi
     - |
       if [ ! -f data/catalog.json ]; then
