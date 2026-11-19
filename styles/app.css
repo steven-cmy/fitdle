@@ -1076,6 +1076,7 @@ select {
 }
 .radar-visual.is-resolved img {
   image-rendering: auto;
+  transform: none;
   filter: saturate(0.82) brightness(0.9) contrast(1.05);
 }
 .radar-visual img.is-missing {
