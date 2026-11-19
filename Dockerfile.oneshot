@@ -17,6 +17,7 @@ ENV FITDLE_REPO=https://gitlab.com/cmy/fitdle.git \
     OUTPUT_DIR=/out \
     CACHE_DIR=/cache \
     PUID=99 \
-    PGID=100
+    PGID=100 \
+    FORCE_SDE=0
 
 ENTRYPOINT ["/usr/local/bin/fitdle-oneshot"]

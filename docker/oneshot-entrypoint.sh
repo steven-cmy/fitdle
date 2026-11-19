@@ -8,6 +8,7 @@ CACHE_DIR="${CACHE_DIR:-/cache}"
 PUID="${PUID:-99}"
 PGID="${PGID:-100}"
 SITE_URL="${SITE_URL:-}"
+FORCE_SDE="${FORCE_SDE:-0}"
 
 log() {
   printf '[fitdle-oneshot] %s\n' "$*"
@@ -49,8 +50,20 @@ ln -s "$CACHE_DIR" .cache
 log "installing build tools"
 npm install --no-audit --no-fund
 
-log "fetching official SDE"
-npm run prepare:sde
+log "checking cached SDE"
+SDE_REFRESH=0
+if [ "$FORCE_SDE" = "1" ]; then
+  log "FORCE_SDE=1: downloading the official SDE"
+  SDE_REFRESH=1
+elif ! node scripts/check-sde-cache.mjs; then
+  log "newer SDE detected: downloading the official SDE"
+  SDE_REFRESH=1
+fi
+if [ "$SDE_REFRESH" = "1" ]; then
+  npm run prepare:sde -- --refresh
+else
+  npm run prepare:sde
+fi
 
 log "building initial catalog"
 npm run build:catalog

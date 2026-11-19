@@ -319,6 +319,7 @@ npm test
 npm start                 # serves dist/
 npm run prepare:sde       # download/extract/normalize official SDE
 npm run update:sde        # force refresh SDE
+npm run check:sde-cache   # compare cached SDE with official latest (exit 1 = stale)
 npm run build:killpool    # fallback KB pool + zKill server date
 npm run build:weights     # 430-hull zKill usage weights
 npm run build             # data + dist
@@ -462,7 +463,7 @@ catalog, then run both refreshes before the final `build`.
 
 ## Tests
 
-`npm test` currently covers 69 cases, including downtime boundaries, target/KB
+`npm test` currently covers 70 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 container build order, and no hard-coded deployment domains.
@@ -494,10 +495,11 @@ test reads `dist/`.
   version 2 is cached; only a schema/SDE change downloads the SDE again.
 - Build caches `.cache/normalized.json`, `.cache/killpool.json`,
   `.cache/sde-meta.json`, `.cache/ship-weights.json`.
-- The one-shot builder mounts `/cache` separately from `/out`; it reuses the SDE,
-  killpool and weights cache, refreshes killpool at most once per day, and uses
-  the 7-day weights cache unless `FORCE_WEIGHTS=1`. Its builder version is
-  independent and currently `1.1.0`.
+- The one-shot builder mounts `/cache` separately from `/out`; it checks the
+  official SDE before each build and re-downloads it when the cached build is
+  stale, refreshes killpool at most once per day, and uses the 7-day weights
+  cache unless `FORCE_WEIGHTS=1`. `FORCE_SDE=1` bypasses the check and forces a
+  fresh SDE download. Its builder version is independent and currently `1.2.0`.
 - If `data/catalog.json` is missing, build first; weights need a catalog.
 - Daily schedule: 11:15 UTC (`15 11 * * *`), job id 4554369.
 - `pages` publishes `dist/` to `public/`.

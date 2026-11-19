@@ -596,6 +596,18 @@ test('container build scripts create the catalog before the kill pool', () => {
   }
 });
 
+test('one-shot builder detects SDE updates and supports forced refresh', () => {
+  const entrypoint = fs.readFileSync(path.join(ROOT, 'docker', 'oneshot-entrypoint.sh'), 'utf8');
+  const checker = fs.readFileSync(path.join(ROOT, 'scripts', 'check-sde-cache.mjs'), 'utf8');
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.match(entrypoint, /FORCE_SDE/);
+  assert.match(entrypoint, /check-sde-cache\.mjs/);
+  assert.match(entrypoint, /prepare:sde -- --refresh/);
+  assert.match(checker, /latest\.jsonl/);
+  assert.match(checker, /buildNumber/);
+  assert.equal(pkg.scripts['check:sde-cache'], 'node scripts/check-sde-cache.mjs');
+});
+
 test('boot flavor file covers all locales and tags every egg', () => {
   const boot = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'boot-flavor.json'), 'utf8'));
   assert.deepEqual(Object.keys(boot.flavor).sort(), ['de', 'en', 'es', 'fr', 'ja', 'ko', 'ru', 'zh']);

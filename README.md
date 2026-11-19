@@ -136,7 +136,8 @@ docker run --rm \
 ```
 
 `/cache` 只保存构建缓存，不会出现在静态站点中。第一次运行会下载 SDE 和拉取权重；
-后续运行在缓存有效时直接复用，显著减少 API 请求。
+后续运行会先检查官方 SDE，只有出现新版本时才重新下载，否则复用缓存。使用
+`FORCE_SDE=1` 可以跳过检查并强制重新下载。
 
 执行完成后，静态网站根目录就是挂载卷：
 
@@ -181,6 +182,7 @@ Unraid 可在 User Scripts 中放置同样的 `docker run --rm ...` 命令并设
 - `OUTPUT_DIR`：容器内输出目录，默认 `/out`
 - `CACHE_DIR`：容器内缓存目录，默认 `/cache`
 - `SITE_URL`：对外站点地址，影响分享预览
+- `FORCE_SDE=1`：跳过缓存检查，强制重新下载官方 SDE
 - `FORCE_WEIGHTS=1`：强制刷新舰船使用率权重
 - `FORCE_KILLPOOL=1`：强制刷新 fallback 击杀池
 
