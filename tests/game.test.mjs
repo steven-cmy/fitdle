@@ -310,13 +310,15 @@ test('bonus clues distinguish shared terms and value differences from SDE entrie
   assert.ok(adc.tags.includes('limited'));
   assert.ok(adc.w >= 8.5, 'module-restricted bonus should carry a class-revealing weight');
   const perseverance = build('Perseverance');
-  const mining = perseverance.clues.find((clue) => (
-    clue.k === 'bonus'
-    && /mining laser/i.test(perseverance.ship.bonusEntries[clue.v].text.en)
-  ));
+  const mining = perseverance.clues.find((clue) => {
+    if (clue.k !== 'bonus') return false;
+    const entry = perseverance.ship.bonusEntries[clue.v];
+    return entry.section === 'role'
+      && /mining laser/i.test(entry.text.en);
+  });
   assert.ok(mining);
   assert.ok(mining.tags.includes('unique'));
-  assert.equal(mining.tags.includes('limited'), true);
+  assert.ok(mining.tags.includes('limited'));
   assert.equal(mining.w, 10);
   const fitted = buildClues({
     ship: wolf.ship,
