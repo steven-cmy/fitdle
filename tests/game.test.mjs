@@ -316,7 +316,7 @@ test('bonus clues distinguish shared terms and value differences from SDE entrie
   ));
   assert.ok(mining);
   assert.ok(mining.tags.includes('unique'));
-  assert.equal(mining.tags.includes('limited'), false);
+  assert.equal(mining.tags.includes('limited'), true);
   assert.equal(mining.w, 10);
   const fitted = buildClues({
     ship: wolf.ship,
@@ -622,6 +622,62 @@ test('all Chinese locale variants resolve to Simplified Chinese', () => {
   for (const tag of ['zh', 'zh-CN', 'zh-Hans', 'zh-Hant', 'zh-TW', 'zh-HK', 'zh-SG']) {
     assert.equal(resolveLocale(tag), 'zh');
   }
+});
+
+test('module fallback dogma attributes are built once and shipped', () => {
+  const fallback = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'module-fallback.json'), 'utf8'));
+  assert.equal(fallback[35659][20], 505);
+  assert.equal(fallback[35659][554], 500);
+  assert.equal(fallback[35659][796], 5000000);
+  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'data', 'module-fallback.json')), true);
+});
+
+test('API caching and builder cache policies are wired', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /statsCacheEntry/);
+  assert.match(main, /kill:\$\{killId\}/);
+  assert.match(main, /user_agent/);
+  assert.match(main, /data\/module-fallback\.json/);
+  const ci = fs.readFileSync(path.join(ROOT, '.gitlab-ci.yml'), 'utf8');
+  assert.match(ci, /normalizedVersion/);
+  const entrypoint = fs.readFileSync(path.join(ROOT, 'docker', 'oneshot-entrypoint.sh'), 'utf8');
+  assert.match(entrypoint, /CACHE_DIR/);
+  assert.match(entrypoint, /npm run build:weights\n/);
+});
+
+test('unknown hull killmail shows a localized back-navigation error', () => {
+  for (const locale of manifest.locales) {
+    for (const key of ['error.unknownHullCode', 'error.unknownHullTitle', 'error.unknownHullBody', 'error.back']) {
+      assert.ok(MESSAGES[locale][key], `${locale} missing ${key}`);
+    }
+  }
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /class UnknownHullError/);
+  assert.match(main, /data-action="go-back"/);
+});
+
+test('timed debrief keeps all four stats in one row', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  assert.match(main, /debrief-stats\$\{timed \? ' is-timed'/);
+  assert.match(css, /\.debrief-stats\.is-timed\s*\{[^}]*grid-template-columns:\s*repeat\(4/);
+  assert.match(css, /\.debrief-stats\.is-timed \.debrief-stat\s*\{[^}]*width:\s*100%/);
+  assert.equal(main.includes("t('dossier.subtitle')"), false);
+});
+
+test('field manual matches current gameplay rules', () => {
+  assert.match(MESSAGES.en['mode.helpNormal'], /weight budget/);
+  assert.match(MESSAGES.zh['mode.helpNormal'], /权重预算/);
+  assert.doesNotMatch(MESSAGES.en['mode.helpNormal'], /up to two fitted modules/);
+  assert.match(MESSAGES.en['mode.helpAbyss'], /all-V skills/);
+  assert.match(MESSAGES.zh['mode.helpAbyss'], /全 V 技能/);
+  assert.match(MESSAGES.en['mode.helpAbyss'], /half of the missing equipment quota/);
+  assert.match(MESSAGES.en['mode.helpFree'], /random refresh/);
+  assert.match(MESSAGES.zh['mode.helpFree'], /随机刷新/);
+  assert.match(MESSAGES.en['mode.helpTimed'], /every 30 seconds/);
+  assert.match(MESSAGES.zh['mode.helpTimed'], /长按计时器 3 秒/);
+  assert.match(MESSAGES.en['help.sharedRules'], /record daily plays and wins/);
+  assert.match(MESSAGES.zh['help.sharedRules'], /记录每日游玩与胜利/);
 });
 
 test('catalog is SDE-only, complete, and references official data lazily', () => {

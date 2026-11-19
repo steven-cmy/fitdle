@@ -521,6 +521,9 @@ select {
   gap: 10px;
   justify-content: center;
 }
+.fatal-back svg {
+  transform: scaleX(-1);
+}
 .fatal-code {
   color: var(--red);
   font: 600 11px var(--font-mono);
@@ -2078,9 +2081,6 @@ html[data-game-mode="abyss"] {
 .attr-row[data-mass-toggle] {
   cursor: pointer;
 }
-.attr-row[data-mass-toggle]:hover {
-  background: color-mix(in srgb, var(--cat, var(--cyan)) 8%, transparent);
-}
 .attr-row[data-mass-toggle]:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: -2px;
@@ -3236,6 +3236,10 @@ html[data-game-mode="abyss"] {
   text-transform: uppercase;
   white-space: nowrap;
 }
+.debrief-streak .debrief-streak-label {
+  display: block;
+  white-space: nowrap;
+}
 .debrief-streak-value {
   position: relative;
   z-index: 2;
@@ -3540,6 +3544,18 @@ html[data-game-mode="abyss"] {
   margin-top: 18px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
+}
+.debrief-stats.is-timed {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+}
+.debrief-stats.is-timed .debrief-stat {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 8px;
+}
+.debrief-stats.is-timed .debrief-stat + .debrief-stat {
+  padding-left: 8px;
 }
 .debrief-stat {
   padding: 10px 12px 10px 0;

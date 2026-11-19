@@ -12,6 +12,8 @@ import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
 const CACHE = path.join(ROOT, '.cache');
 const SOURCE = path.join(CACHE, 'sde-source');
 const OUT = path.join(CACHE, 'normalized.json');
@@ -22,6 +24,8 @@ let archiveMeta = null;
 const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
 const SHIP_CATEGORY = 6;
 const MODULE_CATEGORIES = new Set([7, 18, 22, 32, 87]);
+const SIMULATION_ATTRIBUTE_IDS = new Set([4, 20, 554, 796, 983, 1076]);
+const NORMALIZED_VERSION = 2;
 const REQUIRED = [
   'groups.jsonl',
   'categories.jsonl',
@@ -53,7 +57,9 @@ function extractArchive() {
 
 async function latestSdeRelease() {
   try {
-    const response = await fetch('https://developers.eveonline.com/static-data/tranquility/latest.jsonl');
+    const response = await fetch('https://developers.eveonline.com/static-data/tranquility/latest.jsonl', {
+      headers: { 'User-Agent': USER_AGENT },
+    });
     if (!response.ok) return null;
     const line = (await response.text()).split('\n').find(Boolean);
     const data = JSON.parse(line);
@@ -68,7 +74,7 @@ async function latestSdeRelease() {
 
 async function downloadArchive() {
   console.log(`Downloading EVE SDE: ${SDE_URL}`);
-  const response = await fetch(SDE_URL, { redirect: 'follow' });
+  const response = await fetch(SDE_URL, { redirect: 'follow', headers: { 'User-Agent': USER_AGENT } });
   if (!response.ok || !response.body) throw new Error(`SDE download failed: ${response.status}`);
   const official = await latestSdeRelease();
   archiveMeta = {
@@ -286,6 +292,7 @@ async function main() {
   const moduleRequiredSkills = new Map();
   const modulePower = new Map();
   const moduleCpu = new Map();
+  const moduleSimulationAttrs = new Map();
   const assaultDamageControls = new Set();
   await stream('typeDogma.jsonl', (o) => {
     const t = types.get(o._key);
@@ -296,6 +303,7 @@ async function main() {
     const chargeGroups = [];
     const requiredSkills = [];
     const resistLayers = { shield: false, armor: false, structure: false };
+    const simulationAttrs = {};
     const groupName = String(groups.get(t.groupID)?.names?.en || '');
     const shieldGroup = /shield/i.test(groupName);
     const armorGroup = /armor/i.test(groupName);
@@ -309,6 +317,9 @@ async function main() {
       if (t.categoryID === 7 && id === 50) cpu = Number(a.value);
       if (t.categoryID === 7 && id >= 182 && id <= 187 && a.value) {
         requiredSkills.push(Number(a.value));
+      }
+      if (t.categoryID === 7 && SIMULATION_ATTRIBUTE_IDS.has(id)) {
+        simulationAttrs[id] = Number(a.value);
       }
       if (/^canFitShipType\d+$/.test(attributes.get(id)?.name || '') || id === 1380) {
         if (a.value) canFitShipTypes.push(Number(a.value));
@@ -354,6 +365,7 @@ async function main() {
     if (metaLevel != null) moduleMetaLevels.set(o._key, metaLevel);
     if (power != null) modulePower.set(o._key, power);
     if (cpu != null) moduleCpu.set(o._key, cpu);
+    if (Object.keys(simulationAttrs).length) moduleSimulationAttrs.set(o._key, simulationAttrs);
     if (t.categoryID === 7 && Object.values(resistLayers).some(Boolean)) {
       moduleResistLayers.set(o._key, resistLayers);
     }
@@ -511,6 +523,7 @@ async function main() {
       metaLevel: moduleMetaLevels.get(t.id) ?? null,
       power: modulePower.get(t.id) ?? 0,
       cpu: moduleCpu.get(t.id) ?? 0,
+      simulationAttributes: moduleSimulationAttrs.get(t.id) || null,
       resistLayers: moduleResistLayers.get(t.id) || null,
       assaultDamageControl: assaultDamageControls.has(t.id),
     });
@@ -529,6 +542,7 @@ async function main() {
   const payload = {
     // Stable source stamp, not the moment this script happened to run.
     generatedAt: sourceStamp || new Date().toISOString(),
+    normalizedVersion: NORMALIZED_VERSION,
     sourceEtag: sourceMeta.etag || null,
     locales: LOCALES,
     ships: shipPayload,

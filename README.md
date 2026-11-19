@@ -114,8 +114,8 @@ docker run -d --name fitdle --restart unless-stopped -p 8080:4173 fitdle:local
 
 ### 方案二：一次性全量构建容器
 
-这个容器不长期运行。每次启动都会从仓库重新克隆最新版本，重新下载并生成 SDE、击杀池、
-使用率权重和静态产物，测试通过后把最新的 `dist/` 写入挂载卷。
+这个容器每次启动都会从仓库克隆最新版本，在持久缓存卷可用时复用 SDE、击杀池和
+使用率权重，然后生成静态产物，测试通过后把最新的 `dist/` 写入挂载卷。
 
 先构建构建器镜像：
 
@@ -131,8 +131,12 @@ docker run --rm \
   -e PGID=100 \
   -e SITE_URL=https://fitdle.example.com \
   -v /mnt/user/appdata/fitdle:/out \
+  -v /mnt/user/appdata/fitdle-cache:/cache \
   fitdle-build:local
 ```
+
+`/cache` 只保存构建缓存，不会出现在静态站点中。第一次运行会下载 SDE 和拉取权重；
+后续运行在缓存有效时直接复用，显著减少 API 请求。
 
 执行完成后，静态网站根目录就是挂载卷：
 
@@ -165,7 +169,7 @@ docker run --rm \
 Linux cron 示例：
 
 ```cron
-0 4 * * * docker run --rm -e PUID=99 -e PGID=100 -e SITE_URL=https://fitdle.example.com -v /mnt/user/appdata/fitdle:/out fitdle-build:local >> /var/log/fitdle-build.log 2>&1
+0 4 * * * docker run --rm -e PUID=99 -e PGID=100 -e SITE_URL=https://fitdle.example.com -v /mnt/user/appdata/fitdle:/out -v /mnt/user/appdata/fitdle-cache:/cache fitdle-build:local >> /var/log/fitdle-build.log 2>&1
 ```
 
 Unraid 可在 User Scripts 中放置同样的 `docker run --rm ...` 命令并设置计划任务。
@@ -175,7 +179,10 @@ Unraid 可在 User Scripts 中放置同样的 `docker run --rm ...` 命令并设
 - `FITDLE_REPO`：仓库地址，默认 `https://gitlab.com/cmy/fitdle.git`
 - `FITDLE_REF`：分支或标签，默认 `main`
 - `OUTPUT_DIR`：容器内输出目录，默认 `/out`
+- `CACHE_DIR`：容器内缓存目录，默认 `/cache`
 - `SITE_URL`：对外站点地址，影响分享预览
+- `FORCE_WEIGHTS=1`：强制刷新舰船使用率权重
+- `FORCE_KILLPOOL=1`：强制刷新 fallback 击杀池
 
 #### 自动发布构建器镜像
 
@@ -221,6 +228,7 @@ docker run --rm \
   -e PGID=100 \
   -e SITE_URL=https://fitdle.example.com \
   -v /mnt/user/appdata/fitdle:/out \
+  -v /mnt/user/appdata/fitdle-cache:/cache \
   registry.gitlab.com/cmy/fitdle/builder:latest
 ```
 

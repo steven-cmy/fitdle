@@ -2,10 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
 const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'catalog.json'), 'utf8')).ships;
 const shipIDs = new Set(catalog.map((ship) => Number(ship.id)));
 const zkb = 'https://zkillboard.com/api';
-const response = await fetch(`${zkb}/losses/`, { headers: { 'User-Agent': 'Fitdle/1.0' } });
+const response = await fetch(`${zkb}/losses/`, { headers: { 'User-Agent': USER_AGENT } });
 if (!response.ok) throw new Error(`zKill global losses failed: ${response.status}`);
 const serverDate = response.headers.get('date') || null;
 const losses = await response.json();

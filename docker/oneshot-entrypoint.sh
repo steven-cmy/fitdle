@@ -4,6 +4,7 @@ set -eu
 REPO="${FITDLE_REPO:-https://gitlab.com/cmy/fitdle.git}"
 REF="${FITDLE_REF:-main}"
 OUT="${OUTPUT_DIR:-/out}"
+CACHE_DIR="${CACHE_DIR:-/cache}"
 PUID="${PUID:-99}"
 PGID="${PGID:-100}"
 SITE_URL="${SITE_URL:-}"
@@ -34,11 +35,16 @@ log "repository: $REPO ($REF)"
 log "output:     $OUT (owner $PUID:$PGID)"
 
 mkdir -p "$OUT"
+mkdir -p "$CACHE_DIR"
 mkdir -p "$WORK/repo"
 
 GIT_TERMINAL_PROMPT=0 git clone --depth 1 --branch "$REF" "$REPO" "$WORK/repo"
 
 cd "$WORK/repo"
+# Keep SDE, killpool and weights between one-shot runs without exposing them
+# through the published output volume.
+rm -rf .cache
+ln -s "$CACHE_DIR" .cache
 
 log "installing build tools"
 npm install --no-audit --no-fund
@@ -50,10 +56,16 @@ log "building initial catalog"
 npm run build:catalog
 
 log "building fallback kill pool"
-npm run build:killpool
+if [ "${FORCE_KILLPOOL:-0}" = "1" ] || [ ! -f .cache/killpool.json ] || ! node -e "const p=require('./.cache/killpool.json'); process.exit(Date.now()-Date.parse(p.generatedAt||0) < 86400000 ? 0 : 1)"; then
+  npm run build:killpool
+fi
 
 log "refreshing ship usage weights"
-npm run build:weights -- --refresh
+if [ "${FORCE_WEIGHTS:-0}" = "1" ]; then
+  npm run build:weights -- --refresh
+else
+  npm run build:weights
+fi
 
 log "building final static site"
 if [ -n "$SITE_URL" ]; then

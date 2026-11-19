@@ -14,6 +14,7 @@ import crypto from 'node:crypto';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.0.0';
+const USER_AGENT = `FITDLE/${PACKAGE_VERSION} (+https://gitlab.com/cmy/fitdle)`;
 const SDE_FILE = path.join(ROOT, '.cache', 'normalized.json');
 const OUT = path.join(ROOT, 'data');
 const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
@@ -31,7 +32,9 @@ const sdeMetaFile = path.join(ROOT, '.cache', 'sde-meta.json');
 const sdeMeta = fs.existsSync(sdeMetaFile) ? JSON.parse(fs.readFileSync(sdeMetaFile, 'utf8')) : {};
 if (!sdeMeta.buildNumber) {
   try {
-    const response = await fetch('https://developers.eveonline.com/static-data/tranquility/latest.jsonl');
+    const response = await fetch('https://developers.eveonline.com/static-data/tranquility/latest.jsonl', {
+      headers: { 'User-Agent': USER_AGENT },
+    });
     if (response.ok) {
       const latest = JSON.parse((await response.text()).split('\n').find(Boolean));
       sdeMeta.buildNumber = latest.buildNumber || null;
@@ -338,8 +341,11 @@ const bonusStamp = crypto.createHash('sha1').update(catalog.map((ship) => (
 const moduleFitStamp = moduleTypes.reduce((sum, module) => (
   sum + (Number(module.power) > 0 ? 1 : 0) + (Number(module.cpu) > 0 ? 1 : 0)
 ), 0);
+const moduleFallbackDetails = Object.fromEntries(moduleTypes
+  .filter((module) => module.simulationAttributes && Object.keys(module.simulationAttributes).length)
+  .map((module) => [module.id, module.simulationAttributes]));
 const rigSizeStamp = catalog.filter((ship) => Number(ship.attrs.rigSize) > 0).length;
-const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${moduleFitStamp}|${rigSizeStamp}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}|${bonusStamp}`;
+const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${moduleFitStamp}|${Object.keys(moduleFallbackDetails).length}|${rigSizeStamp}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}|${bonusStamp}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
 
 const manifest = {
@@ -410,6 +416,7 @@ const manifest = {
 
 await fsp.rm(OUT, { recursive: true, force: true });
 await fsp.mkdir(path.join(OUT, 'refs'), { recursive: true });
+await fsp.writeFile(path.join(OUT, 'module-fallback.json'), JSON.stringify(moduleFallbackDetails));
 await fsp.writeFile(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
 await fsp.writeFile(path.join(OUT, 'catalog.json'), JSON.stringify({ ships: catalog }));
 await fsp.writeFile(path.join(OUT, 'search.json'), JSON.stringify(searchAliases));

@@ -7,6 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
 const CACHE = path.join(ROOT, '.cache');
 const OUT = path.join(CACHE, 'sde-check.env');
 const URL = process.env.EVE_SDE_URL || 'https://developers.eveonline.com/static-data/eve-online-static-data-latest-jsonl.zip';
@@ -16,10 +18,10 @@ const FORCE = process.env.FORCE_SDE === '1' || process.env.FORCE_SDE === 'true';
 async function remoteVersion() {
   try {
     let method = 'HEAD';
-    let response = await fetch(URL, { method, redirect: 'follow' });
+    let response = await fetch(URL, { method, redirect: 'follow', headers: { 'User-Agent': USER_AGENT } });
     if (!response.ok) {
       method = 'GET';
-      response = await fetch(URL, { method, redirect: 'follow' });
+      response = await fetch(URL, { method, redirect: 'follow', headers: { 'User-Agent': USER_AGENT } });
     }
     const version = response.headers.get('etag')
       || response.headers.get('last-modified')

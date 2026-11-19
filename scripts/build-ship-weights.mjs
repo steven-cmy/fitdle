@@ -12,6 +12,8 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
 const CACHE = path.join(ROOT, '.cache', 'ship-weights.json');
 const CATALOG = path.join(ROOT, 'data', 'catalog.json');
 const BASE = 'https://zkillboard.com/api/stats/shipTypeID';
@@ -35,7 +37,7 @@ async function fetchShip(id) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response = await fetch(`${BASE}/${id}/kills/`, {
-        headers: { 'User-Agent': 'FITDLE/0.0.1 (ship usage weights)', Accept: 'application/json' },
+        headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
         signal: AbortSignal.timeout(15000),
       });
       if (response.status === 429) {
@@ -66,7 +68,7 @@ const worker = async () => {
     if ((index + 1) % 50 === 0) console.log(`Fetched ${index + 1}/${ships.length}`);
   }
 };
-await Promise.all(Array.from({ length: 4 }, worker));
+await Promise.all(Array.from({ length: 2 }, worker));
 
 const usage = Object.fromEntries(rows.map((row) => [row.id, {
   recent: Math.max(0, row.recent || 0),

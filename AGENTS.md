@@ -76,7 +76,9 @@ instructions live in [README.md](README.md).
    zKill's `rankings.recent` bucket is a 90-day window; the internal `losses30`
    clue key is legacy, and the UI must label it as 90 days.
 4. `build` reads normalized SDE + weights + killpool and writes `data/` and
-   `dist/`.
+   `dist/`. It also emits a compact `data/module-fallback.json` from
+   `typeDogma` for the six attributes used by the abyss fallback simulator, so
+   that fallback never calls ESI at runtime.
 5. Runtime: build a weighted hull candidate list, fetch page 1 for each hull,
    pick a baseline/fallback pair, then fetch the chosen killmail live.
 
@@ -271,6 +273,21 @@ instructions live in [README.md](README.md).
   `CHANGELOG.md` section in Chinese. Do not publish a release with an empty or
   generic description.
 
+## Runtime API caching
+
+- zKill stats are cached in localStorage for the remainder of a 10-minute
+  server-time bucket. Cache only when `timeVerified`; key by ship type ID.
+- zKill killID responses are cached for 1 hour, keyed by kill ID. Page-1 target
+  selection is never cached. Failed zKill requests retry up to three times;
+  429/5xx honor `Retry-After` when present.
+- ESI requests append the documented `user_agent` query parameter. Static type
+  endpoints use browser caching (`cache: default`), and character/corporation/
+  alliance names have a 6-hour localStorage cache.
+- The abyss fallback simulator uses `data/module-fallback.json` from the build;
+  it never calls ESI for module details. zKill browser requests cannot set a
+  custom User-Agent or CORS-safe X-User-Agent, so build scripts carry the
+  descriptive User-Agent instead.
+
 ## Stats and reset
 
 - Stats live in `fitdle:v1:stats`, independent of `dataVersion` and builds.
@@ -363,8 +380,9 @@ catalog, then run both refreshes before the final `build`.
 - Stats: `fitdle:v1:stats`; free-mode streaks: `fitdle:v1:free-streak`;
   free-mode one-time nonce: `fitdle:v1:free-intent` (sessionStorage); language:
   `fitdle:v1:lang`; font: `fitdle:v1:font`; font size: `fitdle:v1:font-size`;
-  ESI type-name cache: `fitdle:v1:typeNames:<locale>`; empty-hull setting:
-  `fitdle:v1:allowEmptyKb`.
+  ESI type-name cache: `fitdle:v1:typeNames:<locale>`; zKill response cache:
+  `fitdle:v1:zkill:*`; entity-name cache: `fitdle:v1:entity-names`; empty-hull
+  setting: `fitdle:v1:allowEmptyKb`.
 - Storage is origin-local; changing domain changes stats and saved language.
 
 ## Sharing
@@ -401,12 +419,16 @@ catalog, then run both refreshes before the final `build`.
 - Manual left column is split into Mode descriptions (Daily, Free) and Gameplay
   descriptions (General, Standard, Abyss, Timed).
 - Dossier layout: groups are balanced across two dynamic columns; equipment/cargo
-  are not pinned to a column. Cargo capacity is the first row of the cargo group
+  are not pinned to a column. The dossier header shows only the title; it has no
+  subtitle sentence. Cargo capacity is the first row of the cargo group
   and keeps a labeled placeholder while hidden, including zero-cargo hulls.
 - Newly revealed clues that are outside the viewport show a fixed edge arrow
   until the player scrolls them into view; clicking the arrow scrolls to the
   nearest unseen clue. Initial reveals also seed the unseen set when a fresh
   puzzle is opened with no guesses yet.
+- A valid killmail whose victim hull is not in the catalog (for example a
+  structure or container kill) shows the localized "signal unclassified" lore
+  screen with a back button. It must not silently fall back to the daily target.
 - The cargo group counter counts revealed cargo items only, excluding cargo
   capacity. It shows `revealed / ?` until every cargo item is revealed, then
   `X / X`; an empty cargo hold shows `0 / 0`.
@@ -417,8 +439,11 @@ catalog, then run both refreshes before the final `build`.
 - Mass shows a fully written, non-abbreviated number by default in tonnes,
   using spaces as thousands separators and `t` as the unit. Clicking the mass
   row toggles between tonnes and kg; clicking again returns to tonnes. The kg
-  state keeps the `kg` unit label.
+  state keeps the `kg` unit label. The mass row has no hover background effect.
 - Manual shared rules are in `help.sharedRules` and appear under General.
+  Manual copy must mirror the live rules: weighted equipment budgets in Standard,
+  all-V Abyss simulation, growing Timed batches, Free streak semantics, and
+  which modes record daily plays/wins.
 - Mode sections must contain only mode-specific rules.
 - Do not restore the removed sentence about identical UTC target/language in
   step 04.
@@ -437,7 +462,7 @@ catalog, then run both refreshes before the final `build`.
 
 ## Tests
 
-`npm test` currently covers 64 cases, including downtime boundaries, target/KB
+`npm test` currently covers 69 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 container build order, and no hard-coded deployment domains.
@@ -465,8 +490,14 @@ test reads `dist/`.
   archives are used; no custom source tarball is built.
 - `sde:check` compares remote SDE ETag/Last-Modified with deployed
   `data/manifest.json`; writes `.cache/sde-check.env`.
+- The build job skips `prepare:sde` when SDE is unchanged and normalized schema
+  version 2 is cached; only a schema/SDE change downloads the SDE again.
 - Build caches `.cache/normalized.json`, `.cache/killpool.json`,
   `.cache/sde-meta.json`, `.cache/ship-weights.json`.
+- The one-shot builder mounts `/cache` separately from `/out`; it reuses the SDE,
+  killpool and weights cache, refreshes killpool at most once per day, and uses
+  the 7-day weights cache unless `FORCE_WEIGHTS=1`. Its builder version is
+  independent and currently `1.1.0`.
 - If `data/catalog.json` is missing, build first; weights need a catalog.
 - Daily schedule: 11:15 UTC (`15 11 * * *`), job id 4554369.
 - `pages` publishes `dist/` to `public/`.
@@ -506,7 +537,8 @@ test reads `dist/`.
   debriefs show the current counter greyed out with no effects. Victim
   character/corporation/alliance information sits to the right of the confirmed
   ship row on every debrief.
-- Timed is an unscored peer gameplay mode selected with `timer=1`; it starts
+- Timed is a peer gameplay mode selected with `timer=1`; it has no six-attempt
+  score, but daily plays and wins are recorded like the other daily modes. It starts
   with sealed placeholder dossier blocks. After start it reveals the mode's opening
   clues and releases a weighted batch every 30 seconds; guesses do not release
   clues. The batch grows every two releases: 1, 1, 2, 2, 3, 3, ... clues. Its
@@ -526,8 +558,9 @@ test reads `dist/`.
   their confetti/shake effects scale with the root font size.
 - In every debrief, victim character/corporation/alliance information sits to the
   right of the confirmed-ship row. The character name is base-size text, the
-  corporation/alliance lines are slightly smaller, and only the character name
-  text itself is the link target, not the full row.
+  corporation/alliance lines are slightly smaller and show only their names, with
+  no organization labels; only the character name text itself is the link target,
+  not the full row.
 - Stats and language are origin-local; different domains have separate localStorage.
 
 ## Local preview

@@ -659,8 +659,8 @@ function victimMetaHtml() {
     <div class="victim-body">
       ${zkillEntityLink('character', characterId, pilot)}
       <div class="victim-lines">
-        ${corporationId ? `<span class="victim-org">${corpIcon}${esc(t('dossier.corporation'))} ${zkillEntityLink('corporation', corporationId, corporation)}</span>` : ''}
-        ${allianceId ? `<span class="victim-org">${allianceIcon}${esc(t('dossier.alliance'))} ${zkillEntityLink('alliance', allianceId, alliance)}</span>` : ''}
+        ${corporationId ? `<span class="victim-org">${corpIcon}${zkillEntityLink('corporation', corporationId, corporation)}</span>` : ''}
+        ${allianceId ? `<span class="victim-org">${allianceIcon}${zkillEntityLink('alliance', allianceId, alliance)}</span>` : ''}
       </div>
     </div>
     ${portrait}
@@ -813,16 +813,107 @@ async function fetchInternetTime() {
   return false;
 }
 
-async function fetchZkill(path) {
+const ZKILL_CACHE_PREFIX = 'fitdle:v1:zkill:';
+const ENTITY_CACHE_KEY = 'fitdle:v1:entity-names';
+const ENTITY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+function readTimedCache(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(`${ZKILL_CACHE_PREFIX}${key}`) || 'null');
+    if (!raw || !Number.isFinite(Number(raw.expiresAt)) || Number(raw.expiresAt) <= Date.now()) {
+      localStorage.removeItem(`${ZKILL_CACHE_PREFIX}${key}`);
+      return null;
+    }
+    return raw.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeTimedCache(key, data, ttlMs) {
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0) return;
+  try {
+    localStorage.setItem(`${ZKILL_CACHE_PREFIX}${key}`, JSON.stringify({
+      expiresAt: Date.now() + ttlMs,
+      data,
+    }));
+    const keys = Object.keys(localStorage).filter((entry) => entry.startsWith(ZKILL_CACHE_PREFIX));
+    if (keys.length > 24) {
+      keys
+        .map((entry) => {
+          try {
+            return { entry, expiresAt: Number(JSON.parse(localStorage.getItem(entry) || '{}').expiresAt) || 0 };
+          } catch {
+            return { entry, expiresAt: 0 };
+          }
+        })
+        .sort((a, b) => a.expiresAt - b.expiresAt)
+        .slice(0, keys.length - 24)
+        .forEach(({ entry }) => localStorage.removeItem(entry));
+    }
+  } catch {
+    // Cache is best-effort; quota/private modes must not break the puzzle.
+  }
+}
+
+function statsCacheEntry(shipId) {
+  if (!state.timeVerified) return null;
+  const now = serverNow().getTime();
+  const bucket = Math.floor(now / 600000);
+  return {
+    key: `stats:${shipId}:${bucket}`,
+    ttlMs: Math.max(1000, 600000 - (now % 600000)),
+  };
+}
+
+function esiUrl(url) {
+  const result = new URL(url);
+  const repo = state.manifest?.links?.repo || '';
+  result.searchParams.set(
+    'user_agent',
+    `FITDLE/${state.manifest?.version || 'dev'}${repo ? ` (+${repo})` : ''}`,
+  );
+  return result.toString();
+}
+
+async function fetchZkill(path, cache = null) {
+  if (cache?.key) {
+    const cached = readTimedCache(cache.key);
+    if (cached != null) return cached;
+  }
   const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
   if (!base) throw new Error('zKillboard base URL unavailable');
-  const response = await fetch(`${base}${path}`, {
-    cache: 'no-store',
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!response.ok) throw new Error(`${response.status} ${path}`);
-  return response.json();
+  // Static browser clients cannot set a persistent User-Agent, and zKill's
+  // CORS preflight rejects custom X-User-Agent headers; build scripts identify
+  // themselves instead.
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await fetch(`${base}${path}`, {
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!response.ok) {
+        const retryAfter = Number(response.headers.get('retry-after')) || 0;
+        lastError = new Error(`${response.status} ${path}`);
+        lastError.retryable = response.status === 429 || response.status >= 500;
+        if (attempt < 2 && lastError.retryable) {
+          await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000 || 600 * (attempt + 1)));
+          continue;
+        }
+        throw lastError;
+      }
+      const data = await response.json();
+      if (cache?.key && cache?.ttlMs) writeTimedCache(cache.key, data, cache.ttlMs);
+      return data;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= 2 || error?.retryable === false) break;
+      await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+    }
+  }
+  throw lastError || new Error(`zKill request failed: ${path}`);
 }
 
 
@@ -1130,15 +1221,32 @@ async function fetchAnswerLive() {
   const shipId = Number(state.answerId);
   const killId = Number(state.answerKillId);
   const [stats, kill] = await Promise.allSettled([
-    fetchZkill(`/api/stats/shipTypeID/${shipId}/kills/`),
+    fetchZkill(`/api/stats/shipTypeID/${shipId}/kills/`, statsCacheEntry(shipId)),
     state.freeKillmail
       ? Promise.resolve([state.freeKillmail])
-      : killId ? fetchZkill(`/api/killID/${killId}/`) : Promise.resolve(null),
+      : killId ? fetchZkill(`/api/killID/${killId}/`, { key: `kill:${killId}`, ttlMs: 3600000 }) : Promise.resolve(null),
   ]);
   state.liveStats = stats.status === 'fulfilled' && stats.value?.type === 'shipTypeID' ? stats.value : null;
   const killmail = kill.status === 'fulfilled' && Array.isArray(kill.value) ? kill.value[0] : null;
   state.liveLosses = killmail ? [killmail] : [];
   state.liveError = !state.liveStats && !state.liveLosses.length;
+}
+
+function readEntityNameCache() {
+  try {
+    const value = JSON.parse(localStorage.getItem(ENTITY_CACHE_KEY) || '{}');
+    return value && typeof value === 'object' ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeEntityNameCache(cache) {
+  try {
+    localStorage.setItem(ENTITY_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // best effort
+  }
 }
 
 async function fetchVictimInfo() {
@@ -1151,15 +1259,28 @@ async function fetchVictimInfo() {
   state.victimInfoKey = key;
   state.victimInfoLoading = true;
   const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
+  const names = readEntityNameCache();
+  const fresh = (kind, id) => {
+    const entry = names?.[kind]?.[Number(id)];
+    return entry && Date.now() - Number(entry.at) < ENTITY_CACHE_TTL_MS ? entry.name : '';
+  };
   const read = async (kind, id) => {
     if (!base || !Number(id)) return null;
+    const cachedName = fresh(kind, id);
+    if (cachedName) return { name: cachedName };
     try {
-      const response = await fetch(`${base}/latest/${kind}/${Number(id)}/?datasource=tranquility`, {
-        cache: 'force-cache',
+      const response = await fetch(esiUrl(`${base}/latest/${kind}/${Number(id)}/?datasource=tranquility`), {
+        cache: 'default',
         signal: AbortSignal.timeout(8000),
       });
       if (!response.ok) return null;
-      return await response.json();
+      const data = await response.json();
+      if (data?.name) {
+        if (!names[kind]) names[kind] = {};
+        names[kind][Number(id)] = { name: data.name, at: Date.now() };
+        writeEntityNameCache(names);
+      }
+      return data;
     } catch {
       return null;
     }
@@ -1172,11 +1293,11 @@ async function fetchVictimInfo() {
   if (state.victimInfoKey !== key) return;
   state.victimInfo = {
     characterId: Number(victim.character_id) || null,
-    characterName: character?.name || '',
+    characterName: character?.name || fresh('characters', victim.character_id),
     corporationId: Number(victim.corporation_id) || null,
-    corporationName: corporation?.name || '',
+    corporationName: corporation?.name || fresh('corporations', victim.corporation_id),
     allianceId: Number(victim.alliance_id) || null,
-    allianceName: alliance?.name || '',
+    allianceName: alliance?.name || fresh('alliances', victim.alliance_id),
   };
   state.victimInfoLoading = false;
   refreshVictimSlots();
@@ -1218,9 +1339,9 @@ async function fetchCargoTypeNames() {
       const id = unknown[cursor++];
       try {
         const response = await fetch(
-          `${base}/latest/universe/types/${id}/?datasource=tranquility&language=${encodeURIComponent(locale)}`,
+          esiUrl(`${base}/latest/universe/types/${id}/?datasource=tranquility&language=${encodeURIComponent(locale)}`),
           {
-            cache: 'no-store',
+            cache: 'default',
             signal: AbortSignal.timeout(8000),
           },
         );
@@ -1267,55 +1388,30 @@ function abyssCalculationKillmail(killmail) {
 
 async function fetchModuleDetails() {
   if (!usesSimulatedFit() || state.moduleDetails) return;
-  const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
-  if (!base) return;
+  const fallback = await fetchJson('data/module-fallback.json').catch(() => null);
   const equipment = getEquipment(state.liveLosses, state.refs).equipment;
-  const modules = equipment.map((item) => item.module);
-  const unique = [...new Set(modules)];
+  const unique = [...new Set(equipment.map((item) => item.module))];
   const fallbackByModule = abyssFallbackByModule();
-  const entries = [];
-  let cursor = 0;
-  const worker = async () => {
-    while (cursor < unique.length) {
-      const id = unique[cursor++];
-      try {
-        const response = await fetch(`${base}/latest/universe/types/${id}/?datasource=tranquility`, {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(8000),
-        });
-        if (response.ok) entries.push([id, await response.json()]);
-      } catch {
-        // keep the base module effects when ESI is unavailable
-      }
-    }
+  const toDetail = (attributes) => {
+    if (!attributes) return null;
+    return {
+      dogma_attributes: Object.entries(attributes)
+        .map(([id, value]) => ({ attribute_id: Number(id), value: Number(value) })),
+    };
   };
-  await Promise.all(Array.from({ length: Math.min(6, unique.length) }, worker));
-  state.moduleDetails = Object.fromEntries(entries);
-
-  // Abyssal modules do not expose their mutated values through ESI's type
-  // endpoint. Use the same-group/size representative selected for the slot
-  // tier, so fitted effects are not silently zero.
-  const relevant = new Set([4, 20, 67, 72, 150, 169, 554, 600, 796, 983, 1076, 1159]);
-  const hasEffects = (data) => (data?.dogma_attributes || []).some((attr) => relevant.has(attr.attribute_id));
+  state.moduleDetails = {};
   for (const id of unique) {
-    const data = state.moduleDetails[id];
-    if (!data || hasEffects(data)) continue;
+    const detail = toDetail(fallback?.[id]);
+    if (detail) state.moduleDetails[id] = detail;
+  }
+  // Abyssal modules can lack their mutated effects; use the same slot-tier
+  // representative's local SDE attributes instead of a runtime ESI request.
+  for (const id of unique) {
+    if (state.moduleDetails[id]) continue;
     const resolvedId = fallbackByModule.get(id);
-    if (!resolvedId) continue;
-    if (!state.moduleDetails[resolvedId]) {
-      try {
-        const response = await fetch(`${base}/latest/universe/types/${resolvedId}/?datasource=tranquility`, {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(8000),
-        });
-        if (response.ok) state.moduleDetails[resolvedId] = await response.json();
-      } catch {
-        // leave the module without simulated effects
-      }
-    }
-    const representative = state.moduleDetails[resolvedId];
-    if (hasEffects(representative)) {
-      state.moduleDetails[id] = { ...data, dogma_attributes: representative.dogma_attributes, fallbackType: resolvedId };
+    const representative = toDetail(fallback?.[resolvedId]);
+    if (representative) {
+      state.moduleDetails[id] = { ...representative, fallbackType: resolvedId };
     }
   }
 }
@@ -1571,7 +1667,6 @@ function renderShell() {
             <div>
               <div class="panel-kicker"><span class="idx">02</span> // ${esc(t('dossier.title'))}</div>
               <h2 id="dossier-title">${esc(t('dossier.title'))}</h2>
-              <p class="panel-sub">${esc(t('dossier.subtitle'))}</p>
             </div>
             <div class="dossier-head-right">
               <div class="dossier-count">
@@ -2766,7 +2861,7 @@ function renderDebrief() {
     : freeStreakValue;
   const freeStreakStat = free
     ? `<div class="debrief-stat debrief-streak${freeStreakCounted ? '' : ' is-neutral'}" data-event="${esc(freeStreakEvent)}" data-old="${freeStreakOld}" data-new="${freeStreakValue}" aria-label="${esc(t('free.streak'))} ${freeStreakValue}">
-        <span>${esc(t('free.streak'))} // ${esc(t(`mode.${freeStreakMode}`))}</span>
+        <span class="debrief-streak-label">${esc(t('free.streak'))} // ${esc(t(`mode.${freeStreakMode}`))}</span>
         <strong class="debrief-streak-value">${freeStreakShown}</strong>
         <span class="debrief-streak-burst" aria-hidden="true"></span>
       </div>`
@@ -2802,7 +2897,7 @@ function renderDebrief() {
             <div class="debrief-victim" data-victim-slot>${victimMetaHtml()}</div>
           </div>
 
-          <div class="debrief-stats">
+          <div class="debrief-stats${timed ? ' is-timed' : ''}">
             ${timed
               ? `<div class="debrief-stat"><span>${esc(t('timed.time'))}</span><strong>${esc(formatElapsed(state.timerElapsedMs))}</strong></div>
                  <div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length}</strong></div>
@@ -3310,6 +3405,7 @@ document.addEventListener('click', (event) => {
     if (action === 'play-today') { playToday(); return; }
     if (action === 'toggle-font') { toggleFont(); return; }
     if (action === 'set-mode') { setMode(actionEl.dataset.mode); return; }
+    if (action === 'go-back') { goBack(); return; }
   }
   const suggestion = event.target.closest('[data-ship-id]');
   if (suggestion) {
@@ -3429,10 +3525,29 @@ class NoTargetError extends Error {
   }
 }
 
+class UnknownHullError extends Error {
+  constructor() {
+    super('unknown-hull');
+    this.name = 'UnknownHullError';
+  }
+}
+
 function showFatal(error) {
   console.error(error);
   const app = $('#app');
   if (!app) return;
+  if (error instanceof UnknownHullError) {
+    app.innerHTML = `<div class="fatal-screen">
+      <div class="fatal-glyph">${icon('radar')}</div>
+      <div class="fatal-code">${esc(t('error.unknownHullCode'))}</div>
+      <h1>${esc(t('error.unknownHullTitle'))}</h1>
+      <p>${esc(t('error.unknownHullBody'))}</p>
+      <div class="fatal-actions">
+        <button class="button primary fatal-back" type="button" data-action="go-back">${icon('arrowRight')} ${esc(t('error.back'))}</button>
+      </div>
+    </div>`;
+    return;
+  }
   if (error instanceof NoTargetError) {
     app.innerHTML = `<div class="fatal-screen">
       <div class="fatal-glyph">${icon('alert')}</div>
@@ -3453,6 +3568,11 @@ function showFatal(error) {
     <p>${esc(t('error.body'))}</p>
     <button class="button primary" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
   </div>`;
+}
+
+function goBack() {
+  if (history.length > 1) history.back();
+  else location.replace(BASE.href);
 }
 
 async function boot() {
@@ -3565,7 +3685,10 @@ async function boot() {
     let freeReady = false;
     if (state.freeKillId) {
       try {
-        const data = await fetchZkill(`/api/killID/${state.freeKillId}/`);
+        const data = await fetchZkill(`/api/killID/${state.freeKillId}/`, {
+          key: `kill:${state.freeKillId}`,
+          ttlMs: 3600000,
+        });
         const killmail = Array.isArray(data) ? data[0] : null;
         if (!killmail?.victim?.ship_type_id) throw new Error('free target unavailable');
         if (!state.allowEmptyKb && !killHasFittedModules(killmail)) throw new Error('empty free target');
@@ -3573,7 +3696,7 @@ async function boot() {
         state.answerId = Number(killmail.victim.ship_type_id);
         state.answerKillId = state.freeKillId;
         state.answerShip = state.catalogMap.get(state.answerId);
-        if (!state.answerShip) throw new Error('free target hull unavailable');
+        if (!state.answerShip) throw new UnknownHullError();
         freeReady = true;
         try {
           const daily = await resolveDailySelection();
@@ -3591,7 +3714,8 @@ async function boot() {
         } catch {
           // A daily lookup failure must not block the requested free target.
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof UnknownHullError) throw error;
         state.freeKillId = null;
         state.freeKillToken = null;
         state.freeKillmail = null;

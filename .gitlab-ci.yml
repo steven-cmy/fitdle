@@ -51,10 +51,12 @@ build:
       - .cache/ship-weights.json
   script:
     - |
-      if [ "$SDE_CHANGED" = "1" ]; then
-        npm run prepare:sde -- --refresh
-      else
-        npm run prepare:sde
+      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/normalized.json ] || [ "$(node -p 'require("./.cache/normalized.json").normalizedVersion || 0' 2>/dev/null)" != "2" ]; then
+        if [ "$SDE_CHANGED" = "1" ]; then
+          npm run prepare:sde -- --refresh
+        else
+          npm run prepare:sde
+        fi
       fi
     - |
       if [ ! -f data/catalog.json ]; then
@@ -66,7 +68,7 @@ build:
       fi
     - |
       if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/ship-weights.json ]; then
-        npm run build:weights -- --refresh
+        npm run build:weights
       fi
     - npm run build
     - npm test

@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# One-shot builder: every container run clones the latest repository, rebuilds
-# all generated data, and replaces the output volume with a fresh dist/.
+# One-shot builder: every container run clones the latest repository, reuses
+# the mounted /cache volume when available, and replaces the output volume with
+# a fresh dist/.
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
@@ -14,6 +15,7 @@ RUN chmod 0755 /usr/local/bin/fitdle-oneshot
 ENV FITDLE_REPO=https://gitlab.com/cmy/fitdle.git \
     FITDLE_REF=main \
     OUTPUT_DIR=/out \
+    CACHE_DIR=/cache \
     PUID=99 \
     PGID=100
 

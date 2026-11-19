@@ -175,6 +175,10 @@ const en = {
   'error.title': 'UPLINK FAILED',
   'error.body': 'Could not load the intelligence package. Check the connection and try again.',
   'error.retry': 'RETRY UPLINK',
+  'error.unknownHullCode': 'SIGNAL UNCLASSIFIED',
+  'error.unknownHullTitle': 'Target outside hull registry',
+  'error.unknownHullBody': 'The killmail is valid, but the victim is not a registered ship hull. It may be a structure, container, or another non-ship target. The intelligence link cannot be established.',
+  'error.back': 'RETURN TO PREVIOUS',
   'error.noTargetCode': 'NO TARGET LOCK',
   'error.noTargetTitle': 'No legal target found',
   'error.noTargetBody': 'No valid daily killmail could be selected. Open Free mode and choose a target manually.',
@@ -360,6 +364,10 @@ const zh = {
   'error.title': '上行链路失败',
   'error.body': '无法加载情报包。请检查连接后重试。',
   'error.retry': '重试连接',
+  'error.unknownHullCode': '信号无法归类',
+  'error.unknownHullTitle': '目标不在舰船档案中',
+  'error.unknownHullBody': '该击杀记录有效，但目标不属于可识别的舰船档案。它可能是一座建筑、货柜，或其他非舰船目标。情报链路无法建立。',
+  'error.back': '返回上一步',
   'error.noTargetCode': '无法锁定目标',
   'error.noTargetTitle': '暂无可用的每日目标',
   'error.noTargetBody': '当前没有符合条件的每日击杀记录。请打开自由模式手动选择目标。',
@@ -545,6 +553,10 @@ const de = {
   'error.title': 'VERBINDUNG FEHLGESCHLAGEN',
   'error.body': 'Das Intel-Paket konnte nicht geladen werden. Prüfe die Verbindung und versuche es erneut.',
   'error.retry': 'ERNEUT VERBINDEN',
+  'error.unknownHullCode': 'SIGNAL NICHT ZUGEORDNET',
+  'error.unknownHullTitle': 'Ziel außerhalb des Schiffsregisters',
+  'error.unknownHullBody': 'Der Killmail ist gültig, aber das Ziel ist kein registrierter Schiffsrumpf. Es könnte eine Struktur, ein Container oder ein anderes Nicht-Schiffsziel sein. Die Geheimdienstverbindung kann nicht aufgebaut werden.',
+  'error.back': 'ZURÜCK',
   'error.noTargetCode': 'KEIN ZIEL',
   'error.noTargetTitle': 'Kein gültiges Ziel gefunden',
   'error.noTargetBody': 'Für den täglichen Killmail konnte kein gültiges Ziel ausgewählt werden. Öffne den Freien Modus und wähle ein Ziel manuell.',
@@ -730,6 +742,10 @@ const es = {
   'error.title': 'FALLO DE ENLACE',
   'error.body': 'No se pudo cargar el paquete de inteligencia. Comprueba la conexión e inténtalo de nuevo.',
   'error.retry': 'REINTENTAR',
+  'error.unknownHullCode': 'SEÑAL SIN CLASIFICAR',
+  'error.unknownHullTitle': 'Objetivo fuera del registro de cascos',
+  'error.unknownHullBody': 'El killmail es válido, pero la víctima no es un casco de nave registrado. Puede ser una estructura, un contenedor u otro objetivo que no es una nave. No se puede establecer el enlace de inteligencia.',
+  'error.back': 'VOLVER',
   'error.noTargetCode': 'SIN OBJETIVO',
   'error.noTargetTitle': 'No se encontró un objetivo válido',
   'error.noTargetBody': 'No se pudo seleccionar un killmail diario válido. Abre el modo libre y elige un objetivo manualmente.',
@@ -915,6 +931,10 @@ const fr = {
   'error.title': 'ÉCHEC DE LA LIAISON',
   'error.body': 'Impossible de charger le paquet de renseignements. Vérifiez la connexion et réessayez.',
   'error.retry': 'RÉESSAYER',
+  'error.unknownHullCode': 'SIGNAL NON CLASSÉ',
+  'error.unknownHullTitle': 'Cible hors du registre des coques',
+  'error.unknownHullBody': "Le killmail est valide, mais la victime n'est pas une coque de vaisseau enregistrée. Il peut s'agir d'une structure, d'un conteneur ou d'une autre cible non-vaisseau. La liaison de renseignement ne peut pas être établie.",
+  'error.back': 'REVENIR',
   'error.noTargetCode': 'AUCUNE CIBLE',
   'error.noTargetTitle': 'Aucune cible valide trouvée',
   'error.noTargetBody': 'Aucun killmail quotidien valide n’a pu être sélectionné. Ouvrez le mode libre et choisissez une cible manuellement.',
@@ -1100,6 +1120,10 @@ const ja = {
   'error.title': 'アップリンク失敗',
   'error.body': 'インテル・パッケージを読み込めませんでした。接続を確認して再試行してください。',
   'error.retry': '再試行',
+  'error.unknownHullCode': '信号分類不能',
+  'error.unknownHullTitle': '艦船登録外の目標',
+  'error.unknownHullBody': 'キルメールは有効ですが、対象は登録された船体ではありません。ストラクチャ、コンテナ、その他の非艦船目標の可能性があります。情報リンクを確立できません。',
+  'error.back': '前の画面に戻る',
   'error.noTargetCode': '目標なし',
   'error.noTargetTitle': '有効な目標が見つかりません',
   'error.noTargetBody': '毎日のキルメールを選定できませんでした。フリーモードを開き、手動で目標を選んでください。',
@@ -1285,6 +1309,10 @@ const ko = {
   'error.title': '업링크 실패',
   'error.body': '정보 패키지를 불러오지 못했습니다. 연결을 확인하고 다시 시도하세요.',
   'error.retry': '다시 시도',
+  'error.unknownHullCode': '신호 분류 불가',
+  'error.unknownHullTitle': '함선 등록부에 없는 목표',
+  'error.unknownHullBody': '킬메일은 유효하지만 대상은 등록된 함선 선체가 아닙니다. 구조물, 컨테이너 또는 다른 비함선 목표일 수 있습니다. 정보 링크를 설정할 수 없습니다.',
+  'error.back': '이전 화면으로',
   'error.noTargetCode': '목표 없음',
   'error.noTargetTitle': '유효한 목표를 찾을 수 없습니다',
   'error.noTargetBody': '일일 킬메일을 선택하지 못했습니다. 자유 모드에서 목표를 직접 선택하세요.',
@@ -1470,6 +1498,10 @@ const ru = {
   'error.title': 'СБОЙ КАНАЛА',
   'error.body': 'Не удалось загрузить пакет разведки. Проверьте соединение и повторите попытку.',
   'error.retry': 'ПОВТОРИТЬ',
+  'error.unknownHullCode': 'СИГНАЛ НЕ КЛАССИФИЦИРОВАН',
+  'error.unknownHullTitle': 'Цель вне реестра корпусов',
+  'error.unknownHullBody': 'Киллмейл действителен, но цель не является зарегистрированным корпусом корабля. Это может быть структура, контейнер или другая не-корабельная цель. Канал разведки не может быть установлен.',
+  'error.back': 'ВЕРНУТЬСЯ',
   'error.noTargetCode': 'НЕТ ЦЕЛИ',
   'error.noTargetTitle': 'Допустимая цель не найдена',
   'error.noTargetBody': 'Не удалось выбрать допустимый ежедневный киллмейл. Откройте свободный режим и выберите цель вручную.',
@@ -2442,44 +2474,44 @@ Object.assign(RENAMES, {
 
 Object.assign(RENAMES, {
   'mode.standardHint': {
-    en: `Six attempts. Fittings on misses, shared clues on matches.`,
-    de: `Sechs Versuche. Fittings bei Fehlversuchen, gemeinsame Hinweise bei Treffern.`,
-    es: `Seis intentos. Ajustes al fallar, pistas compartidas al acertar.`,
-    fr: `Six tentatives. Fittings sur erreur, indices partagés sur correspondance.`,
-    ja: `6回の挑戦。誤答で装備、一致で共通ヒント。`,
-    ko: `6회 시도. 오답은 장비, 일치는 공통 단서.`,
-    ru: `Шесть попыток. Модули за промах, общие подсказки при совпадении.`,
-    zh: `六次尝试。猜错揭示装备，猜中共同线索才揭示。`,
+    en: `Six attempts. Misses reveal fitted equipment; matches reveal shared values.`,
+    de: `Sechs Versuche. Fehlversuche zeigen montierte Ausrüstung; Treffer zeigen gemeinsame Werte.`,
+    es: `Seis intentos. Los fallos revelan equipo montado; los aciertos, valores compartidos.`,
+    fr: `Six tentatives. Les erreurs révèlent l’équipement monté ; les correspondances, les valeurs partagées.`,
+    ja: `6回の挑戦。誤答で装備、一致で共通値を公開。`,
+    ko: `6회 시도. 오답은 장착 장비, 일치는 공통 값을 공개.`,
+    ru: `Шесть попыток. Промахи раскрывают установленное оборудование, совпадения — общие значения.`,
+    zh: `六次尝试。猜错揭示已装配装备，猜中揭示共同数值。`,
   },
   'mode.abyssHint': {
-    en: `Six attempts. Simulated fittings, rarer hulls, larger reveal steps.`,
-    de: `Sechs Versuche. Simulierte Fittings, seltenere Hüllen, größere Schritte.`,
-    es: `Seis intentos. Ajustes simulados, cascos más raros, revelaciones mayores.`,
-    fr: `Six tentatives. Fittings simulés, coques plus rares, révélations plus larges.`,
-    ja: `6回の挑戦。装備シミュレーション、希少船体、より大きな開示。`,
-    ko: `6회 시도. 장비 시뮬레이션, 희귀 선체, 더 큰 공개 단위.`,
-    ru: `Шесть попыток. Симуляция фитинга, редкие корпуса, больше подсказок.`,
-    zh: `六次尝试。模拟装配、稀有船体、更大揭示步长。`,
+    en: `Six attempts. Simulated all-V fittings, rarer hulls, larger reveal steps.`,
+    de: `Sechs Versuche. Simulierte All-V-Fittings, seltenere Hüllen, größere Schritte.`,
+    es: `Seis intentos. Ajustes simulados a V, cascos más raros, revelaciones mayores.`,
+    fr: `Six tentatives. Fittings simulés au niveau V, coques plus rares, révélations plus larges.`,
+    ja: `6回の挑戦。全スキルVの装備シミュレーション、希少船体、より大きな開示。`,
+    ko: `6회 시도. 올 V 장비 시뮬레이션, 희귀 선체, 더 큰 공개 단위.`,
+    ru: `Шесть попыток. Симуляция фитинга на все V, редкие корпуса, больше подсказок.`,
+    zh: `六次尝试。全 V 技能模拟装配、稀有船体、更大揭示步长。`,
   },
   'mode.timedHint': {
-    en: `Unlimited attempts against the clock. Unscored.`,
-    de: `Unbegrenzte Versuche gegen die Uhr. Ohne Wertung.`,
-    es: `Intentos ilimitados contra el reloj. Sin puntuación.`,
-    fr: `Tentatives illimitées contre le chrono. Non classé.`,
-    ja: `時間との勝負で試行無制限。スコア対象外。`,
-    ko: `시간과의 승부, 시도 무제한. 점수 미반영.`,
-    ru: `Неограниченные попытки на время. Без очков.`,
-    zh: `无限尝试，与时间赛跑；不计分。`,
+    en: `Timed gameplay. Uses the selected Daily or Free source; with Daily it has its own daily target. Unlimited attempts against the clock; no six-attempt score.`,
+    de: `Timed-Spielweise. Nutzt die gewählte Daily- oder Free-Quelle; bei Daily mit eigenem Tagesziel. Unbegrenzte Versuche gegen die Uhr; keine Sechs-Versuche-Wertung.`,
+    es: `Modalidad Crono. Usa la fuente Diaria o Libre seleccionada; con Diaria tiene su propio objetivo diario. Intentos ilimitados contra el reloj; sin puntuación de seis intentos.`,
+    fr: `Mode Chrono. Utilise la source Quotidien ou Libre sélectionnée ; en Quotidien, il a sa propre cible quotidienne. Tentatives illimitées contre le chrono ; sans score à six tentatives.`,
+    ja: `タイムド玩法。選択中のデイリーまたはフリーの目標ソースに従い、デイリー時は専用のデイリー目標を使います。時間制限付きで試行は無制限、6回制のスコアはありません。`,
+    ko: `타임드 플레이. 선택한 데일리 또는 자유 목표 소스를 따르며, 데일리에서는 전용 일일 목표를 사용합니다. 시간 제한과 무제한 시도, 6회 점수는 없습니다.`,
+    ru: `Режим Timed. Использует выбранный источник Daily или Free; в Daily — отдельную дневную цель. Неограниченные попытки на время; без счёта по шести попыткам.`,
+    zh: `计时玩法。目标来源遵循当前选择的每日或自由模式；选择每日时使用独立的每日目标。无限尝试，与时间赛跑；不使用六次机会成绩。`,
   },
   'mode.freeHint': {
-    en: `Play a chosen killboard or roll a random one. Unscored.`,
-    de: `Spiele ein gewähltes oder zufälliges Killboard. Ohne Wertung.`,
-    es: `Juega un killboard elegido o uno aleatorio. Sin puntuación.`,
-    fr: `Jouez un killboard choisi ou aléatoire. Non classé.`,
-    ja: `指定またはランダムなキルボードで遊べます。スコア対象外。`,
-    ko: `지정 또는 무작위 킬보드로 플레이. 점수 미반영.`,
-    ru: `Играйте выбранный или случайный киллборд. Без очков.`,
-    zh: `游玩指定击杀，或随机刷新一个目标；不计分。`,
+    en: `Play a chosen killboard or roll a random one. A chosen kill that matches today's Daily target opens Daily; otherwise it stays Free and unscored. Only random refresh builds the separate Free streak.`,
+    de: `Spiele ein gewähltes oder zufälliges Killboard. Ein gewählter Kill, der dem heutigen Daily-Ziel entspricht, öffnet Daily; sonst bleibt er Free und ohne Wertung. Nur der Zufalls-Refresh baut die separate Free-Serie auf.`,
+    es: `Juega un killboard elegido o uno aleatorio. Si el kill elegido coincide con el objetivo diario de hoy, abre Diaria; si no, sigue en Libre y sin puntuación. Solo la actualización aleatoria construye la racha libre separada.`,
+    fr: `Jouez un killboard choisi ou aléatoire. Un kill choisi qui correspond à la cible quotidienne ouvre Quotidien ; sinon il reste en Libre, non classé. Seul le rafraîchissement aléatoire alimente la série libre distincte.`,
+    ja: `指定またはランダムなキルボードで遊べます。選んだキルが今日のデイリー目標と一致すればデイリーを開き、それ以外はフリーのまま採点外です。フリーの独立した連勝はランダム更新のみで増えます。`,
+    ko: `지정 또는 무작위 킬보드로 플레이합니다. 선택한 킬이 오늘의 데일리 목표와 일치하면 데일리가 열리고, 아니면 자유 모드로 남아 점수에 반영되지 않습니다. 자유 모드의 별도 연승은 무작위 새로고침으로만 쌓입니다.`,
+    ru: `Играйте выбранный или случайный киллборд. Если выбранный килл совпадает с сегодняшней целью Daily, откроется Daily; иначе останется Free без оценки. Отдельная серия Free растёт только при случайном обновлении.`,
+    zh: `游玩指定击杀，或随机刷新一个目标。若指定击杀与今日每日目标一致，会进入每日模式；否则保持自由模式且不计分。自由模式的独立连胜只通过随机刷新累积。`,
   },
   'help.step1': {
     en: `Each UTC day has one target. Standard and Abyss give six attempts; Timed is unlimited.`,
@@ -2556,110 +2588,110 @@ Libre et Chrono n’affectent ni le score ni les séries.`,
   'mode.helpNormal': {
     en: `Six attempts.
 Opening clues are revealed when the puzzle starts.
-Each wrong guess reveals up to two fitted modules.
+Each miss reveals fitted equipment from a weight budget; low-weight items appear first, heavier items consume more of the budget.
 Other clues are revealed only when your guess shares the target's value.
-Cargo has its own clues.
+Hull bonuses and cargo have their own clues.
 Structure resists are always shown and do not narrow the hull.`,
     de: `Sechs Versuche.
 Start-Hinweise werden zu Beginn aufgedeckt.
-Jeder Fehlversuch deckt bis zu zwei montierte Module auf.
+Jeder Fehlversuch deckt montierte Ausrüstung aus einem Gewichtsbudget auf; leichte Hinweise erscheinen zuerst, schwerere verbrauchen mehr Budget.
 Andere Hinweise erscheinen nur bei einem zum Ziel passenden Wert.
-Fracht hat eigene Hinweise.
+Hüllen-Boni und Fracht haben eigene Hinweise.
 Strukturresistenzen sind immer sichtbar und grenzen die Hülle nicht ein.`,
     es: `Seis intentos.
 Las pistas iniciales se revelan al empezar.
-Cada fallo revela hasta dos módulos equipados.
+Cada fallo revela equipo montado según un presupuesto de peso; las pistas ligeras aparecen primero y las pesadas consumen más presupuesto.
 Otras pistas solo aparecen si tu nave comparte el valor del objetivo.
-La carga tiene sus propias pistas.
+Los bonos de casco y la carga tienen sus propias pistas.
 Las resistencias de estructura siempre se muestran y no reducen el casco.`,
     fr: `Six tentatives.
 Les indices initiaux sont révélés au départ.
-Chaque erreur révèle jusqu’à deux modules équipés.
+Chaque erreur révèle l’équipement monté selon un budget de poids ; les indices légers apparaissent d’abord, les plus lourds consomment plus de budget.
 Les autres indices n’apparaissent que si votre vaisseau partage la valeur de la cible.
-La soute a ses propres indices.
+Les bonus de coque et la soute ont leurs propres indices.
 Les résistances de structure sont toujours visibles et ne réduisent pas la coque.`,
     ja: `6回の挑戦。
 開始時に初期ヒントが公開されます。
-誤答ごとに最大2つの装着モジュールを公開。
+誤答ごとに、重量予算の範囲で装着装備を公開。軽いヒントが先に出て、重いヒントほど予算を多く使います。
 その他のヒントは推測船が目標と同じ値のときだけ公開。
-貨物には専用のヒントがあります。
+船体ボーナスと貨物には専用のヒントがあります。
 構造レジストは常に表示され、船体を絞り込みません。`,
     ko: `6회 시도.
 시작 시 초기 단서가 공개됩니다.
-오답마다 장착 모듈 최대 2개를 공개합니다.
+오답마다 무게 예산 범위에서 장착 장비를 공개합니다. 가벼운 단서가 먼저 나오고, 무거운 단서일수록 예산을 더 씁니다.
 다른 단서는 추측 선체가 목표와 같은 값을 가질 때만 공개됩니다.
-화물은 별도 단서가 있습니다.
+선체 보너스와 화물은 별도 단서가 있습니다.
 구조 저항은 항상 표시되며 선체 범위를 좁히지 않습니다.`,
     ru: `Шесть попыток.
 Начальные подсказки открываются при старте.
-Каждый промах раскрывает до двух установленных модулей.
+Каждый промах раскрывает установленное оборудование в рамках бюджета веса: лёгкие подсказки идут первыми, тяжёлые расходуют больше бюджета.
 Остальные подсказки — только при совпадении значения с целью.
-У груза свои подсказки.
+У бонусов корпуса и груза свои подсказки.
 Сопротивления структуры видны всегда и не сужают выбор корпуса.`,
     zh: `六次尝试。
 开局展示初始线索。
-每次猜错最多揭示两件已装配装备。
+每次猜错会按权重预算揭示已装配装备；低权重先出现，高权重消耗更多预算。
 其他线索只在猜测与目标数值相同时揭示。
-货仓有独立线索。
+船体加成和货仓有独立线索。
 结构抗性始终显示，但不会缩小船体范围。`,
   },
   'mode.helpAbyss': {
     en: `Six attempts.
-Fittings and navigation/defense are simulated from the killmail.
+Fittings and navigation/defense are simulated with all-V skills; fitted modules are online and active.
 Rare and low-usage hulls are more likely.
-Each miss reveals 1–5 equipment clues plus one other clue.
-If equipment runs out, the missing clues become other clues.
+Each miss reveals 1–5 equipment clues plus one other clue. If equipment runs out, half of the missing equipment quota (rounded up) becomes extra other clues.
 Cargo has its own clues.
-Assault Damage Control can make structure resists decisive.`,
+Abyssal modules use the closest same-group, same-size representative for attribute simulation.
+Resistance modules and Assault Damage Control can make resistance clues decisive.`,
     de: `Sechs Versuche.
-Fittings sowie Navigation/Verteidigung werden aus dem Killmail simuliert.
+Fittings sowie Navigation/Verteidigung werden mit All-V-Skills simuliert; montierte Module sind online und aktiv.
 Seltene und wenig genutzte Hüllen sind wahrscheinlicher.
-Jeder Fehlversuch deckt 1–5 Ausrüstungshinweise plus einen weiteren Hinweis auf.
-Fehlt Ausrüstung, werden die restlichen Hinweise zu anderen Hinweisen.
+Jeder Fehlversuch deckt 1–5 Ausrüstungshinweise plus einen weiteren Hinweis auf. Fehlt Ausrüstung, wird die Hälfte (aufgerundet) des fehlenden Ausrüstungsanteils zu zusätzlichen anderen Hinweisen.
 Fracht hat eigene Hinweise.
-Ein Assault Damage Control kann Strukturresistenzen entscheidend machen.`,
+Abyssale Module nutzen für die Attributssimulation den nächstgelegenen Vertreter derselben Gruppe und Größe.
+Resistenzmodule und Assault Damage Control können Resistenzhinweise entscheidend machen.`,
     es: `Seis intentos.
-Los ajustes y la navegación/defensa se simulan desde el killmail.
+Los ajustes y la navegación/defensa se simulan con habilidades a V; los módulos montados están online y activos.
 Los cascos raros y poco usados son más probables.
-Cada fallo revela 1–5 pistas de equipo y una pista adicional.
-Si falta equipo, esas pistas se convierten en otras pistas.
+Cada fallo revela 1–5 pistas de equipo y una pista adicional. Si falta equipo, la mitad (redondeada hacia arriba) del cupo faltante se convierte en pistas adicionales de otro tipo.
 La carga tiene sus propias pistas.
-Un Assault Damage Control puede hacer decisivas las resistencias de estructura.`,
+Los módulos abisales usan el representante más cercano del mismo grupo y tamaño para simular atributos.
+Los módulos de resistencia y el Assault Damage Control pueden hacer decisivas las pistas de resistencia.`,
     fr: `Six tentatives.
-Les fittings et la navigation/défense sont simulés depuis le killmail.
+Les fittings et la navigation/défense sont simulés avec toutes les compétences au niveau V ; les modules montés sont en ligne et actifs.
 Les coques rares et peu utilisées sont plus probables.
-Chaque erreur révèle 1 à 5 indices d’équipement et un autre indice.
-Si l’équipement manque, ces indices deviennent d’autres indices.
+Chaque erreur révèle 1 à 5 indices d’équipement et un autre indice. Si l’équipement manque, la moitié (arrondie au supérieur) du quota manquant devient des indices supplémentaires d’un autre type.
 La soute a ses propres indices.
-Un Assault Damage Control peut rendre les résistances de structure décisives.`,
+Les modules abyssaux utilisent le représentant le plus proche du même groupe et de même taille pour simuler les attributs.
+Les modules de résistance et l’Assault Damage Control peuvent rendre les indices de résistance décisifs.`,
     ja: `6回の挑戦。
-キルメールから装備と航行・防御をシミュレーション。
+装備と航行・防御は全スキルVでシミュレーションされ、装着モジュールはオンライン・アクティブとして扱われます。
 希少で使用頻度の低い船体が出やすくなります。
-誤答ごとに装備ヒント1～5個と、その他のヒント1個を公開。
-装備が足りない分は他のヒントに変わります。
+誤答ごとに装備ヒント1～5個と、その他のヒント1個を公開。装備が足りない場合、不足分の半分（切り上げ）が追加のその他ヒントになります。
 貨物には専用のヒントがあります。
-アサルト・ダメージコントロールがあると構造レジストが決め手になります。`,
+アビサルモジュールは、同グループ・同サイズの最も近い代表モジュールで属性をシミュレーションします。
+レジストモジュールとアサルト・ダメージコントロールは、レジストヒントを決定的にすることがあります。`,
     ko: `6회 시도.
-킬메일에서 장비와 항법/방어를 시뮬레이션합니다.
+장비와 항법/방어는 모든 스킬 V로 시뮬레이션되며, 장착 모듈은 온라인·활성 상태로 처리됩니다.
 희귀하고 사용 빈도가 낮은 선체가 더 자주 나옵니다.
-오답마다 장비 단서 1~5개와 다른 단서 1개를 공개합니다.
-장비가 부족하면 남은 단서는 다른 단서로 바뀝니다.
+오답마다 장비 단서 1~5개와 다른 단서 1개를 공개합니다. 장비가 부족하면 부족분의 절반(올림)이 추가 다른 단서로 바뀝니다.
 화물은 별도 단서가 있습니다.
-어설트 대미지 컨트롤이 있으면 구조 저항이 결정적일 수 있습니다.`,
+어비설 모듈은 같은 그룹·같은 크기의 가장 가까운 대표 모듈로 속성을 시뮬레이션합니다.
+저항 모듈과 어설트 대미지 컨트롤은 저항 단서를 결정적으로 만들 수 있습니다.`,
     ru: `Шесть попыток.
-Фитинг, навигация и защита моделируются по киллмейлу.
+Фитинг, навигация и защита моделируются со всеми навыками V; установленные модули считаются онлайн и активными.
 Редкие и редко используемые корпуса встречаются чаще.
-Каждый промах раскрывает 1–5 подсказок об оборудовании и ещё одну подсказку.
-Если оборудования не хватает, эти подсказки заменяются другими.
+Каждый промах раскрывает 1–5 подсказок об оборудовании и ещё одну подсказку. Если оборудования не хватает, половина (с округлением вверх) недостающей квоты становится дополнительными подсказками другого типа.
 У груза свои подсказки.
-Assault Damage Control может сделать сопротивления структуры решающими.`,
+Абиссальные модули для расчёта атрибутов заменяются ближайшим представителем той же группы и размера.
+Модули сопротивления и Assault Damage Control могут сделать подсказки о сопротивлениях решающими.`,
     zh: `六次尝试。
-按击杀装配模拟导航与防御。
+按全 V 技能模拟装配与导航/防御；已装配模块视为在线并激活。
 稀有和低使用率船体更容易出现。
-每次猜错揭示 1–5 条装备线索，并额外揭示一条其他线索。
-装备线索不足时，剩余名额转为其他线索。
+每次猜错揭示 1–5 条装备线索，并额外揭示一条其他线索。装备线索不足时，缺口的一半（向上取整）转为额外的其他线索。
 货仓有独立线索。
-突击损控可能让结构抗性成为决定性线索。`,
+深渊装备在属性模拟时使用同组、同尺寸中最接近的代表模块。
+抗性装备和突击损控可能让抗性线索成为决定性线索。`,
   },
   'mode.helpTimed': {
     en: `Unlimited attempts.
@@ -2669,7 +2701,7 @@ One clue is revealed every 30 seconds.
 A 5-second cooldown follows every lock.
 If all clues are already revealed, the next release fails the run. If fewer clues remain than the next batch, release all of them and fail only on the following release.
 Hold the timer for 3 seconds to give up and reveal the answer.
-Progress is saved but not scored.`,
+Progress is saved; Timed does not use the six-attempt score.`,
     de: `Unbegrenzte Versuche.
 Start-Hinweise werden beim Start aufgedeckt.
 Falsche Versuche geben keine Hinweise.
@@ -2677,7 +2709,7 @@ Alle 30 Sekunden wird ein Hinweis aufgedeckt.
 Nach jeder Zielerfassung folgen 5 Sekunden Abklingzeit.
 Sind alle Hinweise bereits offen, scheitert der Lauf bei der nächsten Freigabe. Sind weniger Hinweise übrig als das nächste Paket, werden alle freigegeben; der Lauf scheitert erst bei der darauffolgenden Freigabe.
 Timer 3 Sekunden halten, um aufzugeben und die Antwort zu sehen.
-Fortschritt wird gespeichert, aber nicht gewertet.`,
+Fortschritt wird gespeichert; Timed nutzt keine Sechs-Versuche-Wertung.`,
     es: `Intentos ilimitados.
 Las pistas iniciales se revelan al empezar.
 Los fallos no revelan pistas.
@@ -2685,7 +2717,7 @@ Cada 30 segundos se revela una pista.
 Tras cada bloqueo hay 5 segundos de recarga.
 Si todas las pistas ya están reveladas, la siguiente entrega hace fallar la partida. Si quedan menos pistas que el siguiente lote, se revelan todas y la partida falla solo en la entrega siguiente.
 Mantén el cronómetro 3 segundos para rendirte y ver la respuesta.
-El progreso se guarda, pero no puntúa.`,
+El progreso se guarda; Crono no usa la puntuación de seis intentos.`,
     fr: `Tentatives illimitées.
 Les indices initiaux sont révélés au départ.
 Les erreurs ne révèlent pas d’indices.
@@ -2693,7 +2725,7 @@ Un indice est révélé toutes les 30 secondes.
 Chaque verrouillage impose 5 secondes de recharge.
 Si tous les indices sont déjà révélés, la révélation suivante fait échouer la partie. S’il reste moins d’indices que le prochain lot, ils sont tous révélés et la partie n’échoue qu’à la révélation suivante.
 Maintenez le chrono 3 secondes pour abandonner et voir la réponse.
-La progression est sauvegardée, mais non classée.`,
+La progression est sauvegardée ; Chrono n’utilise pas le score à six tentatives.`,
     ja: `試行は無制限。
 開始時に初期ヒントが公開されます。
 誤答ではヒントは公開されません。
@@ -2725,41 +2757,49 @@ La progression est sauvegardée, mais non classée.`,
 每次锁定目标后有 5 秒冷却。
 所有线索都已揭示后，下一次线索发布时自动失败。
 长按计时器 3 秒可放弃并显示答案。
-进度会保存，但不计分。`,
+进度会保存，但不使用六次机会成绩。`,
   },
   'mode.helpFree': {
     en: `Open a shared killboard link or refresh for a random target.
-A shared link always opens the same puzzle.
+A chosen kill that matches today's Daily target opens Daily; otherwise it stays Free.
 You can paste a killmail ID or zKill link.
-Free runs do not affect score or streaks.`,
+Free runs do not affect daily stats. Only the random refresh builds the separate per-gameplay Free streak; direct links and shares do not.
+A loss or abandoned round resets that Free streak.`,
     de: `Öffne einen geteilten Killboard-Link oder lade ein zufälliges Ziel neu.
-Ein geteilter Link öffnet immer dasselbe Rätsel.
+Ein gewählter Kill, der dem heutigen Daily-Ziel entspricht, öffnet Daily; sonst bleibt er Free.
 Du kannst eine Killmail-ID oder einen zKill-Link einfügen.
-Freies Spiel beeinflusst weder Wertung noch Serie.`,
+Free beeinflusst die Tagesstatistik nicht. Nur der Zufalls-Refresh baut die separate Free-Serie pro Spielweise auf; direkte Links und Shares nicht.
+Ein Verlust oder eine abgebrochene Runde setzt diese Free-Serie zurück.`,
     es: `Abre un enlace de killboard compartido o recarga un objetivo aleatorio.
-Un enlace compartido abre siempre el mismo puzzle.
+Si el kill elegido coincide con el objetivo diario de hoy, abre Diaria; si no, sigue en Libre.
 Puedes pegar un ID de killmail o un enlace de zKill.
-El modo libre no afecta a la puntuación ni a las rachas.`,
+Libre no afecta a las estadísticas diarias. Solo la actualización aleatoria construye la racha libre por modalidad; los enlaces directos y compartidos no.
+Una derrota o ronda abandonada reinicia esa racha libre.`,
     fr: `Ouvrez un lien de killboard partagé ou rechargez une cible aléatoire.
-Un lien partagé ouvre toujours le même puzzle.
+Un kill choisi qui correspond à la cible quotidienne ouvre Quotidien ; sinon il reste en Libre.
 Vous pouvez coller un ID de killmail ou un lien zKill.
-Le mode libre n’affecte ni le score ni les séries.`,
+Libre n’affecte pas les stats quotidiennes. Seul le rafraîchissement aléatoire alimente la série libre par mode ; les liens directs et partagés non.
+Une défaite ou une manche abandonnée réinitialise cette série libre.`,
     ja: `共有されたキルボードリンクを開くか、ランダム目標に更新できます。
-共有リンクは常に同じパズルを開きます。
+選んだキルが今日のデイリー目標と一致すればデイリーを開き、それ以外はフリーのままです。
 キルメールIDまたはzKillリンクを貼り付けられます。
-フリーはスコアや連勝に影響しません。`,
+フリーはデイリー統計に影響しません。モード別の独立したフリー連勝はランダム更新のみで増え、直接リンクや共有リンクでは増えません。
+敗北または途中放棄でそのフリー連勝はリセットされます。`,
     ko: `공유된 킬보드 링크를 열거나 무작위 목표로 새로고침하세요.
-공유 링크는 항상 같은 퍼즐을 엽니다.
+선택한 킬이 오늘의 데일리 목표와 일치하면 데일리가 열리고, 아니면 자유 모드로 남습니다.
 킬메일 ID 또는 zKill 링크를 붙여넣을 수 있습니다.
-자유 모드는 점수와 연승에 영향을 주지 않습니다.`,
+자유 모드는 일일 통계에 영향을 주지 않습니다. 모드별 별도 자유 연승은 무작위 새로고침으로만 쌓이며, 직접 링크와 공유 링크는 해당되지 않습니다.
+패배하거나 진행 중인 판을 포기하면 해당 자유 연승이 초기화됩니다.`,
     ru: `Откройте общую ссылку на киллборд или обновите случайную цель.
-Общая ссылка всегда открывает одну и ту же головоломку.
+Если выбранный килл совпадает с сегодняшней целью Daily, откроется Daily; иначе останется Free.
 Можно вставить ID киллмейла или ссылку zKill.
-Свободная игра не влияет на очки и серии.`,
+Free не влияет на ежедневную статистику. Отдельная серия Free для каждой игровой моды растёт только при случайном обновлении; прямые и общие ссылки — нет.
+Поражение или брошенный раунд сбрасывают эту серию Free.`,
     zh: `打开分享的击杀链接，或刷新随机目标。
-同一个分享链接始终打开同一个谜题。
+若指定击杀与今日每日目标一致，会进入每日模式；否则保持自由模式。
 可以粘贴击杀 ID 或 zKill 链接。
-自由模式不计分、不影响连胜。`,
+自由模式不影响每日统计。各玩法的独立自由连胜只通过随机刷新累积；直接链接和分享链接不会。
+失败或中途放弃会重置对应的自由连胜。`,
   },
   'help.weightBody': {
     en: `Weight shows how strongly a clue narrows the hull. Low means many hulls fit; high means few.`,
@@ -2878,58 +2918,66 @@ Object.assign(RENAMES, {
     ja: `共通`, ko: `공통`, ru: `ОБЩИЕ`, zh: `通用`,
   },
   'help.dailyBody': {
-    en: `One target per UTC day, reset at 11:00 UTC. Standard and Abyss are scored; Timed follows the same daily target source but is unscored.`,
-    de: `Ein Ziel pro UTC-Tag, Reset um 11:00 UTC. Standard und Abyss werden gewertet; Timed nutzt dieselbe tägliche Zielquelle, wird aber nicht gewertet.`,
-    es: `Un objetivo por día UTC, reinicio a las 11:00 UTC. Estándar y Abismo puntúan; Crono usa la misma fuente diaria pero no puntúa.`,
-    fr: `Une cible par jour UTC, réinitialisation à 11:00 UTC. Standard et Abysse sont classés ; Chrono utilise la même source quotidienne mais n’est pas classé.`,
-    ja: `UTC ごとに1日1目標、11:00 UTC にリセット。スタンダードとアビスは採点対象、タイムドは同じデイリー目標を使いますが採点されません。`,
-    ko: `UTC 기준 하루 하나의 목표, 11:00 UTC 초기화. 스탠다드와 어비스는 점수에 반영되며, 타임드는 같은 일일 목표를 사용하지만 점수는 없습니다.`,
-    ru: `Одна цель на сутки UTC, сброс в 11:00 UTC. Standard и Abyss идут в зачёт; Timed использует тот же ежедневный источник, но не оценивается.`,
-    zh: `每个 UTC 日一个目标，11:00 UTC 重置。标准和深渊计入成绩；计时模式同样使用每日目标，但不计分。`,
+    en: `One target per UTC day, reset at 11:00 UTC. Standard, Abyss and Timed each have their own daily target. All three record daily plays and wins; Standard and Abyss use the six-attempt score.`,
+    de: `Ein Ziel pro UTC-Tag, Reset um 11:00 UTC. Standard, Abyss und Timed haben jeweils ein eigenes Tagesziel. Alle drei erfassen tägliche Spiele und Siege; Standard und Abyss nutzen die Sechs-Versuche-Wertung.`,
+    es: `Un objetivo por día UTC, reinicio a las 11:00 UTC. Estándar, Abismo y Crono tienen su propio objetivo diario. Los tres registran partidas y victorias diarias; Estándar y Abismo usan la puntuación de seis intentos.`,
+    fr: `Une cible par jour UTC, réinitialisation à 11:00 UTC. Standard, Abysse et Chrono ont chacun leur propre cible quotidienne. Les trois enregistrent parties et victoires quotidiennes ; Standard et Abysse utilisent le score à six tentatives.`,
+    ja: `UTC ごとに1日1目標、11:00 UTC にリセット。スタンダード、アビス、タイムドはそれぞれ専用のデイリー目標を持ちます。3つともデイリーのプレイと勝利を記録し、スタンダードとアビスは6回制のスコアを使います。`,
+    ko: `UTC 기준 하루 하나의 목표, 11:00 UTC 초기화. 스탠다드, 어비스, 타임드는 각각 전용 일일 목표를 가집니다. 세 모드 모두 일일 플레이와 승리를 기록하며, 스탠다드와 어비스는 6회 점수를 사용합니다.`,
+    ru: `Одна цель на сутки UTC, сброс в 11:00 UTC. У Standard, Abyss и Timed свои ежедневные цели. Все три записывают ежедневные игры и победы; Standard и Abyss используют счёт по шести попыткам.`,
+    zh: `每个 UTC 日一个目标，11:00 UTC 重置。标准、深渊和计时模式各自拥有独立的每日目标。三者都会记录每日游玩与胜利；标准和深渊使用六次机会的成绩。`,
   },
   'help.sharedRules': {
     en: `The selected Daily or Free source determines the target.
-Standard and Abyss use six attempts; Timed uses unlimited attempts.
-A guess reveals values shared with the target.
-Only Daily Standard and Abyss affect score and streaks.`,
+Standard and Abyss use six attempts; Timed is unlimited.
+A guess reveals values shared with the target; misses add equipment clues.
+Daily Standard, Abyss and Timed all record daily plays and wins; Free does not affect daily stats.
+Any daily win counts once for the daily streak. Free keeps a separate per-gameplay streak from random refresh.`,
     de: `Die gewählte Daily- oder Free-Quelle bestimmt das Ziel.
 Standard und Abyss haben sechs Versuche; Timed ist unbegrenzt.
-Ein Tipp deckt Werte auf, die mit dem Ziel übereinstimmen.
-Nur Daily-Standard und Daily-Abyss beeinflussen Wertung und Serie.`,
+Ein Tipp deckt Werte auf, die mit dem Ziel übereinstimmen; Fehlversuche fügen Ausrüstungshinweise hinzu.
+Daily-Standard, Daily-Abyss und Daily-Timed erfassen alle tägliche Spiele und Siege; Free beeinflusst die Tagesstatistik nicht.
+Jeder Tagessieg zählt einmal für die Tages-Serie. Free führt über den Zufalls-Refresh eine eigene Serie pro Spielweise.`,
     es: `La fuente Diaria o Libre seleccionada determina el objetivo.
-Estándar y Abismo usan seis intentos; Crono usa intentos ilimitados.
-Cada intento revela valores compartidos con el objetivo.
-Solo Diaria Estándar y Diaria Abismo afectan a la puntuación y las rachas.`,
+Estándar y Abismo usan seis intentos; Crono es ilimitado.
+Cada intento revela valores compartidos con el objetivo; los fallos añaden pistas de equipo.
+Diaria Estándar, Diaria Abismo y Diaria Crono registran partidas y victorias diarias; Libre no afecta a las estadísticas diarias.
+Cada victoria diaria cuenta una vez para la racha diaria. Libre mantiene una racha propia por modalidad mediante la actualización aleatoria.`,
     fr: `La source Quotidien ou Libre sélectionnée détermine la cible.
 Standard et Abysse utilisent six tentatives ; Chrono est illimité.
-Chaque tentative révèle les valeurs partagées avec la cible.
-Seuls Quotidien Standard et Quotidien Abysse affectent le score et les séries.`,
+Chaque tentative révèle les valeurs partagées avec la cible ; les erreurs ajoutent des indices d’équipement.
+Quotidien Standard, Quotidien Abysse et Quotidien Chrono enregistrent parties et victoires quotidiennes ; Libre n’affecte pas les stats quotidiennes.
+Chaque victoire quotidienne compte une fois pour la série quotidienne. Libre conserve une série distincte par mode via le rafraîchissement aléatoire.`,
     ja: `選択中のデイリーまたはフリーの目標ソースに従います。
 スタンダードとアビスは6回、タイムドは無制限です。
-推測すると、目標と共通する値が公開されます。
-スコアと連勝に影響するのはデイリーのスタンダードとアビスだけです。`,
+推測すると目標と共通する値が公開され、誤答は装備ヒントを追加します。
+デイリーのスタンダード、アビス、タイムドはすべてデイリーのプレイと勝利を記録し、フリーはデイリー統計に影響しません。
+デイリーの勝利は1日1回だけ連勝日に数えます。フリーはランダム更新でモード別の独立した連勝を保持します。`,
     ko: `선택한 데일리 또는 자유 목표 소스가 목표를 결정합니다.
-스탠다드와 어비스는 6회, 타임드는 무제한 시도입니다.
-추측하면 목표와 공유하는 값이 공개됩니다.
-점수와 연승에는 데일리 스탠다드와 데일리 어비스만 영향을 줍니다.`,
+스탠다드와 어비스는 6회, 타임드는 무제한입니다.
+추측하면 목표와 공유하는 값이 공개되고, 오답은 장비 단서를 추가합니다.
+데일리 스탠다드, 데일리 어비스, 데일리 타임드는 모두 일일 플레이와 승리를 기록하며, 자유는 일일 통계에 영향을 주지 않습니다.
+일일 승리는 하루 한 번만 일일 연승에 반영됩니다. 자유는 무작위 새로고침으로 모드별 별도 연승을 유지합니다.`,
     ru: `Выбранный источник Daily или Free определяет цель.
 Standard и Abyss дают шесть попыток; Timed — неограниченно.
-Догадка раскрывает значения, совпадающие с целью.
-На счёт и серию влияют только Daily Standard и Daily Abyss.`,
+Догадка раскрывает совпадающие с целью значения; промахи добавляют подсказки об оборудовании.
+Daily Standard, Daily Abyss и Daily Timed записывают ежедневные игры и победы; Free не влияет на ежедневную статистику.
+Любая ежедневная победа учитывается для серии дней один раз в день. Free ведёт отдельную серию для каждой игровой моды при случайном обновлении.`,
     zh: `目标来源由当前选择的每日或自由模式决定。
 标准和深渊有六次尝试；计时模式尝试次数不限。
-每次猜测会揭示与目标相同的数值。
-只有每日模式下的标准和深渊计入成绩与连胜。`,
+每次猜测会揭示与目标相同的数值；猜错还会增加装备线索。
+每日标准、每日深渊和每日计时都会记录每日游玩与胜利；自由模式不影响每日统计。
+每个 UTC 日的任意一次胜利只计入一次连胜天数。自由模式通过随机刷新维护独立的玩法连胜。`,
   },
   'mode.timedHint': {
-    en: `Timed gameplay. Uses the selected Daily or Free target source. Unlimited attempts against the clock; unscored.`,
-    de: `Timed-Spielweise. Nutzt die gewählte Daily- oder Free-Zielquelle. Unbegrenzte Versuche gegen die Uhr; ohne Wertung.`,
-    es: `Modalidad Crono. Usa la fuente de objetivo Diaria o Libre seleccionada. Intentos ilimitados contra el reloj; sin puntuación.`,
-    fr: `Mode Chrono. Utilise la source de cible Quotidien ou Libre sélectionnée. Tentatives illimitées contre le chrono ; non classé.`,
-    ja: `タイムド玩法。選択中のデイリーまたはフリーの目標ソースに従います。時間制限付きで試行は無制限、採点なし。`,
-    ko: `타임드 플레이. 선택한 데일리 또는 자유 목표 소스를 따릅니다. 시간 제한과 무제한 시도, 점수 없음.`,
-    ru: `Режим Timed. Использует выбранный источник цели Daily или Free. Неограниченные попытки на время; без оценки.`,
-    zh: `计时玩法。目标来源遵循当前选择的每日或自由模式。无限尝试，与时间赛跑；不计分。`,
+    en: `Timed gameplay. Uses the selected Daily or Free target source; with Daily it has its own daily target. Unlimited attempts against the clock; no six-attempt score.`,
+    de: `Timed-Spielweise. Nutzt die gewählte Daily- oder Free-Zielquelle; bei Daily mit eigenem Tagesziel. Unbegrenzte Versuche gegen die Uhr; keine Sechs-Versuche-Wertung.`,
+    es: `Modalidad Crono. Usa la fuente de objetivo Diaria o Libre seleccionada; con Diaria tiene su propio objetivo diario. Intentos ilimitados contra el reloj; sin puntuación de seis intentos.`,
+    fr: `Mode Chrono. Utilise la source de cible Quotidien ou Libre sélectionnée ; en Quotidien, il a sa propre cible quotidienne. Tentatives illimitées contre le chrono ; sans score à six tentatives.`,
+    ja: `タイムド玩法。選択中のデイリーまたはフリーの目標ソースに従い、デイリー時は専用のデイリー目標を使います。時間制限付きで試行は無制限、6回制のスコアはありません。`,
+    ko: `타임드 플레이. 선택한 데일리 또는 자유 목표 소스를 따르며, 데일리에서는 전용 일일 목표를 사용합니다. 시간 제한과 무제한 시도, 6회 점수는 없습니다.`,
+    ru: `Режим Timed. Использует выбранный источник цели Daily или Free; в Daily — отдельную дневную цель. Неограниченные попытки на время; без счёта по шести попыткам.`,
+    zh: `计时玩法。目标来源遵循当前选择的每日或自由模式；选择每日时使用独立的每日目标。无限尝试，与时间赛跑；不使用六次机会成绩。`,
   },
   'mode.helpTimed': {
     en: `Unlimited attempts.
@@ -2939,7 +2987,7 @@ A batch is released every 30 seconds; each lock has a 5-second cooldown. The bat
 If all clues are already revealed, the next release fails the run. If fewer clues remain than the next batch, release all of them and fail only on the following release.
 Hold the timer for 3 seconds to give up and reveal the answer.
 With Daily selected, Timed uses its own daily target. With Free selected, it uses the chosen or random free target.
-Progress is saved but not scored.`,
+Progress is saved; Timed does not use the six-attempt score.`,
     de: `Unbegrenzte Versuche.
 Start-Hinweise werden beim Start aufgedeckt.
 Falsche Versuche geben keine Hinweise.
@@ -2947,7 +2995,7 @@ Alle 30 Sekunden wird ein Hinweis-Paket freigegeben; nach jeder Erfassung folgen
 Sind alle Hinweise bereits offen, scheitert der Lauf bei der nächsten Freigabe. Sind weniger Hinweise übrig als das nächste Paket, werden alle freigegeben; der Lauf scheitert erst bei der darauffolgenden Freigabe.
 Timer 3 Sekunden halten, um aufzugeben und die Antwort zu sehen.
 Bei Daily nutzt Timed ein eigenes Tagesziel. Bei Free wird das gewählte oder zufällige freie Ziel verwendet.
-Fortschritt wird gespeichert, aber nicht gewertet.`,
+Fortschritt wird gespeichert; Timed nutzt keine Sechs-Versuche-Wertung.`,
     es: `Intentos ilimitados.
 Las pistas iniciales se revelan al empezar.
 Los fallos no revelan pistas.
@@ -2955,7 +3003,7 @@ Cada 30 segundos se revela un lote de pistas; tras cada bloqueo hay 5 segundos d
 Si todas las pistas ya están reveladas, la siguiente entrega hace fallar la partida. Si quedan menos pistas que el siguiente lote, se revelan todas y la partida falla solo en la entrega siguiente.
 Mantén el cronómetro 3 segundos para rendirte y ver la respuesta.
 Con Diaria, Crono usa su propio objetivo diario. Con Libre, usa el objetivo libre elegido o aleatorio.
-El progreso se guarda, pero no puntúa.`,
+El progreso se guarda; Crono no usa la puntuación de seis intentos.`,
     fr: `Tentatives illimitées.
 Les indices initiaux sont révélés au départ.
 Les erreurs ne révèlent pas d’indices.
@@ -2963,7 +3011,7 @@ Un lot d’indices est révélé toutes les 30 secondes ; chaque verrouillage im
 Si tous les indices sont déjà révélés, la révélation suivante fait échouer la partie. S’il reste moins d’indices que le prochain lot, ils sont tous révélés et la partie n’échoue qu’à la révélation suivante.
 Maintenez le chrono 3 secondes pour abandonner et voir la réponse.
 En Quotidien, Chrono utilise sa propre cible quotidienne. En Libre, il utilise la cible libre choisie ou aléatoire.
-La progression est sauvegardée, mais non classée.`,
+La progression est sauvegardée ; Chrono n’utilise pas le score à six tentatives.`,
     ja: `試行は無制限です。
 開始時に初期ヒントが公開されます。
 誤答ではヒントは公開されません。
@@ -2971,7 +3019,7 @@ La progression est sauvegardée, mais non classée.`,
 すべてのヒントが公開済みの場合、次の公開で失敗します。残りのヒントが次の束より少ない場合はすべて公開し、その次の公開で失敗します。
 タイマーを3秒長押しすると諦めて答えが表示されます。
 デイリー選択時は専用のデイリー目標、フリー選択時は選択またはランダムなフリー目標を使います。
-進行状況は保存されますが、採点されません。`,
+進行状況は保存されますが、6回制のスコアは使用しません。`,
     ko: `시도 횟수는 무제한입니다.
 시작하면 초기 단서가 공개됩니다.
 틀린 추측은 단서를 공개하지 않습니다.
@@ -2979,7 +3027,7 @@ La progression est sauvegardée, mais non classée.`,
 모든 단서가 이미 공개되었다면 다음 공개에서 실패합니다. 남은 단서가 다음 묶음보다 적으면 모두 공개하고, 그다음 공개에서만 실패합니다.
 타이머를 3초간 길게 누르면 포기하고 정답이 공개됩니다.
 데일리 선택 시 타임드는 전용 일일 목표를, 자유 선택 시 선택하거나 무작위로 고른 자유 목표를 사용합니다.
-진행 상황은 저장되지만 점수는 없습니다.`,
+진행 상황은 저장되지만 6회 점수는 사용하지 않습니다.`,
     ru: `Неограниченное число попыток.
 При старте открываются начальные подсказки.
 Неверные догадки не открывают подсказки.
@@ -2987,7 +3035,7 @@ La progression est sauvegardée, mais non classée.`,
 Если все подсказки уже открыты, следующая выдача приводит к поражению. Если оставшихся подсказок меньше следующего пакета, открываются все, а поражение наступает только при следующей выдаче.
 Удерживайте таймер 3 секунды, чтобы сдаться и увидеть ответ.
 В Daily Timed использует отдельную дневную цель. В Free — выбранную или случайную свободную цель.
-Прогресс сохраняется, но не оценивается.`,
+Прогресс сохраняется; Timed не использует счёт по шести попыткам.`,
     zh: `尝试次数不限。
 开始计时时展示开局线索。
 猜错不会揭示线索。
@@ -2995,7 +3043,7 @@ La progression est sauvegardée, mais non classée.`,
 如果所有线索都已揭示，下一次发放时失败。如果剩余线索少于下一批数量，则全部揭示，并在再下一次发放时才失败。
 长按计时器 3 秒可放弃并显示答案。
 选择每日模式时，计时玩法使用独立的每日目标；选择自由模式时，使用指定或随机的自由目标。
-进度会保存，但不计分。`,
+进度会保存，但不使用六次机会成绩。`,
   },
 });
 
