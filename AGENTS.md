@@ -329,7 +329,8 @@ catalog, then run both refreshes before the final `build`.
   exact bump for the current release.
 - Never create a commit, PR, tag, release, Pages deployment, or container image
   automatically. Those require explicit user instruction.
-- The script also updates the README version strings.
+- The script changes only `package.json`; do not add a version string to
+  `README.md` and do not make the bump script edit it.
 - In the DSH Windows sandbox, Git shell hooks may be blocked (`sh` signal-pipe
   error). In that environment run `node scripts/bump-version.mjs` manually, then
   `git commit --no-verify`. On a normal Git install the hook works automatically.
@@ -406,6 +407,11 @@ catalog, then run both refreshes before the final `build`.
   until the player scrolls them into view; clicking the arrow scrolls to the
   nearest unseen clue. Initial reveals also seed the unseen set when a fresh
   puzzle is opened with no guesses yet.
+- The cargo group counter counts revealed cargo items only, excluding cargo
+  capacity. It shows `revealed / ?` until every cargo item is revealed, then
+  `X / X`; an empty cargo hold shows `0 / 0`.
+- When a dossier equipment/cargo group has revealed rows followed by hidden
+  rows, insert the `sealed-divider` line before the sealed row.
 - After the answer is revealed, the radar answer render fills its circular stage
   with `object-fit: cover` at natural scale; do not add an extra zoom transform.
 - Mass shows a fully written, non-abbreviated number by default in tonnes,

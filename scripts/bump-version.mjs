@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Bump package/README version. Called by .githooks/pre-commit.
+ * Bump the package version. Called by .githooks/pre-commit.
  *
  * Default: patch. Set VERSION_BUMP=minor|major|none to override.
  */
@@ -10,7 +10,6 @@ import { spawnSync } from 'node:child_process';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const pkgFile = path.join(ROOT, 'package.json');
-const readmeFile = path.join(ROOT, 'README.md');
 const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'));
 const current = String(pkg.version || '0.0.0');
 const [major, minor, patch] = current.split('.').map((part) => Number(part) || 0);
@@ -42,11 +41,5 @@ if (staged.status === 1) {
 
 pkg.version = next;
 fs.writeFileSync(pkgFile, `${JSON.stringify(pkg, null, 2)}\n`);
-if (fs.existsSync(readmeFile)) {
-  let readme = fs.readFileSync(readmeFile, 'utf8');
-  readme = readme.replace(/\*\*版本 \d+\.\d+\.\d+。\*\*/, `**版本 ${next}。**`);
-  readme = readme.replace(/v\d+\.\d+\.\d+/g, `v${next}`);
-  fs.writeFileSync(readmeFile, readme);
-}
-spawnSync('git', ['add', 'package.json', 'README.md'], { cwd: ROOT, stdio: 'inherit' });
+spawnSync('git', ['add', 'package.json'], { cwd: ROOT, stdio: 'inherit' });
 console.log(`Version ${current} -> ${next}`);

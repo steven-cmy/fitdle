@@ -2041,6 +2041,23 @@ html[data-game-mode="abyss"] {
   display: flex;
   flex-direction: column;
 }
+.sealed-divider {
+  position: relative;
+  height: 1px;
+  margin: 10px 12px 7px;
+  background: linear-gradient(90deg, transparent, var(--line) 12%, var(--line) 88%, transparent);
+}
+.sealed-divider::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  transform: translateX(-50%) rotate(45deg);
+}
 .attr-row {
   display: grid;
   min-width: 0;

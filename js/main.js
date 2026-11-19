@@ -2357,6 +2357,9 @@ function renderDossier() {
               <span class="attr-meta"><span class="attr-lock">${icon('lock')}</span></span>
             </div>`
           : '';
+        const sealedDivider = revealed.length > 0 && hiddenOthers > 0
+          ? '<div class="sealed-divider" aria-hidden="true"></div>'
+          : '';
         const slotGroups = category === 'cargo'
           ? `${capacityRow}${revealedOthers.map(({ clue, index }) => renderClueRow(clue, index, true)).join('')}`
           : Object.entries(EQUIPMENT_SLOT_ORDER)
@@ -2370,14 +2373,25 @@ function renderDossier() {
               ${rows.map(({ clue, index }) => renderClueRow(clue, index, true)).join('')}
             </div>`)
             .join('');
+        const cargoItems = category === 'cargo'
+          ? ordered.filter(({ clue }) => clue.k === 'cargo')
+          : [];
+        const counterRevealed = category === 'cargo'
+          ? cargoItems.filter(({ index }) => state.revealed.has(index)).length
+          : revealed.length;
+        const counterTotal = category === 'cargo' ? cargoItems.length : ordered.length;
+        const counterPending = category === 'cargo'
+          ? counterTotal - counterRevealed
+          : hidden;
         return `<section class="dossier-group cat-${category}${hidden ? ' is-sealed' : ''}">
           <header class="group-head">
             <span class="group-title">${icon(CATEGORY_ICON[category] || 'cargo')}<span>${esc(categoryLabel(category))}</span></span>
-            <span class="group-progress" aria-hidden="true"><span style="--p:${hidden ? 0 : 100}"></span></span>
-            <span class="group-count"><b>${revealed.length}</b> / ${hidden ? '?' : ordered.length}</span>
+            <span class="group-progress" aria-hidden="true"><span style="--p:${counterPending ? 0 : 100}"></span></span>
+            <span class="group-count"><b>${counterRevealed}</b> / ${counterPending ? '?' : counterTotal}</span>
           </header>
           <div class="group-rows">
             ${slotGroups}
+            ${sealedDivider}
             ${sealed}
           </div>
         </section>`;
