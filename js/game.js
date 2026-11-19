@@ -378,7 +378,13 @@ export function searchShips(index, query, { exclude = new Set(), limit = 8 } = {
     if (entry.nameAliases.includes(q)) score = Math.max(score, 108);
     else if (entry.nameAliases.some((alias) => alias.startsWith(q))) score = Math.max(score, 92);
     if (entry.acronyms.includes(q)) score = Math.max(score, 65);
+    else if (q.length >= 2 && entry.acronyms.some((acronym) => acronym.startsWith(q))) {
+      score = Math.max(score, 62);
+    }
     if (entry.groupAcronyms.includes(q)) score = Math.max(score, 60);
+    else if (q.length >= 2 && entry.groupAcronyms.some((acronym) => acronym.startsWith(q))) {
+      score = Math.max(score, 44);
+    }
     if (entry.groupTerms.some((term) => term === q)) score = Math.max(score, 65);
     else if (entry.groupTerms.some((term) => term.startsWith(q))) score = Math.max(score, 45);
     if (entry.raceTerms.some((term) => term === q)) score = Math.max(score, 60);

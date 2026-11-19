@@ -2064,6 +2064,12 @@ html[data-game-mode="abyss"] {
 .attr-row.equipment-row .attr-label {
   display: none;
 }
+.attr-row.bonus-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.attr-row.bonus-row .attr-label {
+  display: none;
+}
 .attr-row.is-hidden {
   background: rgba(0, 0, 0, 0.12);
 }
@@ -2876,11 +2882,13 @@ html[data-game-mode="abyss"] {
   min-width: 0;
 }
 .victim-body > .zkb-item-link {
-  display: block;
+  display: inline-block;
+  max-width: 100%;
   overflow: hidden;
   color: var(--text-soft);
-  font: 600 11px/1.3 var(--font-mono);
+  font: 600 1rem/1.3 var(--font-mono);
   text-overflow: ellipsis;
+  vertical-align: top;
   white-space: nowrap;
 }
 .victim-lines {
@@ -2890,7 +2898,7 @@ html[data-game-mode="abyss"] {
   gap: 3px 10px;
   margin-top: 4px;
   color: var(--dim);
-  font: 500 7px/1.3 var(--font-mono);
+  font: 500 0.8571rem/1.3 var(--font-mono);
   letter-spacing: 0.04em;
 }
 .victim-lines span {
@@ -2904,8 +2912,8 @@ html[data-game-mode="abyss"] {
 }
 .victim-org-icon {
   display: block;
-  width: 12px;
-  height: 12px;
+  width: 1em;
+  height: 1em;
   flex: 0 0 auto;
   object-fit: cover;
 }
@@ -2913,16 +2921,21 @@ html[data-game-mode="abyss"] {
   color: var(--amber);
 }
 .debrief-victim {
-  position: absolute;
-  right: 30px;
-  bottom: 30px;
-  max-width: 58%;
-  margin: 0;
+  position: static;
+  max-width: 46%;
+  margin: 0 0 0 auto;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  flex: 0 1 auto;
+}
+.debrief-victim .victim-portrait {
+  width: 2.5714rem;
+  height: 2.5714rem;
 }
 .debrief-answer .debrief-victim .victim-lines span {
   display: inline-flex;
   color: var(--dim);
-  font: 500 7px/1.3 var(--font-mono);
+  font: 500 0.8571rem/1.3 var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: none;
 }
@@ -3183,24 +3196,16 @@ html[data-game-mode="abyss"] {
   grid-template-columns: minmax(280px, 0.84fr) minmax(0, 1.16fr);
   min-height: 620px;
 }
-.debrief.has-free-streak .debrief-main {
-  padding-top: 112px;
-}
 .debrief-streak {
-  position: absolute;
-  top: 17px;
-  right: 62px;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  position: relative;
+  display: block;
   pointer-events: none;
-  text-align: right;
+  text-align: left;
 }
 .debrief-streak > span:first-child {
   color: var(--muted);
-  font: 600 8px/1 var(--font-mono);
-  letter-spacing: 0.12em;
+  font: 500 0.75rem/1.2 var(--font-mono);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -3208,34 +3213,38 @@ html[data-game-mode="abyss"] {
   position: relative;
   z-index: 2;
   display: block;
-  margin-top: 4px;
+  margin-top: 5px;
   color: var(--text);
-  font: 800 clamp(56px, 7vw, 98px)/0.78 var(--font-display);
-  letter-spacing: 0.01em;
-  transform-origin: right center;
+  font: 800 1.4286rem/1 var(--font-mono);
+  letter-spacing: 0;
+  transform-origin: left center;
+}
+.debrief-stat .debrief-streak-value {
+  font-size: 1.4286rem;
+  font-weight: 800;
 }
 .debrief-streak-value.is-pop {
   animation: free-streak-pop 0.34s var(--ease) both;
 }
 .debrief-streak-value.is-reset {
   color: var(--red);
-  animation: free-streak-shake 0.7s ease-in-out both;
+  animation: free-streak-shake-compact 0.7s ease-in-out both;
 }
 .debrief-streak.is-neutral .debrief-streak-value {
   color: var(--dim);
 }
 .debrief-streak-burst {
   position: absolute;
-  top: 68%;
-  right: 18%;
+  top: 58%;
+  left: 15%;
   z-index: 1;
   width: 0;
   height: 0;
 }
 .debrief-streak-particle {
   position: absolute;
-  width: 8px;
-  height: 4px;
+  width: 0.2143rem;
+  height: 0.1429rem;
   border-radius: 1px;
   opacity: 0;
   animation: free-streak-confetti 1.1s ease-out var(--delay, 0ms) forwards;
@@ -3245,20 +3254,20 @@ html[data-game-mode="abyss"] {
   55% { transform: scale(1.18); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
-@keyframes free-streak-shake {
+@keyframes free-streak-shake-compact {
   0%, 100% { transform: translateX(0); }
-  8% { transform: translateX(-2.5px); }
-  16% { transform: translateX(2.5px); }
-  24% { transform: translateX(-2.5px); }
-  32% { transform: translateX(2.5px); }
-  40% { transform: translateX(-1.5px); }
-  48% { transform: translateX(1.5px); }
-  56% { transform: translateX(-1.5px); }
-  64% { transform: translateX(1.5px); }
-  72% { transform: translateX(-0.75px); }
-  80% { transform: translateX(0.75px); }
-  88% { transform: translateX(-0.35px); }
-  96% { transform: translateX(0.35px); }
+  8% { transform: translateX(-0.055em); }
+  16% { transform: translateX(0.055em); }
+  24% { transform: translateX(-0.055em); }
+  32% { transform: translateX(0.055em); }
+  40% { transform: translateX(-0.035em); }
+  48% { transform: translateX(0.035em); }
+  56% { transform: translateX(-0.035em); }
+  64% { transform: translateX(0.035em); }
+  72% { transform: translateX(-0.018em); }
+  80% { transform: translateX(0.018em); }
+  88% { transform: translateX(-0.009em); }
+  96% { transform: translateX(0.009em); }
 }
 @keyframes free-streak-confetti {
   0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
@@ -3454,6 +3463,10 @@ html[data-game-mode="abyss"] {
   background: linear-gradient(90deg, rgba(99, 245, 166, 0.07), transparent);
   clip-path: var(--clip-sm);
 }
+.debrief-answer-info {
+  min-width: 0;
+  flex: 1 1 auto;
+}
 .modal[data-status="lost"] .debrief-answer {
   border-color: rgba(255, 108, 103, 0.24);
   background: linear-gradient(90deg, rgba(255, 108, 103, 0.06), transparent);
@@ -3472,18 +3485,18 @@ html[data-game-mode="abyss"] {
   height: 100%;
   object-fit: cover;
 }
-.debrief-answer span {
+.debrief-answer-info > span {
   display: block;
   color: var(--muted);
   font: 600 7px/1 var(--font-mono);
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
-.debrief-answer strong {
+.debrief-answer-info > strong {
   display: block;
   margin-top: 4px;
   color: #f5ffff;
-  font: 700 23px/1 var(--font-display);
+  font: 700 1.6429rem/1 var(--font-display);
   letter-spacing: 0.035em;
 }
 
@@ -3531,9 +3544,21 @@ html[data-game-mode="abyss"] {
 .debrief-bonus-title {
   margin-top: 16px;
   color: var(--amber);
-  font: 600 7.5px/1 var(--font-mono);
+  font: 600 0.5357rem/1 var(--font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+.debrief-bonus-group + .debrief-bonus-group {
+  margin-top: 14px;
+}
+.bonus-amount {
+  color: var(--cyan);
+  font-weight: 700;
+}
+.bonus-list .badge-hull,
+.attr-value .badge-hull {
+  margin-right: 5px;
+  vertical-align: middle;
 }
 .debrief-bonus {
   margin-top: 7px;
@@ -3599,15 +3624,6 @@ html[data-game-mode="abyss"] {
   background: var(--red);
 }
 
-.free-note {
-  margin-top: 10px;
-  padding: 9px 11px;
-  color: var(--amber);
-  border: 1px solid rgba(242, 166, 59, 0.25);
-  background: rgba(242, 166, 59, 0.05);
-  font: 500 8px/1.5 var(--font-mono);
-  letter-spacing: 0.06em;
-}
 .share-box {
   margin-top: 10px;
   padding: 9px 11px;
@@ -4790,7 +4806,7 @@ html[data-font-size="largest"] { font-size: 18px; }
 .debrief-body { font-size: 1.0714rem; }
 .mode-button,
 .banner { font-size: 0.7857rem; }
-.victim-lines { font-size: 0.6786rem; }
+.victim-lines { font-size: 0.8571rem; }
 .victim-body > .zkb-item-link { font-size: 1rem; }
 .resist-cell b { font-size: 0.9286rem; }
 .resist-cell small { font-size: 0.7143rem; }
@@ -4799,13 +4815,12 @@ html[data-font-size="largest"] { font-size: 18px; }
 .lock-button,
 .share-box label,
 .share-box input,
-.debrief-next,
-.free-note { font-size: 0.8571rem; }
+.debrief-next { font-size: 0.8571rem; }
 .panel-sub,
 .modal .panel-kicker { font-size: 0.9286rem; }
 .debrief-kicker,
 .debrief-visual-caption span { font-size: 0.7857rem; }
-.debrief-answer span { font-size: 0.7143rem; }
+.debrief-answer-info > span { font-size: 0.7143rem; }
 .debrief-stat strong { font-size: 1.4286rem; }
 .toast-title { font-size: 0.8571rem; }
 .toast-body { font-size: 0.9286rem; }
@@ -5445,14 +5460,16 @@ html[data-timed="1"] #dossier-orb strong {
 }
 
 @media (max-width: 860px) {
-  .debrief.has-free-streak .debrief-main {
-    padding-top: 28px;
+  .debrief-answer {
+    flex-wrap: wrap;
   }
-  .debrief-streak {
-    top: 14px;
-    right: 56px;
-  }
-  .debrief-streak-value {
-    font-size: clamp(44px, 11vw, 72px);
+  .debrief-victim {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    padding-top: 10px;
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
 }

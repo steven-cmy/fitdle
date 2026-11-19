@@ -177,6 +177,27 @@ function localizeBonusText(text, types, locale) {
     .trim();
 }
 
+function normalizeBonusKey(text) {
+  return String(text || '')
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function bonusLinks(text) {
+  return [...new Set([...String(text || '').matchAll(/showinfo:(\d+)/gi)]
+    .map((match) => Number(match[1]))
+    .filter(Number.isFinite))];
+}
+
+function bonusAmount(bonus, unit, locale) {
+  if (!Number.isFinite(bonus)) return '';
+  const sign = bonus > 0 ? '+' : '';
+  if (unit === '%') return `${sign}${bonus}%`;
+  return unit ? `${sign}${bonus} ${unit}` : `${sign}${bonus}`;
+}
+
 async function main() {
   SDE = await ensureSde();
 
@@ -326,48 +347,61 @@ async function main() {
   });
 
   console.log('Loading ship bonuses...');
+  const bonusEntries = new Map();
   const bonuses = new Map();
   await stream('typeBonus.jsonl', (o) => {
     if (!types.has(o._key) || types.get(o._key).categoryID !== SHIP_CATEGORY) return;
-    const out = {};
-    for (const locale of LOCALES) {
-      const lines = [];
-      const renderBonus = (b, skillName, isRole) => {
-        if (!b?.bonusText) return;
-        const raw = b.bonusText[locale] || b.bonusText.en;
-        const text = localizeBonusText(raw, types, locale);
-        if (!text) return;
-        const unit = units.get(b.unitID)?.names?.[locale] || units.get(b.unitID)?.names?.en || '';
-        const value = b.bonus;
-        let amount = '';
-        if (Number.isFinite(value)) {
-          if (unit === '%') amount = `${value > 0 ? '+' : ''}${value}%`;
-          else if (unit) amount = `${value > 0 ? '+' : ''}${value} ${unit}`;
-          else amount = `${value > 0 ? '+' : ''}${value}`;
-        }
-        const prefix = isRole ? '' : (skillName ? `${skillName}: ` : '');
-        lines.push(`${prefix}${amount} ${text}`.replace(/\s+/g, ' ').trim());
-      };
-      for (const b of o.roleBonuses || []) {
-        const raw = b.bonusText?.[locale] || b.bonusText?.en;
-        const text = localizeBonusText(raw, types, locale);
-        if (!text) continue;
-        const unit = units.get(b.unitID)?.names?.[locale] || units.get(b.unitID)?.names?.en || '';
-        const value = b.bonus;
-        let amount = Number.isFinite(value)
-          ? (unit === '%' ? `${value > 0 ? '+' : ''}${value}%` : `${value > 0 ? '+' : ''}${value}${unit ? ' ' + unit : ''}`)
-          : '';
-        lines.push(`${amount} ${text}`.replace(/\s+/g, ' ').trim());
+    const entries = [];
+    const addEntry = (b, section, skill) => {
+      if (!b?.bonusText) return;
+      const text = {};
+      for (const locale of LOCALES) {
+        const localized = localizeBonusText(b.bonusText[locale] || b.bonusText.en, types, locale);
+        if (localized) text[locale] = localized;
       }
-      for (const group of o.types || []) {
-        const skill = types.get(group._key);
-        for (const b of group._value || []) {
-          renderBonus(b, skill?.names?.[locale] || skill?.names?.en, false);
-        }
-      }
-      out[locale] = [...new Set(lines)].slice(0, 4);
+      if (!text.en) return;
+      const bonus = Number.isFinite(b.bonus) ? Number(b.bonus) : null;
+      const unitID = Number.isFinite(b.unitID) ? Number(b.unitID) : null;
+      const unitLabel = unitID != null
+        ? (units.get(unitID)?.names?.['en'] || units.get(unitID)?.name || '')
+        : '';
+      const termKey = `${section}|${normalizeBonusKey(text.en)}`;
+      entries.push({
+        section,
+        skillID: section === 'role' ? null : Number(skill?.id) || null,
+        skill: section === 'role' ? null : (skill?.names || null),
+        importance: Number(b.importance) || 0,
+        bonus,
+        unitID,
+        unit: unitLabel,
+        links: bonusLinks(b.bonusText.en),
+        text,
+        textKey: normalizeBonusKey(text.en),
+        termKey,
+        bonusKey: `${termKey}|${bonus ?? ''}|${unitID ?? ''}`,
+      });
+    };
+
+    for (const b of o.roleBonuses || []) addEntry(b, 'role', null);
+    for (const group of o.types || []) {
+      const skill = types.get(group._key);
+      for (const b of group._value || []) addEntry(b, 'types', skill);
     }
-    bonuses.set(o._key, out);
+    bonusEntries.set(o._key, entries);
+
+    const localized = {};
+    for (const locale of LOCALES) {
+      const lines = entries.map((entry) => {
+        const text = entry.text[locale] || entry.text.en;
+        const amount = bonusAmount(entry.bonus, entry.unit, locale);
+        const prefix = entry.section === 'role'
+          ? ''
+          : `${entry.skill?.[locale] || entry.skill?.en || ''}: `;
+        return `${prefix}${amount} ${text}`.replace(/\s+/g, ' ').trim();
+      }).filter(Boolean);
+      localized[locale] = [...new Set(lines)];
+    }
+    bonuses.set(o._key, localized);
   });
 
   const shipPayload = ships.map((s) => {
@@ -391,6 +425,7 @@ async function main() {
       capacity: s.capacity ?? number(38),
       description: s.description,
       bonuses: bonuses.get(s.id) || {},
+      bonusEntries: bonusEntries.get(s.id) || [],
       attrs: {
         structureHP: number(9),
         powerOutput: number(11),

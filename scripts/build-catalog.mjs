@@ -99,6 +99,7 @@ const catalog = ships.map((ship) => {
       Object.entries(ship.description || {}).map(([locale, text]) => [locale, cleanText(text)])
     ),
     bonuses: ship.bonuses || {},
+    bonusEntries: ship.bonusEntries || [],
     attrs: {
       maxLockedTargets: number(attrs.maxLockedTargets) ?? 0,
       shieldResists: {
@@ -325,9 +326,12 @@ const moduleFallbacks = {};
   }
 }
 
-const RULESET_VERSION = 'v50';
+const RULESET_VERSION = 'v53';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
-const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}`;
+const bonusStamp = crypto.createHash('sha1').update(catalog.map((ship) => (
+  `${ship.id}:${(ship.bonusEntries || []).map((entry) => `${entry.bonusKey}:${(entry.links || []).join(',')}`).join(',')}`
+)).join('|')).digest('hex').slice(0, 12);
+const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}|${bonusStamp}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
 
 const manifest = {
