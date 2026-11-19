@@ -2058,6 +2058,16 @@ html[data-game-mode="abyss"] {
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--cat, var(--cyan)) 75%, transparent);
   background: linear-gradient(90deg, color-mix(in srgb, var(--cat) 5%, transparent), transparent 58%);
 }
+.attr-row[data-mass-toggle] {
+  cursor: pointer;
+}
+.attr-row[data-mass-toggle]:hover {
+  background: color-mix(in srgb, var(--cat, var(--cyan)) 8%, transparent);
+}
+.attr-row[data-mass-toggle]:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -2px;
+}
 .attr-row.equipment-row {
   grid-template-columns: minmax(0, 1fr) auto;
 }
@@ -3228,7 +3238,9 @@ html[data-game-mode="abyss"] {
 }
 .debrief-streak-value.is-reset {
   color: var(--red);
-  animation: free-streak-shake-compact 0.7s ease-in-out both;
+  animation:
+    free-streak-shake-compact 0.7s ease-in-out both,
+    free-streak-reset-color 1.6s ease-out both;
 }
 .debrief-streak.is-neutral .debrief-streak-value {
   color: var(--dim);
@@ -3268,6 +3280,10 @@ html[data-game-mode="abyss"] {
   80% { transform: translateX(0.018em); }
   88% { transform: translateX(-0.009em); }
   96% { transform: translateX(0.009em); }
+}
+@keyframes free-streak-reset-color {
+  0%, 44% { color: var(--red); }
+  100% { color: var(--text); }
 }
 @keyframes free-streak-confetti {
   0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
@@ -3543,7 +3559,7 @@ html[data-game-mode="abyss"] {
 }
 .debrief-bonus-title {
   margin-top: 16px;
-  color: var(--amber);
+  color: #4c8cb0;
   font: 600 0.5357rem/1 var(--font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -3552,7 +3568,7 @@ html[data-game-mode="abyss"] {
   margin-top: 14px;
 }
 .bonus-amount {
-  color: var(--cyan);
+  color: #c3e9ff;
   font-weight: 700;
 }
 .bonus-list .badge-hull,

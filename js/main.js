@@ -5,6 +5,7 @@ import {
   freeKillIdFromToken,
   emptyStats,
   filterDailyKillPool,
+  formatMass,
   freeKillToken,
   gameDateKey,
   KILL_HISTORY_START,
@@ -93,6 +94,7 @@ const state = {
   index: [],
   locale: 'en',
   i18n: null,
+  massUnit: 't',
   date: null,
   today: null,
   answerId: null,
@@ -1108,9 +1110,15 @@ function animateFreeStreak() {
     });
   } else if (event === 'reset') {
     valueEl.textContent = String(oldValue);
-    requestAnimationFrame(() => valueEl.classList.add('is-reset'));
-    setTimeout(() => { valueEl.textContent = '0'; }, 260);
-    setTimeout(() => valueEl.classList.remove('is-reset'), 950);
+    valueEl.classList.remove('is-reset');
+    // Let the old value sit in its normal colour first. Then switch the value,
+    // turn red and start shaking on the same frame. The colour animation holds
+    // red for the full shake and only fades back after the shake ends.
+    setTimeout(() => {
+      valueEl.textContent = '0';
+      valueEl.classList.add('is-reset');
+    }, 350);
+    setTimeout(() => valueEl.classList.remove('is-reset'), 2000);
   } else {
     valueEl.textContent = String(newValue);
   }
@@ -1906,6 +1914,11 @@ function renderAcquire() {
 }
 
 
+function formatMassValue(value) {
+  const formatted = formatMass(value, state.massUnit, 't');
+  return `<span class="big">${esc(formatted.value)}</span><span class="unit">${esc(formatted.unit)}</span>`;
+}
+
 function formatNumberValue(value, unit = '', options = {}) {
   const valueClass = options.small ? '' : ' class="big"';
   return `<span${valueClass}>${esc(options.prefix || '')}${esc(int(value))}</span>${unit ? `<span class="unit">${esc(unit)}</span>` : ''}`;
@@ -1983,7 +1996,7 @@ function clueValue(clue) {
     case 'warp':
       return `<span class="big">${esc(dec(value, 1))}</span><span class="unit">AU/s</span>`;
     case 'mass':
-      return `<span class="big">${esc(compact(value))}</span><span class="unit">kg</span>`;
+      return formatMassValue(value);
     case 'cargoCapacity':
       return formatNumberValue(value, 'm³');
     case 'shield':
@@ -2114,11 +2127,23 @@ function renderClueRow(clue, index, revealed) {
   }
   if (revealed && !value) value = '—';
   const zeroWeight = (Number(clue.w) || 0) <= 0 && state.status === 'playing';
-  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${clue.k === 'bonus' ? ' bonus-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-category="${category}">
+  const massToggle = clue.k === 'mass' && revealed;
+  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${clue.k === 'bonus' ? ' bonus-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-clue-kind="${esc(clue.k)}" data-category="${category}"${massToggle
+    ? ` data-mass-toggle="true" role="button" tabindex="0" title="${esc(t('clue.massToggle'))}"`
+    : ''}>
     <span class="attr-label">${esc(label)}</span>
     <span class="attr-value">${revealed ? value : '<span class="attr-redacted" aria-label="?">?</span>'}</span>
     <span class="attr-meta">${revealed ? weightPips(clue.w) : `<span class="attr-lock">${icon('lock')}</span>`}</span>
   </div>`;
+}
+
+function toggleMassUnit() {
+  state.massUnit = state.massUnit === 't' ? 'kg' : 't';
+  for (const row of $$('.attr-row[data-clue-kind="mass"]')) {
+    const clue = state.answerData?.clues?.[Number(row.dataset.clueIndex)];
+    const value = row.querySelector('.attr-value');
+    if (clue && value) value.innerHTML = clueValue(clue);
+  }
 }
 
 function renderCargoCapacityPlaceholder() {
@@ -3245,6 +3270,10 @@ document.addEventListener('keyup', (event) => {
 
 
 document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-mass-toggle]')) {
+    toggleMassUnit();
+    return;
+  }
   const actionEl = event.target.closest('[data-action]');
   if (actionEl) {
     const action = actionEl.dataset.action;
@@ -3294,6 +3323,11 @@ document.addEventListener('compositionend', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  if (event.target.closest('[data-mass-toggle]') && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault();
+    toggleMassUnit();
+    return;
+  }
   if (state.modal) {
     if (event.key === 'Escape') {
       event.preventDefault();

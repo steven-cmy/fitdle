@@ -190,20 +190,48 @@ instructions live in [README.md](README.md).
   equipment. Role bonuses are always `limited`; skill bonuses that target a
   race/class are also `limited`. All `limited` bonuses get a weight increase,
   and role bonuses have a higher floor.
-- Bonus `showinfo` module links carry `links` IDs into the catalog. Any bonus
-  that references equipment is treated as equipment/role information: it is
-  tagged `limited` and given a weight floor, with stronger weight when the linked
-  module's SDE `fitRestrictions.shipGroups`/`shipTypes` includes the answer hull.
-  Assault Damage Control is the canonical case: only Assault Frigates and Heavy
-  Assault Cruisers can fit it. Mining-laser/Strip Miner bonuses are treated the
-  same way even when the module itself has no useful fit restriction, because
-  the equipment identifies the ship role.
+- Equipment restriction markers describe the SDE restriction shape, not hull
+  count: one `shipGroups` entry or one `shipTypes` entry → `unique`; multiple
+  groups/types → `limited`; no restriction → no marker. A unique equipment clue
+  weighs 10; limited clues use breadth scarcity.
+- Bonus `showinfo` module links carry `links` IDs into the catalog. A bonus
+  inherits its linked equipment's marker: one restriction group/type makes the
+  bonus `unique` and weight 10, multiple groups/types make it `limited`, and
+  unrestricted equipment contributes no equipment-derived marker. Limited
+  equipment and its bonus use the same breadth-based rarity weight, so rarer
+  restrictions raise both. Assault Damage Control has two groups and is limited;
+  Bastion modules have one Marauder group and are unique. Mining-laser/Strip
+  Miner bonuses use the same range rule.
+- Module metadata includes `requiredSkills`. A bonus linked to a skill affects
+  every fitted module whose required skills include it; a bonus linked to a
+  module affects that module and its module group. Affected fitted equipment and
+  cargo clues are raised to at least the bonus weight, and high-slot/cargo
+  ammunition then inherits the boosted weapon weight.
+- Module metadata includes `power`/`cpu` and ships include `rigSize`. A fitted
+  module's base PG/CPU requirement infers the smallest hull bracket where at
+  least half the ships can fit it; medium/large/capital fits receive a size-based
+  weight floor. Cargo spare modules are excluded from this inference, while
+  cargo charges/scripts inherit the fitted weapon's weight.
+- Non-equipment attribute weights use human-discriminable buckets instead of
+  exact-value uniqueness: relative/log buckets for mass, speed, signature, HP,
+  recharge, capacitor, cargo, range, scan resolution, PG/CPU/calibration,
+  absolute buckets for align/warp, exact buckets for slots/hardpoints/locks,
+  quantized profiles for resists and sensor strength. Adjacent scalar buckets
+  count as the same human-visible range; this prevents tiny differences from
+  producing overweight clues. A small bracket-frequency bonus is applied only to
+  the class-varying attributes.
+- Standard defense clues use a wider value-matching range than Abyss: shield,
+  armor and structure HP use a four-times range, while shield recharge and the
+  resist layers use twice the base range. This keeps common defensive profiles
+  from producing overweight clues.
 - Standard and Abyss include bonus clues in the opening and random reveal pool;
   bonus clues are not part of the equipment quota. Abyss random non-equipment
   additions and standard miss additions must not exclude bonuses. Bonus clues do
   not narrow the static candidate set by themselves.
 - Debrief bonuses are grouped by skill/class with role bonuses in a separate
-  group, using SDE text and bold numeric values. Bonus limited/unique metadata
+  group, using SDE text and bold numeric values. Bonus numeric values use the
+  fixed light-blue `#c3e9ff` in every mode/theme, not the theme accent. Skill and
+  role group headings use the fixed teal `#4c8cb0`. Bonus limited/unique metadata
   participates in weight calculation but is not shown as a visible badge. In the
   dossier traits section, bonus rows have no "Hull bonus X" prefix.
 - Ammo inherits the strongest real weapon restriction for weight, but never
@@ -378,6 +406,10 @@ catalog, then run both refreshes before the final `build`.
   until the player scrolls them into view; clicking the arrow scrolls to the
   nearest unseen clue. Initial reveals also seed the unseen set when a fresh
   puzzle is opened with no guesses yet.
+- Mass shows a fully written, non-abbreviated number by default in tonnes,
+  using spaces as thousands separators and `t` as the unit. Clicking the mass
+  row toggles between tonnes and kg; clicking again returns to tonnes. The kg
+  state keeps the `kg` unit label.
 - Manual shared rules are in `help.sharedRules` and appear under General.
 - Mode sections must contain only mode-specific rules.
 - Do not restore the removed sentence about identical UTC target/language in
@@ -397,7 +429,7 @@ catalog, then run both refreshes before the final `build`.
 
 ## Tests
 
-`npm test` currently covers 60 cases, including downtime boundaries, target/KB
+`npm test` currently covers 64 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 container build order, and no hard-coded deployment domains.

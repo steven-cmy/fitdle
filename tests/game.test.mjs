@@ -13,6 +13,7 @@ import {
   freeKillIdFromToken,
   emptyStats,
   filterDailyKillPool,
+  formatMass,
   freeKillToken,
   gameDateKey,
   isValidDateKey,
@@ -43,7 +44,7 @@ import {
   utcDateKey,
   victimIsWatched,
 } from '../js/game.js';
-import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, selectAbyssFallbacks } from '../js/clues.js';
+import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, humanBucketKey, moduleFitSize, selectAbyssFallbacks, STANDARD_DEFENSE_RANGE } from '../js/clues.js';
 import { computeRevealed, computeTimedRevealed, timedRevealTotal } from '../js/reveal.js';
 import { MESSAGES, resolveLocale } from '../js/i18n.js';
 
@@ -293,7 +294,11 @@ test('bonus clues distinguish shared terms and value differences from SDE entrie
   assert.ok(caracalRate.tags.includes('limited'));
   assert.ok(navyRate.w > caracalRate.w, 'different values should raise the clue weight');
   const naga = build('Naga Navy Issue');
-  const role = naga.clues.find((clue) => clue.k === 'bonus' && clue.tags.includes('unique'));
+  const role = naga.clues.find((clue) => (
+    clue.k === 'bonus'
+    && clue.tags.includes('unique')
+    && naga.ship.bonusEntries[clue.v].section === 'role'
+  ));
   assert.ok(role);
   assert.ok(role.tags.includes('limited'));
   const wolf = build('Wolf');
@@ -310,8 +315,36 @@ test('bonus clues distinguish shared terms and value differences from SDE entrie
     && /mining laser/i.test(perseverance.ship.bonusEntries[clue.v].text.en)
   ));
   assert.ok(mining);
-  assert.ok(mining.tags.includes('limited'));
-  assert.ok(mining.w >= 8, 'equipment-linked bonus should carry a role-revealing weight');
+  assert.ok(mining.tags.includes('unique'));
+  assert.equal(mining.tags.includes('limited'), false);
+  assert.equal(mining.w, 10);
+  const fitted = buildClues({
+    ship: wolf.ship,
+    catalog,
+    refs,
+    stats: null,
+    losses: [{
+      killmail_id: 424245,
+      victim: {
+        items: [
+          { flag: 27, item_type_id: 486, quantity_destroyed: 1 },
+          { flag: 5, item_type_id: 486, quantity_destroyed: 1 },
+        ],
+      },
+    }],
+    dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion,
+  });
+  const turretBonus = fitted.clues.find((clue) => (
+    clue.k === 'bonus'
+    && wolf.ship.bonusEntries[clue.v].textKey.includes('small projectile turret')
+  ));
+  assert.ok(turretBonus);
+  const affected = fitted.clues.filter((clue) => (
+    (clue.k === 'equipment' || clue.k === 'cargo') && clue.v.module === 486
+  ));
+  assert.ok(affected.length >= 2);
+  assert.ok(affected.every((clue) => clue.w >= turretBonus.w));
 });
 
 test('ship search results follow tech, class, race and faction order', () => {
@@ -922,6 +955,33 @@ test('assault damage control raises abyss structure resist weight', () => {
   assert.ok(standard.w <= 0.4);
 });
 
+test('standard defense clues use a wider matching range than abyss', () => {
+  const ship = catalog.find((entry) => entry.id === 587);
+  const build = (mode) => buildClues({
+    ship, catalog, refs, stats: null, losses: [], dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion, mode,
+  }).clues.find((clue) => clue.k === 'shield');
+  const standard = build(undefined);
+  const abyss = build('abyss');
+  assert.equal(standard.range, STANDARD_DEFENSE_RANGE);
+  assert.equal(abyss.range, undefined);
+  assert.ok(clueMatchesShip({ ...standard, v: standard.v * 1.08 }, ship));
+  assert.equal(clueMatchesShip({ ...standard, v: standard.v * 1.3 }, ship), false);
+});
+
+test('mass defaults to tonnes with spaced thousands and can switch to kg', () => {
+  assert.deepEqual(formatMass(15000000, 't', 't'), { value: '15 000', unit: 't' });
+  assert.deepEqual(formatMass(1234567, 't', 't'), { value: '1 234.567', unit: 't' });
+  assert.deepEqual(formatMass(15000000, 'kg', 't'), { value: '15 000 000', unit: 'kg' });
+});
+
+test('human value buckets merge small variations but separate broad ranges', () => {
+  assert.equal(humanBucketKey('mass', 15000000), humanBucketKey('mass', 15100000));
+  assert.notEqual(humanBucketKey('mass', 15000000), humanBucketKey('mass', 100000000));
+  assert.equal(humanBucketKey('shield', 3000), humanBucketKey('shield', 3200));
+  assert.notEqual(humanBucketKey('shield', 3000), humanBucketKey('shield', 6000));
+});
+
 test('sensor strength and shield recharge are exposed as static clues', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const built = buildClues({
@@ -1263,6 +1323,26 @@ test('abyss fallback picks the nearest meta of the same module variant', () => {
     { module: 18973, slot: 'low' },
   ], refs, manifest.moduleFallbacks);
   assert.equal(entropicFallbacks.get(49734), 52244);
+});
+
+test('fitted module PG/CPU implies a size floor but cargo spares do not', () => {
+  const ship = catalog.find((entry) => entry.attrs.rigSize === 2);
+  const module = refs.modules[35659];
+  assert.equal(moduleFitSize(module, catalog), 2);
+  assert.equal(moduleFitSize(refs.modules[5973], catalog), 1);
+  assert.equal(moduleFitSize(refs.modules[35661], catalog), 3);
+  const build = (flag) => buildClues({
+    ship, catalog, refs, stats: null, dateKey: '2026-11-18', dataVersion: manifest.dataVersion,
+    losses: [{
+      killmail_id: 424251,
+      zkb: { totalValue: 1000 },
+      victim: { items: [{ flag, item_type_id: 35659, quantity_destroyed: 1 }] },
+    }],
+  }).clues.find((clue) => clue.v.module === 35659);
+  const fitted = build(19);
+  const cargo = build(5);
+  assert.ok(fitted.w >= 6.2);
+  assert.ok(cargo.w < 6.2);
 });
 
 test('abyss weights start from base stats and drop when fitted values change', () => {

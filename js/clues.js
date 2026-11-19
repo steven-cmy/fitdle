@@ -102,6 +102,36 @@ const VALUE_MIN_TOLERANCE = {
 const FIT_ADDITIVE = ['mass', 'sig', 'shield', 'armor', 'structure', 'capacitor', 'cargo', 'targetRange', 'scanRes', 'pg', 'cpu', 'calibration'];
 const FIT_RATIO = ['speed', 'align', 'warp', 'shieldRecharge'];
 const ABYSS_FITTED_WEIGHT_FACTOR = 0.7;
+export const STANDARD_DEFENSE_RANGE = 4;
+const STANDARD_DEFENSE_AUX_RANGE = 2;
+
+// Human-discriminable buckets. Tiny differences inside one bucket must not
+// create a high-weight "unique" clue.
+const HUMAN_BUCKETS = {
+  mass: { relative: 0.12 },
+  speed: { relative: 0.1 },
+  sig: { relative: 0.1 },
+  align: { absolute: 0.25 },
+  warp: { absolute: 0.4 },
+  shield: { relative: 0.4 },
+  armor: { relative: 0.4 },
+  structure: { relative: 0.4 },
+  shieldRecharge: { relative: 0.15 },
+  capacitor: { relative: 0.15 },
+  cargoCapacity: { relative: 0.2 },
+  targetRange: { relative: 0.15 },
+  scanRes: { relative: 0.1 },
+  pg: { relative: 0.1 },
+  cpu: { relative: 0.1 },
+  calibration: { relative: 0.1 },
+};
+const BRACKET_BONUS_KINDS = new Set([
+  'cargoCapacity', 'rigSlots', 'maxLockedTargets', 'calibration', 'hiSlots',
+  'targetRange', 'cpu', 'droneBandwidth', 'lowSlots', 'medSlots',
+  'droneCapacity', 'turretHardpoints', 'launcherHardpoints',
+]);
+const RESIST_KEYS = ['em', 'thermal', 'kinetic', 'explosive'];
+const SENSOR_KEYS = ['radar', 'ladar', 'magnetometric', 'gravimetric'];
 
 function deriveFitDelta(base = {}, fitted = null) {
   const delta = { add: {}, ratio: {}, resist: {} };
@@ -150,19 +180,17 @@ function sameClueValue(kind, a, b) {
   return sameValue(kind, a, b);
 }
 
-function sameValue(kind, a, b) {
+function sameValue(kind, a, b, rangeScale = 1) {
   if (kind === 'slots' || kind === 'hardpoints' || kind === 'drones') {
     return JSON.stringify(a) === JSON.stringify(b);
   }
   const left = Number(a) || 0;
   const right = Number(b) || 0;
-  const ratio = VALUE_TOLERANCE[kind] ?? 0.03;
-  const minimum = VALUE_MIN_TOLERANCE[kind] ?? 0;
+  const ratio = (VALUE_TOLERANCE[kind] ?? 0.03) * rangeScale;
+  const minimum = (VALUE_MIN_TOLERANCE[kind] ?? 0) * rangeScale;
   const tolerance = Math.max(minimum, Math.max(Math.abs(left), Math.abs(right)) * ratio);
   return Math.abs(left - right) <= tolerance;
 }
-
-const SENSOR_KEYS = ['radar', 'ladar', 'magnetometric', 'gravimetric'];
 
 function adjustedSensorStrength(value, fitDelta) {
   if (!value) return null;
@@ -195,11 +223,33 @@ function resistsAreUniform(value) {
   return Math.max(...values) - Math.min(...values) <= 0.5;
 }
 
-function sameResists(left, right, delta = null) {
+function sameResists(left, right, delta = null, rangeScale = 1) {
   if (!left || !right) return false;
   return ['em', 'thermal', 'kinetic', 'explosive'].every((key) => (
-    sameValue('resist', (Number(left[key]) || 0) + (Number(delta?.[key]) || 0), right[key])
+    sameValue('resist', (Number(left[key]) || 0) + (Number(delta?.[key]) || 0), right[key], rangeScale)
   ));
+}
+
+const FIT_SIZE_FLOOR = { 1: 0, 2: 6.2, 3: 7.4, 4: 8.8 };
+
+export function moduleFitSize(module, catalog) {
+  const power = Number(module?.power || 0);
+  const cpu = Number(module?.cpu || 0);
+  if (!power && !cpu) return 0;
+  const brackets = { 1: [], 2: [], 3: [], 4: [] };
+  for (const ship of catalog) {
+    const size = Math.min(4, Math.max(1, Number(ship?.attrs?.rigSize) || 1));
+    brackets[size].push(ship);
+  }
+  for (const size of [1, 2, 3, 4]) {
+    const ships = brackets[size];
+    if (ships.length < 3) continue;
+    const fit = ships.filter((ship) => (
+      Number(ship.attrs?.pg) >= power && Number(ship.attrs?.cpu) >= cpu
+    )).length;
+    if (fit / ships.length >= 0.5) return size;
+  }
+  return 0;
 }
 
 function moduleSizeRank(name) {
@@ -400,9 +450,20 @@ function equipmentRestriction(module) {
   const groups = [...new Set(restrictions.shipGroups || [])].filter(Boolean);
   const types = [...new Set(restrictions.shipTypes || [])].filter(Boolean);
   if (!groups.length && !types.length) return null;
-  if (types.length === 1 && groups.length <= 1) return 'unique';
-  if (!types.length && groups.length === 1) return 'unique';
+  // One ship group is a class-limited module, even when that class contains
+  // several hulls; the marker describes the restriction shape, not hull count.
+  if (groups.length === 1) return 'unique';
+  if (!groups.length && types.length === 1) return 'unique';
   return 'limited';
+}
+
+function restrictedEquipmentWeight(module, catalog, forceLimited = false) {
+  const restriction = equipmentRestriction(module);
+  if (restriction === 'unique') return 10;
+  if (restriction !== 'limited' && !forceLimited) return 0;
+  const breadth = restrictionBreadth(module, catalog);
+  const scarcity = 1 - Math.log2(1 + breadth) / Math.log2(1 + Math.max(1, catalog.length));
+  return clamp(8.2 + 1.6 * scarcity + moduleSizeRank(module?.name) * 0.2, 8.2, 9.8);
 }
 
 export function getEquipment(losses, refs = null) {
@@ -589,10 +650,10 @@ function matchesCatalog(clue, other, fitDelta = null) {
     case 'warp': return sameValue('warp', adjustedAttr('warp', attrs, fitDelta), clue.v);
     case 'mass': return sameValue('mass', adjustedAttr('mass', attrs, fitDelta), clue.v);
     case 'cargoCapacity': return sameValue('cargo', adjustedAttr('cargo', attrs, fitDelta), clue.v);
-    case 'shield': return sameValue('shield', adjustedAttr('shield', attrs, fitDelta), clue.v);
-    case 'shieldRecharge': return sameValue('shieldRecharge', adjustedAttr('shieldRecharge', attrs, fitDelta), clue.v);
-    case 'armor': return sameValue('armor', adjustedAttr('armor', attrs, fitDelta), clue.v);
-    case 'structure': return sameValue('structure', adjustedAttr('structure', attrs, fitDelta), clue.v);
+    case 'shield': return sameValue('shield', adjustedAttr('shield', attrs, fitDelta), clue.v, clue.range);
+    case 'shieldRecharge': return sameValue('shieldRecharge', adjustedAttr('shieldRecharge', attrs, fitDelta), clue.v, clue.range);
+    case 'armor': return sameValue('armor', adjustedAttr('armor', attrs, fitDelta), clue.v, clue.range);
+    case 'structure': return sameValue('structure', adjustedAttr('structure', attrs, fitDelta), clue.v, clue.range);
     case 'capacitor': return sameValue('capacitor', adjustedAttr('capacitor', attrs, fitDelta), clue.v);
     case 'targetRange': return sameValue('targetRange', adjustedAttr('targetRange', attrs, fitDelta), clue.v);
     case 'scanRes': return sameValue('scanRes', adjustedAttr('scanRes', attrs, fitDelta), clue.v);
@@ -600,7 +661,7 @@ function matchesCatalog(clue, other, fitDelta = null) {
     case 'shieldResists':
     case 'armorResists':
     case 'structureResists':
-      return sameResists(attrs[clue.k], clue.v, fitDelta?.resist?.[clue.k]);
+      return sameResists(attrs[clue.k], clue.v, fitDelta?.resist?.[clue.k], clue.range);
     case 'pg': return sameValue('pg', adjustedAttr('pg', attrs, fitDelta), clue.v);
     case 'cpu': return sameValue('cpu', adjustedAttr('cpu', attrs, fitDelta), clue.v);
     case 'calibration': return sameValue('calibration', adjustedAttr('calibration', attrs, fitDelta), clue.v);
@@ -610,6 +671,94 @@ function matchesCatalog(clue, other, fitDelta = null) {
 
 export function clueMatchesShip(clue, ship, fitDelta = null) {
   return matchesCatalog(clue, ship, fitDelta);
+}
+
+function bucketValueForShip(kind, ship) {
+  const attrs = ship?.attrs || {};
+  switch (kind) {
+    case 'drones':
+      return {
+        bandwidth: Number(attrs.droneBandwidth) || 0,
+        capacity: Number(attrs.droneCapacity) || 0,
+      };
+    case 'sensorStrength':
+      return attrs.sensorStrength || null;
+    case 'shieldResists':
+    case 'armorResists':
+    case 'structureResists':
+      return attrs[kind] || null;
+    case 'tech': return ship?.techLevel;
+    case 'race': return ship?.raceID;
+    case 'faction': return ship?.factionID;
+    case 'group': return ship?.groupID;
+    case 'hiSlots': return attrs.hi;
+    case 'medSlots': return attrs.med;
+    case 'lowSlots': return attrs.low;
+    case 'rigSlots': return attrs.rig;
+    case 'turretHardpoints': return attrs.turret;
+    case 'launcherHardpoints': return attrs.launcher;
+    case 'maxLockedTargets': return attrs.maxLockedTargets;
+    case 'cargoCapacity': return attrs.cargo;
+    case 'droneBandwidth': return attrs.droneBandwidth;
+    case 'droneCapacity': return attrs.droneCapacity;
+    default: return attrs[kind];
+  }
+}
+
+export function humanBucketKey(kind, value) {
+  if (value == null) return null;
+  if (kind === 'drones') {
+    return `${Math.round(Number(value.bandwidth) || 0)}:${Math.round(Number(value.capacity) || 0)}`;
+  }
+  if (kind === 'sensorStrength') {
+    return SENSOR_KEYS.map((key) => Math.round((Number(value[key]) || 0) / 5) * 5).join('/');
+  }
+  if (kind === 'shieldResists' || kind === 'armorResists' || kind === 'structureResists') {
+    return RESIST_KEYS.map((key) => Math.round((Number(value[key]) || 0) / 10) * 10).join('/');
+  }
+  if (['tech', 'race', 'faction', 'group', 'hiSlots', 'medSlots', 'lowSlots',
+    'rigSlots', 'turretHardpoints', 'launcherHardpoints', 'maxLockedTargets',
+    'droneBandwidth', 'droneCapacity'].includes(kind)) {
+    return String(Math.round(Number(value)));
+  }
+  const bucket = HUMAN_BUCKETS[kind];
+  if (!bucket) return String(value);
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value);
+  if (bucket.absolute) return String(Math.round(number / bucket.absolute));
+  if (number <= 0) return '0';
+  return String(Math.round(Math.log(number) / Math.log(1 + bucket.relative)));
+}
+
+function bucketNear(target, candidate, kind) {
+  if (!HUMAN_BUCKETS[kind]) return target === candidate;
+  const a = Number(target);
+  const b = Number(candidate);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return target === candidate;
+  return Math.abs(a - b) <= 1;
+}
+
+function humanBucketMatches(clue, catalog) {
+  const target = humanBucketKey(clue.k, clue.v);
+  if (target == null) return 1;
+  let count = 0;
+  for (const other of catalog) {
+    const key = humanBucketKey(clue.k, bucketValueForShip(clue.k, other));
+    if (bucketNear(target, key, clue.k)) count++;
+  }
+  return Math.max(1, count);
+}
+
+function classBucketCount(clue, ship, catalog) {
+  const target = humanBucketKey(clue.k, clue.v);
+  if (target == null) return { count: 1, size: 1 };
+  const sameClass = catalog.filter((other) => Number(other.groupID) === Number(ship?.groupID));
+  let count = 0;
+  for (const other of sameClass) {
+    const key = humanBucketKey(clue.k, bucketValueForShip(clue.k, other));
+    if (bucketNear(target, key, clue.k)) count++;
+  }
+  return { count: Math.max(1, count), size: Math.max(1, sameClass.length) };
 }
 
 function weightFor(clue, ship, catalog, fitDelta = null) {
@@ -624,9 +773,15 @@ function weightFor(clue, ship, catalog, fitDelta = null) {
   // zKillboard's "recent" bucket is a 90-day window; losses30 is a legacy key.
   const economyWeights = { losses30: 7.5, danger: 6.8, avgValue: 8.2 };
   if (economyWeights[clue.k] != null) return economyWeights[clue.k];
-  const matches = Math.max(1, catalog.reduce((count, other) => count + (matchesCatalog(clue, other, fitDelta) ? 1 : 0), 0));
-  const weight = clue.prior + 1.8 * Math.log2(catalog.length / matches);
-  return clamp(weight, 1, 10);
+  const matches = humanBucketMatches(clue, catalog);
+  let weight = (Number(clue.prior) || 1) + 1.8 * Math.log2(catalog.length / matches);
+  if (BRACKET_BONUS_KINDS.has(clue.k) && ship) {
+    const bracket = classBucketCount(clue, ship, catalog);
+    if (bracket.size >= 3) {
+      weight += 0.35 * (1 - bracket.count / bracket.size);
+    }
+  }
+  return round(clamp(weight, 1, 10), 1);
 }
 
 function orderClues(clues, seed, mode = 'normal') {
@@ -685,6 +840,14 @@ export function buildClues({
     ? new Map(staticClues(ship, baselineAttrs || ship.attrs || {}).map((clue) => [clue.k, clue.v]))
     : null;
   const clues = staticClues(ship, attrs);
+  if (mode !== 'abyss') {
+    for (const clue of clues) {
+      if (clue.c !== 'defense') continue;
+      clue.range = ['shield', 'armor', 'structure'].includes(clue.k)
+        ? STANDARD_DEFENSE_RANGE
+        : STANDARD_DEFENSE_AUX_RANGE;
+    }
+  }
 
   const equipmentClues = [];
   const highWeapons = [];
@@ -730,9 +893,14 @@ export function buildClues({
       weight -= Math.min(common ? 0.4 : 1.2, item.rate * (common ? 0.4 : 1.2));
       weight = clamp(weight, 1, 7.8);
     } else if (restriction === 'limited') {
-      const breadth = restrictionBreadth(module, catalog);
-      const scarcity = 1 - Math.log2(1 + breadth) / Math.log2(1 + Math.max(1, catalog.length));
-      weight = clamp(8.2 + 1.6 * scarcity + moduleSizeRank(module?.name) * 0.2, 8.2, 9.8);
+      weight = restrictedEquipmentWeight(module, catalog, true);
+    }
+    // A fitted module's PG/CPU requirement is a soft lower bound on hull size.
+    // Cargo spare modules are ignored; cargo charges/scripts inherit a fitted
+    // weapon's weight below.
+    if (!['cargo', 'fighterBay', 'fuelBay'].includes(item.slot)) {
+      const fitSize = moduleFitSize(module, catalog);
+      if (fitSize >= 2) weight = Math.max(weight, FIT_SIZE_FLOOR[fitSize]);
     }
     // Rigs narrow the hull class strongly; capital/XL rigs are near-unique.
     if (item.slot === 'rig') {
@@ -885,38 +1053,40 @@ export function buildClues({
       const termText = String(entry.text?.[refs.lang] || entry.text?.en || '').toLowerCase();
       const targetNames = [...raceNames, ...groupNames].filter((name) => name.length >= 3);
       let restrictionBoost = 0;
-      let moduleRestricted = false;
-      let equipmentLinked = false;
+      let equipmentUnique = false;
+      let equipmentLimited = false;
+      let equipmentRarityWeight = 0;
       for (const moduleID of entry.links || []) {
         const module = refs.modules?.[moduleID];
         if (!module) continue;
-        equipmentLinked = true;
-        const fit = module.fitRestrictions;
-        if (!fit) {
-          restrictionBoost = Math.max(restrictionBoost, 0.6);
+        const restriction = equipmentRestriction(module);
+        if (restriction === 'unique') {
+          equipmentUnique = true;
+          equipmentRarityWeight = Math.max(equipmentRarityWeight, 10);
           continue;
         }
-        if ((fit.shipTypes || []).includes(ship.id)) {
-          moduleRestricted = true;
+        if (restriction !== 'limited') continue;
+        equipmentLimited = true;
+        equipmentRarityWeight = Math.max(
+          equipmentRarityWeight,
+          restrictedEquipmentWeight(module, catalog),
+        );
+        const fit = module.fitRestrictions;
+        if ((fit?.shipTypes || []).includes(ship.id)) {
           restrictionBoost = Math.max(restrictionBoost, 1.8);
-        } else if ((fit.shipGroups || []).includes(ship.groupID)) {
-          moduleRestricted = true;
+        } else if ((fit?.shipGroups || []).includes(ship.groupID)) {
           const groupCount = (fit.shipGroups || []).length;
           restrictionBoost = Math.max(
             restrictionBoost,
             groupCount <= 2 ? 1.8 : groupCount <= 6 ? 1.4 : 0.8,
           );
-        } else if ((fit.shipGroups || []).length || (fit.shipTypes || []).length) {
-          // The bonus references equipment with a narrow hull fit, even when
-          // the linked module is not fitted to this exact hull.
+        } else if ((fit?.shipGroups || []).length || (fit?.shipTypes || []).length) {
           restrictionBoost = Math.max(restrictionBoost, 1.0);
-        } else {
-          restrictionBoost = Math.max(restrictionBoost, 0.6);
         }
       }
       const targetsHull = entry.section === 'role'
-        || moduleRestricted
-        || equipmentLinked
+        || equipmentUnique
+        || equipmentLimited
         || (skillName && targetNames.some((name) => skillName.includes(name)))
         || (termText && targetNames.some((name) => termText.includes(name)));
       const termRarity = clamp(1 - Math.log2(termCount) / Math.log2(32), 0, 1);
@@ -930,16 +1100,17 @@ export function buildClues({
         + 1.2 * spread;
       if (targetsHull) weight += 1.0;
       weight += restrictionBoost;
-      if (moduleRestricted) weight = Math.max(weight, 8.5);
-      else if (equipmentLinked) weight = Math.max(weight, 8.0);
+      if (equipmentRarityWeight) weight = Math.max(weight, equipmentRarityWeight);
+      if (equipmentLimited) weight = Math.max(weight, 8.5);
       if (entry.section === 'role') {
         weight += 0.8;
         weight = Math.max(weight, 7.5);
       }
-      if (termCount === 1) weight = 10;
+      if (equipmentUnique || termCount === 1) weight = 10;
+      const uniqueBonus = equipmentUnique || termCount === 1;
       const tags = [];
-      if (termCount === 1) tags.push('unique');
-      if (targetsHull) tags.push('limited');
+      if (uniqueBonus) tags.push('unique');
+      if (targetsHull && (!uniqueBonus || entry.section === 'role')) tags.push('limited');
       clues.push({
         k: 'bonus',
         c: 'traits',
@@ -949,6 +1120,80 @@ export function buildClues({
         tags,
         bonusKey: entry.bonusKey,
       });
+    }
+  }
+
+  // Equipment and cargo affected by a ship bonus inherit at least that bonus
+  // clue's weight. Skill links are resolved through module required-skill data;
+  // module links also cover every variant in the linked module group.
+  const moduleBonuses = clues.filter((clue) => clue.k === 'bonus');
+  if (moduleBonuses.length) {
+    const modulesBySkill = new Map();
+    for (const [moduleID, module] of Object.entries(refs.modules || {})) {
+      for (const skillID of module.requiredSkills || []) {
+        if (!modulesBySkill.has(skillID)) modulesBySkill.set(skillID, new Set());
+        modulesBySkill.get(skillID).add(Number(moduleID));
+      }
+    }
+    const bonusByModule = new Map();
+    const bonusByGroup = new Map();
+    const addAffected = (moduleID, groupID, weight) => {
+      bonusByModule.set(moduleID, Math.max(bonusByModule.get(moduleID) || 0, weight));
+      if (groupID) bonusByGroup.set(groupID, Math.max(bonusByGroup.get(groupID) || 0, weight));
+    };
+    for (const clue of moduleBonuses) {
+      const entry = bonusEntries[clue.v];
+      if (!entry) continue;
+      for (const linkID of entry.links || []) {
+        const linked = refs.modules?.[linkID];
+        if (linked) {
+          addAffected(Number(linkID), Number(linked.groupID), clue.w);
+          continue;
+        }
+        for (const moduleID of modulesBySkill.get(linkID) || []) {
+          const module = refs.modules?.[moduleID];
+          addAffected(moduleID, Number(module?.groupID), clue.w);
+        }
+      }
+    }
+    for (const clue of clues) {
+      if (clue.k !== 'equipment' && clue.k !== 'cargo') continue;
+      const module = refs.modules?.[clue.v.module];
+      const boost = Math.max(
+        bonusByModule.get(Number(clue.v.module)) || 0,
+        bonusByGroup.get(Number(module?.groupID)) || 0,
+      );
+      if (boost) clue.w = round(clamp(Math.max(clue.w, boost), 1, 10), 1);
+    }
+
+    // Equipment weight boosts must flow into ammunition/charges as well.
+    if (highWeapons.length) {
+      const boostedUnique = highWeapons.find((clue) => clue.tag === 'unique');
+      const boostedLimited = highWeapons.find((clue) => clue.tag === 'limited');
+      const boostedAmmo = boostedUnique
+        ? 10
+        : boostedLimited
+          ? Math.max(...highWeapons.filter((clue) => clue.tag === 'limited').map((clue) => clue.w))
+          : Math.min(...highWeapons.map((clue) => clue.w));
+      for (const clue of equipmentClues) {
+        if (clue.charge) clue.w = round(Math.max(clue.w, boostedAmmo), 1);
+      }
+    }
+    const chargedWeapons = equipmentClues.filter((clue) => {
+      if (['cargo', 'fighterBay', 'fuelBay'].includes(clue.v.slot)) return false;
+      const module = refs.modules?.[clue.v.module];
+      return Array.isArray(module?.chargeGroups) && module.chargeGroups.length;
+    });
+    for (const clue of equipmentClues) {
+      if (clue.v.slot !== 'cargo') continue;
+      const cargoModule = refs.modules?.[clue.v.module];
+      if (!cargoModule || Number(cargoModule.categoryID) !== 8) continue;
+      const compatible = chargedWeapons.filter((fitted) => {
+        const module = refs.modules?.[fitted.v.module];
+        return module?.chargeGroups?.includes(cargoModule.groupID);
+      });
+      if (!compatible.length) continue;
+      clue.w = round(Math.max(clue.w, ...compatible.map((fitted) => fitted.w)), 1);
     }
   }
 

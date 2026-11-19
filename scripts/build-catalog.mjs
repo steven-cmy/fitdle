@@ -124,6 +124,7 @@ const catalog = ships.map((ship) => {
       med: number(attrs.medSlots) ?? 0,
       low: number(attrs.lowSlots) ?? 0,
       rig: number(attrs.rigSlots) ?? 0,
+      rigSize: number(attrs.rigSize) ?? 0,
       turret: number(attrs.turretHardpoints) ?? 0,
       launcher: number(attrs.launcherHardpoints) ?? 0,
       speed: number(attrs.maxVelocity) ?? 0,
@@ -259,6 +260,9 @@ function makeRefs(locale) {
       metaGroupID: module.metaGroupID ?? null,
       fitRestrictions: module.fitRestrictions || null,
       chargeGroups: module.chargeGroups || [],
+      requiredSkills: module.requiredSkills || [],
+      power: Number(module.power || 0),
+      cpu: Number(module.cpu || 0),
       metaLevel: module.metaLevel ?? null,
       resistLayers: module.resistLayers || null,
       assaultDamageControl: module.assaultDamageControl === true,
@@ -326,12 +330,16 @@ const moduleFallbacks = {};
   }
 }
 
-const RULESET_VERSION = 'v53';
+const RULESET_VERSION = 'v56';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
 const bonusStamp = crypto.createHash('sha1').update(catalog.map((ship) => (
   `${ship.id}:${(ship.bonusEntries || []).map((entry) => `${entry.bonusKey}:${(entry.links || []).join(',')}`).join(',')}`
 )).join('|')).digest('hex').slice(0, 12);
-const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}|${bonusStamp}`;
+const moduleFitStamp = moduleTypes.reduce((sum, module) => (
+  sum + (Number(module.power) > 0 ? 1 : 0) + (Number(module.cpu) > 0 ? 1 : 0)
+), 0);
+const rigSizeStamp = catalog.filter((ship) => Number(ship.attrs.rigSize) > 0).length;
+const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${moduleFitStamp}|${rigSizeStamp}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}|${bonusStamp}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
 
 const manifest = {

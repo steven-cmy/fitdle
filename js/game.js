@@ -641,6 +641,23 @@ export function recordPlay(storage, stats, { date, mode = 'standard', isToday })
 }
 
 /** Record a completed daily gameplay result. Free modes are not recorded. */
+export function formatMass(value, unit = 't', tonnesLabel = 't') {
+  const kg = Math.max(0, Number(value) || 0);
+  if (unit === 'kg') {
+    return {
+      value: String(Math.round(kg)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '),
+      unit: 'kg',
+    };
+  }
+  const text = (kg / 1000).toFixed(3).replace(/\.?0+$/, '');
+  const [whole, fraction] = text.split('.');
+  return {
+    value: `${String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}${fraction ? `.${fraction}` : ''}`,
+    unit: tonnesLabel,
+  };
+}
+
+/** Record a completed daily gameplay result. Free modes are not recorded. */
 export function recordResult(storage, stats, { date, status, attempts, isToday, mode = 'standard' }) {
   if (!isToday) return stats;
   const modeKey = normalizeStatMode(mode);

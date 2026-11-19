@@ -283,6 +283,9 @@ async function main() {
   const moduleChargeGroups = new Map();
   const moduleMetaLevels = new Map();
   const moduleResistLayers = new Map();
+  const moduleRequiredSkills = new Map();
+  const modulePower = new Map();
+  const moduleCpu = new Map();
   const assaultDamageControls = new Set();
   await stream('typeDogma.jsonl', (o) => {
     const t = types.get(o._key);
@@ -291,14 +294,22 @@ async function main() {
     const canFitShipTypes = [];
     const canFitShipGroups = [];
     const chargeGroups = [];
+    const requiredSkills = [];
     const resistLayers = { shield: false, armor: false, structure: false };
     const groupName = String(groups.get(t.groupID)?.names?.en || '');
     const shieldGroup = /shield/i.test(groupName);
     const armorGroup = /armor/i.test(groupName);
     let metaLevel = null;
+    let power = null;
+    let cpu = null;
     for (const a of o.dogmaAttributes || []) {
       const id = a.attributeID;
       if (t.categoryID === SHIP_CATEGORY) attrs[id] = a.value;
+      if (t.categoryID === 7 && id === 30) power = Number(a.value);
+      if (t.categoryID === 7 && id === 50) cpu = Number(a.value);
+      if (t.categoryID === 7 && id >= 182 && id <= 187 && a.value) {
+        requiredSkills.push(Number(a.value));
+      }
       if (/^canFitShipType\d+$/.test(attributes.get(id)?.name || '') || id === 1380) {
         if (a.value) canFitShipTypes.push(Number(a.value));
       }
@@ -337,7 +348,12 @@ async function main() {
     if (chargeGroups.length) {
       moduleChargeGroups.set(o._key, [...new Set(chargeGroups)]);
     }
+    if (requiredSkills.length) {
+      moduleRequiredSkills.set(o._key, [...new Set(requiredSkills)]);
+    }
     if (metaLevel != null) moduleMetaLevels.set(o._key, metaLevel);
+    if (power != null) modulePower.set(o._key, power);
+    if (cpu != null) moduleCpu.set(o._key, cpu);
     if (t.categoryID === 7 && Object.values(resistLayers).some(Boolean)) {
       moduleResistLayers.set(o._key, resistLayers);
     }
@@ -454,6 +470,7 @@ async function main() {
         warpSpeedMultiplier: number(600),
         calibration: number(1132),
         rigSlots: number(1137),
+        rigSize: number(1547),
         droneBandwidth: number(1271),
         baseWarpSpeed: number(1281),
         cargoCapacity: s.capacity ?? number(38),
@@ -490,7 +507,10 @@ async function main() {
       iconID: t.iconID,
       fitRestrictions: fitRestrictions.get(t.id) || null,
       chargeGroups: moduleChargeGroups.get(t.id) || [],
+      requiredSkills: moduleRequiredSkills.get(t.id) || [],
       metaLevel: moduleMetaLevels.get(t.id) ?? null,
+      power: modulePower.get(t.id) ?? 0,
+      cpu: moduleCpu.get(t.id) ?? 0,
       resistLayers: moduleResistLayers.get(t.id) || null,
       assaultDamageControl: assaultDamageControls.has(t.id),
     });
