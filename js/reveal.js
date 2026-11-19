@@ -72,7 +72,7 @@ function chooseInitial({ clues, catalog, fitDelta, random }) {
     && (weight < INITIAL_WEIGHT_THRESHOLD || revealed.size < 3)
   ) {
     const available = candidates.filter(({ clue, index }) => {
-      if (revealed.has(index) || clue.k === 'bonus') return false;
+      if (revealed.has(index)) return false;
       if (clue.k === 'cargo') return false;
       if (clue.k === 'equipment' && clue.tag) return false;
       if (identity(clue) && hasIdentity) return false;
@@ -94,7 +94,6 @@ function chooseInitial({ clues, catalog, fitDelta, random }) {
   if (weight < INITIAL_WEIGHT_THRESHOLD && revealed.size < INITIAL_MAX_CLUES) {
     const fallback = candidates.filter(({ clue, index }) => (
       !revealed.has(index)
-      && clue.k !== 'bonus'
       && clue.k !== 'cargo'
       && !(clue.k === 'equipment' && clue.tag)
       && !(identity(clue) && hasIdentity)
@@ -113,7 +112,6 @@ function replacementFor({ equipment, revealed, clues, catalog, fitDelta }) {
     const clue = clues[index];
     if ((clue.k === 'equipment') !== equipment) continue;
     if (clue.k !== 'equipment' && wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)) continue;
-    if (clue.k === 'bonus') continue;
     return index;
   }
   return -1;
@@ -173,7 +171,6 @@ function addAbyssOther({ revealed, clues, catalog, fitDelta, random }) {
     .filter(({ clue, index }) => (
       clue.k !== 'equipment'
       && clue.k !== 'cargo'
-      && clue.k !== 'bonus'
       && !revealed.has(index)
       && !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)
     ));
@@ -221,6 +218,19 @@ function addEquipment({ revealed, misses, clues, random }) {
   }
 }
 
+function addBonus({ revealed, misses, clues, random }) {
+  const bonuses = clues
+    .map((clue, index) => ({ clue, index }))
+    .filter(({ clue, index }) => clue.k === 'bonus' && !revealed.has(index));
+  for (let miss = 0; miss < misses && bonuses.length; miss++) {
+    const chosen = weightedPick(bonuses, random);
+    if (!chosen) break;
+    revealed.add(chosen.index);
+    const at = bonuses.findIndex((entry) => entry.index === chosen.index);
+    if (at >= 0) bonuses.splice(at, 1);
+  }
+}
+
 function addMatching({ revealed, guess, answer, clues, catalog, locale, fitDelta }) {
   if (!guess) return;
   const matches = [];
@@ -229,9 +239,17 @@ function addMatching({ revealed, guess, answer, clues, catalog, locale, fitDelta
     const clue = clues[index];
     if (clue.c === 'equipment' || clue.c === 'economy') continue;
     if (clue.k === 'bonus') {
-      const line = answer.bonuses?.[clue.v];
-      const guessLines = guess.bonuses?.[locale] || guess.bonuses?.en || [];
-      if (line && guessLines.includes(line)) matches.push({ index, clue, static: false, weight: 0, line });
+      const answerEntry = answer.bonusEntries?.[clue.v];
+      const key = clue.bonusKey || answerEntry?.bonusKey;
+      const guessEntries = guess.bonusEntries || [];
+      const matched = key
+        ? guessEntries.some((entry) => entry?.bonusKey === key)
+        : (() => {
+          const line = answer.bonuses?.[clue.v];
+          const guessLines = guess.bonuses?.[locale] || guess.bonuses?.en || [];
+          return !!line && guessLines.includes(line);
+        })();
+      if (matched) matches.push({ index, clue, static: false, weight: 0 });
       continue;
     }
     if (clueMatchesShip(clue, guess, fitDelta)) {
@@ -312,6 +330,7 @@ export function computeRevealed({
     });
   }
   addEquipment({ revealed, misses, clues, random });
+  addBonus({ revealed, misses, clues, random });
   addCargo({ revealed, count: misses, clues, random });
   return revealed;
 }

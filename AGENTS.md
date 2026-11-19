@@ -62,6 +62,9 @@ instructions live in [README.md](README.md).
 - `js/i18n.js` — 8 locales, legal copy, manual copy; all zh variants → `zh`.
 - `js/dogma.js` / `vendor/dogma-engine` — abyss all-V simulation.
 - `scripts/*` — SDE, killpool, ship weights, dogma, catalog, dist, version hooks.
+- Ship bonus extraction preserves every localized SDE bonus line; never truncate
+  to a fixed count. Some hulls exceed four bonuses (Naga Navy Issue has five,
+  including its max-velocity bonus; Python has many role bonuses).
 
 ## Data flow
 
@@ -162,7 +165,8 @@ instructions live in [README.md](README.md).
   non-zero value: normally one, in the owning race's colour; two special shuttles
   have all four equal. Shield recharge time is a static SDE clue. In Abyss their
   fitted values come from the dogma engine; shield recharge is stored/displayed
-  in seconds.
+  in seconds. Drone bay/bandwidth zero always renders as `0`, not a “No drone
+  bay” label.
 - Low-slot weapon upgrades are weighted by the weapon family they improve
   (projectile/energy/hybrid/missile/drone/disintegrator/turret); matching fitted
   weapons raise weight from 5.8 to at least 7.4.
@@ -175,6 +179,33 @@ instructions live in [README.md](README.md).
 - Rigs weigh at least 8.5; large/capital rigs reach 10.
 - All equipment weights are clamped to 1..10, matching the x/10 UI.
 - Equipment size adds weight: Capital/XL +7, Large +2.2, Medium +0.8.
+- Ship bonuses use structured SDE entries: section (role/types), skill type ID,
+  importance, numeric bonus, unit ID, localized text, canonical term key, and
+  exact term+value key. Never identify a bonus by array index or `importance`
+  alone. Rebuild these keys from raw SDE whenever the SDE changes.
+- Bonus term identity is section + normalized English text. Exact-value identity
+  adds the numeric bonus and unit. More ships sharing a term lowers weight; if
+  the value is shared too, lower it further. Distinct values add weight by their
+  normalized spread. A unique term is weight 10 and tagged `unique` like
+  equipment. Role bonuses are always `limited`; skill bonuses that target a
+  race/class are also `limited`. All `limited` bonuses get a weight increase,
+  and role bonuses have a higher floor.
+- Bonus `showinfo` module links carry `links` IDs into the catalog. Any bonus
+  that references equipment is treated as equipment/role information: it is
+  tagged `limited` and given a weight floor, with stronger weight when the linked
+  module's SDE `fitRestrictions.shipGroups`/`shipTypes` includes the answer hull.
+  Assault Damage Control is the canonical case: only Assault Frigates and Heavy
+  Assault Cruisers can fit it. Mining-laser/Strip Miner bonuses are treated the
+  same way even when the module itself has no useful fit restriction, because
+  the equipment identifies the ship role.
+- Standard and Abyss include bonus clues in the opening and random reveal pool;
+  bonus clues are not part of the equipment quota. Abyss random non-equipment
+  additions and standard miss additions must not exclude bonuses. Bonus clues do
+  not narrow the static candidate set by themselves.
+- Debrief bonuses are grouped by skill/class with role bonuses in a separate
+  group, using SDE text and bold numeric values. Bonus limited/unique metadata
+  participates in weight calculation but is not shown as a visible badge. In the
+  dossier traits section, bonus rows have no "Hull bonus X" prefix.
 - Ammo inherits the strongest real weapon restriction for weight, but never
   displays a limited/unique/officer/abyssal marker. Weapon detection uses SDE
   `chargeGroup*` dogma attributes, so utility high slots (Bastion, Command Burst)
@@ -366,7 +397,7 @@ catalog, then run both refreshes before the final `build`.
 
 ## Tests
 
-`npm test` currently covers 58 cases, including downtime boundaries, target/KB
+`npm test` currently covers 60 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
 container build order, and no hard-coded deployment domains.
@@ -428,10 +459,13 @@ test reads `dist/`.
   `kb`/share links and forged `free=1` URLs are neutral. A loss or an abandoned
   active round (page close, refresh, or mode navigation) resets that gameplay
   counter. After a completed round, mode changes or direct `kb`/share links leave
-  the streak intact until the next random refresh starts a round. The debrief
-  shows the counter at the top right with increment pop/confetti or reset shake
-  effects only for counted random refresh rounds; direct `kb`/share debriefs show
-  the current counter greyed out with no effects.
+  the streak intact until the next random refresh starts a round. Free debriefs
+  replace the daily streak-days stat with the per-gameplay free streak, shown in
+  that stat position at the same value size but bold. Counted random refresh
+  rounds play increment pop/confetti or reset shake effects; direct `kb`/share
+  debriefs show the current counter greyed out with no effects. Victim
+  character/corporation/alliance information sits to the right of the confirmed
+  ship row on every debrief.
 - Timed is an unscored peer gameplay mode selected with `timer=1`; it starts
   with sealed placeholder dossier blocks. After start it reveals the mode's opening
   clues and releases a weighted batch every 30 seconds; guesses do not release
@@ -446,6 +480,14 @@ test reads `dist/`.
 - Font face (one NEW/CLASSIC toggle) and five-step font size are stored in
   `fitdle:v1:font` and `fitdle:v1:font-size`; the default `normal` step is the
   former XL scale. Resistance labels scale with the selected size.
+- All authored UI text must use `rem`/`em` derived from the root font size; do
+  not introduce fixed `px` font sizes for managed text. Free-streak values match
+  the neighboring stat values, labels match the neighboring stat labels, and
+  their confetti/shake effects scale with the root font size.
+- In every debrief, victim character/corporation/alliance information sits to the
+  right of the confirmed-ship row. The character name is base-size text, the
+  corporation/alliance lines are slightly smaller, and only the character name
+  text itself is the link target, not the full row.
 - Stats and language are origin-local; different domains have separate localStorage.
 
 ## Local preview

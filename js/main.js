@@ -1069,12 +1069,17 @@ function abandonFreeRound() {
 
 function spawnFreeStreakConfetti(host, count) {
   if (!host) return;
+  const compact = !!host.closest('.debrief-streak');
+  const baseSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 14;
+  const scale = baseSize / 14;
+  const spreadX = (compact ? 54 : 190) * scale;
+  const spreadY = (compact ? 40 : 140) * scale;
   const colors = ['#9bd45a', '#f2a63b', '#6fc6e4', '#f4fdff'];
   for (let i = 0; i < count; i++) {
     const particle = document.createElement('i');
     particle.className = 'debrief-streak-particle';
-    particle.style.setProperty('--dx', `${Math.round((Math.random() - 0.5) * 190)}px`);
-    particle.style.setProperty('--dy', `${Math.round((Math.random() - 0.65) * 140)}px`);
+    particle.style.setProperty('--dx', `${Math.round((Math.random() - 0.5) * spreadX)}px`);
+    particle.style.setProperty('--dy', `${Math.round((Math.random() - 0.65) * spreadY)}px`);
     particle.style.setProperty('--rot', `${Math.round((Math.random() - 0.5) * 540)}deg`);
     particle.style.setProperty('--delay', `${Math.round(Math.random() * 120)}ms`);
     particle.style.background = colors[i % colors.length];
@@ -1311,6 +1316,7 @@ function buildAnswerData() {
   if (!state.answerShip || !state.refs) return;
   const ship = state.answerShip;
   const bonuses = ship.bonuses?.[state.locale] || ship.bonuses?.en || [];
+  const bonusEntries = ship.bonusEntries || [];
   const built = buildClues({
     ship,
     catalog: state.catalog,
@@ -1330,6 +1336,7 @@ function buildAnswerData() {
     ...ship,
     description: ship.descriptions?.[state.locale] || ship.descriptions?.en || '',
     bonuses,
+    bonusEntries,
     clues: built.clues,
     sampleKill: built.sampleKill,
     fitting: { fittedKills: built.fittedKills },
@@ -1946,7 +1953,6 @@ function clueValue(clue) {
     case 'structureResists':
       return renderResists(value);
     case 'drones':
-      if (!value.bandwidth && !value.capacity) return `<span class="big">${esc(t('clue.noDrones'))}</span>`;
       return `<div class="hardpoint-row">
         <span class="hardpoint">${icon('drone')}${int(value.bandwidth)}<span>Mbit/s</span></span>
         <span class="hardpoint">${icon('ship')}${int(value.capacity)}<span>m³</span></span>
@@ -2037,6 +2043,46 @@ function moduleBadge(tag, clue) {
   return `<span class="badge-hull ${badge.cls}" title="${esc(badge.hint)}" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
 }
 
+function bonusAmountText(entry) {
+  if (!Number.isFinite(entry?.bonus)) return '';
+  const sign = entry.bonus > 0 ? '+' : '';
+  const unit = entry.unit === '%' ? '%' : entry.unit ? ` ${entry.unit}` : '';
+  return `${sign}${entry.bonus}${unit}`;
+}
+
+function bonusEntryHtml(entry, clue = null) {
+  if (!entry) return '';
+  const text = entry.text?.[state.locale] || entry.text?.en || '';
+  const amount = bonusAmountText(entry);
+  return `${amount ? `<strong class="bonus-amount">${esc(amount)}</strong> ` : ''}${esc(text)}`;
+}
+
+function bonusGroupHtml(entries, clues) {
+  if (!entries.length) return '';
+  const groups = [];
+  const byKey = new Map();
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    const key = entry.section === 'role' ? 'role' : `types:${entry.skillID || 0}`;
+    let group = byKey.get(key);
+    if (!group) {
+      const skillName = entry.skill?.[state.locale] || entry.skill?.en || '';
+      const title = entry.section === 'role'
+        ? t('clue.bonusRole')
+        : t('clue.bonusHull', { name: skillName });
+      group = { title, lines: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    group.lines.push(`<li>${bonusEntryHtml(entry, clues.get(index))}</li>`);
+  }
+  return groups.map((group) => `<div class="debrief-bonus-group">
+    <div class="debrief-bonus-title">${esc(group.title)}</div>
+    <ul class="bonus-list debrief-bonus">${group.lines.join('')}</ul>
+  </div>`).join('');
+}
+
+
 function renderModuleLine(clue) {
   const module = state.refs.modules?.[clue.v.module];
   const name = module?.name || state.extraTypeNames?.[clue.v.module] || `Type #${clue.v.module}`;
@@ -2060,12 +2106,15 @@ function renderClueRow(clue, index, revealed) {
     label = '';
     value = revealed ? renderModuleLine(clue) : '';
   } else if (clue.k === 'bonus') {
-    label = t('clue.bonusLine', { n: Number(clue.v) + 1 });
-    value = revealed ? (state.answerData.bonuses?.[clue.v] || '') : '';
+    label = '';
+    const entry = state.answerData.bonusEntries?.[clue.v];
+    value = revealed
+      ? (entry ? bonusEntryHtml(entry, clue) : esc(state.answerData.bonuses?.[clue.v] || ''))
+      : '';
   }
   if (revealed && !value) value = '—';
   const zeroWeight = (Number(clue.w) || 0) <= 0 && state.status === 'playing';
-  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-category="${category}">
+  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${clue.k === 'bonus' ? ' bonus-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-category="${category}">
     <span class="attr-label">${esc(label)}</span>
     <span class="attr-value">${revealed ? value : '<span class="attr-redacted" aria-label="?">?</span>'}</span>
     <span class="attr-meta">${revealed ? weightPips(clue.w) : `<span class="attr-lock">${icon('lock')}</span>`}</span>
@@ -2640,6 +2689,16 @@ function renderDebrief() {
   const sampleKill = state.answerData.sampleKill;
   const description = (state.answerData.description || '').split(/\n{2,}/).filter(Boolean);
   const bonuses = state.answerData.bonuses || [];
+  const bonusEntries = state.answerData.bonusEntries || [];
+  const bonusClues = new Map();
+  for (const clue of state.answerData.clues || []) {
+    if (clue.k === 'bonus') bonusClues.set(Number(clue.v), clue);
+  }
+  const bonusHtml = bonusEntries.length
+    ? bonusGroupHtml(bonusEntries, bonusClues)
+    : (bonuses.length
+      ? `<div class="debrief-bonus-title">${esc(t('clue.bonus'))}</div><ul class="bonus-list debrief-bonus">${bonuses.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>`
+      : '');
   const kbHref = sampleKill ? zkillKillUrl(sampleKill) : (!won ? zkillShipUrl() : null);
   const kbLabel = sampleKill ? t('end.killmail') : t('end.killboard');
   const timed = isTimed();
@@ -2658,17 +2717,16 @@ function renderDebrief() {
     : (oneShot
       ? t('oneShot.body')
       : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) })));
-  const showFreeStreak = free;
   const freeStreakCounted = free && state.freeFromRefresh === true;
-  const freeStreakMode = showFreeStreak ? freeGameplayKey() : '';
-  const freeStreakValue = showFreeStreak ? Number(state.freeStreaks[freeStreakMode]) || 0 : 0;
-  const freeStreakOld = showFreeStreak ? Number(state.freeStreakBefore) || 0 : 0;
+  const freeStreakMode = free ? freeGameplayKey() : '';
+  const freeStreakValue = free ? Number(state.freeStreaks[freeStreakMode]) || 0 : 0;
+  const freeStreakOld = free ? Number(state.freeStreakBefore) || 0 : 0;
   const freeStreakEvent = freeStreakCounted ? (state.freeStreakEvent || 'none') : 'neutral';
   const freeStreakShown = freeStreakEvent === 'increment' || freeStreakEvent === 'reset'
     ? freeStreakOld
     : freeStreakValue;
-  const freeStreakHtml = showFreeStreak
-    ? `<div class="debrief-streak${freeStreakCounted ? '' : ' is-neutral'}" data-event="${esc(freeStreakEvent)}" data-old="${freeStreakOld}" data-new="${freeStreakValue}" aria-label="${esc(t('free.streak'))} ${freeStreakValue}">
+  const freeStreakStat = free
+    ? `<div class="debrief-stat debrief-streak${freeStreakCounted ? '' : ' is-neutral'}" data-event="${esc(freeStreakEvent)}" data-old="${freeStreakOld}" data-new="${freeStreakValue}" aria-label="${esc(t('free.streak'))} ${freeStreakValue}">
         <span>${esc(t('free.streak'))} // ${esc(t(`mode.${freeStreakMode}`))}</span>
         <strong class="debrief-streak-value">${freeStreakShown}</strong>
         <span class="debrief-streak-burst" aria-hidden="true"></span>
@@ -2677,8 +2735,7 @@ function renderDebrief() {
   const html = `
     <div class="modal debrief-modal${oneShot ? ' is-one-shot' : ''}" role="dialog" aria-modal="true" aria-labelledby="debrief-title" data-kind="debrief" data-status="${state.status}" data-one-shot="${oneShot}">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
-      <div class="debrief${showFreeStreak ? ' has-free-streak' : ''}">
-        ${freeStreakHtml}
+      <div class="debrief">
         <div class="debrief-visual">
           <div class="debrief-scan"></div>
           <div class="debrief-stamp">${esc(kicker)}</div>
@@ -2689,7 +2746,6 @@ function renderDebrief() {
           <div class="debrief-visual-caption">
             <span>${esc(t('dossier.answer'))}</span>
             <strong>${zkillShipLink(displayName(ship), ship.id)}</strong>
-            <div class="debrief-victim" data-victim-slot>${victimMetaHtml()}</div>
           </div>
         </div>
         <div class="debrief-main">
@@ -2700,10 +2756,11 @@ function renderDebrief() {
 
           <div class="debrief-answer">
             <span class="icon"><img src="${esc(shipIconPath(ship))}" alt="" onerror="this.remove()"></span>
-            <div>
+            <div class="debrief-answer-info">
               <span>${esc(t('dossier.answer'))}</span>
               <strong>${zkillShipLink(displayName(ship), state.answerId)}</strong>
             </div>
+            <div class="debrief-victim" data-victim-slot>${victimMetaHtml()}</div>
           </div>
 
           <div class="debrief-stats">
@@ -2711,14 +2768,14 @@ function renderDebrief() {
               ? `<div class="debrief-stat"><span>${esc(t('timed.time'))}</span><strong>${esc(formatElapsed(state.timerElapsedMs))}</strong></div>
                  <div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length}</strong></div>
                  <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>
-                 <div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`
+                 ${free ? freeStreakStat : `<div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`}`
               : `<div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length} / 6</strong></div>
                  <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>
-                 <div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`}
+                 ${free ? freeStreakStat : `<div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`}`}
           </div>
 
           <div class="debrief-description">${description.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
-          ${bonuses.length ? `<div class="debrief-bonus-title">${esc(t('clue.bonus'))}</div><ul class="bonus-list debrief-bonus">${bonuses.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>` : ''}
+          ${bonusHtml}
 
           <div class="debrief-actions">
             <button type="button" class="button primary" data-action="copy-share">${icon('share')} ${esc(t('end.share'))}</button>
@@ -2726,9 +2783,6 @@ function renderDebrief() {
             <button type="button" class="button ghost" data-action="close-modal">${esc(t('end.review'))}</button>
           </div>
 
-          ${free
-            ? `<div class="free-note">${esc(t('free.noStats'))}</div>`
-            : ''}
           <div class="share-box">
             <label for="share-url">${esc(t('end.share'))}</label>
             <input id="share-url" type="text" readonly value="${esc(url)}">

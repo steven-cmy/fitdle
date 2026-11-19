@@ -237,6 +237,11 @@ test('ship search supports initials, class abbreviations and race+class', () => 
   const drake = catalog.find((ship) => ship.names?.en === 'Drake Navy Issue');
   assert.ok(drake);
   assert.ok(searchShips(index, 'dNi', { limit: 50 }).some((ship) => ship.id === drake.id));
+  const firetail = catalog.find((ship) => ship.names?.en === 'Republic Fleet Firetail');
+  assert.ok(firetail);
+  for (const query of ['rff', 'rf']) {
+    assert.ok(searchShips(index, query, { limit: 50 }).some((ship) => ship.id === firetail.id), query);
+  }
   const dst = Object.entries(refs.groups).find(([, name]) => name === 'Deep Space Transport');
   assert.ok(dst);
   assert.ok(searchShips(index, 'dst', { limit: 50 }).some((ship) => ship.groupID === Number(dst[0])));
@@ -247,6 +252,66 @@ test('ship search supports initials, class abbreviations and race+class', () => 
     aliases: { groups: { 1: ['战列舰'] }, races: { 1: ['艾玛'] } },
   });
   assert.deepEqual(searchShips(combo, '艾玛战列', {}).map((ship) => ship.id), [42]);
+});
+
+test('catalog preserves every ship bonus line, including ships with more than four', () => {
+  const naga = catalog.find((ship) => ship.names?.en === 'Naga Navy Issue');
+  assert.ok(naga);
+  assert.ok(naga.bonuses.en.some((line) => /max velocity/i.test(line)));
+  const python = catalog.find((ship) => ship.names?.en === 'Python');
+  assert.ok(python);
+  assert.ok(python.bonuses.en.length > 4);
+});
+
+test('bonus clues distinguish shared terms and value differences from SDE entries', () => {
+  const build = (name) => {
+    const ship = catalog.find((entry) => entry.names?.en === name);
+    return {
+      ship,
+      clues: buildClues({
+        ship,
+        catalog,
+        refs,
+        stats: null,
+        losses: null,
+        dateKey: '2026-11-14',
+        dataVersion: manifest.dataVersion,
+      }).clues,
+    };
+  };
+  const caracal = build('Caracal');
+  const navy = build('Caracal Navy Issue');
+  const caracalRate = caracal.clues.find((clue) => (
+    clue.k === 'bonus'
+    && caracal.ship.bonusEntries[clue.v].textKey.includes('rate of fire')
+  ));
+  const navyRate = navy.clues.find((clue) => (
+    clue.k === 'bonus'
+    && navy.ship.bonusEntries[clue.v].textKey.includes('rate of fire')
+  ));
+  assert.ok(caracalRate && navyRate);
+  assert.ok(caracalRate.tags.includes('limited'));
+  assert.ok(navyRate.w > caracalRate.w, 'different values should raise the clue weight');
+  const naga = build('Naga Navy Issue');
+  const role = naga.clues.find((clue) => clue.k === 'bonus' && clue.tags.includes('unique'));
+  assert.ok(role);
+  assert.ok(role.tags.includes('limited'));
+  const wolf = build('Wolf');
+  const adc = wolf.clues.find((clue) => (
+    clue.k === 'bonus'
+    && wolf.ship.bonusEntries[clue.v].textKey.includes('assault damage control')
+  ));
+  assert.ok(adc);
+  assert.ok(adc.tags.includes('limited'));
+  assert.ok(adc.w >= 8.5, 'module-restricted bonus should carry a class-revealing weight');
+  const perseverance = build('Perseverance');
+  const mining = perseverance.clues.find((clue) => (
+    clue.k === 'bonus'
+    && /mining laser/i.test(perseverance.ship.bonusEntries[clue.v].text.en)
+  ));
+  assert.ok(mining);
+  assert.ok(mining.tags.includes('limited'));
+  assert.ok(mining.w >= 8, 'equipment-linked bonus should carry a role-revealing weight');
 });
 
 test('ship search results follow tech, class, race and faction order', () => {
@@ -674,9 +739,9 @@ test('abyssal clues simulate fittings and delay identity reveals', () => {
   const restricted = built.clues.find((clue) => clue.k === 'equipment' && clue.tag);
   assert.ok(restricted);
   assert.ok(restricted.w >= 8.8);
-  assert.equal(built.clues.filter((clue) => clue.k === 'bonus').some((clue) => clue.w === 10), true);
+  assert.ok(built.clues.filter((clue) => clue.k === 'bonus').some((clue) => clue.tags?.includes('limited')));
   const opening = built.clues.slice(0, 3);
-  assert.equal(opening.some((clue) => clue.k === 'race' || clue.k === 'group' || clue.k === 'bonus'), false);
+  assert.equal(opening.some((clue) => clue.k === 'race' || clue.k === 'group'), false);
   assert.equal(opening.some((clue) => clue.k === 'equipment' && clue.tag), false);
 });
 
@@ -1345,8 +1410,9 @@ test('normal mode releases equipment on misses and shared clues on matching gues
 
   const afterUnknown = compute([999999]);
   const added = [...afterUnknown].filter((index) => !initial.has(index));
-  assert.ok(added.every((index) => ['equipment', 'cargo'].includes(built.clues[index].k)));
+  assert.ok(added.every((index) => ['equipment', 'cargo', 'bonus'].includes(built.clues[index].k)));
   assert.ok(added.some((index) => built.clues[index].k === 'equipment'), 'normal misses should release equipment');
+  assert.ok(added.some((index) => built.clues[index].k === 'bonus'), 'normal misses should release pending bonus clues');
 
   const abyssInitial = compute([], 'abyss');
   const abyssOne = compute([999999], 'abyss');

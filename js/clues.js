@@ -202,15 +202,6 @@ function sameResists(left, right, delta = null) {
   ));
 }
 
-function normalizeBonusTemplate(line) {
-  return String(line || '')
-    .toLowerCase()
-    .replace(/[+-]?\d+(?:[.,]\d+)?\s*%/g, '#%')
-    .replace(/\b\d+(?:[.,]\d+)?\b/g, '#')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function moduleSizeRank(name) {
   const text = String(name || '');
   if (/\b(capital|extra large|x-large|xl)\b/i.test(text)) return 7;
@@ -855,20 +846,110 @@ export function buildClues({
     clues.push({ k: 'kbValue', c: 'economy', v: killValue, prior: 2.6 });
   }
 
-  const bonusLines = ship.bonuses?.[refs.lang] || ship.bonuses?.en || [];
-  const raceName = String(refs.races?.[ship.raceID] || '').toLowerCase();
-  const groupName = String(refs.groups?.[ship.groupID] || '').toLowerCase();
-  for (let i = 0; i < bonusLines.length; i++) {
-    const rawLine = String(bonusLines[i] || '');
-    const line = rawLine.toLowerCase();
-    const revealsRace = (raceName && line.includes(raceName)) || (groupName && line.includes(groupName));
-    const template = normalizeBonusTemplate(rawLine);
-    const shared = catalog.filter((entry) => (
-      entry.bonuses?.[refs.lang] || entry.bonuses?.en || []
-    ).some((otherLine) => normalizeBonusTemplate(otherLine) === template)).length;
-    const sharedPenalty = Math.min(2.5, Math.max(0, Math.log2(shared / 6)));
-    const weight = mode === 'abyss' && revealsRace ? 10 : Math.max(6.5, 9.5 - sharedPenalty);
-    clues.push({ k: 'bonus', c: 'traits', v: i, prior: 7, w: weight });
+  const bonusEntries = ship.bonusEntries || [];
+  if (bonusEntries.length) {
+    const bonusStats = new Map();
+    for (const other of catalog) {
+      for (const entry of other.bonusEntries || []) {
+        if (!entry?.termKey) continue;
+        let stat = bonusStats.get(entry.termKey);
+        if (!stat) {
+          stat = { ships: new Set(), values: new Set(), valueShips: new Map() };
+          bonusStats.set(entry.termKey, stat);
+        }
+        stat.ships.add(other.id);
+        const valueKey = entry.bonusKey || `${entry.termKey}|${entry.bonus ?? ''}|${entry.unitID ?? ''}`;
+        if (!stat.valueShips.has(valueKey)) stat.valueShips.set(valueKey, new Set());
+        stat.valueShips.get(valueKey).add(other.id);
+        if (Number.isFinite(entry.bonus)) stat.values.add(Number(entry.bonus));
+      }
+    }
+    const raceNames = Object.values(refs.races || {}).map((name) => String(name).toLowerCase()).filter(Boolean);
+    const groupNames = Object.values(refs.groups || {}).map((name) => String(name).toLowerCase()).filter(Boolean);
+    for (let i = 0; i < bonusEntries.length; i++) {
+      const entry = bonusEntries[i];
+      const stat = bonusStats.get(entry.termKey);
+      const termCount = Math.max(1, stat?.ships.size || 1);
+      const valueKey = entry.bonusKey || `${entry.termKey}|${entry.bonus ?? ''}|${entry.unitID ?? ''}`;
+      const exactCount = Math.max(1, stat?.valueShips.get(valueKey)?.size || 1);
+      const numeric = [...(stat?.values || [])].filter(Number.isFinite);
+      const spread = numeric.length > 1
+        ? clamp(
+          (Math.max(...numeric) - Math.min(...numeric))
+            / Math.max(1, Math.abs(Math.max(...numeric)), Math.abs(Math.min(...numeric))),
+          0,
+          1,
+        )
+        : 0;
+      const skillName = String(entry.skill?.[refs.lang] || entry.skill?.en || '').toLowerCase();
+      const termText = String(entry.text?.[refs.lang] || entry.text?.en || '').toLowerCase();
+      const targetNames = [...raceNames, ...groupNames].filter((name) => name.length >= 3);
+      let restrictionBoost = 0;
+      let moduleRestricted = false;
+      let equipmentLinked = false;
+      for (const moduleID of entry.links || []) {
+        const module = refs.modules?.[moduleID];
+        if (!module) continue;
+        equipmentLinked = true;
+        const fit = module.fitRestrictions;
+        if (!fit) {
+          restrictionBoost = Math.max(restrictionBoost, 0.6);
+          continue;
+        }
+        if ((fit.shipTypes || []).includes(ship.id)) {
+          moduleRestricted = true;
+          restrictionBoost = Math.max(restrictionBoost, 1.8);
+        } else if ((fit.shipGroups || []).includes(ship.groupID)) {
+          moduleRestricted = true;
+          const groupCount = (fit.shipGroups || []).length;
+          restrictionBoost = Math.max(
+            restrictionBoost,
+            groupCount <= 2 ? 1.8 : groupCount <= 6 ? 1.4 : 0.8,
+          );
+        } else if ((fit.shipGroups || []).length || (fit.shipTypes || []).length) {
+          // The bonus references equipment with a narrow hull fit, even when
+          // the linked module is not fitted to this exact hull.
+          restrictionBoost = Math.max(restrictionBoost, 1.0);
+        } else {
+          restrictionBoost = Math.max(restrictionBoost, 0.6);
+        }
+      }
+      const targetsHull = entry.section === 'role'
+        || moduleRestricted
+        || equipmentLinked
+        || (skillName && targetNames.some((name) => skillName.includes(name)))
+        || (termText && targetNames.some((name) => termText.includes(name)));
+      const termRarity = clamp(1 - Math.log2(termCount) / Math.log2(32), 0, 1);
+      const exactShare = exactCount > 1
+        ? clamp(Math.log2(exactCount) / Math.log2(termCount + 1), 0, 1)
+        : 0;
+      let weight = 5.8
+        + 2.0 * termRarity
+        - 1.4 * exactShare
+        + (exactCount === 1 ? 1.0 : 0)
+        + 1.2 * spread;
+      if (targetsHull) weight += 1.0;
+      weight += restrictionBoost;
+      if (moduleRestricted) weight = Math.max(weight, 8.5);
+      else if (equipmentLinked) weight = Math.max(weight, 8.0);
+      if (entry.section === 'role') {
+        weight += 0.8;
+        weight = Math.max(weight, 7.5);
+      }
+      if (termCount === 1) weight = 10;
+      const tags = [];
+      if (termCount === 1) tags.push('unique');
+      if (targetsHull) tags.push('limited');
+      clues.push({
+        k: 'bonus',
+        c: 'traits',
+        v: i,
+        prior: 7,
+        w: round(clamp(weight, 1, 10), 1),
+        tags,
+        bonusKey: entry.bonusKey,
+      });
+    }
   }
 
   for (const clue of clues) {
