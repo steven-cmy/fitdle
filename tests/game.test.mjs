@@ -910,8 +910,8 @@ test('daily target uses the beacon path and does not fall back to static data', 
   assert.match(main, /data-action="free-mode"/);
   assert.equal(main.includes('filterDailyKillPool'), false);
   assert.equal(main.includes('selectDailyKillPair'), false);
-  assert.equal(fs.existsSync(path.join(ROOT, 'vendor', 'drand-client', 'index.mjs')), true);
-  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'vendor', 'drand-client', 'index.mjs')), true);
+  assert.equal(fs.existsSync(path.join(ROOT, 'vendor', 'drand-client', 'index.js')), true);
+  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'vendor', 'drand-client', 'index.js')), true);
   assert.match(MESSAGES.en['error.dailyUnavailableBody'], /authoritative time/);
   assert.match(MESSAGES.zh['error.dailyUnavailableBody'], /权威时间/);
   assert.match(css, /fatal-screen/);

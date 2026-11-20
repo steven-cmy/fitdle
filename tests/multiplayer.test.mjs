@@ -250,6 +250,19 @@ test('multiplayer source and build inputs are present without hard-coded domains
     assert.equal(fs.existsSync(path.join(built, 'vendor', 'peerjs', 'peerjs.min.js')), true);
     assert.equal(fs.existsSync(path.join(built, 'assets', 'fonts', 'eve_sans_neueregular_400_normal.woff2')), true);
     assert.equal(fs.existsSync(path.join(built, 'styles', 'app.css')), true);
+    const mjs = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith('.mjs')) mjs.push(path.relative(ROOT, full));
+      }
+    };
+    for (const dir of ['js', 'vendor']) {
+      const target = path.join(built, dir);
+      if (fs.existsSync(target)) walk(target);
+    }
+    assert.deepEqual(mjs, [], 'static hosts may serve .mjs as application/octet-stream');
   }
   const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
   assert.match(css, /@font-face/);

@@ -38,7 +38,7 @@ import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
 import { initStarfield } from './starfield.js';
-import { HttpCachingChain, HttpChainClient, fetchBeacon } from '../vendor/drand-client/index.mjs';
+import { HttpCachingChain, HttpChainClient, fetchBeacon } from '../vendor/drand-client/index.js';
 
 const MP_BRIDGE = new URLSearchParams(location.search).get('mp') === '1';
 const MP_SPECTATOR = MP_BRIDGE && new URLSearchParams(location.search).get('spectator') === '1';
