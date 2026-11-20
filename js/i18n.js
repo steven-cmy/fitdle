@@ -4,6 +4,7 @@
  */
 
 export const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
+import { MP_MESSAGES } from './mp/messages.js';
 
 export const LOCALE_META = {
   en: { label: 'English', intl: 'en-US' },
@@ -3481,6 +3482,12 @@ Object.assign(RENAMES, {
   }
 });
 for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}
+
+for (const [key, values] of Object.entries(MP_MESSAGES)) {
   for (const [lang, value] of Object.entries(values)) {
     if (MESSAGES[lang]) MESSAGES[lang][key] = value;
   }

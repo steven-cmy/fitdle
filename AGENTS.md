@@ -52,6 +52,30 @@ instructions live in [README.md](README.md).
 - Do not expose the list or its match state in the UI, metadata, share pages, or
   any public text. The effect appears only after the puzzle is revealed.
 
+### Multiplayer
+
+- `multiplayer.html` + `js/mp/*` are a statically hosted room shell. Signaling uses
+  the vendored PeerJS client and the public PeerJS cloud; game data uses WebRTC
+  DataChannels. There is no authored backend, account system or runtime database.
+- Room codes and optional passwords are host-owned. Player names are required and
+  unique per room. Guests may join mid-round as spectators and become active next
+  round.
+- Race rooms reuse the entire single-player puzzle in an iframe with
+  `?kb=...&mp=1`; each client fetches the same real killmail. Standard/Abyss score
+  by finish order; Timed uses the same rank table and ends by rounds.
+- Dealer rooms keep the answer and full clue set on the dealer client. Only
+  `clue` messages pass through the host relay; the answer is revealed at
+  settlement. There is no static target fallback: repeated zKill failures skip
+  the dealer/player, and all failures show an error.
+- Dealer scoring: published clue weight goes to the dealer; each correct player's
+  unpublished-weight snapshot at their solve is split by the final correct count.
+  Scores are independent awards, not a conserved pool.
+- No TURN relay: some NAT/firewall pairs cannot connect. Host tabs must stay open;
+  there is no reconnect or host migration.
+- The multiplayer shell never writes daily stats, share URLs, daily state or
+  streaks. It reuses `fitdle:v1:lang`, `fitdle:v1:font` and
+  `fitdle:v1:font-size`; all scores live in memory.
+
 ### Main modules
 
 - `js/main.js` — boot, target/KB resolution, rendering, radar, free mode,
@@ -65,6 +89,8 @@ instructions live in [README.md](README.md).
   and guess matching.
 - `js/i18n.js` — 8 locales, legal copy, manual copy; all zh variants → `zh`.
 - `js/dogma.js` / `vendor/dogma-engine` — abyss all-V simulation.
+- `multiplayer.html` / `js/mp/*` — statically hosted multiplayer shell, PeerJS room
+  signaling, race overlay and dealer room; no authored backend.
 - `scripts/*` — SDE, killpool, ship weights, dogma, catalog, dist, version hooks.
 - Ship bonus extraction preserves every localized SDE bonus line; never truncate
   to a fixed count. Some hulls exceed four bonuses (Naga Navy Issue has five,
@@ -504,10 +530,11 @@ catalog, then run both refreshes before the final `build`.
 
 ## Tests
 
-`npm test` currently covers 83 cases, including downtime boundaries, target/KB
+`npm test` currently covers 93 cases, including downtime boundaries, target/KB
 selection, victim-only equipment, cargo, slot layout, weighted/fitted clues,
 abyss reveal cadence, share URLs/static pages, all locales, Chinese variants,
-container build order, and no hard-coded deployment domains.
+container build order, multiplayer room/scoring/target protocol, and no
+hard-coded deployment domains.
 
 Add tests for any new selection/reveal/share rule. Build before tests when the
 test reads `dist/`.
@@ -615,6 +642,22 @@ test reads `dist/`.
   no organization labels; only the character name text itself is the link target,
   not the full row.
 - Stats and language are origin-local; different domains have separate localStorage.
+- Multiplayer rooms depend on the public PeerJS cloud for signaling and on zKill for
+  targets. There is no TURN relay, so some NAT/firewall pairs fail to connect; the
+  host tab must stay open and there is no reconnect or host migration.
+- Multiplayer targets are real killmails only. A failed dealer/player request is
+  retried and then skipped; if every attempt fails the room shows an error instead
+  of falling back to static clues.
+- Dealer scoring follows the tentative published/unpublished rule. Publishing every
+  clue maximizes the dealer's score while leaving correct players zero unpublished
+  weight; early solvers also lock a snapshot that later publications do not reduce.
+  This is a balance risk to review after playtesting, not a scoring bug.
+- The race room embeds the normal single-player page with `?kb=...&mp=1`; the
+  single-player free-mode rules and UI are reused. A random multiplayer target can
+  coincide with the current daily target, but no daily target data is fetched or
+  labelled by the room.
+- Multiplayer scores are in-memory only; they do not affect daily stats, streaks,
+  share pages or the field manual.
 
 ## Local preview
 

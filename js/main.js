@@ -40,6 +40,9 @@ import { CATEGORY_ICON, icon } from './icons.js';
 import { initStarfield } from './starfield.js';
 import { HttpCachingChain, HttpChainClient, fetchBeacon } from '../vendor/drand-client/index.mjs';
 
+const MP_BRIDGE = new URLSearchParams(location.search).get('mp') === '1';
+const MP_SPECTATOR = MP_BRIDGE && new URLSearchParams(location.search).get('spectator') === '1';
+
 const CATEGORIES = ['traits', 'hull', 'nav', 'defense', 'targeting', 'fitting', 'equipment', 'cargo', 'economy'];
 const CATEGORY_ALIASES = { identity: 'hull', slots: 'fitting' };
 const DEFENSE_ORDER = {
@@ -157,11 +160,87 @@ const state = {
   timerHandle: null,
   gaveUp: false,
   booted: false,
+  mpBridge: MP_BRIDGE,
+  mpSpectator: MP_SPECTATOR,
+  mpReadySent: false,
   font: 'neue',
   fontClicks: 0,
   radarMosaicTimer: null,
   resetting: false,
 };
+
+function isMpBridge() {
+  return Boolean(state.mpBridge);
+}
+
+function postMp(type, payload = {}) {
+  if (!isMpBridge() || window.parent === window) return;
+  try {
+    window.parent.postMessage({ type, ...payload }, location.origin);
+  } catch {
+    // A closed room must never break the puzzle.
+  }
+}
+
+function postMpReady() {
+  if (!isMpBridge() || state.mpReadySent) return;
+  state.mpReadySent = true;
+  postMp('mp-ready', { locale: state.locale });
+}
+
+function postMpStatus() {
+  if (!isMpBridge()) return;
+  const elapsedMs = state.timerStarted ? currentElapsed() : state.timerElapsedMs;
+  postMp('mp-status', {
+    status: state.status,
+    attempts: state.guesses.length,
+    elapsedMs: Math.max(0, Math.round(elapsedMs || 0)),
+  });
+}
+
+function applyMpLock() {
+  if (!isMpBridge()) return;
+  const locked = Boolean(state.mpSpectator) || state.status !== 'playing';
+  document.documentElement.dataset.mpLocked = locked ? '1' : '0';
+  const input = $('#ship-input');
+  const button = $('.lock-button');
+  const clock = $('.timed-clock-button');
+  if (input) input.disabled = locked;
+  if (button && locked) button.disabled = true;
+  if (clock) clock.disabled = locked;
+  if (state.mpSpectator && !state.shipInputLockedToast) {
+    state.shipInputLockedToast = true;
+    const hint = $('#mp-watch-hint');
+    if (!hint) {
+      const banner = document.createElement('div');
+      banner.id = 'mp-watch-hint';
+      banner.className = 'mp-watch-hint';
+      banner.textContent = state.i18n?.t('mp.watchOnly') || 'Watching only';
+      document.body.append(banner);
+    }
+  }
+}
+
+function setMpSpectator(value) {
+  state.mpSpectator = Boolean(value);
+  if (state.mpSpectator) {
+    state.status = state.status === 'playing' ? 'playing' : state.status;
+    applyMpLock();
+  } else {
+    document.getElementById('mp-watch-hint')?.remove();
+    state.shipInputLockedToast = false;
+    applyMpLock();
+  }
+}
+
+window.addEventListener('message', (event) => {
+  if (!isMpBridge() || event.origin !== location.origin) return;
+  const data = event.data;
+  if (!data || typeof data !== 'object') return;
+  if (data.type === 'mp-spectator') setMpSpectator(Boolean(data.value));
+  if (data.type === 'mp-lock') setMpSpectator(true);
+  if (data.type === 'mp-unlock') setMpSpectator(false);
+});
 
 const BASE = new URL('.', document.baseURI);
 const JSON_CACHE = new Map();
@@ -628,6 +707,7 @@ function failTimedRun() {
   recordDailyResult();
   recomputeRevealed();
   renderAll();
+  if (isMpBridge()) postMpStatus();
   persist();
   setTimeout(() => renderDebrief(), 300);
 }
@@ -648,6 +728,7 @@ function giveUpTimed() {
   recordDailyResult();
   recomputeRevealed();
   renderAll();
+  if (isMpBridge()) postMpStatus();
   markTimedForfeited();
   persist();
   setTimeout(() => renderDebrief(), 300);
@@ -1919,6 +2000,9 @@ function renderShell() {
         </div>
       </div>
       <div class="topbar-actions">
+        <a class="icon-button" href="multiplayer.html" aria-label="${esc(t('header.multiplayer'))}" title="${esc(t('header.multiplayer'))}">
+          ${icon('radar')}<span class="label">${esc(t('header.multiplayer'))}</span>
+        </a>
         <button class="icon-button" type="button" data-action="help" aria-label="${esc(t('header.help'))}">
           ${icon('help')}<span class="label">${esc(t('header.help'))}</span>
         </button>
@@ -2884,6 +2968,7 @@ function renderAll() {
   renderAcquire();
   renderDossier();
   renderChrome();
+  applyMpLock();
   requestAnimationFrame(syncBoardHeight);
 }
 
@@ -3017,6 +3102,7 @@ function currentGuessShip() {
 
 function submitGuess() {
   if (state.status !== 'playing') return;
+  if (state.mpSpectator) return;
   if (isTimed() && Date.now() < state.lockCooldownUntil) return;
   const ship = currentGuessShip();
   if (!ship) {
@@ -3035,7 +3121,7 @@ function statMode() {
 }
 
 function statsEligible() {
-  return !isFree() && state.date === state.today;
+  return !isMpBridge() && !isFree() && state.date === state.today;
 }
 
 function recordDailyPlay() {
@@ -3087,6 +3173,7 @@ function applyGuess(shipId) {
 
   state.scanPulse = true;
   renderAll();
+  if (isMpBridge()) postMpStatus();
   rememberNewClues(state.fresh);
   if (isTimed() && !correct) startLockCooldown();
   if (state.status !== 'playing') {
@@ -3954,6 +4041,7 @@ function goBack() {
 }
 
 async function boot() {
+  if (isMpBridge()) document.documentElement.dataset.mp = '1';
   initStarfield($('#starfield'));
   captureUrlLocale();
   state.locale = detectLocale();
@@ -3975,7 +4063,7 @@ async function boot() {
     state.dataVersionKey = `${manifest.dataVersion}:${manifest.clueVersion || 1}`;
     state.gameDayStartMinutes = Number(manifest.gameDayStartMinutes ?? 11 * 60);
     state.kbSelectionStartDate = String(manifest.kbSelectionStartDate || '');
-    await fetchInternetTime();
+    if (!isMpBridge()) await fetchInternetTime();
     const catalog = await fetchJson('data/catalog.json');
     state.catalog = catalog.ships;
     state.catalogMap = new Map(state.catalog.map((ship) => [ship.id, ship]));
@@ -4030,9 +4118,9 @@ async function boot() {
     state.locale = detectLocale();
     if (!isLocale(state.locale) || !manifest.locales.includes(state.locale)) state.locale = manifest.defaultLocale || 'en';
     state.i18n = createI18n(state.locale);
-    state.stats = settleStats(loadStats(localStorage), state.today);
-    state.freeStreaks = loadFreeStreaks();
-    saveStats(localStorage, state.stats);
+    state.stats = isMpBridge() ? emptyStats() : settleStats(loadStats(localStorage), state.today);
+    state.freeStreaks = isMpBridge() ? { standard: 0, abyss: 0, timed: 0 } : loadFreeStreaks();
+    if (!isMpBridge()) saveStats(localStorage, state.stats);
 
     if (state.freeRequested && !state.freeKillId) {
       const kill = await pickRandomFreeKill();
@@ -4076,21 +4164,23 @@ async function boot() {
         state.answerShip = state.catalogMap.get(state.answerId);
         if (!state.answerShip) throw new UnknownHullError();
         freeReady = true;
-        try {
-          const daily = await resolveDailySelection();
-          if (daily && Number(daily.killmail.killmail_id) === Number(state.freeKillId)) {
-            state.freeKillId = null;
-            state.freeKillToken = null;
-            state.freeKillmail = null;
-            state.freeRequested = false;
-            state.date = state.today;
-            freeReady = false;
-            const clean = new URL(location.href);
-            for (const key of ['kb', 'killmail', 'kill', 'free', 'n', 't']) clean.searchParams.delete(key);
-            history.replaceState(null, '', clean);
+        if (!isMpBridge()) {
+          try {
+            const daily = await resolveDailySelection();
+            if (daily && Number(daily.killmail.killmail_id) === Number(state.freeKillId)) {
+              state.freeKillId = null;
+              state.freeKillToken = null;
+              state.freeKillmail = null;
+              state.freeRequested = false;
+              state.date = state.today;
+              freeReady = false;
+              const clean = new URL(location.href);
+              for (const key of ['kb', 'killmail', 'kill', 'free', 'n', 't']) clean.searchParams.delete(key);
+              history.replaceState(null, '', clean);
+            }
+          } catch {
+            // A daily lookup failure must not block the requested free target.
           }
-        } catch {
-          // A daily lookup failure must not block the requested free target.
         }
       } catch (error) {
         if (error instanceof UnknownHullError) throw error;
@@ -4162,6 +4252,7 @@ async function boot() {
 
     renderShell();
     renderAll();
+    postMpReady();
     if (state.status === 'playing' && state.guesses.length === 0 && state.revealed.size) {
       // Initial reveals count as unseen too: if the dossier starts below the
       // fold, point the player to the first batch of intel.
@@ -4173,8 +4264,8 @@ async function boot() {
       markTimedForfeited();
     }
 
-    if (!state.timeVerified) showToast(t('error.time'), '', 'warn', 5200);
-    if (state.liveError) showToast(t('error.zkb'), '', 'warn', 5200);
+    if (!isMpBridge() && !state.timeVerified) showToast(t('error.time'), '', 'warn', 5200);
+    if (!isMpBridge() && state.liveError) showToast(t('error.zkb'), '', 'warn', 5200);
     if (restored.invalidated) showToast(t('error.oldState'), '', 'warn', 4600);
     if (state.status !== 'playing') {
       state.visibleCount = state.answerData.clues.length;
@@ -4183,6 +4274,7 @@ async function boot() {
     state.booted = true;
     startTicker();
   } catch (error) {
+    if (isMpBridge()) postMp('mp-error', { code: error?.code || error?.name || 'boot-failed' });
     showFatal(error);
   }
 }

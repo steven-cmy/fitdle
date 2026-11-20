@@ -21,12 +21,12 @@ if (!fs.existsSync(path.join(DATA, 'catalog.json'))) {
 await fsp.rm(DIST, { recursive: true, force: true });
 await fsp.mkdir(DIST, { recursive: true });
 
-for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share', 'data', 'vendor/dogma-engine', 'vendor/drand-client']) {
+for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share', 'data', 'vendor/dogma-engine', 'vendor/drand-client', 'vendor/peerjs']) {
   const source = path.join(ROOT, dir);
   if (!fs.existsSync(source)) continue;
   await fsp.cp(source, path.join(DIST, dir), { recursive: true });
 }
-for (const file of ['assets/boot-flavor.json', 'assets/watchlist.json']) {
+for (const file of ['assets/boot-flavor.json', 'assets/watchlist.json', 'multiplayer.html']) {
   const source = path.join(ROOT, file);
   if (!fs.existsSync(source)) continue;
   await fsp.mkdir(path.dirname(path.join(DIST, file)), { recursive: true });
