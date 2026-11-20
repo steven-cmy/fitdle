@@ -1,7 +1,6 @@
 workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "web"'
     - if: '$CI_PIPELINE_SOURCE == "api"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -16,9 +15,9 @@ default:
   image: node:20-bookworm
   interruptible: true
 
-# Runs on every default-branch pipeline and on the daily schedule.
-# It compares the SDE ETag/Last-Modified header with the currently deployed
-# Pages manifest and exports SDE_CHANGED for the build job.
+# Runs on default-branch pipelines, MRs and manual/web runs. It compares the
+# SDE ETag/Last-Modified header with the currently deployed Pages manifest and
+# exports SDE_CHANGED for the build job.
 sde:check:
   stage: check
   script:
@@ -29,14 +28,14 @@ sde:check:
     expire_in: 1 day
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "web"'
     - if: '$CI_PIPELINE_SOURCE == "api"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
-# Every default-branch push and every scheduled run rebuilds/deploys. The SDE
-# Rebuild the normalized SDE from the cached JSONL on every build so code/data
-# schema changes cannot be masked by an older normalized cache.
+# Default-branch pushes and manual/web runs rebuild/deploy. The daily target no
+# longer depends on a daily pipeline. Rebuild the normalized SDE from the cached
+# JSONL on every build so code/data schema changes cannot be masked by an older
+# normalized cache.
 build:
   stage: build
   needs:
@@ -78,7 +77,6 @@ build:
     expire_in: 1 week
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "web"'
     - if: '$CI_PIPELINE_SOURCE == "api"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -115,8 +113,8 @@ pages:
     paths:
       - public
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "api"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
 # Publish the one-shot builder image to the project's GitLab Container

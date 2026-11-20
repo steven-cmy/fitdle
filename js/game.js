@@ -28,19 +28,20 @@ export function utcDateKey(date = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
-/** Game day runs from EVE downtime (11:00 UTC) to the next downtime. */
-export function gameDateKey(date = new Date(), resetHourUtc = DOWNTIME_HOUR_UTC) {
-  const shifted = new Date(date.getTime() - resetHourUtc * 3600 * 1000);
+/** Game day runs from the configured UTC boundary (minutes) to the next. */
+export function gameDateKey(date = new Date(), resetMinutesUtc = DOWNTIME_HOUR_UTC * 60) {
+  const shifted = new Date(date.getTime() - Number(resetMinutesUtc) * 60 * 1000);
   return shifted.toISOString().slice(0, 10);
 }
 
-export function msUntilNextDowntime(now = new Date(), resetHourUtc = DOWNTIME_HOUR_UTC) {
+export function msUntilNextDowntime(now = new Date(), resetMinutesUtc = DOWNTIME_HOUR_UTC * 60) {
+  const minutes = Number(resetMinutesUtc);
   let next = Date.UTC(
     now.getUTCFullYear(),
     now.getUTCMonth(),
     now.getUTCDate(),
-    resetHourUtc,
-    0,
+    Math.floor(minutes / 60),
+    minutes % 60,
     0,
     0
   );
@@ -56,22 +57,198 @@ export function modeFromLocation(search = '') {
   return params.get('mode') === 'abyss' ? 'abyss' : 'normal';
 }
 
-export const ARCHIVE_START = '2003-05-06';
-export const KILL_HISTORY_START = '2012-05-22';
-
-export function isValidDateKey(value) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return false;
-  if (date.toISOString().slice(0, 10) !== value) return false;
-  return value >= ARCHIVE_START && value <= '2100-12-31';
-}
-
 export function shiftDateKey(value, days) {
   const date = new Date(`${value}T12:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
   date.setUTCDate(date.getUTCDate() + Number(days || 0));
   return date.toISOString().slice(0, 10);
+}
+
+export function lastCompleteMonth(dateKey) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() - 1);
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+export function shiftMonth(year, month, by = 0) {
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1 + Number(by || 0), 1, 12));
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+/** Last day of the most recent completed calendar month. */
+export function lastCompleteMonthEnd(dateKey) {
+  const last = lastCompleteMonth(dateKey);
+  if (!last) return null;
+  const next = shiftMonth(last.year, last.month, 1);
+  return new Date(Date.UTC(next.year, next.month - 1, 0, 12)).toISOString().slice(0, 10);
+}
+
+export function killOnOrAfter(kill, earliestDate) {
+  if (!earliestDate) return true;
+  return String(kill?.killmail_time || '') >= `${earliestDate}T00:00:00Z`;
+}
+
+function killOnOrBefore(kill, latestDate) {
+  if (!latestDate) return true;
+  return String(kill?.killmail_time || '').slice(0, 10) <= latestDate;
+}
+
+/**
+ * Weighted rendezvous over a pool where repeated IDs are weights. Every copy
+ * gets an independent integer hash; the highest score wins, with ship ID as
+ * the deterministic tie-break. No floating-point weights or array ordering.
+ */
+export function pickWeightedRendezvous(pool, seed, salt = 0x2f6e2b1) {
+  if (!Array.isArray(pool) || !pool.length) return null;
+  const counts = new Map();
+  for (const raw of pool) {
+    const id = Number(raw);
+    if (!Number.isFinite(id)) continue;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  let bestId = null;
+  let bestScore = -1;
+  for (const [id, count] of counts) {
+    for (let copy = 0; copy < count; copy++) {
+      const score = cyrb53(`${seed}:ship:${id}:${copy}`, salt);
+      if (score > bestScore || (score === bestScore && (bestId == null || id < bestId))) {
+        bestScore = score;
+        bestId = id;
+      }
+    }
+  }
+  return bestId;
+}
+
+export function weightedRendezvousOrder(pool, seed, salt = 0x2f6e2b1) {
+  if (!Array.isArray(pool) || !pool.length) return [];
+  const counts = new Map();
+  for (const raw of pool) {
+    const id = Number(raw);
+    if (!Number.isFinite(id)) continue;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  const scored = [];
+  for (const [id, count] of counts) {
+    let bestScore = -1;
+    for (let copy = 0; copy < count; copy++) {
+      const score = cyrb53(`${seed}:ship:${id}:${copy}`, salt);
+      if (score > bestScore) bestScore = score;
+    }
+    scored.push({ id, score: bestScore });
+  }
+  scored.sort((a, b) => {
+    if (a.score !== b.score) return a.score > b.score ? -1 : 1;
+    return a.id - b.id;
+  });
+  return scored.map((entry) => entry.id);
+}
+
+export function pickKillBySeed(candidates, seed, shipId, { allowEmpty = true, earliestDate = '', latestDate = '' } = {}) {
+  if (!Array.isArray(candidates) || !candidates.length) return null;
+  let best = null;
+  let bestScore = -1;
+  for (const kill of candidates) {
+    if (!kill || Number(kill?.victim?.ship_type_id) !== Number(shipId)) continue;
+    if (!killOnOrAfter(kill, earliestDate)) continue;
+    if (!killOnOrBefore(kill, latestDate)) continue;
+    if (!allowEmpty && !killHasFittedModules(kill)) continue;
+    const killId = Number(kill.killmail_id);
+    if (!Number.isFinite(killId)) continue;
+    const score = cyrb53(`${seed}:kill:${killId}`, 0x4b1d5eed);
+    if (score > bestScore || (score === bestScore && best && killId < Number(best.killmail_id))) {
+      bestScore = score;
+      best = kill;
+    }
+  }
+  return best;
+}
+
+export function sampleTargetTime(seed, shipId, earliestDate, latestDate, halfLifeDays = 365) {
+  const latest = Date.parse(`${latestDate}T12:00:00Z`);
+  if (!Number.isFinite(latest)) return null;
+  const earliest = Date.parse(`${earliestDate}T00:00:00Z`);
+  if (!Number.isFinite(earliest) || earliest >= latest) return latest;
+  const halfLife = Number(halfLifeDays) > 0 ? Number(halfLifeDays) : 365;
+  const maxAgeDays = (latest - earliest) / 86400000;
+  const lambda = Math.LN2 / halfLife;
+  const u = (cyrb53(`${seed}:target-time:${shipId}`, 0x51ed270b) + 0.5) / 9007199254740992;
+  const age = -Math.log(1 - u * (1 - Math.exp(-lambda * maxAgeDays))) / lambda;
+  return Math.min(latest, Math.max(earliest, latest - age * 86400000));
+}
+
+function killTimeMs(kill) {
+  const time = Date.parse(String(kill?.killmail_time || ''));
+  return Number.isFinite(time) ? time : null;
+}
+
+function killInTargetRange(kill, shipId, earliestDate, latestDate, allowEmpty) {
+  if (!kill || Number(kill?.victim?.ship_type_id) !== Number(shipId)) return false;
+  if (!Number.isFinite(Number(kill.killmail_id))) return false;
+  const date = String(kill?.killmail_time || '').slice(0, 10);
+  if (!date) return false;
+  if (earliestDate && date < earliestDate) return false;
+  if (latestDate && date > latestDate) return false;
+  if (!allowEmpty && !killHasFittedModules(kill)) return false;
+  return true;
+}
+
+export function chooseClosestKill(records, shipId, targetTime, earliestDate, latestDate, { allowEmpty = true, seed = '' } = {}) {
+  if (!Array.isArray(records) || !records.length || !Number.isFinite(targetTime)) return null;
+  let best = null;
+  let bestDistance = Infinity;
+  let bestTie = -1;
+  for (const kill of records) {
+    if (!killInTargetRange(kill, shipId, earliestDate, latestDate, allowEmpty)) continue;
+    const time = killTimeMs(kill);
+    if (time == null) continue;
+    const distance = Math.abs(time - targetTime);
+    const tie = cyrb53(`${seed}:closest:${kill.killmail_id}`, 0x4b1d5eed);
+    if (distance < bestDistance || (distance === bestDistance && tie > bestTie)) {
+      best = kill;
+      bestDistance = distance;
+      bestTie = tie;
+    }
+  }
+  return best;
+}
+
+export function pickWeightedKillByRecency(records, seed, shipId, latestDate, halfLifeDays = 365, { allowEmpty = true, earliestDate = '' } = {}) {
+  if (!Array.isArray(records) || !records.length) return null;
+  const latest = Date.parse(`${latestDate}T12:00:00Z`);
+  if (!Number.isFinite(latest)) return null;
+  const halfLife = Number(halfLifeDays) > 0 ? Number(halfLifeDays) : 365;
+  const candidates = [];
+  for (const kill of records) {
+    if (!killInTargetRange(kill, shipId, earliestDate, latestDate, allowEmpty)) continue;
+    const time = killTimeMs(kill);
+    if (time == null) continue;
+    const ageDays = Math.max(0, (latest - time) / 86400000);
+    const weight = Math.max(1, Math.round(1000 * Math.pow(0.5, ageDays / halfLife)));
+    candidates.push({ kill, weight });
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => Number(a.kill.killmail_id) - Number(b.kill.killmail_id));
+  const total = candidates.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = cyrb53(`${seed}:recency:${shipId}`, 0x2f6e2b1) % total;
+  for (const entry of candidates) {
+    roll -= entry.weight;
+    if (roll < 0) return entry.kill;
+  }
+  return candidates[candidates.length - 1].kill;
+}
+
+export function beaconRoundForStart(startEpochSeconds, beacon) {
+  const genesis = Number(beacon?.genesisTime);
+  const period = Number(beacon?.period);
+  const grace = Number(beacon?.graceSeconds) || 0;
+  if (!Number.isFinite(startEpochSeconds) || !Number.isFinite(genesis) || !Number.isFinite(period) || period <= 0) {
+    return null;
+  }
+  // The first round at or after the configured start plus a small grace period.
+  return Math.ceil((startEpochSeconds + grace - genesis) / period) + 1;
 }
 
 const FREE_KILL_SALT = 0x5bd1e995;
@@ -140,15 +317,6 @@ export function victimIsWatched(victim, watchlist) {
     || normalize(watchlist.alliances).has(allianceId);
 }
 
-export function filterDailyKillPool(losses, shipId, utcToday) {
-  return (losses || []).filter((kill) => {
-    const time = String(kill?.killmail_time || '');
-    return Number(kill?.victim?.ship_type_id) === Number(shipId)
-      && time >= `${KILL_HISTORY_START}T00:00:00Z`
-      && time.slice(0, 10) !== utcToday;
-  });
-}
-
 export function killHasFittedModules(killmail) {
   // Cargo (flag 5), spare fighter-bay contents (155) and zero-quantity records
   // do not make a hull non-empty.
@@ -185,55 +353,6 @@ export function weightedHullOrder(pool, seed, limit = 8) {
   return order;
 }
 
-export function weightedKillOrder(losses, seed) {
-  const items = (losses || []).map((kill, index) => ({ kill, index }));
-  let state = cyrb53(String(seed || 'kills'), 0x4b1d5eed);
-  const random = () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
-  const order = [];
-  const last = Math.max(1, items.length - 1);
-  while (items.length) {
-    let total = 0;
-    for (let i = 0; i < items.length; i++) {
-      // Mild recency bias: the newest page-1 entry is at most ~2.2x the oldest,
-      // so the result stays meaningfully shuffled.
-      total += 1 + 1.2 * (1 - items[i].index / last);
-    }
-    let roll = random() * total;
-    let picked = items.length - 1;
-    for (let i = 0; i < items.length; i++) {
-      roll -= 1 + 1.2 * (1 - items[i].index / last);
-      if (roll <= 0) {
-        picked = i;
-        break;
-      }
-    }
-    order.push(items[picked].kill);
-    items.splice(picked, 1);
-  }
-  return order;
-}
-
-export function selectDailyKillPair(losses, seed) {
-  const order = weightedKillOrder(losses, seed);
-  const baseline = order[0] || null;
-  const fallback = order.find(killHasFittedModules) || null;
-  return { baseline, fallback, order };
-}
-
-export function selectRuntimeKill(losses, seed, allowEmpty = true) {
-  if (!Array.isArray(losses) || !losses.length) return null;
-  const index = cyrb53(String(seed), 0x5ca1ab1e) % losses.length;
-  const baseline = losses[index];
-  if (allowEmpty || killHasFittedModules(baseline)) return baseline;
-  const fitted = losses.filter(killHasFittedModules);
-  if (!fitted.length) return null;
-  const fallback = cyrb53(`${seed}:nonempty`, 0x5ca1ab1e) % fitted.length;
-  return fitted[fallback];
-}
-
 export function msUntilNextUtcMidnight(now = new Date()) {
   const next = Date.UTC(
     now.getUTCFullYear(),
@@ -264,23 +383,6 @@ export function cyrb53(input, seed = 0) {
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
   h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return 4294967296 * (2097151 & h2) + (h1 >>> 0);
-}
-
-/**
- * Deterministically map a UTC date onto the answer pool. Both the date and the
- * pool version are part of the hash; the pool is sorted by numeric hull ID so
- * localized data files can never change the result.
- */
-export function dailyAnswerIndex(dateKey, poolSize, poolVersion = '') {
-  if (!poolSize) return 0;
-  const hash = cyrb53(`fitdle:v1:${dateKey}:${poolVersion}`, 0x5ca1ab1e);
-  return hash % poolSize;
-}
-
-export function pickDailyAnswer(pool, dateKey, poolVersion = '') {
-  if (!Array.isArray(pool) || !pool.length) return null;
-  const sorted = [...pool].sort((a, b) => Number(a) - Number(b));
-  return sorted[dailyAnswerIndex(dateKey, sorted.length, poolVersion)];
 }
 
 // ---------------------------------------------------------------------------
@@ -513,7 +615,7 @@ export function shareUrl(locationLike, killId, mode = 'normal', status = 'playin
   if (timed) {
     url.pathname = new URL(`share/timed/${safeLocale}.html`, url).pathname;
     url.searchParams.set('t', String(Math.max(0, Math.round(Number(elapsedSeconds) || 0))));
-    if (Number(killId)) url.searchParams.set('kb', freeKillToken(killId));
+    if (free && Number(killId)) url.searchParams.set('kb', freeKillToken(killId));
     url.searchParams.set('rule', 'timed');
     return url.toString();
   }
@@ -525,7 +627,6 @@ export function shareUrl(locationLike, killId, mode = 'normal', status = 'playin
   }
   const key = status === 'lost' ? 'lost' : String(Math.max(1, Math.min(6, Number(attempts) || 1)));
   url.pathname = new URL(`share/${key}/${safeLocale}.html`, url).pathname;
-  if (Number(killId)) url.searchParams.set('kb', freeKillToken(killId));
   if (rule !== 'standard') url.searchParams.set('rule', rule);
   return url.toString();
 }
@@ -537,12 +638,22 @@ export function buildGuessResult(guess, answer, attempt) {
   return { kind: 'wrong', attempt, similarity: profileSimilarity(guess, answer) };
 }
 
-export function loadState(storage, date, dataVersion, mode = 'normal') {
+export function loadState(storage, date, dataVersion, mode = 'normal', target = null) {
   try {
     const raw = storage.getItem(`fitdle:v1:state:${date}:${mode}`);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (data.dataVersion !== dataVersion) return { invalidated: true };
+    if (target?.dailySeed) {
+      if (!data.dailySeed || String(data.dailySeed) !== String(target.dailySeed)) {
+        return { invalidated: true };
+      }
+    } else if (data.dataVersion !== dataVersion) {
+      return { invalidated: true };
+    }
+    if (target?.answerKillId && data.answerKillId
+      && Number(data.answerKillId) !== Number(target.answerKillId)) {
+      return { invalidated: true };
+    }
     if (!Array.isArray(data.guesses)) return null;
     return data;
   } catch {

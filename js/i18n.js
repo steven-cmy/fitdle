@@ -3111,3 +3111,377 @@ for (const [key, values] of Object.entries(RENAMES)) {
     if (MESSAGES[lang]) MESSAGES[lang][key] = value;
   }
 }
+
+Object.assign(RENAMES, {
+  'error.dailyUnavailableCode': {
+    en: 'DAILY TARGET LOCKED', de: 'TAGESZIEL GESPERRT', es: 'OBJETIVO DIARIO BLOQUEADO',
+    fr: 'CIBLE QUOTIDIENNE INDISPONIBLE', ja: 'デイリー目標を取得できません',
+    ko: '일일 목표를 사용할 수 없음', ru: 'ЕЖЕДНЕВНАЯ ЦЕЛЬ НЕДОСТУПНА', zh: '每日目标不可用',
+  },
+  'error.dailyUnavailableTitle': {
+    en: 'Daily target unavailable', de: 'Tagesziel nicht verfügbar', es: 'Objetivo diario no disponible',
+    fr: 'Cible quotidienne indisponible', ja: 'デイリー目標を取得できません',
+    ko: '일일 목표를 사용할 수 없습니다', ru: 'Ежедневная цель недоступна', zh: '每日目标暂不可用',
+  },
+  'error.dailyUnavailableBody': {
+    en: 'The authoritative time, drand beacon, or killmail record could not be verified. Open Free mode to choose a target manually.',
+    de: 'Die autoritative Zeit, der drand-Beacon oder der Killmail-Datensatz konnte nicht verifiziert werden. Öffne den Free-Modus, um ein Ziel manuell zu wählen.',
+    es: 'No se pudo verificar la hora autoritativa, el beacon de drand o el killmail. Abre el modo Libre para elegir un objetivo manualmente.',
+    fr: 'L’heure de référence, le beacon drand ou le killmail n’a pas pu être vérifié. Ouvrez le mode Libre pour choisir une cible manuellement.',
+    ja: '権威時刻、drand ビーコン、またはキルメールを検証できませんでした。フリーモードを開き、目標を手動で選択してください。',
+    ko: '권위 시간, drand 비컨 또는 킬메일을 검증할 수 없습니다. 자유 모드에서 목표를 직접 선택하세요.',
+    ru: 'Не удалось проверить авторитетное время, beacon drand или киллмейл. Откройте Free, чтобы выбрать цель вручную.',
+    zh: '无法验证权威时间、drand 信标或击杀记录。请打开自由模式手动选择目标。',
+  },
+  'clue.unavailable': {
+    en: 'UNAVAILABLE', de: 'NICHT VERFÜGBAR', es: 'NO DISPONIBLE', fr: 'INDISPONIBLE',
+    ja: 'データなし', ko: '데이터 없음', ru: 'НЕТ ДАННЫХ', zh: '数据缺失',
+  },
+});
+for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}
+
+Object.assign(RENAMES, {
+  "header.reset": {
+    "en": "NEXT RESET IN",
+    "de": "NÄCHSTER RESET IN",
+    "es": "PRÓXIMO REINICIO EN",
+    "fr": "PROCHAINE RÉINITIALISATION DANS",
+    "ja": "次回リセットまで",
+    "ko": "다음 초기화까지",
+    "ru": "ДО СЛЕДУЮЩЕГО СБРОСА",
+    "zh": "距离下次重置"
+  },
+  "end.next": {
+    "en": "NEXT RESET",
+    "de": "NÄCHSTER RESET",
+    "es": "PRÓXIMO REINICIO",
+    "fr": "PROCHAINE RÉINITIALISATION",
+    "ja": "次回リセット",
+    "ko": "다음 초기화",
+    "ru": "СЛЕДУЮЩИЙ СБРОС",
+    "zh": "下次重置"
+  },
+  "error.timeCode": {
+    "en": "TIME VERIFICATION FAILED",
+    "de": "ZEITPRÜFUNG FEHLGESCHLAGEN",
+    "es": "VERIFICACIÓN DE TIEMPO FALLIDA",
+    "fr": "ÉCHEC DE LA VÉRIFICATION DE L’HEURE",
+    "ja": "時刻検証に失敗",
+    "ko": "시간 검증 실패",
+    "ru": "ОШИБКА ПРОВЕРКИ ВРЕМЕНИ",
+    "zh": "时间校验失败"
+  },
+  "error.timeTitle": {
+    "en": "Authoritative time unavailable",
+    "de": "Autoritative Zeit nicht verfügbar",
+    "es": "Hora autoritativa no disponible",
+    "fr": "Heure de référence indisponible",
+    "ja": "権威時刻を取得できません",
+    "ko": "권위 시간을 사용할 수 없음",
+    "ru": "Авторитетное время недоступно",
+    "zh": "无法验证权威时间"
+  },
+  "error.timeBody": {
+    "en": "The server time could not be verified. The daily target stays locked; no local-clock fallback is used. Open Free mode or retry.",
+    "de": "Die Serverzeit konnte nicht verifiziert werden. Das Tagesziel bleibt gesperrt; es wird kein lokaler Uhr-Ersatz verwendet. Öffne den Free-Modus oder versuche es erneut.",
+    "es": "No se pudo verificar la hora del servidor. El objetivo diario sigue bloqueado; no se usa la hora local como respaldo. Abre el modo Libre o reintenta.",
+    "fr": "L’heure du serveur n’a pas pu être vérifiée. La cible quotidienne reste verrouillée ; aucune heure locale n’est utilisée. Ouvrez le mode Libre ou réessayez.",
+    "ja": "サーバー時刻を検証できませんでした。デイリー目標はロックされたままで、ローカル時計へのフォールバックは行いません。フリーモードを開くか再試行してください。",
+    "ko": "서버 시간을 검증할 수 없습니다. 일일 목표는 잠긴 상태로 유지되며 로컬 시계로 대체하지 않습니다. 자유 모드를 열거나 다시 시도하세요.",
+    "ru": "Не удалось проверить серверное время. Ежедневная цель остаётся заблокированной; локальные часы не используются. Откройте Free или повторите попытку.",
+    "zh": "无法验证服务器时间。每日目标保持锁定，不会退回本地时钟。请打开自由模式或重试。"
+  },
+  "error.drandCode": {
+    "en": "DRAND BEACON UNAVAILABLE",
+    "de": "DRAND-BEACON NICHT VERFÜGBAR",
+    "es": "BEACON DRAND NO DISPONIBLE",
+    "fr": "BEACON DRAND INDISPONIBLE",
+    "ja": "DRAND ビーコン利用不可",
+    "ko": "DRAND 비컨 사용 불가",
+    "ru": "BEACON DRAND НЕДОСТУПЕН",
+    "zh": "DRAND 信标不可用"
+  },
+  "error.drandTitle": {
+    "en": "Time-lock beacon unavailable",
+    "de": "Zeitlock-Beacon nicht verfügbar",
+    "es": "Beacon de bloqueo temporal no disponible",
+    "fr": "Beacon de verrouillage temporel indisponible",
+    "ja": "タイムロックビーコン利用不可",
+    "ko": "타임락 비컨 사용 불가",
+    "ru": "Тайм-лок beacon недоступен",
+    "zh": "时间锁信标不可用"
+  },
+  "error.drandBody": {
+    "en": "The configured drand round could not be fetched or verified. The daily target stays locked until the beacon is available. Open Free mode or retry.",
+    "de": "Die konfigurierte drand-Runde konnte nicht abgerufen oder verifiziert werden. Das Tagesziel bleibt gesperrt, bis der Beacon verfügbar ist. Öffne den Free-Modus oder versuche es erneut.",
+    "es": "No se pudo obtener ni verificar la ronda drand configurada. El objetivo diario sigue bloqueado hasta que el beacon esté disponible. Abre el modo Libre o reintenta.",
+    "fr": "La ronde drand configurée n’a pas pu être récupérée ou vérifiée. La cible quotidienne reste verrouillée jusqu’à la disponibilité du beacon. Ouvrez le mode Libre ou réessayez.",
+    "ja": "設定された drand ラウンドを取得・検証できませんでした。ビーコンが利用できるまでデイリー目標はロックされます。フリーモードを開くか再試行してください。",
+    "ko": "설정된 drand 라운드를 가져오거나 검증할 수 없습니다. 비컨이 사용 가능할 때까지 일일 목표는 잠깁니다. 자유 모드를 열거나 다시 시도하세요.",
+    "ru": "Не удалось получить или проверить настроенный раунд drand. Ежедневная цель остаётся заблокированной до появления beacon. Откройте Free или повторите попытку.",
+    "zh": "无法获取或验证配置的 drand 轮次。每日目标保持锁定，直到信标恢复。请打开自由模式或重试。"
+  },
+  "error.zkillCode": {
+    "en": "ZKILLBOARD UNAVAILABLE",
+    "de": "ZKILLBOARD NICHT VERFÜGBAR",
+    "es": "ZKILLBOARD NO DISPONIBLE",
+    "fr": "ZKILLBOARD INDISPONIBLE",
+    "ja": "ZKILLBOARD 利用不可",
+    "ko": "ZKILLBOARD 사용 불가",
+    "ru": "ZKILLBOARD НЕДОСТУПЕН",
+    "zh": "ZKILLBOARD 不可用"
+  },
+  "error.zkillTitle": {
+    "en": "Killmail data unavailable",
+    "de": "Killmail-Daten nicht verfügbar",
+    "es": "Datos de killmail no disponibles",
+    "fr": "Données de killmail indisponibles",
+    "ja": "キルメールデータ利用不可",
+    "ko": "킬메일 데이터 사용 불가",
+    "ru": "Данные киллмейлов недоступны",
+    "zh": "击杀数据不可用"
+  },
+  "error.zkillBody": {
+    "en": "zKillboard could not return the completed-month killmail data. The daily target stays locked; no static target is used. Open Free mode or retry.",
+    "de": "zKillboard konnte die Killmail-Daten des abgeschlossenen Monats nicht liefern. Das Tagesziel bleibt gesperrt; kein statisches Ziel wird verwendet. Öffne den Free-Modus oder versuche es erneut.",
+    "es": "zKillboard no pudo devolver los killmails del mes completo. El objetivo diario sigue bloqueado; no se usa un objetivo estático. Abre el modo Libre o reintenta.",
+    "fr": "zKillboard n’a pas pu renvoyer les killmails du mois terminé. La cible quotidienne reste verrouillée ; aucune cible statique n’est utilisée. Ouvrez le mode Libre ou réessayez.",
+    "ja": "zKillboard から完了月のキルメールを取得できませんでした。デイリー目標はロックされたままで、静的目標は使用しません。フリーモードを開くか再試行してください。",
+    "ko": "zKillboard에서 완료된 월의 킬메일을 가져오지 못했습니다. 일일 목표는 잠긴 상태로 유지되며 정적 목표를 사용하지 않습니다. 자유 모드를 열거나 다시 시도하세요.",
+    "ru": "zKillboard не вернул киллмейлы завершённого месяца. Ежедневная цель остаётся заблокированной; статическая цель не используется. Откройте Free или повторите попытку.",
+    "zh": "zKillboard 无法返回完整月份的击杀数据。每日目标保持锁定，不会使用静态目标。请打开自由模式或重试。"
+  },
+  "error.esiCode": {
+    "en": "ESI UNAVAILABLE",
+    "de": "ESI NICHT VERFÜGBAR",
+    "es": "ESI NO DISPONIBLE",
+    "fr": "ESI INDISPONIBLE",
+    "ja": "ESI 利用不可",
+    "ko": "ESI 사용 불가",
+    "ru": "ESI НЕДОСТУПЕН",
+    "zh": "ESI 不可用"
+  },
+  "error.esiTitle": {
+    "en": "ESI name data unavailable",
+    "de": "ESI-Namendaten nicht verfügbar",
+    "es": "Datos de nombres ESI no disponibles",
+    "fr": "Données de noms ESI indisponibles",
+    "ja": "ESI 名前データ利用不可",
+    "ko": "ESI 이름 데이터 사용 불가",
+    "ru": "Данные имён ESI недоступны",
+    "zh": "ESI 名称数据不可用"
+  },
+  "error.esiBody": {
+    "en": "ESI could not provide supporting character or type names. The puzzle can continue, but some names may be missing.",
+    "de": "ESI konnte keine unterstützenden Charakter- oder Typnamen liefern. Das Rätsel kann fortgesetzt werden, aber einige Namen fehlen möglicherweise.",
+    "es": "ESI no pudo proporcionar nombres de personajes o tipos. El puzzle puede continuar, pero es posible que falten algunos nombres.",
+    "fr": "ESI n’a pas pu fournir les noms de personnages ou de types. Le puzzle peut continuer, mais certains noms peuvent manquer.",
+    "ja": "ESI からキャラクター名やタイプ名を取得できませんでした。パズルは続行できますが、一部の名前が表示されない場合があります。",
+    "ko": "ESI에서 캐릭터 또는 타입 이름을 가져오지 못했습니다. 퍼즐은 계속할 수 있지만 일부 이름이 표시되지 않을 수 있습니다.",
+    "ru": "ESI не предоставил имена персонажей или типов. Головоломку можно продолжить, но некоторые имена могут отсутствовать.",
+    "zh": "ESI 无法提供角色或物品名称。谜题可以继续，但部分名称可能缺失。"
+  },
+  "error.noTargetCode": {
+    "en": "NO KB TARGET",
+    "de": "KEIN KB-ZIEL",
+    "es": "SIN OBJETIVO KB",
+    "fr": "AUCUNE CIBLE KB",
+    "ja": "KB 目標なし",
+    "ko": "KB 목표 없음",
+    "ru": "НЕТ ЦЕЛИ KB",
+    "zh": "未选出 KB 目标"
+  },
+  "error.noTargetTitle": {
+    "en": "No eligible killmail",
+    "de": "Kein passendes Killmail",
+    "es": "No hay killmail elegible",
+    "fr": "Aucun killmail éligible",
+    "ja": "条件に合うキルメールがありません",
+    "ko": "조건에 맞는 킬메일이 없습니다",
+    "ru": "Нет подходящего киллмейла",
+    "zh": "没有符合条件的击杀"
+  },
+  "error.noTargetBody": {
+    "en": "No completed-month killmail matched the selected ship and KB lower bound. Open Free mode or retry.",
+    "de": "Kein Killmail des abgeschlossenen Monats passte zum gewählten Schiff und zur KB-Untergrenze. Öffne den Free-Modus oder versuche es erneut.",
+    "es": "Ningún killmail del mes completo coincidió con la nave y el límite inferior de KB. Abre el modo Libre o reintenta.",
+    "fr": "Aucun killmail du mois terminé ne correspond au vaisseau et à la limite KB. Ouvrez le mode Libre ou réessayez.",
+    "ja": "完了月のキルメールに、選択した船と KB 下限に一致するものがありませんでした。フリーモードを開くか再試行してください。",
+    "ko": "완료된 월의 킬메일 중 선택한 함선과 KB 하한에 맞는 항목이 없습니다. 자유 모드를 열거나 다시 시도하세요.",
+    "ru": "Среди киллмейлов завершённого месяца нет подходящего к выбранному кораблю и нижней границе KB. Откройте Free или повторите попытку.",
+    "zh": "完整月份的击杀中没有符合当前舰船与 KB 下限的记录。请打开自由模式或重试。"
+  }
+});
+for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}
+
+Object.assign(RENAMES, {
+  "error.dailyLore": {
+    "en": "DAILY SIGNAL LOST",
+    "de": "TÄGLICHES SIGNAL VERLOREN",
+    "es": "SEÑAL DIARIA PERDIDA",
+    "fr": "SIGNAL QUOTIDIEN PERDU",
+    "ja": "デイリー信号喪失",
+    "ko": "일일 신호 상실",
+    "ru": "ЕЖЕДНЕВНЫЙ СИГНАЛ ПОТЕРЯН",
+    "zh": "每日信号丢失"
+  },
+  "error.timeLore": {
+    "en": "TIME SIGNAL LOST",
+    "de": "ZEITSIGNAL VERLOREN",
+    "es": "SEÑAL DE TIEMPO PERDIDA",
+    "fr": "SIGNAL TEMPOREL PERDU",
+    "ja": "時刻信号喪失",
+    "ko": "시간 신호 상실",
+    "ru": "СИГНАЛ ВРЕМЕНИ ПОТЕРЯН",
+    "zh": "时间信号丢失"
+  },
+  "error.drandLore": {
+    "en": "BEACON SIGNAL LOST",
+    "de": "BEACON-SIGNAL VERLOREN",
+    "es": "SEÑAL DEL BEACON PERDIDA",
+    "fr": "SIGNAL DU BEACON PERDU",
+    "ja": "ビーコン信号喪失",
+    "ko": "비컨 신호 상실",
+    "ru": "СИГНАЛ BEACON ПОТЕРЯН",
+    "zh": "信标信号丢失"
+  },
+  "error.zkillLore": {
+    "en": "UPLINK FAILED",
+    "de": "UPLINK FEHLGESCHLAGEN",
+    "es": "ENLACE ASCENDENTE FALLIDO",
+    "fr": "LIAISON MONTANTE EN ÉCHEC",
+    "ja": "アップリンク失敗",
+    "ko": "업링크 실패",
+    "ru": "СБОЙ UPLINK",
+    "zh": "上行链路失败"
+  },
+  "error.esiLore": {
+    "en": "IDENTITY ARCHIVE OFFLINE",
+    "de": "IDENTITÄTSARCHIV OFFLINE",
+    "es": "ARCHIVO DE IDENTIDAD OFFLINE",
+    "fr": "ARCHIVE D’IDENTITÉ HORS LIGNE",
+    "ja": "識別アーカイブオフライン",
+    "ko": "신원 기록 오프라인",
+    "ru": "АРХИВ ИДЕНТИЧНОСТИ ОФЛАЙН",
+    "zh": "身份档案离线"
+  },
+  "error.noTargetLore": {
+    "en": "NO TARGET LOCK",
+    "de": "KEIN ZIEL LOCK",
+    "es": "SIN BLOQUEO DE OBJETIVO",
+    "fr": "AUCUN VERROUILLAGE DE CIBLE",
+    "ja": "目標ロックなし",
+    "ko": "목표 잠금 없음",
+    "ru": "ЦЕЛЬ НЕ ЗАХВАЧЕНА",
+    "zh": "未捕获目标"
+  },
+  "error.unknownHullLore": {
+    "en": "SIGNAL UNCLASSIFIED",
+    "de": "SIGNAL UNKLASSIFIZIERT",
+    "es": "SEÑAL SIN CLASIFICAR",
+    "fr": "SIGNAL NON CLASSÉ",
+    "ja": "信号未分類",
+    "ko": "신호 미분류",
+    "ru": "СИГНАЛ НЕ КЛАССИФИЦИРОВАН",
+    "zh": "信号无法归类"
+  },
+  "error.genericLore": {
+    "en": "UPLINK FAILED",
+    "de": "UPLINK FEHLGESCHLAGEN",
+    "es": "ENLACE ASCENDENTE FALLIDO",
+    "fr": "LIAISON MONTANTE EN ÉCHEC",
+    "ja": "アップリンク失敗",
+    "ko": "업링크 실패",
+    "ru": "СБОЙ UPLINK",
+    "zh": "上行链路失败"
+  },
+  "error.genericCode": {
+    "en": "Unclassified signal failure",
+    "de": "Unklassifizierter Signalfehler",
+    "es": "Fallo de señal no clasificado",
+    "fr": "Échec de signal non classé",
+    "ja": "未分類の信号障害",
+    "ko": "분류되지 않은 신호 오류",
+    "ru": "Неклассифицированный сбой сигнала",
+    "zh": "未分类的信号错误"
+  }
+});
+for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}
+
+Object.assign(RENAMES, {
+  "help.sharedRules": {
+    "en": "One hull. Six attempts.\nClues are declassified as you play.\nGuesses reveal information shared with the target.\nDifferent modes release intel in different ways.",
+    "de": "Eine Hülle. Sechs Versuche.\nHinweise werden im Spielverlauf freigegeben.\nEin Tipp deckt Informationen auf, die mit dem Ziel übereinstimmen.\nDie Modi geben Hinweise auf unterschiedliche Weise frei.",
+    "es": "Un casco. Seis intentos.\nLas pistas se desclasifican mientras juegas.\nLas respuestas revelan información compartida con el objetivo.\nCada modo libera información a su manera.",
+    "fr": "Une coque. Six tentatives.\nLes indices sont déclassifiés au fil du jeu.\nUne proposition révèle les informations partagées avec la cible.\nChaque mode libère les indices à sa façon.",
+    "ja": "1つの船体、6回の挑戦。\nプレイに応じてヒントが公開されます。\n回答すると、目標と共通する情報が明らかになります。\nモードごとに情報の公開ペースは異なります。",
+    "ko": "선체 1척, 6회 시도.\n플레이하면서 단서가 공개됩니다.\n추측하면 목표와 공유되는 정보가 드러납니다.\n모드마다 정보가 공개되는 방식이 다릅니다.",
+    "ru": "Один корпус. Шесть попыток.\nПодсказки раскрываются по ходу игры.\nОтвет показывает сведения, общие с целью.\nВ каждом режиме сведения раскрываются по-своему.",
+    "zh": "一艘船，六次尝试。\n线索会随游戏进程逐步解密。\n猜测会揭示与目标相同的信息。\n不同模式的解密节奏不同。"
+  },
+  "mode.helpNormal": {
+    "en": "Standard mode.\nWrong guesses gradually reveal intelligence.\nA correct guess reveals information shared with the target.",
+    "de": "Standardmodus.\nFalsche Tipps decken nach und nach Informationen auf.\nEin richtiger Tipp zeigt gemeinsam genutzte Informationen.",
+    "es": "Modo estándar.\nLos fallos revelan información poco a poco.\nUn acierto revela información compartida con el objetivo.",
+    "fr": "Mode standard.\nLes erreurs révèlent progressivement des informations.\nUne bonne réponse révèle les informations partagées avec la cible.",
+    "ja": "スタンダードモード。\n誤答すると少しずつ情報が公開されます。\n正解すると、目標と共通する情報が明らかになります。",
+    "ko": "스탠다드 모드.\n오답을 내면 정보가 조금씩 공개됩니다.\n정답을 맞히면 목표와 공유되는 정보가 드러납니다.",
+    "ru": "Стандартный режим.\nНеверные ответы постепенно раскрывают сведения.\nВерный ответ показывает информацию, общую с целью.",
+    "zh": "标准模式。\n猜错会逐步揭示情报。\n猜中会获得与目标共享的信息。"
+  },
+  "mode.helpAbyss": {
+    "en": "Abyssal mode.\nFittings and attributes are simulated from the killmail.\nRare and specialised hulls are more likely.\nIntelligence unfolds at its own pace.",
+    "de": "Abyssmodus.\nFitting und Attribute werden aus dem Killmail simuliert.\nSeltene und spezialisierte Hüllen sind wahrscheinlicher.\nInformationen entfalten sich in ihrem eigenen Tempo.",
+    "es": "Modo Abismo.\nLos ajustes y atributos se simulan desde el killmail.\nLos cascos raros y especializados son más probables.\nLa información se despliega a su propio ritmo.",
+    "fr": "Mode Abyssal.\nLes fittings et attributs sont simulés depuis le killmail.\nLes coques rares et spécialisées sont plus probables.\nLes informations se dévoilent à leur propre rythme.",
+    "ja": "アビサルモード。\n装備と属性はキルメールからシミュレーションされます。\n希少・特殊な船体が選ばれやすくなります。\n情報は独自のペースで公開されます。",
+    "ko": "어비설 모드.\n장비와 속성은 킬메일에서 시뮬레이션됩니다.\n희귀·특수 선체가 더 자주 선택됩니다.\n정보는 자체적인 속도로 공개됩니다.",
+    "ru": "Режим Бездны.\nМодули и атрибуты симулируются по киллмейлу.\nРедкие и специальные корпуса встречаются чаще.\nСведения раскрываются в своём темпе.",
+    "zh": "深渊模式。\n装配与属性根据击杀记录模拟。\n稀有舰船更可能出现。\n情报按自身节奏释放。"
+  },
+  "mode.helpTimed": {
+    "en": "Timed mode.\nThe run starts when you start the timer.\nIntel unfolds on a schedule; guesses do not reveal extra intel.\nName the hull to stop the clock.",
+    "de": "Zeitmodus.\nDer Lauf beginnt mit dem Timer.\nInformationen werden nach Zeitplan freigegeben; Tipps geben keine zusätzlichen Hinweise.\nNenne die Hülle, um die Zeit zu stoppen.",
+    "es": "Modo cronometrado.\nLa partida empieza al iniciar el cronómetro.\nLa información se revela según el tiempo; los intentos no añaden más.\nAcierta el casco para detener el reloj.",
+    "fr": "Mode chronométré.\nLa partie commence au lancement du chrono.\nLes informations se révèlent selon le temps ; les tentatives n’en ajoutent pas.\nTrouvez la coque pour arrêter le chrono.",
+    "ja": "タイムモード。\nタイマーを開始するとゲームが始まります。\n情報は時間に沿って公開され、推測では追加されません。\n船体名を当てると計測が止まります。",
+    "ko": "타임 모드.\n타이머를 시작하면 게임이 시작됩니다.\n정보는 시간에 따라 공개되며, 추측으로는 추가되지 않습니다.\n선체 이름을 맞히면 타이머가 멈춥니다.",
+    "ru": "Режим на время.\nЗабег начинается с запуска таймера.\nСведения раскрываются по времени; ответы не добавляют новых.\nНазовите корпус, чтобы остановить таймер.",
+    "zh": "计时模式。\n开始计时后进入游戏。\n情报按时间释放，猜测不会额外揭示。\n猜中船名即可停止计时。"
+  }
+});
+for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}
+
+Object.assign(RENAMES, {
+  "mode.helpFree": {
+    "en": "Free mode.\nOpen a shared killboard link or draw a random target.\nFree runs do not affect daily stats or daily progress.",
+    "de": "Free-Modus.\nÖffne einen geteilten Killboard-Link oder ziehe ein zufälliges Ziel.\nFree-Läufe beeinflussen weder Tagesstatistik noch Tagesfortschritt.",
+    "es": "Modo Libre.\nAbre un enlace de killboard compartido o elige un objetivo aleatorio.\nLas partidas libres no afectan a las estadísticas ni al progreso diario.",
+    "fr": "Mode Libre.\nOuvrez un lien de killboard partagé ou tirez une cible aléatoire.\nLes parties libres n’affectent ni les statistiques ni la progression quotidienne.",
+    "ja": "フリーモード。\n共有されたキルボードリンクを開くか、ランダムな目標を選びます。\nフリーのプレイはデイリー統計や進行に影響しません。",
+    "ko": "자유 모드.\n공유된 킬보드 링크를 열거나 무작위 목표를 선택합니다.\n자유 모드 플레이는 일일 통계와 진행에 영향을 주지 않습니다.",
+    "ru": "Свободный режим.\nОткройте общую ссылку на killboard или выберите случайную цель.\nСвободные забеги не влияют на ежедневную статистику и прогресс.",
+    "zh": "自由模式。\n打开共享击杀链接，或随机抽取一个目标。\n自由模式不影响每日统计和每日进度。"
+  }
+});
+for (const [key, values] of Object.entries(RENAMES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}

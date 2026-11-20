@@ -1,14 +1,14 @@
 /**
  * Runtime clue factory.
  *
- * CCP SDE data is static and comes from the generated catalog.  Fittings and
- * economy stats are fetched live from zKillboard for the single daily target;
- * this module merges both into the dossier.  It is pure so the rules can be
- * tested without a browser.
+ * CCP SDE data is static and comes from the generated catalog.  Killmail
+ * fittings and kill value come from the target kill; live zKill aggregate stats
+ * are not required for Daily mode. This module merges both into the dossier and
+ * is pure so the rules can be tested without a browser.
  */
 import { cyrb53 } from './game.js';
 
-export const CLUE_VERSION = 3;
+export const CLUE_VERSION = 5;
 
 const FITTED_FLAGS = (() => {
   const map = new Map();
@@ -518,7 +518,8 @@ function parseFittings(losses, refs = null) {
       rate: (moduleKills.get(info.module) || 0) / Math.max(1, fittedKills),
     });
   }
-  equipment.sort((a, b) => b.rate - a.rate || b.count - a.count || a.module - b.module || a.slot.localeCompare(b.slot));
+  equipment.sort((a, b) => b.rate - a.rate || b.count - a.count || a.module - b.module
+    || (EQUIPMENT_SLOT_ORDER[a.slot] ?? 99) - (EQUIPMENT_SLOT_ORDER[b.slot] ?? 99));
   return { equipment, fittedKills, medianValue: median(values) };
 }
 
@@ -762,6 +763,7 @@ function classBucketCount(clue, ship, catalog) {
 }
 
 function weightFor(clue, ship, catalog, fitDelta = null) {
+  if (clue.missing) return 1;
   if (clue.k === 'bonus') return 9.5;
   if (clue.k === 'equipment') return clue.w;
   if (clue.k === 'usageRank') {
@@ -786,11 +788,13 @@ function weightFor(clue, ship, catalog, fitDelta = null) {
 
 function orderClues(clues, seed, mode = 'normal') {
   const random = seededRandom(cyrb53(seed, 0x0b1d1e));
-  const scored = clues.map((clue) => ({
+  const scored = clues.map((clue, index) => ({
     clue,
+    index,
     key: clue.w + (random() - 0.5) * 2.8,
+    tie: cyrb53(`${seed}:order:${index}:${clue.k}:${clue.v}`, 0x7f1a2b3),
   }));
-  scored.sort((a, b) => a.key - b.key || random() - 0.5);
+  scored.sort((a, b) => a.key - b.key || a.tie - b.tie || a.index - b.index);
   const ordered = scored.map((entry) => entry.clue);
   const identity = (clue) => ['tech', 'race', 'faction', 'group'].includes(clue.k);
   const hardAbyss = (clue) => mode === 'abyss' && (
@@ -997,21 +1001,31 @@ export function buildClues({
     ? resistanceInfluences(equipmentClues, refs)
     : null;
 
+  const recent = stats?.rankings?.recent?.all;
+  const losses30 = Number(recent?.metrics?.shipsLost || 0);
+  const rank = Number(recent?.ranks?.shipsLost || 0);
+  const danger = Number(stats?.dangerRatio || 0);
   if (stats) {
-    const recent = stats.rankings?.recent?.all;
-    const losses30 = Number(recent?.metrics?.shipsLost || 0);
-    const rank = Number(recent?.ranks?.shipsLost || 0);
-    const danger = Number(stats.dangerRatio || 0);
     clues.push({ k: 'losses30', c: 'economy', v: losses30, prior: 2.9 });
-    if (rank > 0) {
-      const usageRank = clamp(Math.round((rank / Math.max(1, catalog.length)) * 100), 1, 100);
-      clues.push({ k: 'usageRank', c: 'economy', v: usageRank, prior: 2.2 });
-    }
-    if (danger) clues.push({ k: 'danger', c: 'economy', v: danger, prior: 2.1 });
+    clues.push({
+      k: 'usageRank', c: 'economy',
+      v: rank > 0 ? clamp(Math.round((rank / Math.max(1, catalog.length)) * 100), 1, 100) : 0,
+      prior: 2.2,
+      ...(rank > 0 ? {} : { missing: true }),
+    });
+    clues.push({
+      k: 'danger', c: 'economy', v: danger, prior: 2.1,
+      ...(danger ? {} : { missing: true }),
+    });
   }
+  // Daily mode deliberately does not request live zKill stats. Only the real
+  // killmail value is shown; do not render an empty "data missing" category.
   const killValue = Number(losses?.[0]?.zkb?.totalValue || 0);
-  if (killValue > 0) {
-    clues.push({ k: 'kbValue', c: 'economy', v: killValue, prior: 2.6 });
+  if (killValue > 0 || stats) {
+    clues.push({
+      k: 'kbValue', c: 'economy', v: killValue, prior: 2.6,
+      ...(killValue > 0 ? {} : { missing: true }),
+    });
   }
 
   const bonusEntries = ship.bonusEntries || [];
@@ -1119,6 +1133,7 @@ export function buildClues({
         w: round(clamp(weight, 1, 10), 1),
         tags,
         bonusKey: entry.bonusKey,
+        bonusTermKey: entry.termKey,
       });
     }
   }

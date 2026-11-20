@@ -11,8 +11,10 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { loadBuildConfig } from './build-env.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+const BUILD_CONFIG = loadBuildConfig(ROOT);
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.0.0';
 const USER_AGENT = `FITDLE/${PACKAGE_VERSION} (+https://gitlab.com/cmy/fitdle)`;
 const SDE_FILE = path.join(ROOT, '.cache', 'normalized.json');
@@ -195,19 +197,6 @@ const eligibleShips = catalog.filter((ship) => {
   return !usage || Number(usage.all) > 0;
 });
 const killShipPool = eligibleShips.map((ship) => ship.id).sort((a, b) => a - b);
-const normalShipPool = eligibleShips
-  .flatMap((ship) => {
-    const weight = 1 + 2.2 * usageScore(ship);
-    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
-  })
-  .sort((a, b) => a - b);
-const abyssKillShipPool = eligibleShips
-  .flatMap((ship) => {
-    const weight = 1 + 1.8 * (1 - usageScore(ship));
-    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
-  })
-  .sort((a, b) => a - b);
-
 const killPoolPath = [
   path.join(ROOT, '.cache', 'killpool.json'),
   path.join(ROOT, 'data', 'killpool.json'),
@@ -236,6 +225,19 @@ for (const entry of killPool) {
   }
 }
 for (const ids of Object.values(killPoolsByShip)) ids.sort((a, b) => a - b);
+
+const normalShipPool = eligibleShips
+  .flatMap((ship) => {
+    const weight = 1 + 2.2 * usageScore(ship);
+    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
+  })
+  .sort((a, b) => a - b);
+const abyssKillShipPool = eligibleShips
+  .flatMap((ship) => {
+    const weight = 1 + 1.8 * (1 - usageScore(ship));
+    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
+  })
+  .sort((a, b) => a - b);
 
 const moduleTypes = sde.moduleTypes || [];
 const moduleIDs = new Set(moduleTypes.map((module) => module.id));
@@ -333,8 +335,20 @@ const moduleFallbacks = {};
   }
 }
 
-const RULESET_VERSION = 'v56';
+const RULESET_VERSION = 'v60';
 const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
+const configStamp = [
+  BUILD_CONFIG.gameDayStartUtc,
+  BUILD_CONFIG.kbSelectionStartDate,
+  BUILD_CONFIG.kbRecencyHalfLifeDays,
+  BUILD_CONFIG.kbMaxScanPages,
+  BUILD_CONFIG.beacon.chain,
+  BUILD_CONFIG.beacon.publicKey,
+  BUILD_CONFIG.beacon.period,
+  BUILD_CONFIG.beacon.genesisTime,
+  BUILD_CONFIG.beacon.graceSeconds,
+  JSON.stringify(BUILD_CONFIG.reveal),
+].join('|');
 const bonusStamp = crypto.createHash('sha1').update(catalog.map((ship) => (
   `${ship.id}:${(ship.bonusEntries || []).map((entry) => `${entry.bonusKey}:${(entry.links || []).join(',')}`).join(',')}`
 )).join('|')).digest('hex').slice(0, 12);
@@ -345,14 +359,21 @@ const moduleFallbackDetails = Object.fromEntries(moduleTypes
   .filter((module) => module.simulationAttributes && Object.keys(module.simulationAttributes).length)
   .map((module) => [module.id, module.simulationAttributes]));
 const rigSizeStamp = catalog.filter((ship) => Number(ship.attrs.rigSize) > 0).length;
-const versionSeed = `${RULESET_VERSION}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${moduleFitStamp}|${Object.keys(moduleFallbackDetails).length}|${rigSizeStamp}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}|${bonusStamp}`;
+const versionSeed = `${RULESET_VERSION}|${configStamp}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${moduleFitStamp}|${Object.keys(moduleFallbackDetails).length}|${rigSizeStamp}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}|${bonusStamp}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
 
 const manifest = {
   format: 'fitdle-runtime-v2',
   version: PACKAGE_VERSION,
   dataVersion,
-  clueVersion: '3',
+  clueVersion: '5',
+  gameDayStartUtc: BUILD_CONFIG.gameDayStartUtc,
+  gameDayStartMinutes: BUILD_CONFIG.gameDayStartMinutes,
+  kbSelectionStartDate: BUILD_CONFIG.kbSelectionStartDate,
+  kbRecencyHalfLifeDays: BUILD_CONFIG.kbRecencyHalfLifeDays,
+  kbMaxScanPages: BUILD_CONFIG.kbMaxScanPages,
+  reveal: BUILD_CONFIG.reveal,
+  beacon: BUILD_CONFIG.beacon,
   generatedAt: new Date().toISOString(),
   sdeGeneratedAt: sde.generatedAt || null,
   sde: {
@@ -400,7 +421,7 @@ const manifest = {
   },
   killPoolGeneratedAt: killPoolSource.generatedAt || null,
   moduleFallbacks,
-  downtimeUtcHour: 11,
+  downtimeUtcHour: Math.floor(BUILD_CONFIG.gameDayStartMinutes / 60),
   counts: {
     catalog: catalog.length,
     answers: catalog.length,

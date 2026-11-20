@@ -3,22 +3,20 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  ARCHIVE_START,
   ATTEMPT_LIMIT,
   INITIAL_REVEAL,
   DOWNTIME_HOUR_UTC,
+  beaconRoundForStart,
   buildSearchIndex,
   buildGuessResult,
-  dailyAnswerIndex,
   freeKillIdFromToken,
   emptyStats,
-  filterDailyKillPool,
   formatMass,
   freeKillToken,
   gameDateKey,
-  isValidDateKey,
-  KILL_HISTORY_START,
   killHasFittedModules,
+  lastCompleteMonth,
+  lastCompleteMonthEnd,
   loadState,
   loadStats,
   modeFromLocation,
@@ -26,27 +24,31 @@ import {
   msUntilNextUtcMidnight,
   newlyRevealedFor,
   parseKillId,
-  pickDailyAnswer,
+  pickKillBySeed,
+  pickWeightedRendezvous,
+  chooseClosestKill,
+  pickWeightedKillByRecency,
   profileSimilarity,
   recordPlay,
   recordResult,
   resultGrid,
   revealCountFor,
+  sampleTargetTime,
   saveState,
   saveStats,
   settleStats,
   searchShips,
-  selectDailyKillPair,
-  selectRuntimeKill,
-  weightedKillOrder,
   shareUrl,
   shiftDateKey,
+  shiftMonth,
   utcDateKey,
   victimIsWatched,
+  weightedRendezvousOrder,
 } from '../js/game.js';
 import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, humanBucketKey, moduleFitSize, selectAbyssFallbacks, STANDARD_DEFENSE_RANGE } from '../js/clues.js';
-import { computeRevealed, computeTimedRevealed, timedRevealTotal } from '../js/reveal.js';
+import { buildRevealPlan, computeRevealed, computeTimedRevealed, DEFAULT_REVEAL_CONFIG, timedRevealTotal } from '../js/reveal.js';
 import { MESSAGES, resolveLocale } from '../js/i18n.js';
+import { DEFAULT_REVEAL, DEFAULT_KB_RECENCY_HALF_LIFE_DAYS, DEFAULT_KB_MAX_SCAN_PAGES, loadBuildConfig, parseDateOnly, parseGameDayStart } from '../scripts/build-env.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'manifest.json'), 'utf8'));
@@ -56,8 +58,10 @@ const refs = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'refs', 'en.json
 function makeLosses() {
   return [{
     killmail_id: 424242,
+    killmail_time: '2026-11-16T00:00:00Z',
     zkb: { totalValue: 12345678 },
     victim: {
+      ship_type_id: 670,
       items: [
         { flag: 27, item_type_id: 2048, quantity_destroyed: 1, quantity_dropped: 0 },
         { flag: 19, item_type_id: 5973, quantity_destroyed: 1, quantity_dropped: 0 },
@@ -74,15 +78,15 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(utcDateKey(new Date('2026-11-15T00:00:00Z')), '2026-11-15');
   assert.equal(gameDateKey(new Date('2026-11-14T10:59:59Z')), '2026-11-13');
   assert.equal(gameDateKey(new Date('2026-11-14T11:00:00Z')), '2026-11-14');
-  assert.equal(KILL_HISTORY_START, '2012-05-22');
-  assert.equal(ARCHIVE_START, '2003-05-06');
-  assert.equal(isValidDateKey('2003-05-05'), false);
-  assert.equal(isValidDateKey('2003-05-06'), true);
-  assert.equal(isValidDateKey('2012-05-21'), true);
-  assert.equal(isValidDateKey('2026-02-29'), false);
-  assert.equal(isValidDateKey('2024-02-29'), true);
+  assert.equal(gameDateKey(new Date('2026-11-14T10:29:59Z'), 10 * 60 + 30), '2026-11-13');
+  assert.equal(gameDateKey(new Date('2026-11-14T10:30:00Z'), 10 * 60 + 30), '2026-11-14');
+  assert.equal(gameDateKey(new Date('2026-11-14T00:14:59Z'), 15), '2026-11-13');
+  assert.equal(gameDateKey(new Date('2026-11-14T00:15:00Z'), 15), '2026-11-14');
+  assert.equal(msUntilNextDowntime(new Date('2026-11-14T00:00:00Z'), 15), 15 * 60 * 1000);
+  assert.equal(msUntilNextDowntime(new Date('2026-11-14T00:15:00Z'), 15), 24 * 60 * 60 * 1000);
   assert.equal(msUntilNextUtcMidnight(new Date('2026-11-14T23:59:30Z')), 30000);
   assert.equal(msUntilNextDowntime(new Date('2026-11-14T10:30:00Z')), 30 * 60 * 1000);
+  assert.equal(msUntilNextDowntime(new Date('2026-11-14T10:00:00Z'), 10 * 60 + 30), 30 * 60 * 1000);
   assert.equal(msUntilNextDowntime(new Date('2026-11-14T11:00:00Z')), 24 * 60 * 60 * 1000);
   assert.equal(modeFromLocation('?rule=abyss'), 'abyss');
   assert.equal(modeFromLocation('?rule=standard'), 'normal');
@@ -92,6 +96,13 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(modeFromLocation('?mode=timed'), 'normal');
   assert.equal(shiftDateKey('2012-05-22', -1), '2012-05-21');
   assert.equal(shiftDateKey('2026-11-14', 1), '2026-11-15');
+  assert.deepEqual(lastCompleteMonth('2026-11-14'), { year: 2026, month: 10 });
+  assert.deepEqual(lastCompleteMonth('2026-01-01'), { year: 2025, month: 12 });
+  assert.equal(lastCompleteMonthEnd('2026-11-14'), '2026-10-31');
+  assert.equal(lastCompleteMonthEnd('2026-01-01'), '2025-12-31');
+  assert.equal(lastCompleteMonthEnd('2026-03-01'), '2026-02-28');
+  assert.deepEqual(shiftMonth(2026, 1, -1), { year: 2025, month: 12 });
+  assert.deepEqual(shiftMonth(2026, 12, 1), { year: 2027, month: 1 });
   assert.equal(parseKillId('139037509'), 139037509);
   assert.equal(parseKillId('https://zkillboard.com/kill/139037509/'), 139037509);
   assert.equal(parseKillId('nope'), null);
@@ -103,18 +114,177 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(killHasFittedModules({ victim: { items: [{ flag: 19, item_type_id: 1 }] } }), true);
 });
 
-test('daily answer is deterministic, language-independent and includes special hulls', () => {
-  const pool = manifest.answerPool;
-  assert.equal(pool.length, catalog.length);
-  assert.deepEqual(pool, [...pool].sort((a, b) => a - b));
-  const first = pickDailyAnswer(pool, '2026-11-14', manifest.dataVersion);
-  assert.equal(first, pickDailyAnswer(pool, '2026-11-14', manifest.dataVersion));
-  const other = pickDailyAnswer(pool, '2026-11-15', manifest.dataVersion);
-  assert.ok(first && other);
-  const special = catalog.filter((ship) => [29, 31, 237].includes(ship.groupID));
-  assert.ok(special.some((ship) => ship.groupID === 29), 'capsules must be selectable');
-  assert.ok(special.some((ship) => ship.groupID === 31), 'shuttles must be selectable');
-  assert.ok(special.some((ship) => ship.groupID === 237), 'corvettes must be selectable');
+test('beacon rounds start after the configured boundary and grace', () => {
+  const beacon = { genesisTime: 1692803367, period: 3, graceSeconds: 5 };
+  const genesis = beacon.genesisTime;
+  assert.equal(beaconRoundForStart(genesis, beacon), 3);
+  assert.equal(beaconRoundForStart(genesis + 1, beacon), 3);
+  assert.equal(beaconRoundForStart(genesis + 10, beacon), 6);
+  assert.equal(beaconRoundForStart(genesis, { ...beacon, graceSeconds: 0 }), 1);
+});
+
+test('weighted rendezvous and kill selection are order independent', () => {
+  const pool = [1, 1, 2, 3, 3, 3];
+  const one = pickWeightedRendezvous(pool, 'seed', 7);
+  assert.equal(one, pickWeightedRendezvous([...pool].reverse(), 'seed', 7));
+  assert.ok([1, 2, 3].includes(one));
+  assert.equal(pickWeightedRendezvous([], 'seed'), null);
+  const queue = weightedRendezvousOrder(pool, 'seed', 7);
+  assert.equal(queue[0], one);
+  assert.deepEqual(queue, weightedRendezvousOrder([...pool].reverse(), 'seed', 7));
+  assert.deepEqual([...queue].sort((a, b) => a - b), [1, 2, 3]);
+  assert.deepEqual(weightedRendezvousOrder([], 'seed'), []);
+  const candidates = makeLosses().concat([{
+    ...makeLosses()[0],
+    killmail_id: 424243,
+    victim: { ship_type_id: 670, items: [] },
+  }]);
+  const chosen = pickKillBySeed(candidates, 'seed', 670, { allowEmpty: true, earliestDate: '2012-05-22' });
+  assert.ok(chosen);
+  assert.equal(chosen, pickKillBySeed([...candidates].reverse(), 'seed', 670, {
+    allowEmpty: true,
+    earliestDate: '2012-05-22',
+  }));
+  assert.equal(pickKillBySeed(candidates, 'seed', 670, {
+    allowEmpty: true,
+    earliestDate: '2012-05-22',
+    latestDate: '2026-10-31',
+  }), null);
+  const fittedOnly = pickKillBySeed(candidates, 'seed', 670, {
+    allowEmpty: false,
+    earliestDate: '2012-05-22',
+  });
+  assert.ok(fittedOnly);
+  assert.ok(fittedOnly.victim.items.length > 0);
+  assert.equal(pickKillBySeed([{
+    killmail_id: 424244,
+    killmail_time: '2026-11-16T00:00:00Z',
+    victim: { ship_type_id: 670, items: [] },
+  }], 'seed', 670, {
+    allowEmpty: false,
+    earliestDate: '2012-05-22',
+  }), null);
+});
+
+test('target time sampling is deterministic, bounded, and recency weighted', () => {
+  const earliest = '2012-05-22';
+  const latest = '2026-10-31';
+  const lower = Date.parse(`${earliest}T00:00:00Z`);
+  const upper = Date.parse(`${latest}T12:00:00Z`);
+  const one = sampleTargetTime('seed', 670, earliest, latest, 365);
+  assert.equal(one, sampleTargetTime('seed', 670, earliest, latest, 365));
+  assert.ok(one >= lower && one <= upper);
+  assert.notEqual(one, sampleTargetTime('other', 670, earliest, latest, 365));
+  const recent = [];
+  const old = [];
+  for (let index = 0; index < 500; index++) {
+    const time = sampleTargetTime(`seed-${index}`, 670, earliest, latest, 365);
+    const age = upper - time;
+    if (age <= 730 * 86400000) recent.push(time);
+    else old.push(time);
+  }
+  assert.ok(recent.length > old.length);
+  assert.ok(old.length > 0);
+});
+
+test('closest target and recency fallback pick valid kills deterministically', () => {
+  const kills = [
+    { killmail_id: 1, killmail_time: '2026-10-01T00:00:00Z', victim: { ship_type_id: 670, items: [] } },
+    { killmail_id: 2, killmail_time: '2026-10-20T00:00:00Z', victim: { ship_type_id: 670, items: [] } },
+    { killmail_id: 3, killmail_time: '2026-11-01T00:00:00Z', victim: { ship_type_id: 670, items: [] } },
+  ];
+  const target = Date.parse('2026-10-10T00:00:00Z');
+  const closest = chooseClosestKill(kills, 670, target, '2012-05-22', '2026-10-31', { allowEmpty: true, seed: 's' });
+  assert.equal(closest.killmail_id, 1);
+  assert.equal(closest, chooseClosestKill([...kills].reverse(), 670, target, '2012-05-22', '2026-10-31', {
+    allowEmpty: true,
+    seed: 's',
+  }));
+  assert.equal(chooseClosestKill(kills, 670, target, '2026-10-05', '2026-10-31', { allowEmpty: true }), kills[1]);
+  assert.equal(chooseClosestKill(kills, 670, target, '2012-05-22', '2026-10-31', { allowEmpty: false }), null);
+
+  const weighted = pickWeightedKillByRecency(kills, 'seed', 670, '2026-10-31', 365, {
+    allowEmpty: true,
+    earliestDate: '2012-05-22',
+  });
+  assert.ok(weighted);
+  assert.equal(weighted, pickWeightedKillByRecency([...kills].reverse(), 'seed', 670, '2026-10-31', 365, {
+    allowEmpty: true,
+    earliestDate: '2012-05-22',
+  }));
+});
+
+test('daily selection uses time sampling and capped ship-page lookups', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /weightedRendezvousOrder/);
+  assert.match(main, /lastCompleteMonthEnd/);
+  assert.match(main, /sampleTargetTime/);
+  assert.match(main, /pickWeightedKillByRecency/);
+  assert.match(main, /fetchShipPage\(shipId, page\)/);
+  assert.match(main, /page <= maxPages/);
+  assert.match(main, /ship-page:\$\{shipId\}:\$\{page\}/);
+  assert.doesNotMatch(main, /estimateMonthlyPageCount|probeMonthPageCount|monthPageTotal|monthRecordSlot/);
+  assert.doesNotMatch(main, /year\/\$\{year\}\/month/);
+  assert.equal(main.includes('step < 12'), false);
+});
+
+test('build configuration validates the game day and KB lower bound', () => {
+  assert.deepEqual(parseGameDayStart('10:30'), { text: '10:30', minutes: 630 });
+  assert.throws(() => parseGameDayStart('24:00'), /HH:MM/);
+  assert.equal(parseDateOnly('2012-05-22'), '2012-05-22');
+  assert.throws(() => parseDateOnly('2026-02-29'), /valid date/);
+  assert.equal(manifest.gameDayStartUtc, '11:00');
+  assert.equal(manifest.gameDayStartMinutes, 660);
+  assert.equal(manifest.kbSelectionStartDate, '2012-05-22');
+  assert.equal(manifest.kbRecencyHalfLifeDays, DEFAULT_KB_RECENCY_HALF_LIFE_DAYS);
+  assert.equal(manifest.kbMaxScanPages, DEFAULT_KB_MAX_SCAN_PAGES);
+  assert.equal(manifest.kbMaxScanPages, 20);
+  assert.equal(manifest.beacon.baseUrls.length, 4);
+  assert.match(manifest.beacon.chain, /^[0-9a-f]{64}$/);
+  assert.deepEqual(manifest.reveal, { ...DEFAULT_REVEAL });
+  assert.equal(manifest.reveal.standardCargoBudget, 6);
+});
+
+test('build-time reveal overrides are validated and exposed in the manifest shape', () => {
+  const previous = process.env.FITDLE_REVEAL_STANDARD_CARGO_BUDGET;
+  process.env.FITDLE_REVEAL_STANDARD_CARGO_BUDGET = '11';
+  try {
+    const config = loadBuildConfig(ROOT);
+    assert.equal(config.reveal.standardCargoBudget, 11);
+    assert.equal(config.reveal.openingBudget, DEFAULT_REVEAL.openingBudget);
+  } finally {
+    if (previous === undefined) delete process.env.FITDLE_REVEAL_STANDARD_CARGO_BUDGET;
+    else process.env.FITDLE_REVEAL_STANDARD_CARGO_BUDGET = previous;
+  }
+  process.env.FITDLE_REVEAL_STANDARD_CARGO_BUDGET = '0';
+  try {
+    assert.throws(() => loadBuildConfig(ROOT), /FITDLE_REVEAL_STANDARD_CARGO_BUDGET/);
+  } finally {
+    delete process.env.FITDLE_REVEAL_STANDARD_CARGO_BUDGET;
+  }
+});
+
+test('build-time KB weight and scan overrides are validated', () => {
+  const half = process.env.FITDLE_KB_RECENCY_HALF_LIFE_DAYS;
+  const pages = process.env.FITDLE_KB_MAX_SCAN_PAGES;
+  process.env.FITDLE_KB_RECENCY_HALF_LIFE_DAYS = '180';
+  process.env.FITDLE_KB_MAX_SCAN_PAGES = '32';
+  try {
+    const config = loadBuildConfig(ROOT);
+    assert.equal(config.kbRecencyHalfLifeDays, 180);
+    assert.equal(config.kbMaxScanPages, 32);
+  } finally {
+    if (half === undefined) delete process.env.FITDLE_KB_RECENCY_HALF_LIFE_DAYS;
+    else process.env.FITDLE_KB_RECENCY_HALF_LIFE_DAYS = half;
+    if (pages === undefined) delete process.env.FITDLE_KB_MAX_SCAN_PAGES;
+    else process.env.FITDLE_KB_MAX_SCAN_PAGES = pages;
+  }
+  process.env.FITDLE_KB_MAX_SCAN_PAGES = '101';
+  try {
+    assert.throws(() => loadBuildConfig(ROOT), /FITDLE_KB_MAX_SCAN_PAGES/);
+  } finally {
+    delete process.env.FITDLE_KB_MAX_SCAN_PAGES;
+  }
 });
 
 test('abyssal reveal cadence matches the six-attempt design', () => {
@@ -129,25 +299,162 @@ test('abyssal reveal cadence matches the six-attempt design', () => {
   assert.equal(INITIAL_REVEAL, 3);
 });
 
-test('timed reveal grows by two releases while releasing weighted clues', () => {
-  const clues = [
-    { k: 'speed', c: 'nav', v: 100, w: 8 },
-    { k: 'sig', c: 'targeting', v: 50, w: 4 },
-    { k: 'mass', c: 'nav', v: 1000, w: 0 },
-  ];
+test('timed reveal grows by release quota from a fixed queue', () => {
+  const clues = Array.from({ length: 10 }, (_, index) => ({
+    k: `timed${index}`, c: 'nav', v: index, w: 1 + (index % 5),
+  }));
   assert.deepEqual(
     [0, 1, 2, 3, 4, 5, 6, 7].map((n) => timedRevealTotal(n)),
     [0, 1, 2, 4, 6, 9, 12, 16],
   );
-  assert.equal(computeTimedRevealed({ clues, count: 0, seed: 'test' }).size, 0);
-  const one = computeTimedRevealed({ clues, count: timedRevealTotal(1), seed: 'test' });
+  const plan = buildRevealPlan({ clues, seed: 'test', mode: 'normal', timed: true });
+  assert.equal(computeTimedRevealed({ clues, plan, releases: 0 }).size, 0);
+  const one = computeTimedRevealed({ clues, plan, releases: 1 });
   assert.equal(one.size, 1);
-  assert.ok(!one.has(2));
-  const two = computeTimedRevealed({ clues, count: timedRevealTotal(2), seed: 'test' });
+  const two = computeTimedRevealed({ clues, plan, releases: 2 });
   assert.equal(two.size, 2);
-  assert.deepEqual([...computeTimedRevealed({ clues, count: timedRevealTotal(2), seed: 'test' })].sort(), [...two].sort());
-  const four = computeTimedRevealed({ clues, count: timedRevealTotal(3), seed: 'test' });
-  assert.equal(four.size, 2);
+  assert.deepEqual([...two].sort(), [...computeTimedRevealed({ clues, plan, releases: 2 })].sort());
+  const four = computeTimedRevealed({ clues, plan, releases: 3 });
+  assert.equal(four.size, 4);
+  const six = computeTimedRevealed({ clues, plan, releases: 4 });
+  assert.equal(six.size, 6);
+  for (const index of four) assert.ok(six.has(index));
+});
+
+test('queue plans are deterministic per seed and mode', () => {
+  const clues = [
+    { k: 'speed', c: 'nav', v: 100, w: 8 },
+    { k: 'sig', c: 'targeting', v: 50, w: 2 },
+    { k: 'mass', c: 'nav', v: 1000, w: 5 },
+    { k: 'equipment', c: 'equipment', v: { module: 1, slot: 'high' }, w: 3 },
+    { k: 'cargo', c: 'cargo', v: { module: 2, slot: 'cargo' }, w: 4 },
+    { k: 'bonus', c: 'traits', v: 0, bonusKey: 'term|5', bonusTermKey: 'term', w: 6 },
+  ];
+  const a = buildRevealPlan({ clues, seed: 'same-seed', mode: 'normal' });
+  const b = buildRevealPlan({ clues, seed: 'same-seed', mode: 'normal' });
+  assert.deepEqual(a.opening, b.opening);
+  assert.deepEqual(a.queues, b.queues);
+  assert.deepEqual(a.queueSeeds, b.queueSeeds);
+  assert.equal(a.opening.includes(4), false, 'cargo is not in the Standard opening queue');
+  assert.equal(a.opening.includes(5), false, 'bonus is not in the Standard opening queue');
+  assert.equal(a.queues.equipment.length, 1);
+  assert.equal(a.queues.cargo.length, 1);
+  const abyss = buildRevealPlan({ clues, seed: 'same-seed', mode: 'abyss' });
+  assert.ok(abyss.queues.other.length >= 1);
+  const timed = buildRevealPlan({ clues, seed: 'same-seed', mode: 'normal', timed: true });
+  assert.ok(timed.queues.timed.length >= 1);
+  assert.notDeepEqual(timed.queueSeeds.timed, a.queueSeeds.timed);
+
+  const weightedClues = Array.from({ length: 10 }, (_, index) => ({
+    k: `weight${index}`, c: 'nav', v: index, w: index + 1,
+  }));
+  const weightedPlan = buildRevealPlan({ clues: weightedClues, seed: 'weighted-order', mode: 'normal' });
+  const orderedWeights = weightedPlan.opening.map((index) => weightedClues[index].w);
+  assert.notDeepEqual(orderedWeights, [...orderedWeights].sort((left, right) => left - right));
+});
+
+test('bonus reveals stay monotonic when a later guess matches another bonus', () => {
+  const keys = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta'];
+  const clues = keys.map((key, index) => ({
+    k: 'bonus', c: 'traits', v: index, bonusKey: `${key}|5`, bonusTermKey: key, w: 4 + (index % 3),
+  }));
+  const answer = {
+    bonusEntries: keys.map((key) => ({ bonusKey: `${key}|5`, termKey: key, bonus: 5 })),
+    bonuses: keys.map((key) => `bonus ${key}`),
+  };
+  const guess = (key, value = 10) => ({
+    bonusEntries: [{ bonusKey: `${key}|${value}`, termKey: key, bonus: value }],
+  });
+  const guessShips = {
+    1: guess('alpha'),
+    2: guess('beta'),
+  };
+  const base = {
+    clues,
+    catalog: [],
+    answerId: 999,
+    mode: 'normal',
+    locale: 'en',
+    status: 'playing',
+    answer,
+    getShip: (id) => guessShips[id] || null,
+  };
+  for (let i = 0; i < 120; i++) {
+    const seed = `bonus-monotonic-${i}`;
+    const first = computeRevealed({ ...base, guesses: [1], seed });
+    const second = computeRevealed({ ...base, guesses: [1, 2], seed });
+    for (const index of first) {
+      assert.equal(second.has(index), true, `${seed} lost clue ${index}`);
+    }
+    assert.ok(second.has(0) && second.has(1));
+  }
+});
+
+test('Standard bonus matching uses the term, not the numeric value', () => {
+  const clues = [
+    { k: 'bonus', c: 'traits', v: 0, bonusKey: 'shield|5', bonusTermKey: 'roles|shield', w: 6 },
+    { k: 'bonus', c: 'traits', v: 1, bonusKey: 'shield|10', bonusTermKey: 'roles|shield', w: 6 },
+    { k: 'bonus', c: 'traits', v: 2, bonusKey: 'armor|5', bonusTermKey: 'roles|armor', w: 6 },
+  ];
+  const answer = {
+    bonusEntries: [
+      { bonusKey: 'shield|5', termKey: 'roles|shield', bonus: 5 },
+      { bonusKey: 'shield|10', termKey: 'roles|shield', bonus: 10 },
+      { bonusKey: 'armor|5', termKey: 'roles|armor', bonus: 5 },
+    ],
+  };
+  const guess = {
+    bonusEntries: [{ bonusKey: 'shield|7', termKey: 'roles|shield', bonus: 7 }],
+  };
+  const revealed = computeRevealed({
+    clues,
+    catalog: [],
+    guesses: [42],
+    status: 'playing',
+    answerId: 1,
+    mode: 'normal',
+    locale: 'en',
+    getShip: () => guess,
+    answer,
+    seed: 'bonus-term',
+  });
+  assert.equal(revealed.has(0), true);
+  assert.equal(revealed.has(1), true);
+  assert.equal(revealed.has(2), false);
+});
+
+test('only Standard applies shared-clue matching from guesses', () => {
+  const clues = [{ k: 'speed', c: 'nav', v: 100, w: 5 }];
+  const plan = {
+    opening: [],
+    queues: { equipment: [], cargo: [], other: [], timed: [] },
+    clueCount: 1,
+    config: DEFAULT_REVEAL_CONFIG,
+    mode: 'normal',
+    timed: false,
+  };
+  const guess = { attrs: { speed: 100 } };
+  const base = {
+    clues,
+    catalog: [],
+    guesses: [42],
+    status: 'playing',
+    answerId: 1,
+    locale: 'en',
+    getShip: () => guess,
+    seed: 'matching-mode',
+  };
+  const standard = computeRevealed({ ...base, mode: 'normal', plan });
+  assert.equal(standard.has(0), true);
+  const abyss = computeRevealed({ ...base, mode: 'abyss', plan: { ...plan, mode: 'abyss' } });
+  assert.equal(abyss.has(0), false);
+  const timed = computeRevealed({
+    ...base,
+    mode: 'normal',
+    timed: true,
+    plan: { ...plan, mode: 'normal', timed: true },
+  });
+  assert.equal(timed.has(0), false);
 });
 
 test('abyss misses reveal nested equipment plus one other clue', () => {
@@ -291,6 +598,9 @@ test('bonus clues distinguish shared terms and value differences from SDE entrie
     && navy.ship.bonusEntries[clue.v].textKey.includes('rate of fire')
   ));
   assert.ok(caracalRate && navyRate);
+  assert.ok(caracalRate.bonusTermKey);
+  assert.ok(navyRate.bonusTermKey);
+  assert.equal(caracalRate.bonusTermKey, navyRate.bonusTermKey);
   assert.ok(caracalRate.tags.includes('limited'));
   assert.ok(navyRate.w > caracalRate.w, 'different values should raise the clue weight');
   const naga = build('Naga Navy Issue');
@@ -394,40 +704,42 @@ test('watchlist matches victim character, corporation, or alliance IDs', () => {
   assert.equal(victimIsWatched(victim, null), false);
 });
 
-test('daily kill pool excludes the current UTC date and pre-2012 kills', () => {
-  const make = (id, ship, time) => ({
+test('kill selection respects ship, date lower bound, and empty setting', () => {
+  const make = (id, ship, time, fitted = true) => ({
     killmail_id: id,
     killmail_time: time,
-    victim: { ship_type_id: ship, items: [{ flag: 19, item_type_id: 1, quantity_destroyed: 1 }] },
+    victim: { ship_type_id: ship, items: [{ flag: fitted ? 19 : 5, item_type_id: 1, quantity_destroyed: 1 }] },
   });
   const data = [
     make(1, 670, '2026-11-17T00:30:00Z'),
     make(2, 670, '2026-11-16T23:59:59Z'),
     make(3, 670, '2012-05-21T23:59:59Z'),
     make(4, 671, '2026-11-16T22:00:00Z'),
+    make(5, 670, '2026-11-15T22:00:00Z', false),
   ];
-  assert.deepEqual(
-    filterDailyKillPool(data, 670, '2026-11-17').map((kill) => kill.killmail_id),
-    [2],
-  );
-});
-
-test('daily pair keeps a non-empty baseline and finds a non-empty fallback', () => {
-  const empty = { killmail_id: 1, victim: { items: [{ flag: 5, item_type_id: 1, quantity_destroyed: 1 }] } };
-  const fittedA = { killmail_id: 2, victim: { items: [{ flag: 19, item_type_id: 2, quantity_destroyed: 1 }] } };
-  const fittedB = { killmail_id: 3, victim: { items: [{ flag: 87, item_type_id: 3, quantity_destroyed: 1 }] } };
-  const losses = [empty, fittedA, fittedB];
-  const first = selectDailyKillPair(losses, 'daily-seed');
-  const second = selectDailyKillPair(losses, 'daily-seed');
-  assert.deepEqual(first.order.map((kill) => kill.killmail_id), second.order.map((kill) => kill.killmail_id));
-  assert.ok(first.baseline && first.fallback);
-  assert.equal(killHasFittedModules(first.fallback), true);
-  if (killHasFittedModules(first.baseline)) assert.equal(first.fallback, first.baseline);
-  else assert.notEqual(first.fallback, first.baseline);
-  const allEmpty = selectDailyKillPair([empty], 'empty-only');
-  assert.equal(allEmpty.baseline, empty);
-  assert.equal(allEmpty.fallback, null);
-  assert.equal(weightedKillOrder(losses, 'daily-seed').length, losses.length);
+  assert.equal(pickKillBySeed(data, 'kill-seed', 670, {
+    allowEmpty: true,
+    earliestDate: '2012-05-22',
+  }).killmail_id !== 3, true);
+  assert.equal(pickKillBySeed(data, 'kill-seed', 670, {
+    allowEmpty: false,
+    earliestDate: '2012-05-22',
+  })?.killmail_id === 5, false);
+  assert.equal(pickKillBySeed(data, 'kill-seed', 670, {
+    allowEmpty: true,
+    earliestDate: '2026-11-17',
+  })?.killmail_id, 1);
+  assert.equal(pickKillBySeed([make(5, 670, '2026-11-15T22:00:00Z', false)], 'kill-seed', 670, {
+    allowEmpty: false,
+    earliestDate: '2012-05-22',
+  }), null);
+  assert.equal(pickKillBySeed(data, 'kill-seed', 670, {
+    allowEmpty: true,
+    earliestDate: '2012-05-22',
+  }), pickKillBySeed([...data].reverse(), 'kill-seed', 670, {
+    allowEmpty: true,
+    earliestDate: '2012-05-22',
+  }));
 });
 
 test('empty hulls ignore cargo, spare fighter bays, and zero quantities', () => {
@@ -440,28 +752,6 @@ test('empty hulls ignore cargo, spare fighter bays, and zero quantities', () => 
   assert.equal(killHasFittedModules(kill([{ flag: 87, item_type_id: 5, quantity_dropped: 1 }])), true);
   assert.equal(killHasFittedModules(kill([{ flag: 125, item_type_id: 6, quantity_destroyed: 1 }])), true);
   assert.equal(killHasFittedModules(kill([{ flag: 158, item_type_id: 7, quantity_destroyed: 1 }])), true);
-});
-
-test('empty-hull setting preserves non-empty baseline KB picks', () => {
-  const empty = { killmail_id: 1, victim: { items: [{ flag: 5, item_type_id: 1 }] } };
-  const fittedA = { killmail_id: 2, victim: { items: [{ flag: 19, item_type_id: 2 }] } };
-  const fittedB = { killmail_id: 3, victim: { items: [{ flag: 19, item_type_id: 3 }] } };
-  const losses = [empty, fittedA, fittedB];
-  let preserved = false;
-  let converted = false;
-  for (let i = 0; i < 80; i++) {
-    const seed = `pick-${i}`;
-    const baseline = selectRuntimeKill(losses, seed, true);
-    const filtered = selectRuntimeKill(losses, seed, false);
-    if (baseline === fittedA || baseline === fittedB) {
-      if (filtered === baseline) preserved = true;
-    } else if (baseline === empty && filtered && filtered !== empty) {
-      converted = true;
-    }
-  }
-  assert.equal(preserved, true);
-  assert.equal(converted, true);
-  assert.equal(selectRuntimeKill([empty], 'only-empty', false), null);
 });
 
 test('service record streaks survive consecutive days only', () => {
@@ -532,16 +822,18 @@ test('share URLs and result grids are spoiler-safe', () => {
   const killId = 424242;
   const token = freeKillToken(killId);
   const url = shareUrl({ href: 'https://example.test/fitdle/index.html?d=2026-11-01&lang=de#x' }, killId, 'normal', 'won', 3);
-  assert.equal(url, `https://example.test/fitdle/share/3/en.html?kb=${token}`);
+  assert.equal(url, 'https://example.test/fitdle/share/3/en.html');
   assert.equal(new URL(url).origin, 'https://example.test');
   const abyssUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'won', 4, 'zh-Hant');
-  assert.equal(abyssUrl, `https://example.test/fitdle/share/4/zh.html?kb=${token}&rule=abyss`);
+  assert.equal(abyssUrl, 'https://example.test/fitdle/share/4/zh.html?rule=abyss');
   const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'lost', 6, 'de');
-  assert.equal(lostUrl, `https://example.test/fitdle/share/lost/de.html?kb=${token}&rule=abyss`);
+  assert.equal(lostUrl, 'https://example.test/fitdle/share/lost/de.html?rule=abyss');
   const freeUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'playing', 0, 'zh-Hant', false, true);
   assert.equal(freeUrl, `https://example.test/fitdle/share/free/zh.html?kb=${token}&rule=abyss`);
   const timedUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'won', 4, 'de', true, true, 125);
   assert.equal(timedUrl, `https://example.test/fitdle/share/timed/de.html?t=125&kb=${token}&rule=timed`);
+  const timedDaily = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'won', 4, 'de', true, false, 125);
+  assert.equal(timedDaily, 'https://example.test/fitdle/share/timed/de.html?t=125&rule=timed');
   assert.equal(url.includes('lang='), false);
   assert.equal(url.includes('d='), false);
   assert.equal(timedUrl.includes('timer='), false);
@@ -608,6 +900,60 @@ test('one-shot builder detects SDE updates and supports forced refresh', () => {
   assert.equal(pkg.scripts['check:sde-cache'], 'node scripts/check-sde-cache.mjs');
 });
 
+test('daily target uses the beacon path and does not fall back to static data', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  assert.match(main, /fetchDayBeacon/);
+  assert.match(main, /DailyUnavailableError/);
+  assert.match(main, /page\/\$\{page\}\//);
+  assert.match(main, /kbSelectionStartDate/);
+  assert.match(main, /data-action="free-mode"/);
+  assert.equal(main.includes('filterDailyKillPool'), false);
+  assert.equal(main.includes('selectDailyKillPair'), false);
+  assert.equal(fs.existsSync(path.join(ROOT, 'vendor', 'drand-client', 'index.mjs')), true);
+  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'vendor', 'drand-client', 'index.mjs')), true);
+  assert.match(MESSAGES.en['error.dailyUnavailableBody'], /authoritative time/);
+  assert.match(MESSAGES.zh['error.dailyUnavailableBody'], /权威时间/);
+  assert.match(css, /fatal-screen/);
+});
+
+test('reset countdown copy and source-specific error screens are localized', () => {
+  assert.equal(MESSAGES.en['header.reset'], 'NEXT RESET IN');
+  assert.equal(MESSAGES.zh['header.reset'], '距离下次重置');
+  assert.equal(MESSAGES.en['end.next'], 'NEXT RESET');
+  assert.equal(MESSAGES.zh['end.next'], '下次重置');
+  for (const lang of Object.keys(MESSAGES)) {
+    for (const key of [
+      'error.timeCode', 'error.timeTitle', 'error.timeBody',
+      'error.drandCode', 'error.drandTitle', 'error.drandBody',
+      'error.zkillCode', 'error.zkillTitle', 'error.zkillBody',
+      'error.esiCode', 'error.esiTitle', 'error.esiBody',
+      'error.noTargetCode', 'error.noTargetTitle', 'error.noTargetBody',
+      'error.dailyLore', 'error.timeLore', 'error.drandLore', 'error.zkillLore',
+      'error.esiLore', 'error.noTargetLore', 'error.unknownHullLore',
+      'error.genericLore', 'error.genericCode',
+    ]) {
+      assert.ok(MESSAGES[lang][key], `${lang} missing ${key}`);
+    }
+  }
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /dailyErrorCopy/);
+  assert.match(main, /error\.drandLore/);
+  assert.match(main, /error\.zkillLore/);
+  assert.match(main, /error\.esiTitle/);
+  assert.match(main, /<h1>\$\{esc\(t\(copy\.lore\)\)\}<\/h1>/);
+  assert.match(main, /fatal-code">\$\{esc\(t\(copy\.code\)\)\}/);
+  assert.match(main, /function debugLog/);
+  assert.match(main, /DEBUG_DETAIL_KEYS/);
+  assert.match(main, /safeDebugText/);
+  assert.match(main, /request: safeRequest/);
+  assert.match(main, /lastError\.request = path/);
+  assert.match(main, /debugLog\('fatal'/);
+  assert.match(main, /isZkillUnavailable/);
+  assert.match(main, /zKillboard request failed \(\$\{response\.status\}\)/);
+  assert.equal(main.includes('zKillboard request failed (${path})'), false);
+});
+
 test('boot flavor file covers all locales and tags every egg', () => {
   const boot = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'boot-flavor.json'), 'utf8'));
   assert.deepEqual(Object.keys(boot.flavor).sort(), ['de', 'en', 'es', 'fr', 'ja', 'ko', 'ru', 'zh']);
@@ -646,10 +992,21 @@ test('module fallback dogma attributes are built once and shipped', () => {
   assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'data', 'module-fallback.json')), true);
 });
 
+test('ZKILLBOARD statistics are fetched, cached, and passed to the clue builder', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /statsCacheEntry\(shipId\)/);
+  assert.match(main, /\/api\/stats\/shipTypeID\/\$\{shipId\}\/kills\//);
+  assert.match(main, /state\.liveStats = stats\.status === 'fulfilled'/);
+  assert.match(main, /stats: state\.liveStats/);
+  assert.equal(main.includes('state.liveStats = null;'), false);
+});
+
 test('API caching and builder cache policies are wired', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   assert.match(main, /statsCacheEntry/);
   assert.match(main, /kill:\$\{killId\}/);
+  assert.match(main, /free-page:\$\{shipId\}:\$\{page\}/);
+  assert.match(main, /FREE_PAGE_CACHE_MS/);
   assert.match(main, /user_agent/);
   assert.match(main, /data\/module-fallback\.json/);
   const ci = fs.readFileSync(path.join(ROOT, '.gitlab-ci.yml'), 'utf8');
@@ -679,19 +1036,19 @@ test('timed debrief keeps all four stats in one row', () => {
   assert.equal(main.includes("t('dossier.subtitle')"), false);
 });
 
-test('field manual matches current gameplay rules', () => {
-  assert.match(MESSAGES.en['mode.helpNormal'], /weight budget/);
-  assert.match(MESSAGES.zh['mode.helpNormal'], /权重预算/);
-  assert.doesNotMatch(MESSAGES.en['mode.helpNormal'], /up to two fitted modules/);
-  assert.match(MESSAGES.en['mode.helpAbyss'], /all-V skills/);
-  assert.match(MESSAGES.zh['mode.helpAbyss'], /全 V 技能/);
-  assert.match(MESSAGES.en['mode.helpAbyss'], /half of the missing equipment quota/);
-  assert.match(MESSAGES.en['mode.helpFree'], /random refresh/);
-  assert.match(MESSAGES.zh['mode.helpFree'], /随机刷新/);
-  assert.match(MESSAGES.en['mode.helpTimed'], /every 30 seconds/);
-  assert.match(MESSAGES.zh['mode.helpTimed'], /长按计时器 3 秒/);
-  assert.match(MESSAGES.en['help.sharedRules'], /record daily plays and wins/);
-  assert.match(MESSAGES.zh['help.sharedRules'], /记录每日游玩与胜利/);
+test('field manual stays abstract and does not expose reveal mechanics', () => {
+  assert.match(MESSAGES.en['mode.helpNormal'], /gradually reveal/);
+  assert.match(MESSAGES.zh['mode.helpNormal'], /逐步揭示/);
+  assert.doesNotMatch(MESSAGES.en['mode.helpNormal'], /budget|queue|fittings|weight/i);
+  assert.doesNotMatch(MESSAGES.zh['mode.helpNormal'], /预算|队列|装备|权重/);
+  assert.match(MESSAGES.en['mode.helpAbyss'], /simulated/);
+  assert.doesNotMatch(MESSAGES.en['mode.helpAbyss'], /\+1|equipment clues|half/i);
+  assert.match(MESSAGES.en['mode.helpFree'], /random target/);
+  assert.match(MESSAGES.zh['mode.helpFree'], /随机/);
+  assert.match(MESSAGES.en['mode.helpTimed'], /on a schedule/);
+  assert.doesNotMatch(MESSAGES.en['mode.helpTimed'], /30 seconds|batch/i);
+  assert.match(MESSAGES.en['help.sharedRules'], /Six attempts/);
+  assert.doesNotMatch(MESSAGES.en['help.sharedRules'], /candidate hulls|weight|queue/i);
 });
 
 test('catalog is SDE-only, complete, and references official data lazily', () => {
@@ -1205,6 +1562,8 @@ test('slot layout is split into separate clues and kill value is exposed', () =>
   assert.ok(built.clues.some((clue) => clue.k === 'launcherHardpoints'));
   assert.ok(!built.clues.some((clue) => clue.k === 'hardpoints'));
   assert.equal(built.clues.find((clue) => clue.k === 'kbValue').v, 123456789);
+  assert.equal(built.clues.filter((clue) => clue.c === 'economy').length, 1);
+  assert.equal(built.clues.some((clue) => clue.missing), false);
 });
 
 test('larger module sizes carry more weight', () => {
@@ -1560,9 +1919,19 @@ test('normal mode releases equipment on misses and shared clues on matching gues
 
   const afterUnknown = compute([999999]);
   const added = [...afterUnknown].filter((index) => !initial.has(index));
-  assert.ok(added.every((index) => ['equipment', 'cargo', 'bonus'].includes(built.clues[index].k)));
+  assert.ok(added.every((index) => ['equipment', 'cargo'].includes(built.clues[index].k)));
   assert.ok(added.some((index) => built.clues[index].k === 'equipment'), 'normal misses should release equipment');
-  assert.ok(added.some((index) => built.clues[index].k === 'bonus'), 'normal misses should release pending bonus clues');
+  assert.equal(added.some((index) => built.clues[index].k === 'bonus'), false, 'bonus clues are not proactively revealed in Standard');
+
+  let previous = initial;
+  const missGuesses = [999999, 999998, 999997, 999996];
+  for (let count = 1; count <= missGuesses.length; count++) {
+    const next = compute(missGuesses.slice(0, count));
+    for (const index of previous) {
+      assert.ok(next.has(index), `miss ${count} must keep clue ${built.clues[index].k}`);
+    }
+    previous = next;
+  }
 
   const abyssInitial = compute([], 'abyss');
   const abyssOne = compute([999999], 'abyss');
@@ -1570,6 +1939,30 @@ test('normal mode releases equipment on misses and shared clues on matching gues
   assert.ok(abyssInitial.size >= 2 && abyssInitial.size <= 7);
   assert.ok(abyssOne.size >= abyssInitial.size && abyssOne.size <= abyssInitial.size + 5);
   assert.ok(abyssTwo.size >= abyssOne.size && abyssTwo.size <= abyssInitial.size + 9);
+});
+
+test('Standard cargo queue consumes its own weight budget', () => {
+  const clues = [
+    { k: 'cargoCapacity', c: 'cargo', v: 100, w: 1 },
+    ...Array.from({ length: 7 }, (_, index) => ({
+      k: 'cargo', c: 'cargo', v: { module: index + 1, slot: 'cargo' }, w: 1,
+    })),
+  ];
+  const plan = buildRevealPlan({ clues, seed: 'cargo-budget', mode: 'normal' });
+  assert.equal(plan.config.standardCargoBudget, DEFAULT_REVEAL_CONFIG.standardCargoBudget);
+  const revealed = computeRevealed({
+    clues,
+    catalog: [],
+    guesses: [999999],
+    status: 'playing',
+    answerId: 1,
+    mode: 'normal',
+    locale: 'en',
+    getShip: () => null,
+    seed: 'cargo-budget',
+    plan,
+  });
+  assert.equal(revealed.size, DEFAULT_REVEAL_CONFIG.standardCargoBudget);
 });
 
 test('frontend source has no hard-coded deployment domains or local image caches', () => {

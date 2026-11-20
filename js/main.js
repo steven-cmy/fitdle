@@ -4,36 +4,41 @@ import {
   buildSearchIndex,
   freeKillIdFromToken,
   emptyStats,
-  filterDailyKillPool,
   formatMass,
   freeKillToken,
   gameDateKey,
-  KILL_HISTORY_START,
   killHasFittedModules,
+  lastCompleteMonthEnd,
   loadState,
   loadStats,
   modeFromLocation,
   msUntilNextDowntime,
   parseKillId,
   normalizeText,
+  chooseClosestKill,
+  pickWeightedKillByRecency,
   profileSimilarity,
   recordPlay,
   recordResult,
+  sampleTargetTime,
   saveState,
   saveStats,
   searchShips,
-  selectDailyKillPair,
   settleStats,
   shareUrl,
   victimIsWatched,
   weightedHullOrder,
+  weightedRendezvousOrder,
+  beaconRoundForStart,
+  cyrb53,
 } from './game.js';
 import { detectLocale, createI18n, isLocale, resolveLocale, LOCALES, LOCALE_META } from './i18n.js';
 import { buildClues, getEquipment, selectAbyssFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
 import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
-import { computeRevealed, computeTimedRevealed, timedRevealTotal } from './reveal.js';
+import { buildRevealPlan, computeRevealed, computeTimedRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
 import { initStarfield } from './starfield.js';
+import { HttpCachingChain, HttpChainClient, fetchBeacon } from '../vendor/drand-client/index.mjs';
 
 const CATEGORIES = ['traits', 'hull', 'nav', 'defense', 'targeting', 'fitting', 'equipment', 'cargo', 'economy'];
 const CATEGORY_ALIASES = { identity: 'hull', slots: 'fitting' };
@@ -85,12 +90,17 @@ const state = {
   victimInfo: null,
   victimInfoKey: null,
   victimInfoLoading: false,
+  victimEsiWarningKey: null,
   mode: 'normal',
-  utcDate: '',
   watchlist: null,
   serverAnchor: null,
   monotonicAnchor: 0,
   timeVerified: false,
+  beaconRound: null,
+  dailySeed: null,
+  dailyKillmail: null,
+  gameDayStartMinutes: 11 * 60,
+  kbSelectionStartDate: '',
   index: [],
   locale: 'en',
   i18n: null,
@@ -155,6 +165,60 @@ const state = {
 
 const BASE = new URL('.', document.baseURI);
 const JSON_CACHE = new Map();
+
+const DEBUG_DETAIL_KEYS = new Set(['request', 'relay', 'round', 'reason', 'phase', 'attempt', 'fatal']);
+
+function safeRequest(value) {
+  if (!value) return null;
+  const raw = String(value);
+  try {
+    if (/^https?:/i.test(raw)) {
+      const url = new URL(raw);
+      return `${url.origin}${url.pathname}`;
+    }
+  } catch {
+    // fall through to a query-stripped path
+  }
+  return raw.split('?')[0].split('#')[0];
+}
+
+function safeDebugText(value) {
+  return String(value ?? '')
+    .replace(/([?&](?:kb|n|token|nonce|session|key|auth)=)[^&\s]+/gi, '$1<redacted>')
+    .replace(/\bhttps?:\/\/[^\s]+/gi, (url) => safeRequest(url) || '<url>');
+}
+
+function debugLog(context, error = null, details = {}) {
+  const status = Number(error?.status) || 0;
+  const payload = {
+    context,
+    name: error?.name || null,
+    message: safeDebugText(error?.message || error || ''),
+    status: status || null,
+    source: error?.source || null,
+    request: safeRequest(error?.request || details.request),
+    retryable: error?.retryable ?? null,
+  };
+  if (error?.cause) {
+    payload.cause = {
+      name: error.cause.name || null,
+      message: safeDebugText(error.cause.message || ''),
+      status: Number(error.cause.status) || null,
+      source: error.cause.source || null,
+      request: safeRequest(error.cause.request),
+    };
+  }
+  for (const [key, value] of Object.entries(details)) {
+    if (!DEBUG_DETAIL_KEYS.has(key)) continue;
+    payload[key] = key === 'request' ? safeRequest(value) : value;
+  }
+  // KB/ESI request targets and statuses are public. Never include client-local
+  // state, tokens/nonces, full query URLs, or browser/device information.
+  const write = details.fatal || status >= 500 || status === 429 || !error
+    ? console.error
+    : console.warn;
+  write('[FITDLE]', payload);
+}
 const DEFAULT_STATS = emptyStats();
 
 function $(selector, root = document) {
@@ -205,7 +269,7 @@ function serverNow() {
 }
 
 function nextDowntime() {
-  return state.i18n.duration(msUntilNextDowntime(serverNow(), state.manifest?.downtimeUtcHour || 11));
+  return state.i18n.duration(msUntilNextDowntime(serverNow(), gameDayStartMinutes()));
 }
 
 async function applyBootFlavor() {
@@ -772,6 +836,7 @@ async function fetchJson(relative) {
 
 async function fetchInternetTime() {
   const sources = [state.manifest?.timeSource].filter(Boolean);
+  let lastError = null;
   for (const source of sources) {
     try {
       const response = await fetch(source, {
@@ -779,7 +844,15 @@ async function fetchInternetTime() {
         cache: 'no-store',
         signal: AbortSignal.timeout(5000),
       });
-      if (!response.ok) continue;
+      if (!response.ok) {
+        lastError = Object.assign(new Error(`Time source request failed (${response.status})`), {
+          name: 'TimeHttpError',
+          source: 'time',
+          status: response.status,
+          request: source,
+        });
+        continue;
+      }
 
       // Same-origin HTTP Date header: no CORS preflight and no extra service.
       const header = response.headers.get('date');
@@ -796,17 +869,34 @@ async function fetchInternetTime() {
         cache: 'no-store',
         signal: AbortSignal.timeout(5000),
       });
-      if (!fallback.ok) continue;
+      if (!fallback.ok) {
+        lastError = Object.assign(new Error(`Time source request failed (${fallback.status})`), {
+          name: 'TimeHttpError',
+          source: 'time',
+          status: fallback.status,
+          request: source,
+        });
+        continue;
+      }
       const match = /(?:^|\n)ts=([\d.]+)/.exec(await fallback.text());
-      if (!match) continue;
+      if (!match) {
+        lastError = Object.assign(new Error('Time source response invalid'), {
+          name: 'TimeDataError',
+          source: 'time',
+        });
+        continue;
+      }
       state.serverAnchor = Number(match[1]) * 1000;
       state.monotonicAnchor = performance.now();
       state.timeVerified = true;
       return true;
-    } catch {
-      // try the next time source
+    } catch (error) {
+      lastError = error;
+      if (!lastError.source) lastError.source = 'time';
+      if (!lastError.request) lastError.request = source;
     }
   }
+  debugLog('authoritative time', lastError);
   state.serverAnchor = Date.now();
   state.monotonicAnchor = performance.now();
   state.timeVerified = false;
@@ -838,7 +928,7 @@ function writeTimedCache(key, data, ttlMs) {
       data,
     }));
     const keys = Object.keys(localStorage).filter((entry) => entry.startsWith(ZKILL_CACHE_PREFIX));
-    if (keys.length > 24) {
+    if (keys.length > 64) {
       keys
         .map((entry) => {
           try {
@@ -848,7 +938,7 @@ function writeTimedCache(key, data, ttlMs) {
           }
         })
         .sort((a, b) => a.expiresAt - b.expiresAt)
-        .slice(0, keys.length - 24)
+        .slice(0, keys.length - 64)
         .forEach(({ entry }) => localStorage.removeItem(entry));
     }
   } catch {
@@ -857,8 +947,7 @@ function writeTimedCache(key, data, ttlMs) {
 }
 
 function statsCacheEntry(shipId) {
-  if (!state.timeVerified) return null;
-  const now = serverNow().getTime();
+  const now = state.timeVerified ? serverNow().getTime() : Date.now();
   const bucket = Math.floor(now / 600000);
   return {
     key: `stats:${shipId}:${bucket}`,
@@ -882,7 +971,13 @@ async function fetchZkill(path, cache = null) {
     if (cached != null) return cached;
   }
   const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
-  if (!base) throw new Error('zKillboard base URL unavailable');
+  if (!base) {
+    const error = new Error('zKillboard base URL unavailable');
+    error.source = 'zkill';
+    error.request = 'manifest.zkillboard.baseUrl';
+    debugLog('zKillboard config', error);
+    throw error;
+  }
   // Static browser clients cannot set a persistent User-Agent, and zKill's
   // CORS preflight rejects custom X-User-Agent headers; build scripts identify
   // themselves instead.
@@ -896,7 +991,11 @@ async function fetchZkill(path, cache = null) {
       });
       if (!response.ok) {
         const retryAfter = Number(response.headers.get('retry-after')) || 0;
-        lastError = new Error(`${response.status} ${path}`);
+        lastError = new Error(`zKillboard request failed (${response.status})`);
+        lastError.name = 'ZkillHttpError';
+        lastError.source = 'zkill';
+        lastError.status = response.status;
+        lastError.request = path;
         lastError.retryable = response.status === 429 || response.status >= 500;
         if (attempt < 2 && lastError.retryable) {
           await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000 || 600 * (attempt + 1)));
@@ -909,35 +1008,176 @@ async function fetchZkill(path, cache = null) {
       return data;
     } catch (error) {
       lastError = error;
+      if (!lastError.source) lastError.source = 'zkill';
+      if (!lastError.request) lastError.request = path;
       if (attempt >= 2 || error?.retryable === false) break;
       await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
     }
   }
-  throw lastError || new Error(`zKill request failed: ${path}`);
+  debugLog('zKillboard request', lastError);
+  throw lastError || new Error('zKillboard request failed');
+}
+
+function isZkillUnavailable(error) {
+  if (error?.source !== 'zkill') return false;
+  const status = Number(error.status) || 0;
+  return !status || status === 429 || status >= 500;
 }
 
 
-async function resolveDailyTarget(hulls, dateKey) {
-  const seedBase = `${dateKey}:${state.dataVersionKey || state.manifest.dataVersion}:${state.mode}:${state.timed ? 'timed' : 'standard'}`;
-  const utcToday = state.utcDate || new Date().toISOString().slice(0, 10);
-  for (const shipId of hulls) {
-    let data = null;
-    try {
-      data = await fetchZkill(`/api/losses/shipTypeID/${shipId}/page/1/`);
-    } catch (error) {
-      // Do not silently move to another hull on a network/API error: that would
-      // give players different targets. Fail consistently instead.
-      throw error;
-    }
-    if (!Array.isArray(data) || !data.length) continue;
-    const losses = filterDailyKillPool(data, shipId, utcToday);
-    if (!losses.length) continue;
-    const pair = selectDailyKillPair(losses, `${seedBase}:${shipId}:kills`);
-    if (!pair.baseline || !pair.fallback) continue;
-    return { shipId: Number(shipId), baseline: pair.baseline, fallback: pair.fallback };
+function gameDayStartMinutes() {
+  return Number(state.manifest?.gameDayStartMinutes ?? state.gameDayStartMinutes ?? 11 * 60);
+}
+
+function kbSelectionStartDate() {
+  return String(state.manifest?.kbSelectionStartDate || state.kbSelectionStartDate || '');
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label || 'request'} timed out`)), ms);
+    }),
+  ]);
+}
+
+async function fetchBeaconRound(round) {
+  const config = state.manifest?.beacon;
+  if (!config?.chain || !Array.isArray(config.baseUrls) || !config.baseUrls.length) {
+    throw new DailyUnavailableError('beacon-config');
   }
-  return null;
+  const options = {
+    disableBeaconVerification: false,
+    noCache: true,
+    chainVerificationParams: {
+      chainHash: config.chain,
+      publicKey: config.publicKey,
+    },
+  };
+  let lastError = null;
+  for (const baseUrl of config.baseUrls) {
+    const chainUrl = `${String(baseUrl).replace(/\/$/, '')}/${config.chain}`;
+    try {
+      const chain = new HttpCachingChain(chainUrl, options);
+      const client = new HttpChainClient(chain, options);
+      const beacon = await withTimeout(fetchBeacon(client, round), 5000, 'drand relay');
+      if (beacon?.round === round && typeof beacon.randomness === 'string' && beacon.randomness) {
+        return beacon.randomness;
+      }
+    } catch (error) {
+      lastError = error;
+      debugLog('drand relay', error, { relay: String(baseUrl), round });
+    }
+  }
+  throw lastError || new DailyUnavailableError('beacon-relays');
 }
+
+async function fetchDayBeacon(day) {
+  const config = state.manifest?.beacon;
+  if (!config?.chain || !config?.publicKey || !Array.isArray(config.baseUrls) || !config.baseUrls.length) {
+    throw new DailyUnavailableError('beacon-config');
+  }
+  const [year, month, date] = String(day).split('-').map(Number);
+  const startMinutes = gameDayStartMinutes();
+  const startEpoch = Math.floor(Date.UTC(year, month - 1, date, Math.floor(startMinutes / 60), startMinutes % 60, 0) / 1000);
+  const round = beaconRoundForStart(startEpoch, config);
+  if (!round) throw new DailyUnavailableError('beacon-round');
+  state.beaconRound = round;
+  let lastError = null;
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    try {
+      return await fetchBeaconRound(round);
+    } catch (error) {
+      lastError = error;
+      await wait(3000);
+    }
+  }
+  throw lastError || new DailyUnavailableError('beacon-unavailable');
+}
+
+const SHIP_PAGE_CACHE_MS = 10 * 60 * 1000;
+const FREE_PAGE_CACHE_MS = SHIP_PAGE_CACHE_MS;
+
+function kbInvalid() {
+  return new DailyUnavailableError('kb-invalid');
+}
+
+function kbRecencyHalfLifeDays() {
+  const value = Number(state.manifest?.kbRecencyHalfLifeDays);
+  return Number.isFinite(value) && value > 0 ? value : 365;
+}
+
+function kbMaxScanPages() {
+  const value = Number(state.manifest?.kbMaxScanPages);
+  return Number.isInteger(value) && value > 0 ? Math.min(100, value) : 20;
+}
+
+async function fetchShipPage(shipId, page) {
+  try {
+    const data = await fetchZkill(
+      `/api/losses/shipTypeID/${shipId}/page/${page}/`,
+      { key: `ship-page:${shipId}:${page}`, ttlMs: SHIP_PAGE_CACHE_MS },
+    );
+    if (!Array.isArray(data)) throw kbInvalid();
+    return data;
+  } catch (error) {
+    if (error instanceof DailyUnavailableError) throw error;
+    debugLog('daily ship page request', error);
+    throw new DailyUnavailableError('kb-unavailable', error);
+  }
+}
+
+async function fetchDailyKill(shipId, seed) {
+  const earliestDate = kbSelectionStartDate();
+  const latestDate = lastCompleteMonthEnd(state.today);
+  if (!latestDate) return null;
+  if (earliestDate && earliestDate > latestDate) return null;
+  const halfLifeDays = kbRecencyHalfLifeDays();
+  const targetTime = sampleTargetTime(seed, shipId, earliestDate, latestDate, halfLifeDays);
+  if (!Number.isFinite(targetTime)) return null;
+
+  const maxPages = kbMaxScanPages();
+  const loaded = [];
+  let targetPage = null;
+  for (let page = 1; page <= maxPages; page++) {
+    const data = await fetchShipPage(shipId, page);
+    if (!data.length) break;
+    loaded.push(...data);
+    const oldest = Date.parse(String(data[data.length - 1]?.killmail_time || ''));
+    if (data.length < 200 || (!Number.isFinite(oldest) || oldest <= targetTime)) {
+      targetPage = data;
+      break;
+    }
+  }
+  if (!loaded.length) return null;
+
+  if (targetPage) {
+    const kill = chooseClosestKill(targetPage, shipId, targetTime, earliestDate, latestDate, {
+      allowEmpty: state.allowEmptyKb,
+      seed,
+    });
+    if (kill) return kill;
+  }
+
+  // The scan cap or an exhausted history means the exact target page is not
+  // reachable. Fall back to a deterministic recency-weighted record from all
+  // pages already loaded, never a separate page request.
+  return pickWeightedKillByRecency(
+    loaded,
+    seed,
+    shipId,
+    latestDate,
+    halfLifeDays,
+    { allowEmpty: state.allowEmptyKb, earliestDate },
+  );
+}
+
 
 function captureUrlLocale() {
   const url = new URL(location.href);
@@ -954,20 +1194,24 @@ function captureUrlLocale() {
 }
 
 async function resolveDailySelection() {
+  if (!state.timeVerified) throw new DailyUnavailableError('time');
   const manifest = state.manifest;
-  const killShipPool = state.mode === 'abyss'
+  const randomness = await fetchDayBeacon(state.today);
+  const seed = cyrb53(`fitdle:v4:${state.today}:${randomness}`, 0x5ca1ab1e);
+  state.dailySeed = seed;
+  const pool = state.mode === 'abyss'
     ? (manifest.abyssKillShipPool || manifest.killShipPool)
     : (manifest.normalShipPool || manifest.killShipPool);
-  const hulls = weightedHullOrder(
-    killShipPool,
-    `${state.today}:${manifest.dataVersion}:${state.mode}:${state.timed ? 'timed' : 'standard'}:hulls`,
-    Number.MAX_SAFE_INTEGER,
+  const ships = weightedRendezvousOrder(
+    pool,
+    `${seed}:${state.mode}:${state.timed ? 'timed' : 'standard'}:ships`,
   );
-  const target = await resolveDailyTarget(hulls, state.today);
-  if (!target) throw new NoTargetError();
-  const chosen = state.allowEmptyKb ? target.baseline : target.fallback;
-  if (!chosen || !state.catalogMap.has(target.shipId)) throw new NoTargetError();
-  return { shipId: target.shipId, killmail: chosen };
+  for (const shipId of ships) {
+    if (!state.catalogMap.has(shipId)) continue;
+    const killmail = await fetchDailyKill(shipId, seed);
+    if (killmail) return { shipId, killmail };
+  }
+  throw new NoTargetError();
 }
 
 function freeKillUrl(killId, fromRefresh = false, nonce = '') {
@@ -1063,14 +1307,20 @@ async function pickRandomFreeKill() {
     for (let page = 1; page <= 3; page++) {
       let data = null;
       try {
-        data = await fetchZkill(`/api/losses/shipTypeID/${shipId}/page/${page}/`);
-      } catch {
+        data = await fetchZkill(
+          `/api/losses/shipTypeID/${shipId}/page/${page}/`,
+          { key: `free-page:${shipId}:${page}`, ttlMs: FREE_PAGE_CACHE_MS },
+        );
+      } catch (error) {
+        debugLog('free random zKillboard', error);
+        if (isZkillUnavailable(error)) throw new DailyUnavailableError('kb-unavailable', error);
         break;
       }
       if (!Array.isArray(data) || !data.length) break;
+      const earliest = kbSelectionStartDate();
       const losses = data.filter((kill) => (
         Number(kill?.victim?.ship_type_id) === Number(shipId)
-        && String(kill?.killmail_time || '') >= `${KILL_HISTORY_START}T00:00:00Z`
+        && (!earliest || String(kill?.killmail_time || '') >= `${earliest}T00:00:00Z`)
         && (state.allowEmptyKb || killHasFittedModules(kill))
       ));
       if (losses.length) {
@@ -1089,6 +1339,12 @@ function freeAnswerSeed() {
     || state.freeKillToken
     || 'free',
   );
+}
+
+function revealBaseSeed() {
+  if (isFree()) return `free:${freeAnswerSeed()}`;
+  if (state.dailySeed != null) return `daily:${state.dailySeed}`;
+  return `daily:${state.date}:${state.answerKillId || state.answerId}`;
 }
 
 const FREE_STREAK_KEY = 'fitdle:v1:free-streak';
@@ -1220,13 +1476,20 @@ async function fetchAnswerLive() {
   state.liveFetched = true;
   const shipId = Number(state.answerId);
   const killId = Number(state.answerKillId);
+  const statsCache = statsCacheEntry(shipId);
   const [stats, kill] = await Promise.allSettled([
-    fetchZkill(`/api/stats/shipTypeID/${shipId}/kills/`, statsCacheEntry(shipId)),
+    statsCache
+      ? fetchZkill(`/api/stats/shipTypeID/${shipId}/kills/`, statsCache)
+      : Promise.resolve(null),
     state.freeKillmail
       ? Promise.resolve([state.freeKillmail])
-      : killId ? fetchZkill(`/api/killID/${killId}/`, { key: `kill:${killId}`, ttlMs: 3600000 }) : Promise.resolve(null),
+      : state.dailyKillmail
+        ? Promise.resolve([state.dailyKillmail])
+        : killId ? fetchZkill(`/api/killID/${killId}/`, { key: `kill:${killId}`, ttlMs: 3600000 }) : Promise.resolve(null),
   ]);
-  state.liveStats = stats.status === 'fulfilled' && stats.value?.type === 'shipTypeID' ? stats.value : null;
+  state.liveStats = stats.status === 'fulfilled' && stats.value?.type === 'shipTypeID'
+    ? stats.value
+    : null;
   const killmail = kill.status === 'fulfilled' && Array.isArray(kill.value) ? kill.value[0] : null;
   state.liveLosses = killmail ? [killmail] : [];
   state.liveError = !state.liveStats && !state.liveLosses.length;
@@ -1260,20 +1523,40 @@ async function fetchVictimInfo() {
   state.victimInfoLoading = true;
   const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
   const names = readEntityNameCache();
+  let esiFailed = false;
+  let esiError = null;
   const fresh = (kind, id) => {
     const entry = names?.[kind]?.[Number(id)];
     return entry && Date.now() - Number(entry.at) < ENTITY_CACHE_TTL_MS ? entry.name : '';
   };
   const read = async (kind, id) => {
-    if (!base || !Number(id)) return null;
+    if (!base) {
+      esiFailed = true;
+      esiError = esiError || Object.assign(new Error('ESI base URL unavailable'), {
+        source: 'esi',
+        request: 'manifest.esi.baseUrl',
+      });
+      return null;
+    }
+    if (!Number(id)) return null;
     const cachedName = fresh(kind, id);
     if (cachedName) return { name: cachedName };
     try {
-      const response = await fetch(esiUrl(`${base}/latest/${kind}/${Number(id)}/?datasource=tranquility`), {
+      const requestUrl = esiUrl(`${base}/latest/${kind}/${Number(id)}/?datasource=tranquility`);
+      const response = await fetch(requestUrl, {
         cache: 'default',
         signal: AbortSignal.timeout(8000),
       });
-      if (!response.ok) return null;
+      if (!response.ok) {
+        esiFailed = true;
+        esiError = Object.assign(new Error(`ESI request failed (${response.status})`), {
+          name: 'EsiHttpError',
+          source: 'esi',
+          status: response.status,
+          request: requestUrl,
+        });
+        return null;
+      }
       const data = await response.json();
       if (data?.name) {
         if (!names[kind]) names[kind] = {};
@@ -1281,7 +1564,11 @@ async function fetchVictimInfo() {
         writeEntityNameCache(names);
       }
       return data;
-    } catch {
+    } catch (error) {
+      esiFailed = true;
+      esiError = error;
+      if (!esiError.source) esiError.source = 'esi';
+      if (!esiError.request) esiError.request = `${base}/latest/${kind}/${Number(id)}/`;
       return null;
     }
   };
@@ -1291,6 +1578,13 @@ async function fetchVictimInfo() {
     read('alliances', victim.alliance_id),
   ]);
   if (state.victimInfoKey !== key) return;
+  if (esiFailed) {
+    debugLog('ESI name lookup', esiError);
+    if (state.victimEsiWarningKey !== key) {
+      state.victimEsiWarningKey = key;
+      showToast(t('error.esiTitle'), t('error.esiBody'), 'warn', 6000);
+    }
+  }
   state.victimInfo = {
     characterId: Number(victim.character_id) || null,
     characterName: character?.name || fresh('characters', victim.character_id),
@@ -1428,13 +1722,21 @@ function buildAnswerData() {
     stats: state.liveStats,
     losses: state.liveLosses,
     dateKey: isFree() ? `free:${freeAnswerSeed()}` : state.date,
-    dataVersion: state.dataVersionKey || state.manifest.dataVersion,
+    dataVersion: state.manifest?.clueVersion || '4',
     targetKillId: state.answerKillId,
     mode: usesSimulatedFit() ? 'abyss' : state.mode,
     moduleDetails: usesSimulatedFit() ? state.moduleDetails : null,
     fittedAttrs: usesSimulatedFit() ? state.dogmaAttrs : null,
     baselineAttrs: usesSimulatedFit() ? state.dogmaBaseline : null,
     moduleFallbacks: usesSimulatedFit() ? state.manifest.moduleFallbacks || {} : {},
+  });
+  const revealSeed = revealBaseSeed();
+  const revealPlan = buildRevealPlan({
+    clues: built.clues,
+    seed: revealSeed,
+    mode: state.mode,
+    timed: isTimed(),
+    config: state.manifest?.reveal,
   });
   state.answerData = {
     ...ship,
@@ -1445,6 +1747,8 @@ function buildAnswerData() {
     sampleKill: built.sampleKill,
     fitting: { fittedKills: built.fittedKills },
     fitDelta: built.fitDelta,
+    revealSeed,
+    revealPlan,
   };
 }
 
@@ -1478,7 +1782,10 @@ async function loadLocaleData(locale) {
 
 function readStoredState() {
   if (isFree()) return { guesses: [], status: 'playing', invalidated: false };
-  const stored = loadState(localStorage, state.date, state.dataVersionKey, storageMode());
+  const stored = loadState(localStorage, state.date, state.dataVersionKey, storageMode(), {
+    dailySeed: state.dailySeed,
+    answerKillId: state.answerKillId,
+  });
   if (!stored) return { invalidated: false };
   if (stored.invalidated) return { invalidated: true };
   const allowed = new Set(state.catalogMap.keys());
@@ -1503,7 +1810,6 @@ function readStoredState() {
 }
 
 function recomputeRevealed() {
-  const seed = `${isFree() ? `free:${freeAnswerSeed()}` : `${state.date}:${state.answerKillId || state.answerId}`}:${state.mode}:${state.timed ? 'timed' : 'standard'}`;
   const base = {
     clues: state.answerData.clues,
     catalog: state.catalog,
@@ -1516,7 +1822,10 @@ function recomputeRevealed() {
     answerBonuses: state.answerData.bonuses || [],
     answer: state.answerData,
     fitDelta: state.answerData.fitDelta || null,
-    seed,
+    seed: state.answerData.revealSeed || revealBaseSeed(),
+    plan: state.answerData.revealPlan,
+    config: state.manifest?.reveal,
+    timed: isTimed(),
   };
   if (isTimed() && state.status === 'playing') {
     if (!state.timerStarted) {
@@ -1525,12 +1834,12 @@ function recomputeRevealed() {
       state.visibleCount = 0;
       return;
     }
-    const initial = computeRevealed({ ...base, guesses: [], status: 'playing' });
+    const initial = computeRevealed({ ...base, guesses: [], status: 'playing', timed: true });
     const releases = Math.floor(currentElapsed() / 30000);
     const extras = computeTimedRevealed({
       clues: state.answerData.clues,
-      count: timedRevealTotal(releases),
-      seed,
+      plan: state.answerData.revealPlan,
+      releases,
       exclude: initial,
     });
     state.revealed = new Set([...initial, ...extras]);
@@ -1546,8 +1855,10 @@ function persist() {
   if (isFree()) return;
   saveState(localStorage, state.date, {
     dataVersion: state.dataVersionKey,
+    dailySeed: state.dailySeed,
     date: state.date,
     answerId: state.answerId,
+    answerKillId: state.answerKillId,
     guesses: state.guesses,
     status: state.status,
     timed: isTimed(),
@@ -2036,6 +2347,7 @@ function renderResists(value) {
 }
 
 function clueValue(clue) {
+  if (clue.missing) return `<span class="big">${esc(t('clue.unavailable'))}</span>`;
   const value = clue.v;
   switch (clue.k) {
     case 'race':
@@ -3264,7 +3576,7 @@ async function changeLocale(nextLocale) {
 function startTicker() {
   const update = () => {
     const now = serverNow();
-    const currentDay = gameDateKey(now, state.manifest?.downtimeUtcHour || 11);
+    const currentDay = gameDateKey(now, gameDayStartMinutes());
     const dayChanged = currentDay !== state.today;
     if (dayChanged) {
       state.today = currentDay;
@@ -3532,15 +3844,78 @@ class UnknownHullError extends Error {
   }
 }
 
+class DailyUnavailableError extends Error {
+  constructor(reason, cause = null) {
+    super(reason || 'daily-unavailable');
+    this.name = 'DailyUnavailableError';
+    this.reason = reason || 'unknown';
+    this.cause = cause;
+  }
+}
+
+function dailyErrorCopy(reason) {
+  const value = String(reason || '');
+  if (value === 'time') {
+    return {
+      lore: 'error.timeLore',
+      code: 'error.timeTitle',
+      body: 'error.timeBody',
+    };
+  }
+  if (value.startsWith('beacon')) {
+    return {
+      lore: 'error.drandLore',
+      code: 'error.drandTitle',
+      body: 'error.drandBody',
+    };
+  }
+  if (value.startsWith('kb')) {
+    return {
+      lore: 'error.zkillLore',
+      code: 'error.zkillTitle',
+      body: 'error.zkillBody',
+    };
+  }
+  if (value.startsWith('esi')) {
+    return {
+      lore: 'error.esiLore',
+      code: 'error.esiTitle',
+      body: 'error.esiBody',
+    };
+  }
+  return {
+    lore: 'error.dailyLore',
+    code: 'error.dailyUnavailableTitle',
+    body: 'error.dailyUnavailableBody',
+  };
+}
+
 function showFatal(error) {
-  console.error(error);
+  debugLog('fatal', error, {
+    fatal: true,
+    reason: error?.reason || null,
+  });
   const app = $('#app');
   if (!app) return;
+  if (error instanceof DailyUnavailableError) {
+    const copy = dailyErrorCopy(error.reason);
+    app.innerHTML = `<div class="fatal-screen">
+      <div class="fatal-glyph">${icon('radar')}</div>
+      <div class="fatal-code">${esc(t(copy.code))}</div>
+      <h1>${esc(t(copy.lore))}</h1>
+      <p>${esc(t(copy.body))}</p>
+      <div class="fatal-actions">
+        <button class="button primary" type="button" data-action="free-mode">${icon('radar')} ${esc(t('error.freeMode'))}</button>
+        <button class="button" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
+      </div>
+    </div>`;
+    return;
+  }
   if (error instanceof UnknownHullError) {
     app.innerHTML = `<div class="fatal-screen">
       <div class="fatal-glyph">${icon('radar')}</div>
-      <div class="fatal-code">${esc(t('error.unknownHullCode'))}</div>
-      <h1>${esc(t('error.unknownHullTitle'))}</h1>
+      <div class="fatal-code">${esc(t('error.unknownHullTitle'))}</div>
+      <h1>${esc(t('error.unknownHullLore'))}</h1>
       <p>${esc(t('error.unknownHullBody'))}</p>
       <div class="fatal-actions">
         <button class="button primary fatal-back" type="button" data-action="go-back">${icon('arrowRight')} ${esc(t('error.back'))}</button>
@@ -3552,7 +3927,7 @@ function showFatal(error) {
     app.innerHTML = `<div class="fatal-screen">
       <div class="fatal-glyph">${icon('alert')}</div>
       <div class="fatal-code">${esc(t('error.noTargetCode'))}</div>
-      <h1>${esc(t('error.noTargetTitle'))}</h1>
+      <h1>${esc(t('error.noTargetLore'))}</h1>
       <p>${esc(t('error.noTargetBody'))}</p>
       <div class="fatal-actions">
         <button class="button primary" type="button" data-action="free-mode">${icon('radar')} ${esc(t('error.freeMode'))}</button>
@@ -3563,10 +3938,13 @@ function showFatal(error) {
   }
   app.innerHTML = `<div class="fatal-screen">
     <div class="fatal-glyph">${icon('alert')}</div>
-    <div class="fatal-code">${esc(t('error.title'))}</div>
-    <h1>${esc(t('error.title'))}</h1>
+    <div class="fatal-code">${esc(t('error.genericCode'))}</div>
+    <h1>${esc(t('error.genericLore'))}</h1>
     <p>${esc(t('error.body'))}</p>
-    <button class="button primary" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
+    <div class="fatal-actions">
+      <button class="button primary" type="button" data-action="free-mode">${icon('radar')} ${esc(t('error.freeMode'))}</button>
+      <button class="button" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
+    </div>
   </div>`;
 }
 
@@ -3595,6 +3973,8 @@ async function boot() {
     const manifest = await fetchJson('data/manifest.json');
     state.manifest = manifest;
     state.dataVersionKey = `${manifest.dataVersion}:${manifest.clueVersion || 1}`;
+    state.gameDayStartMinutes = Number(manifest.gameDayStartMinutes ?? 11 * 60);
+    state.kbSelectionStartDate = String(manifest.kbSelectionStartDate || '');
     await fetchInternetTime();
     const catalog = await fetchJson('data/catalog.json');
     state.catalog = catalog.ships;
@@ -3617,9 +3997,7 @@ async function boot() {
     document.documentElement.dataset.timed = state.timed ? '1' : '0';
 
     const now = serverNow();
-    const resetHour = manifest.downtimeUtcHour || 11;
-    state.today = gameDateKey(now, resetHour);
-    state.utcDate = now.toISOString().slice(0, 10);
+    state.today = gameDateKey(now, state.gameDayStartMinutes);
     const freeTarget = freeKillFromLocation(location.search);
     const bootParams = new URLSearchParams(location.search);
     const freeNonce = bootParams.get('n') || '';
@@ -3716,6 +4094,10 @@ async function boot() {
         }
       } catch (error) {
         if (error instanceof UnknownHullError) throw error;
+        debugLog('free target', error);
+        if (isZkillUnavailable(error)) {
+          throw new DailyUnavailableError('kb-unavailable', error);
+        }
         state.freeKillId = null;
         state.freeKillToken = null;
         state.freeKillmail = null;
@@ -3734,6 +4116,7 @@ async function boot() {
       state.answerId = Number(target.shipId);
       state.answerKillId = Number(target.killmail.killmail_id);
       state.answerShip = state.catalogMap.get(state.answerId);
+      state.dailyKillmail = target.killmail;
     }
     await loadLocaleData(state.locale);
 

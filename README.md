@@ -41,6 +41,67 @@ npm start
 
 默认地址为 `http://127.0.0.1:4173/`。部署时只需要发布 `dist/` 目录。
 
+### 每日目标配置
+
+构建时读取仓库根目录的 `.env`（已被 Git 忽略，模板见 `.env.example`），也可以直接用环境变量覆盖：
+
+```dotenv
+FITDLE_GAME_DAY_START_UTC=11:00
+FITDLE_KB_SELECTION_START_DATE=2012-05-22
+```
+
+- 游戏日按配置的 UTC 时间切换；
+- 每日目标在 KB 最早日期到最近一个完整自然月之间查找，并按固定舰船队列逐艘尝试；
+- 每艘船按时间衰减抽取目标，再从 ship-loss 分页中找到对应记录，不局限于单页；
+- 显式 `?kb=` 链接不受 KB 最早日期限制；
+- 每日选船使用构建时的船池和权重，不需要每天重新构建；
+- 权威时间、drand 信标或 zKillboard 不可用时不会退回本地时钟或静态目标，只会引导进入自由模式；
+- 时间、drand、zKillboard 和“未选出目标”使用不同的错误提示；ESI 名称失败只做非阻塞警告。
+
+### 高级选项（谨慎修改）
+
+以下参数控制线索揭示节奏、目标 KB 时间权重和 drand 时间锁源。除非明确知道影响，否则保持默认值。修改后必须重新构建才会生效；其中 drand 配置写入 `manifest.beacon`，揭示配置写入 `manifest.reveal`，KB 配置写入 manifest 顶层。
+
+```dotenv
+# ADVANCED — 谨慎修改
+# drand quicknet 链参数。除非同时替换整条链，否则不要单独修改。
+FITDLE_DRAND_CHAIN=52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971
+FITDLE_DRAND_PUBLIC_KEY=83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a
+FITDLE_DRAND_PERIOD=3
+FITDLE_DRAND_GENESIS=1692803367
+FITDLE_DRAND_GRACE_SECONDS=5
+
+# 目标 KB 时间半衰期（天）；越小越偏向最近记录。
+FITDLE_KB_RECENCY_HALF_LIFE_DAYS=365
+# 每艘船最多扫描的 ship-loss 页数，达到后改用已加载页加权。
+FITDLE_KB_MAX_SCAN_PAGES=20
+
+# 开局线索预算、权重上限、最少/最多线索数、候选船体保护。
+FITDLE_REVEAL_OPENING_BUDGET=9
+FITDLE_REVEAL_OPENING_MAX_WEIGHT=13
+FITDLE_REVEAL_OPENING_MIN_CLUES=3
+FITDLE_REVEAL_OPENING_MAX_CLUES=7
+FITDLE_REVEAL_CANDIDATE_FLOOR=6
+
+# 队列权重倾向；越低，高权重线索越可能提前出现。
+FITDLE_REVEAL_QUEUE_WEIGHT_POWER=1.8
+
+# 标准模式装备预算：base + floor(装备数 / divisor)，不超过 max。
+FITDLE_REVEAL_STANDARD_EQUIPMENT_BASE=4
+FITDLE_REVEAL_STANDARD_EQUIPMENT_MAX=9
+FITDLE_REVEAL_STANDARD_EQUIPMENT_DIVISOR=8
+# 标准模式货舱使用独立权重预算。
+FITDLE_REVEAL_STANDARD_CARGO_BUDGET=6
+
+# 深渊模式配额规则。
+FITDLE_REVEAL_ABYSS_EQUIPMENT_PER_MISS=1
+FITDLE_REVEAL_ABYSS_OTHER_BASE=1
+FITDLE_REVEAL_ABYSS_SHORTFALL_DIVISOR=2
+FITDLE_REVEAL_ABYSS_CARGO_DIVISOR=10
+```
+
+无效值会让构建直接失败，不会悄悄回退到运行时的不同默认值。
+
 ### 部署到静态托管
 
 `dist/` 可以直接放到任何静态托管服务。为了让分享预览里的 Open Graph 图片使用正确域名，
@@ -74,7 +135,7 @@ npm run build
 
 ## 容器部署
 
-仓库提供两种容器用法：单容器直接提供网站，以及适合定时任务的一次性全量构建容器。
+仓库提供两种容器用法：单容器直接提供网站，以及可重复执行的一次性全量构建容器。
 容器构建阶段需要访问官方 SDE、zKillboard 和 npm registry，耗时取决于网络和 zKillboard
 的响应速度。
 

@@ -1,10 +1,8 @@
 /**
- * Reveal planning for normal and abyssal modes.
+ * Reveal planning for normal, abyssal and timed modes.
  *
- * Normal mode only releases equipment proactively. Other static clues are
- * released when the guessed hull shares the same value as the answer. Initial
- * random clues are allowed, but a static clue is never added if it would leave
- * exactly one candidate in the SDE catalog.
+ * The queue order is fixed at the start of an answer. Guesses never re-roll a
+ * queue; they only add matching clues and are skipped when a queue is consumed.
  */
 import { clueMatchesShip } from './clues.js';
 import { cyrb53 } from './game.js';
@@ -13,6 +11,23 @@ export const INITIAL_WEIGHT_THRESHOLD = 9;
 export const INITIAL_MAX_WEIGHT = 13;
 export const INITIAL_MAX_CLUES = 7;
 export const INITIAL_MIN_CANDIDATES = 6;
+
+export const DEFAULT_REVEAL_CONFIG = Object.freeze({
+  openingBudget: 9,
+  openingMaxWeight: 13,
+  openingMinClues: 3,
+  openingMaxClues: 7,
+  candidateFloor: 6,
+  queueWeightPower: 1.8,
+  standardEquipmentBase: 4,
+  standardEquipmentMax: 9,
+  standardEquipmentDivisor: 8,
+  standardCargoBudget: 6,
+  abyssEquipmentPerMiss: 1,
+  abyssOtherBase: 1,
+  abyssShortfallDivisor: 2,
+  abyssCargoDivisor: 10,
+});
 
 const STATIC_CATEGORIES = new Set(['identity', 'hull', 'slots', 'nav', 'defense', 'targeting', 'fitting']);
 
@@ -28,11 +43,12 @@ function makeRandom(seed) {
   };
 }
 
-function weightedPick(entries, random) {
+function weightedPick(entries, random, power = DEFAULT_REVEAL_CONFIG.queueWeightPower) {
   if (!entries.length) return null;
+  const exponent = Math.max(0.5, Math.min(8, Number(power) || DEFAULT_REVEAL_CONFIG.queueWeightPower));
   const scored = entries.map((entry) => ({
     entry,
-    score: 1 / Math.pow(Math.max(0.5, Number(entry.clue.w) || 1), 1.8),
+    score: 1 / Math.pow(Math.max(0.5, Number(entry.clue.w) || 1), exponent),
   }));
   const total = scored.reduce((sum, item) => sum + item.score, 0);
   let roll = random() * total;
@@ -43,6 +59,107 @@ function weightedPick(entries, random) {
   return scored[scored.length - 1].entry;
 }
 
+export function normalizeRevealConfig(input = null) {
+  const raw = input && typeof input === 'object' ? input : {};
+  const number = (key, fallback, min = 0) => {
+    const value = Number(raw[key]);
+    return Number.isFinite(value) && value >= min ? value : fallback;
+  };
+  return {
+    openingBudget: number('openingBudget', DEFAULT_REVEAL_CONFIG.openingBudget, 1),
+    openingMaxWeight: number('openingMaxWeight', DEFAULT_REVEAL_CONFIG.openingMaxWeight, 1),
+    openingMinClues: number('openingMinClues', DEFAULT_REVEAL_CONFIG.openingMinClues, 1),
+    openingMaxClues: number('openingMaxClues', DEFAULT_REVEAL_CONFIG.openingMaxClues, 1),
+    candidateFloor: number('candidateFloor', DEFAULT_REVEAL_CONFIG.candidateFloor, 1),
+    queueWeightPower: number('queueWeightPower', DEFAULT_REVEAL_CONFIG.queueWeightPower, 0.5),
+    standardEquipmentBase: number('standardEquipmentBase', DEFAULT_REVEAL_CONFIG.standardEquipmentBase, 1),
+    standardEquipmentMax: number('standardEquipmentMax', DEFAULT_REVEAL_CONFIG.standardEquipmentMax, 1),
+    standardEquipmentDivisor: number('standardEquipmentDivisor', DEFAULT_REVEAL_CONFIG.standardEquipmentDivisor, 1),
+    standardCargoBudget: number('standardCargoBudget', DEFAULT_REVEAL_CONFIG.standardCargoBudget, 1),
+    abyssEquipmentPerMiss: number('abyssEquipmentPerMiss', DEFAULT_REVEAL_CONFIG.abyssEquipmentPerMiss, 1),
+    abyssOtherBase: number('abyssOtherBase', DEFAULT_REVEAL_CONFIG.abyssOtherBase, 1),
+    abyssShortfallDivisor: number('abyssShortfallDivisor', DEFAULT_REVEAL_CONFIG.abyssShortfallDivisor, 1),
+    abyssCargoDivisor: number('abyssCargoDivisor', DEFAULT_REVEAL_CONFIG.abyssCargoDivisor, 1),
+  };
+}
+
+function queueEntries(clues, predicate) {
+  return clues
+    .map((clue, index) => ({ clue, index }))
+    .filter(({ clue }) => (Number(clue?.w) || 0) > 0 && predicate(clue));
+}
+
+function buildQueue(entries, seed, power) {
+  if (!entries.length) return [];
+  const random = makeRandom(seed);
+  const pool = [...entries];
+  const order = [];
+  while (pool.length) {
+    const chosen = weightedPick(pool, random, power);
+    if (!chosen) break;
+    order.push(chosen.index);
+    const at = pool.indexOf(chosen);
+    if (at >= 0) pool.splice(at, 1);
+    else break;
+  }
+  return order;
+}
+
+/**
+ * Build the immutable queue order for one answer. The plan contains only
+ * indices and configuration; it never contains the answer ship or killmail.
+ */
+export function buildRevealPlan({
+  clues,
+  seed = 'reveal',
+  mode = 'normal',
+  timed = false,
+  config = null,
+}) {
+  const cfg = normalizeRevealConfig(config);
+  const base = `${seed}:${mode}:${timed ? 'timed' : 'standard'}`;
+  const queueSeeds = {
+    opening: `${base}:opening`,
+    equipment: `${base}:equipment`,
+    cargo: `${base}:cargo`,
+    other: `${base}:other`,
+    timed: `${base}:timed`,
+  };
+  const all = clues.map((clue, index) => ({ clue, index }));
+  const openingEntries = all.filter(({ clue }) => (
+    (Number(clue?.w) || 0) > 0
+    && clue.k !== 'cargo'
+    && clue.c !== 'cargo'
+    && (mode !== 'normal' || timed || clue.k !== 'bonus')
+  ));
+  const queues = {
+    equipment: buildQueue(queueEntries(clues, (clue) => clue.k === 'equipment'), queueSeeds.equipment, cfg.queueWeightPower),
+    cargo: buildQueue(queueEntries(clues, (clue) => clue.k === 'cargo'), queueSeeds.cargo, cfg.queueWeightPower),
+    other: mode === 'abyss'
+      ? buildQueue(queueEntries(clues, (clue) => clue.k !== 'equipment' && clue.k !== 'cargo'), queueSeeds.other, cfg.queueWeightPower)
+      : [],
+    timed: timed
+      ? buildQueue(queueEntries(clues, () => true), queueSeeds.timed, cfg.queueWeightPower)
+      : [],
+  };
+  const equipmentCount = clues.filter((clue) => clue.k === 'equipment').length;
+  const equipmentBudget = Math.min(
+    cfg.standardEquipmentMax,
+    cfg.standardEquipmentBase + Math.floor(equipmentCount / cfg.standardEquipmentDivisor),
+  );
+  return {
+    opening: buildQueue(openingEntries, queueSeeds.opening, cfg.queueWeightPower),
+    queues,
+    queueSeeds,
+    equipmentBudget,
+    config: cfg,
+    clueCount: clues.length,
+    mode,
+    timed,
+    baseSeed: base,
+  };
+}
+
 function candidatesFor(set, clues, catalog, fitDelta) {
   const active = [...set]
     .map((index) => clues[index])
@@ -51,184 +168,105 @@ function candidatesFor(set, clues, catalog, fitDelta) {
   return catalog.filter((ship) => active.every((clue) => clueMatchesShip(clue, ship, fitDelta)));
 }
 
-function wouldLeaveTooFew(set, index, clues, catalog, fitDelta) {
+function wouldLeaveTooFew(set, index, clues, catalog, fitDelta, floor) {
   const clue = clues[index];
   if (!isStatic(clue)) return false;
   const current = candidatesFor(set, clues, catalog, fitDelta);
-  if (current.length <= INITIAL_MIN_CANDIDATES) return true;
+  if (current.length <= floor) return true;
   const next = current.filter((ship) => clueMatchesShip(clue, ship, fitDelta));
-  return next.length < INITIAL_MIN_CANDIDATES;
+  return next.length < floor;
 }
 
-function chooseInitial({ clues, catalog, fitDelta, random }) {
-  const revealed = new Set();
+function addStructureResists(revealed, clues) {
+  const index = clues.findIndex((clue) => clue.k === 'structureResists');
+  if (index >= 0) revealed.add(index);
+}
+
+function consumeOpening({ revealed, clues, plan, catalog, fitDelta }) {
+  const cfg = plan.config;
   const identity = (clue) => ['tech', 'race', 'faction', 'group'].includes(clue.k);
-  const candidates = clues.map((clue, index) => ({ clue, index }));
-  let hasIdentity = false;
-  let hasEquipment = false;
-  let weight = 0;
-  while (
-    revealed.size < INITIAL_MAX_CLUES
-    && (weight < INITIAL_WEIGHT_THRESHOLD || revealed.size < 3)
-  ) {
-    const available = candidates.filter(({ clue, index }) => {
-      if (revealed.has(index)) return false;
-      if (clue.k === 'cargo') return false;
-      if (clue.k === 'equipment' && clue.tag) return false;
-      if (identity(clue) && hasIdentity) return false;
-      if (clue.k === 'equipment' && hasEquipment) return false;
-      if (weight > 0 && weight + (Number(clue.w) || 0) > INITIAL_MAX_WEIGHT) return false;
-      return !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta);
-    });
-    if (!available.length) break;
-    const chosen = weightedPick(available, random);
-    if (!chosen) break;
-    const clue = chosen.clue;
-    const clueWeight = Math.max(0, Number(clue.w) || 0);
-    if (weight > 0 && weight + clueWeight > INITIAL_MAX_WEIGHT) break;
-    revealed.add(chosen.index);
-    weight += clueWeight;
-    if (identity(clue)) hasIdentity = true;
-    if (clue.k === 'equipment') hasEquipment = true;
-  }
-  if (weight < INITIAL_WEIGHT_THRESHOLD && revealed.size < INITIAL_MAX_CLUES) {
-    const fallback = candidates.filter(({ clue, index }) => (
-      !revealed.has(index)
-      && clue.k !== 'cargo'
-      && !(clue.k === 'equipment' && clue.tag)
-      && !(identity(clue) && hasIdentity)
-      && !(clue.k === 'equipment' && hasEquipment)
-      && !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)
-    ));
-    const chosen = weightedPick(fallback, random);
-    if (chosen) revealed.add(chosen.index);
-  }
-  return revealed;
-}
+  const hasIdentity = [...revealed].some((index) => identity(clues[index]));
+  const hasEquipment = [...revealed].some((index) => clues[index]?.k === 'equipment');
+  let identitySeen = hasIdentity;
+  let equipmentSeen = hasEquipment;
+  let spent = 0;
+  let count = 0;
 
-function replacementFor({ equipment, revealed, clues, catalog, fitDelta }) {
-  for (let index = 0; index < clues.length; index++) {
+  for (const index of plan.opening) {
     if (revealed.has(index)) continue;
     const clue = clues[index];
-    if ((clue.k === 'equipment') !== equipment) continue;
-    if (clue.k !== 'equipment' && wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)) continue;
-    return index;
-  }
-  return -1;
-}
-
-function addWeightedSequential({ revealed, target, clues, catalog, fitDelta, random }) {
-  const additions = [];
-  while (revealed.size < target) {
-    const candidates = clues
-      .map((clue, index) => ({ clue, index }))
-      .filter(({ clue, index }) => (
-        !revealed.has(index)
-        && !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)
-      ));
-    if (!candidates.length) break;
-    const chosen = weightedPick(candidates, random);
-    if (!chosen) break;
-    revealed.add(chosen.index);
-    additions.push(chosen.index);
-  }
-  if (additions.length < 2) return;
-
-  const equipment = additions.filter((index) => clues[index].k === 'equipment');
-  const nonEquipment = additions.filter((index) => clues[index].k !== 'equipment');
-  if (equipment.length > nonEquipment.length && nonEquipment.length === 0) {
-    const replacement = replacementFor({ equipment: false, revealed, clues, catalog, fitDelta });
-    if (replacement >= 0) {
-      revealed.delete(equipment[0]);
-      revealed.add(replacement);
-    }
-  } else if (nonEquipment.length > equipment.length && equipment.length === 0) {
-    const replacement = replacementFor({ equipment: true, revealed, clues, catalog, fitDelta });
-    if (replacement >= 0) {
-      revealed.delete(nonEquipment[0]);
-      revealed.add(replacement);
-    }
+    if (!clue || (Number(clue.w) || 0) <= 0) continue;
+    if (clue.c === 'cargo') continue;
+    if (clue.k === 'bonus' && plan.mode === 'normal' && !plan.timed) continue;
+    if (clue.k === 'equipment' && clue.tag) continue;
+    if (identity(clue) && identitySeen) continue;
+    if (clue.k === 'equipment' && equipmentSeen) continue;
+    if (wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta, cfg.candidateFloor)) continue;
+    const cost = Math.max(1, Number(clue.w) || 1);
+    if (count > 0 && spent + cost > cfg.openingMaxWeight) continue;
+    revealed.add(index);
+    spent += cost;
+    count += 1;
+    if (identity(clue)) identitySeen = true;
+    if (clue.k === 'equipment') equipmentSeen = true;
+    if (count >= cfg.openingMaxClues) break;
+    if (count >= cfg.openingMinClues && spent >= cfg.openingBudget) break;
   }
 }
 
-function addAbyssEquipment({ revealed, count, clues, random }) {
+function consumeWeightQueue({
+  revealed,
+  queue,
+  clues,
+  catalog,
+  fitDelta,
+  budget,
+  guard = false,
+}) {
+  let spent = 0;
+  let count = 0;
+  for (const index of queue) {
+    if (revealed.has(index)) continue;
+    const clue = clues[index];
+    if (!clue || (Number(clue.w) || 0) <= 0) continue;
+    if (guard && wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta, INITIAL_MIN_CANDIDATES)) continue;
+    const cost = Math.max(1, Number(clue.w) || 1);
+    if (count === 0) {
+      revealed.add(index);
+      spent = cost;
+      count = 1;
+      if (spent >= budget) break;
+      continue;
+    }
+    if (spent + cost > budget) break;
+    revealed.add(index);
+    spent += cost;
+    count += 1;
+  }
+  return { added: count, spent };
+}
+
+function consumeCountQueue({
+  revealed,
+  queue,
+  count,
+  clues,
+  catalog,
+  fitDelta,
+  guard = false,
+  candidateFloor = INITIAL_MIN_CANDIDATES,
+}) {
   let added = 0;
-  for (let picked = 0; picked < count; picked++) {
-    const candidates = clues
-      .map((clue, index) => ({ clue, index }))
-      .filter(({ clue, index }) => clue.k === 'equipment' && !revealed.has(index));
-    const chosen = weightedPick(candidates, random);
-    if (!chosen) break;
-    revealed.add(chosen.index);
+  for (const index of queue) {
+    if (added >= count) break;
+    if (revealed.has(index)) continue;
+    const clue = clues[index];
+    if (!clue || (Number(clue.w) || 0) <= 0) continue;
+    if (guard && wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta, candidateFloor)) continue;
+    revealed.add(index);
     added += 1;
   }
   return added;
-}
-
-function addAbyssOther({ revealed, clues, catalog, fitDelta, random }) {
-  const candidates = clues
-    .map((clue, index) => ({ clue, index }))
-    .filter(({ clue, index }) => (
-      clue.k !== 'equipment'
-      && clue.k !== 'cargo'
-      && !revealed.has(index)
-      && !wouldLeaveTooFew(revealed, index, clues, catalog, fitDelta)
-    ));
-  const chosen = weightedPick(candidates, random);
-  if (chosen) revealed.add(chosen.index);
-}
-
-function addCargo({ revealed, count, clues, random }) {
-  const cargo = clues
-    .map((clue, index) => ({ clue, index }))
-    .filter(({ clue, index }) => clue.k === 'cargo' && !revealed.has(index));
-  for (let picked = 0; picked < count && cargo.length; picked++) {
-    const chosen = weightedPick(cargo, random);
-    if (!chosen) break;
-    revealed.add(chosen.index);
-    const at = cargo.findIndex((entry) => entry.index === chosen.index);
-    if (at >= 0) cargo.splice(at, 1);
-  }
-}
-
-function addEquipment({ revealed, misses, clues, random }) {
-  const equipment = clues
-    .map((clue, index) => ({ clue, index }))
-    .filter(({ clue }) => clue.k === 'equipment');
-  if (!equipment.length) return;
-
-  // More fitted items means a slightly larger budget, but expensive/rare
-  // (high-weight) items consume more of it. Low-weight items are picked first.
-  const budget = Math.max(4, Math.min(9, 4 + Math.floor(equipment.length / 8)));
-  for (let miss = 0; miss < misses; miss++) {
-    let spent = 0;
-    let picked = 0;
-    while (spent < budget) {
-      const candidates = equipment.filter(({ index }) => !revealed.has(index));
-      if (!candidates.length) break;
-      const chosen = weightedPick(candidates, random);
-      if (!chosen) break;
-      const cost = Math.max(1, Number(chosen.clue.w) || 1);
-      if (picked > 0 && spent + cost > budget) break;
-      revealed.add(chosen.index);
-      spent += cost;
-      picked++;
-      if (cost >= budget) break;
-    }
-  }
-}
-
-function addBonus({ revealed, misses, clues, random }) {
-  const bonuses = clues
-    .map((clue, index) => ({ clue, index }))
-    .filter(({ clue, index }) => clue.k === 'bonus' && !revealed.has(index));
-  for (let miss = 0; miss < misses && bonuses.length; miss++) {
-    const chosen = weightedPick(bonuses, random);
-    if (!chosen) break;
-    revealed.add(chosen.index);
-    const at = bonuses.findIndex((entry) => entry.index === chosen.index);
-    if (at >= 0) bonuses.splice(at, 1);
-  }
 }
 
 function addMatching({ revealed, guess, answer, clues, catalog, locale, fitDelta }) {
@@ -240,15 +278,10 @@ function addMatching({ revealed, guess, answer, clues, catalog, locale, fitDelta
     if (clue.c === 'equipment' || clue.c === 'economy') continue;
     if (clue.k === 'bonus') {
       const answerEntry = answer.bonusEntries?.[clue.v];
-      const key = clue.bonusKey || answerEntry?.bonusKey;
+      const termKey = clue.bonusTermKey || answerEntry?.termKey;
       const guessEntries = guess.bonusEntries || [];
-      const matched = key
-        ? guessEntries.some((entry) => entry?.bonusKey === key)
-        : (() => {
-          const line = answer.bonuses?.[clue.v];
-          const guessLines = guess.bonuses?.[locale] || guess.bonuses?.en || [];
-          return !!line && guessLines.includes(line);
-        })();
+      const matched = Boolean(termKey)
+        && guessEntries.some((entry) => entry?.termKey === termKey);
       if (matched) matches.push({ index, clue, static: false, weight: 0 });
       continue;
     }
@@ -266,9 +299,7 @@ function addMatching({ revealed, guess, answer, clues, catalog, locale, fitDelta
   matches.sort((a, b) => (a.static === b.static ? b.weight - a.weight : Number(a.static) - Number(b.static)));
 
   for (const entry of matches) {
-    // A clue earned by the player's own guess is always shown, including race
-    // and other entries that may leave only one hull in combination. The
-    // one-hull guard is for random/proactive reveals, not player matches.
+    // A clue earned by the player's own guess is always shown.
     revealed.add(entry.index);
   }
 }
@@ -286,55 +317,102 @@ export function computeRevealed({
   answer = {},
   fitDelta = null,
   seed = 'reveal',
+  plan = null,
+  config = null,
+  timed = false,
 }) {
   const total = clues.length;
   if (!total) return new Set();
   if (status === 'won' || status === 'lost') {
     return new Set(Array.from({ length: total }, (_, index) => index));
   }
-
-  const random = makeRandom(`${seed}:${mode}:${answerId}`);
+  const activePlan = plan && plan.clueCount === clues.length
+    ? plan
+    : buildRevealPlan({ clues, seed, mode, timed, config });
+  const cfg = activePlan.config;
+  const timedMode = Boolean(timed || activePlan.timed);
   const misses = guesses.filter((id) => Number(id) !== Number(answerId)).length;
+  const revealed = new Set();
+
+  if (mode !== 'abyss') addStructureResists(revealed, clues);
+
+  // Only Standard reveals shared clues from guesses. Abyss and Timed have
+  // their own reveal mechanisms.
+  if (mode !== 'abyss' && !timedMode) {
+    for (const id of guesses) {
+      if (Number(id) === Number(answerId)) continue;
+      addMatching({
+        revealed,
+        guess: getShip(Number(id)),
+        answer: { ...answer, bonuses: answerBonuses },
+        clues,
+        catalog,
+        locale,
+        fitDelta,
+      });
+    }
+  }
+
+  consumeOpening({ revealed, clues, plan: activePlan, catalog, fitDelta });
+
+  if (timedMode) return revealed;
+
   if (mode === 'abyss') {
-    const revealed = chooseInitial({ clues, catalog, fitDelta, random });
-    // Miss 1..5 adds 1..5 equipment clues, plus one weighted non-equipment
-    // clue each time.
     for (let miss = 1; miss <= misses; miss++) {
-      const added = addAbyssEquipment({ revealed, count: miss, clues, random });
-      const shortfall = Math.max(0, miss - added);
-      const others = 1 + Math.ceil(shortfall / 2);
-      for (let index = 0; index < others; index++) {
-        addAbyssOther({ revealed, clues, catalog, fitDelta, random });
-      }
+      const requested = miss * cfg.abyssEquipmentPerMiss;
+      const added = consumeCountQueue({
+        revealed,
+        queue: activePlan.queues.equipment,
+        count: requested,
+        clues,
+        catalog,
+        fitDelta,
+      });
+      const shortfall = Math.max(0, requested - added);
+      const otherCount = cfg.abyssOtherBase + Math.ceil(shortfall / cfg.abyssShortfallDivisor);
+      consumeCountQueue({
+        revealed,
+        queue: activePlan.queues.other,
+        count: otherCount,
+        clues,
+        catalog,
+        fitDelta,
+        guard: true,
+        candidateFloor: cfg.candidateFloor,
+      });
       const cargoCount = clues.filter((clue) => clue.k === 'cargo').length;
-      addCargo({ revealed, count: Math.max(1, Math.ceil(cargoCount / 10)), clues, random });
+      consumeCountQueue({
+        revealed,
+        queue: activePlan.queues.cargo,
+        count: Math.max(1, Math.ceil(cargoCount / cfg.abyssCargoDivisor)),
+        clues,
+        catalog,
+        fitDelta,
+      });
     }
     return revealed;
   }
 
-  const revealed = chooseInitial({ clues, catalog, fitDelta, random });
-  // Standard mode always exposes the common structure-resist baseline. It is
-  // free opening information, not part of the initial clue quota.
-  const structureResists = clues.findIndex((clue) => clue.k === 'structureResists');
-  if (structureResists >= 0) revealed.add(structureResists);
-  for (const id of guesses) {
-    if (Number(id) === Number(answerId)) continue;
-    addMatching({
+  for (let miss = 1; miss <= misses; miss++) {
+    consumeWeightQueue({
       revealed,
-      guess: getShip(Number(id)),
-      answer: { ...answer, bonuses: answerBonuses },
+      queue: activePlan.queues.equipment,
       clues,
       catalog,
-      locale,
       fitDelta,
+      budget: activePlan.equipmentBudget,
+    });
+    consumeWeightQueue({
+      revealed,
+      queue: activePlan.queues.cargo,
+      clues,
+      catalog,
+      fitDelta,
+      budget: cfg.standardCargoBudget,
     });
   }
-  addEquipment({ revealed, misses, clues, random });
-  addBonus({ revealed, misses, clues, random });
-  addCargo({ revealed, count: misses, clues, random });
   return revealed;
 }
-
 
 /**
  * Cumulative clues released after N timed release events:
@@ -347,23 +425,31 @@ export function timedRevealTotal(releases) {
 }
 
 /**
- * Timed mode releases weighted clues in growing batches. It never reacts to
- * guesses; the caller supplies the total number of clues to release.
+ * Timed mode releases a fixed mixed queue. Guesses do not release clues.
+ * Returns only the newly released indices; callers union them with `exclude`.
  */
-export function computeTimedRevealed({ clues, count, seed = 'timed', exclude = new Set() }) {
+export function computeTimedRevealed({
+  clues,
+  plan = null,
+  releases = 0,
+  exclude = new Set(),
+  seed = 'timed',
+  config = null,
+}) {
   const total = Array.isArray(clues) ? clues.length : 0;
-  if (!total || count <= 0) return new Set();
-  const random = makeRandom(`${seed}:timed`);
-  const pool = clues
-    .map((clue, index) => ({ clue, index }))
-    .filter(({ clue, index }) => (Number(clue?.w) || 0) > 0 && !exclude.has(index));
-  const revealed = new Set();
-  for (let picked = 0; picked < count && pool.length; picked++) {
-    const chosen = weightedPick(pool, random);
-    if (!chosen) break;
-    revealed.add(chosen.index);
-    const at = pool.findIndex((entry) => entry.index === chosen.index);
-    if (at >= 0) pool.splice(at, 1);
+  if (!total || releases <= 0) return new Set();
+  const activePlan = plan && plan.clueCount === clues.length
+    ? plan
+    : buildRevealPlan({ clues, seed, mode: 'normal', timed: true, config });
+  const revealed = new Set(exclude);
+  for (let release = 1; release <= releases; release++) {
+    const quota = timedRevealTotal(release) - timedRevealTotal(release - 1);
+    consumeCountQueue({
+      revealed,
+      queue: activePlan.queues.timed,
+      count: quota,
+      clues,
+    });
   }
-  return revealed;
+  return new Set([...revealed].filter((index) => !exclude.has(index)));
 }
