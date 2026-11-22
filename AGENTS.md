@@ -673,7 +673,7 @@ refreshes, then the final `build`.
 
 ## Tests
 
-`npm test` currently covers 127 client/SDE cases, including downtime boundaries,
+`npm test` currently covers 129 client/SDE cases, including downtime boundaries,
 target/KB selection, victim-only equipment, cargo, slot layout, weighted/fitted
 clues, audit reveal cadence, share URLs/static pages, all locales, Chinese
 variants, SDE API download/staging, container build order, online source/build
@@ -687,11 +687,16 @@ test reads `dist/`.
 
 ## CI / deployment
 
-- `.gitlab-ci.yml`: `sde:check`, `build`, `release`, `pages`.
+- `.gitlab-ci.yml`: `sde:check`, `build`, `image:publish`, `release`, `pages`.
+- `image:publish` uses Kaniko to build the all-in-one image into GitLab
+  Container Registry. Tags: version, `v`-version, `latest`, short SHA.
+- The published image is origin-neutral: Docker build uses
+  `__FITDLE_PUBLIC_ORIGIN__`; the container entrypoint validates runtime
+  `PUBLIC_ORIGIN` and renders it into static HTML before starting the service.
 - The one-shot builder image and its CI jobs were removed in the 1.0.0 cleanup.
   Do not restore `Dockerfile.oneshot`, `docker/BUILDER_VERSION`,
-  `publish:builder` or Kaniko builder publishing. The application is an online
-  service, not a pure static site.
+  `publish:builder` or the old Kaniko builder pipeline. The application is an
+  online service, not a pure static site.
 - v1.0.0 release notes mark the legacy one-shot builder images as deprecated;
   do not delete registry tags automatically.
 - The all-in-one `Dockerfile` builds SDE data and `dist/`, then runs

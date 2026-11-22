@@ -8,6 +8,7 @@ workflow:
 stages:
   - check
   - build
+  - image
   - deploy
 
 default:
@@ -82,12 +83,54 @@ build:
     - if: '$CI_PIPELINE_SOURCE == "api"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
+image:publish:
+  stage: image
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  needs:
+    - job: build
+      artifacts: false
+  timeout: 2h
+  interruptible: false
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - |
+      cat > /kaniko/.docker/config.json <<EOF
+      {"auths":{"$CI_REGISTRY":{"username":"$CI_REGISTRY_USER","password":"$CI_REGISTRY_PASSWORD"}}}
+      EOF
+  script:
+    - |
+      VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -n1)"
+      test -n "$VERSION"
+      /kaniko/executor \
+        --context "$CI_PROJECT_DIR" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
+        --destination "$CI_REGISTRY_IMAGE:$VERSION" \
+        --destination "$CI_REGISTRY_IMAGE:v$VERSION" \
+        --destination "$CI_REGISTRY_IMAGE:latest" \
+        --destination "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" \
+        --build-arg "PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__" \
+        --cache=true \
+        --cache-repo="$CI_REGISTRY_IMAGE/cache" \
+        --cache-ttl=168h \
+        --label "org.opencontainers.image.version=$VERSION" \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+        --label "org.opencontainers.image.source=$CI_PROJECT_URL" \
+        --verbosity=info
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
 # On a new main version, publish a tagged release. GitLab provides the source archives.
 release:
   stage: deploy
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
     - job: build
+      artifacts: false
+    - job: image:publish
       artifacts: false
   script:
     - |

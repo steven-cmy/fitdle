@@ -4,7 +4,9 @@
 
 FROM node:24-bookworm-slim AS build
 
-ARG PUBLIC_ORIGIN=http://127.0.0.1:8787
+# The published image is origin-neutral; the entrypoint renders the runtime
+# PUBLIC_ORIGIN into the static HTML before starting the service.
+ARG PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__
 ENV PUBLIC_ORIGIN=${PUBLIC_ORIGIN}
 
 RUN apt-get update \
@@ -28,6 +30,10 @@ RUN npm test --prefix server
 
 FROM node:24-bookworm-slim AS runtime
 
+LABEL org.opencontainers.image.title="FITDLE" \
+      org.opencontainers.image.description="FITDLE full-stack EVE Online claims puzzle service" \
+      org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
@@ -40,12 +46,18 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/data ./data
 COPY --from=build /app/js ./js
 COPY --from=build /app/server ./server
+COPY --from=build /app/scripts/render-runtime-origin.mjs ./scripts/render-runtime-origin.mjs
+COPY docker/entrypoint.sh ./docker/entrypoint.sh
 
-RUN mkdir -p /data && chown -R node:node /app /data
+RUN chmod +x /app/docker/entrypoint.sh \
+  && mkdir -p /data \
+  && chown -R node:node /app /data
+
 USER node
+VOLUME ["/data"]
 EXPOSE 8787
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:8787/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "server/src/index.mjs"]
+ENTRYPOINT ["/app/docker/entrypoint.sh"]

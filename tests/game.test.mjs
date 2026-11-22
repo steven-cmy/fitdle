@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   ATTEMPT_LIMIT,
@@ -55,6 +56,7 @@ import { avatarHtml, DEFAULT_PORTRAIT_ID, portraitUrl } from '../js/avatar.js';
 import { TRIGLAVIAN_CONVOCATION_ID, TRIGLAVIAN_FACTION_ID, triglavianBrand, triglavianDepartments } from '../js/triglavian-copy.js';
 import { LEGAL_NOTICES } from '../js/legal-copy.js';
 import { DEFAULT_REVEAL, DEFAULT_KB_RECENCY_HALF_LIFE_DAYS, DEFAULT_KB_MAX_SCAN_PAGES, loadBuildConfig, parseDateOnly, parseGameDayStart } from '../scripts/build-env.mjs';
+import { normalizePublicOrigin, renderRuntimeOrigin } from '../scripts/render-runtime-origin.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'manifest.json'), 'utf8'));
@@ -904,8 +906,50 @@ test('container image builds the catalog before the kill pool and serves online'
   const killPool = dockerfile.indexOf('npm run build:killpool');
   assert.ok(catalogBuild >= 0, 'missing catalog build');
   assert.ok(killPool > catalogBuild, 'kill pool must run after catalog build');
-  assert.match(dockerfile, /server\/src\/index\.mjs/);
   assert.match(dockerfile, /FROM node:24/);
+  assert.match(dockerfile, /ENTRYPOINT/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'docker', 'entrypoint.sh'), 'utf8'), /server\/src\/index\.mjs/);
+});
+
+test('runtime origin rendering validates and replaces static placeholders', async () => {
+  assert.equal(normalizePublicOrigin('https://fitdle.example.com/'), 'https://fitdle.example.com');
+  assert.throws(() => normalizePublicOrigin('ftp://fitdle.example.com'), /http/);
+  assert.throws(() => normalizePublicOrigin('https://fitdle.example.com/?x=1'), /credentials/);
+  assert.throws(() => normalizePublicOrigin('https://fitdle.example.com/path'), /without a path/);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fitdle-origin-'));
+  try {
+    fs.mkdirSync(path.join(root, 'share', '3'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'index.html'), '<link href="__FITDLE_PUBLIC_ORIGIN__/">');
+    fs.writeFileSync(path.join(root, 'share', '3', 'en.html'), '<meta content="__FITDLE_PUBLIC_ORIGIN__/">');
+    const result = await renderRuntimeOrigin({ root, origin: 'https://fitdle.example.com/' });
+    assert.equal(result.origin, 'https://fitdle.example.com');
+    assert.equal(result.changed, 2);
+    assert.match(fs.readFileSync(path.join(root, 'index.html'), 'utf8'), /https:\/\/fitdle\.example\.com\//);
+    assert.equal(fs.readFileSync(path.join(root, 'index.html'), 'utf8').includes('__FITDLE_PUBLIC_ORIGIN__'), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Docker image, Compose and GitLab image publishing are wired', () => {
+  const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
+  const compose = fs.readFileSync(path.join(ROOT, 'compose.example.yml'), 'utf8');
+  const ci = fs.readFileSync(path.join(ROOT, '.gitlab-ci.yml'), 'utf8');
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  assert.match(dockerfile, /ARG PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__/);
+  assert.match(dockerfile, /ENTRYPOINT \["\/app\/docker\/entrypoint\.sh"\]/);
+  assert.match(dockerfile, /render-runtime-origin\.mjs/);
+  assert.match(dockerfile, /VOLUME \["\/data"\]/);
+  assert.match(compose, /env_file:\s*\n\s*- \.env/);
+  assert.match(compose, /127\.0\.0\.1:8787:8787/);
+  assert.match(compose, /fitdle-data:\/data/);
+  assert.match(ci, /image:publish:/);
+  assert.match(ci, /kaniko/);
+  assert.match(ci, /CI_REGISTRY_IMAGE/);
+  assert.match(ci, /--build-arg "PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__"/);
+  assert.match(readme, /registry\.gitlab\.com\/cmy\/fitdle/);
+  assert.match(readme, /linuxserver\/swag|proxy-confs/);
 });
 
 test('SDE API release and deployment checks are wired', () => {
@@ -1297,7 +1341,7 @@ test('Platinum payout uses ESI insurance prices', () => {
   assert.doesNotMatch(main, /const payout = targetKillValue/);
 });
 
-test('1.0.0 removes the legacy beacon, iframe bridge and stale assets', () => {
+test('1.0.1 removes the legacy beacon, iframe bridge and stale assets', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   const game = fs.readFileSync(path.join(ROOT, 'js', 'game.js'), 'utf8');
   const buildEnv = fs.readFileSync(path.join(ROOT, 'scripts', 'build-env.mjs'), 'utf8');
@@ -1305,8 +1349,8 @@ test('1.0.0 removes the legacy beacon, iframe bridge and stale assets', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const serverPkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'package.json'), 'utf8'));
   const changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
-  assert.equal(pkg.version, '1.0.0');
-  assert.equal(serverPkg.version, '1.0.0');
+  assert.equal(pkg.version, '1.0.1');
+  assert.equal(serverPkg.version, '1.0.1');
   assert.match(pkg.engines.node, />=24/);
   assert.equal(main.includes('MP_BRIDGE'), false);
   assert.equal(main.includes('isMpBridge'), false);

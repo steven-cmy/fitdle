@@ -1,5 +1,12 @@
 # 更新日志
 
+## v1.0.1
+
+- 新增可直接部署全栈服务的 Docker 镜像，发布到 GitLab Container Registry。
+- 镜像支持在启动时注入 `PUBLIC_ORIGIN`，同一镜像可用于不同域名，无需为发布地址重新构建。
+- 新增 Docker Compose 与 `.env` 部署示例；保留 `/data` 持久化 SQLite。
+- README 重写为技术部署文档，补充 Nginx 与 linuxserver SWAG 反向代理示例。
+
 ## v1.0.0
 
 - 正式发布 FITDLE 1.0.0：统一为服务端权威的在线每日、统计与联机体验。
