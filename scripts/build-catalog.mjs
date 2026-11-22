@@ -11,9 +11,11 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { loadBuildConfig } from './build-env.mjs';
+import { loadBuildConfig, loadBuildEnv } from './build-env.mjs';
+import { fetchLatestRelease, sdeBase } from './sde-api.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+const ENV = loadBuildEnv(ROOT);
 const BUILD_CONFIG = loadBuildConfig(ROOT);
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.0.0';
 const USER_AGENT = `FITDLE/${PACKAGE_VERSION} (+https://gitlab.com/cmy/fitdle)`;
@@ -22,6 +24,8 @@ const OUT = path.join(ROOT, 'data');
 const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
 const ZKB_BASE = 'https://zkillboard.com';
 const IMAGE_BASE = 'https://images.evetech.net';
+const EVE_SSO_SMALL = 'https://web.ccpgamescdn.com/eveonlineassets/developers/eve-sso-login-black-small.png';
+const EVE_SSO_LARGE = 'https://web.ccpgamescdn.com/eveonlineassets/developers/eve-sso-login-black-large.png';
 // Same-origin HTTP Date header. Avoids cross-origin CORS and browser
 // interception of the old Cloudflare trace endpoint.
 const TIME_SOURCE = 'data/manifest.json';
@@ -30,24 +34,36 @@ if (!fs.existsSync(SDE_FILE)) {
   throw new Error('Missing .cache/normalized.json. Run `node scripts/prepare-sde.mjs` first.');
 }
 const sde = JSON.parse(fs.readFileSync(SDE_FILE, 'utf8'));
+if (sde.normalizedVersion !== 3) {
+  throw new Error(`Unsupported normalized SDE version ${sde.normalizedVersion}; run npm run update:sde`);
+}
 const sdeMetaFile = path.join(ROOT, '.cache', 'sde-meta.json');
 const sdeMeta = fs.existsSync(sdeMetaFile) ? JSON.parse(fs.readFileSync(sdeMetaFile, 'utf8')) : {};
-if (!sdeMeta.buildNumber) {
+if (!sdeMeta.buildNumber || !sdeMeta.release) {
   try {
-    const response = await fetch('https://developers.eveonline.com/static-data/tranquility/latest.jsonl', {
-      headers: { 'User-Agent': USER_AGENT },
+    const latest = await fetchLatestRelease({
+      base: sdeBase(ENV.EVE_SDE_BASE),
+      userAgent: USER_AGENT,
     });
-    if (response.ok) {
-      const latest = JSON.parse((await response.text()).split('\n').find(Boolean));
-      sdeMeta.buildNumber = latest.buildNumber || null;
-      sdeMeta.releaseDate = latest.releaseDate || null;
-      fs.writeFileSync(sdeMetaFile, `${JSON.stringify(sdeMeta, null, 2)}\n`);
-    }
+    sdeMeta.source = 'sde-api';
+    sdeMeta.apiBase = latest.apiBase;
+    sdeMeta.latestUrl = latest.latestUrl;
+    sdeMeta.release = latest.release;
+    sdeMeta.buildNumber = latest.buildNumber;
+    sdeMeta.releaseDate = latest.releaseDate;
+    sdeMeta.latestEtag = latest.etag;
+    sdeMeta.tableVersions = Object.fromEntries(
+      Object.entries(latest.tables || {}).map(([table, value]) => [table, value?.version || null]),
+    );
+    fs.writeFileSync(sdeMetaFile, `${JSON.stringify(sdeMeta, null, 2)}\n`);
   } catch {
-    // Offline builds fall back to the stored SDE metadata.
+    // Offline builds fall back to the normalized source metadata.
   }
 }
 const locales = LOCALES.filter((locale) => sde.locales?.includes(locale));
+if (!sdeMeta.release || !sdeMeta.buildNumber) {
+  throw new Error('Missing SDE API release metadata; run npm run prepare:sde');
+}
 
 function localized(value, locale) {
   if (value == null) return '';
@@ -161,10 +177,10 @@ const catalog = ships.map((ship) => {
   };
 });
 
-// Abyssal difficulty biases the daily target toward rare/specialised hulls.
+// Audit difficulty biases the daily target toward rare/specialised hulls.
 // Price/meta/tech/group are static SDE proxies for "less commonly used"; no
 // zKillboard snapshot is baked into the deployment.
-function abyssWeight(ship) {
+function auditWeight(ship) {
   let weight = 1;
   const meta = Number(ship.metaGroupID || 0);
   if (meta >= 4) weight += 5;
@@ -177,8 +193,8 @@ function abyssWeight(ship) {
   return Math.max(1, Math.min(12, Math.round(weight)));
 }
 
-const abyssAnswerPool = catalog
-  .flatMap((ship) => Array.from({ length: abyssWeight(ship) }, () => ship.id))
+const auditAnswerPool = catalog
+  .flatMap((ship) => Array.from({ length: auditWeight(ship) }, () => ship.id))
   .sort((a, b) => a - b);
 
 const weightsFile = path.join(ROOT, '.cache', 'ship-weights.json');
@@ -210,9 +226,9 @@ const killPool = (killPoolSource.kills || [])
     total_value: Number(entry.total_value || 0),
   }))
   .filter((entry) => Number.isFinite(entry.killmail_id) && shipByID.has(entry.ship_id));
-const abyssKillPool = killPool
+const auditKillPool = killPool
   .flatMap((entry) => Array.from(
-    { length: abyssWeight(shipByID.get(entry.ship_id)) },
+    { length: auditWeight(shipByID.get(entry.ship_id)) },
     () => entry.killmail_id,
   ))
   .sort((a, b) => a - b);
@@ -232,7 +248,7 @@ const normalShipPool = eligibleShips
     return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
   })
   .sort((a, b) => a - b);
-const abyssKillShipPool = eligibleShips
+const auditKillShipPool = eligibleShips
   .flatMap((ship) => {
     const weight = 1 + 1.8 * (1 - usageScore(ship));
     return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
@@ -342,11 +358,6 @@ const configStamp = [
   BUILD_CONFIG.kbSelectionStartDate,
   BUILD_CONFIG.kbRecencyHalfLifeDays,
   BUILD_CONFIG.kbMaxScanPages,
-  BUILD_CONFIG.beacon.chain,
-  BUILD_CONFIG.beacon.publicKey,
-  BUILD_CONFIG.beacon.period,
-  BUILD_CONFIG.beacon.genesisTime,
-  BUILD_CONFIG.beacon.graceSeconds,
   JSON.stringify(BUILD_CONFIG.reveal),
 ].join('|');
 const bonusStamp = crypto.createHash('sha1').update(catalog.map((ship) => (
@@ -359,8 +370,12 @@ const moduleFallbackDetails = Object.fromEntries(moduleTypes
   .filter((module) => module.simulationAttributes && Object.keys(module.simulationAttributes).length)
   .map((module) => [module.id, module.simulationAttributes]));
 const rigSizeStamp = catalog.filter((ship) => Number(ship.attrs.rigSize) > 0).length;
-const versionSeed = `${RULESET_VERSION}|${configStamp}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${moduleFitStamp}|${Object.keys(moduleFallbackDetails).length}|${rigSizeStamp}|${abyssAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${abyssKillShipPool.length}|${bonusStamp}`;
+const versionSeed = `${RULESET_VERSION}|${configStamp}|${sde.generatedAt || ''}|${catalog.map((ship) => `${ship.id}:${ship.attrs.warp}:${ship.attrs.align}`).join(',')}|${moduleTypes.length}|${moduleFitStamp}|${Object.keys(moduleFallbackDetails).length}|${rigSizeStamp}|${auditAnswerPool.length}|${Object.keys(moduleFallbacks).length}|${killPool.map((entry) => entry.killmail_id).join(',')}|${usageStamp}|${normalShipPool.length}|${auditKillShipPool.length}|${bonusStamp}`;
 const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').slice(0, 12);
+
+const publicOrigin = String(ENV.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
+const apiOrigin = String(ENV.API_ORIGIN || publicOrigin).replace(/\/+$/, '');
+const manifestApiBase = publicOrigin && apiOrigin !== publicOrigin ? apiOrigin : '';
 
 const manifest = {
   format: 'fitdle-runtime-v2',
@@ -372,17 +387,19 @@ const manifest = {
   kbSelectionStartDate: BUILD_CONFIG.kbSelectionStartDate,
   kbRecencyHalfLifeDays: BUILD_CONFIG.kbRecencyHalfLifeDays,
   kbMaxScanPages: BUILD_CONFIG.kbMaxScanPages,
+  apiBase: manifestApiBase,
   reveal: BUILD_CONFIG.reveal,
-  beacon: BUILD_CONFIG.beacon,
   generatedAt: new Date().toISOString(),
   sdeGeneratedAt: sde.generatedAt || null,
   sde: {
-    generatedAt: sde.generatedAt || null,
+    source: sdeMeta.source || 'sde-api',
+    release: sdeMeta.release || null,
     buildNumber: sdeMeta.buildNumber || null,
     releaseDate: sdeMeta.releaseDate || null,
-    url: sdeMeta.url || 'https://developers.eveonline.com/static-data/',
-    etag: sdeMeta.etag || '',
-    lastModified: sdeMeta.lastModified || '',
+    apiBase: String(sdeMeta.apiBase || sdeBase(ENV.EVE_SDE_BASE)).replace(/\/+$/, ''),
+    url: sdeMeta.latestUrl || `${sdeBase(ENV.EVE_SDE_BASE)}/latest/`,
+    latestEtag: sdeMeta.latestEtag || '',
+    tableVersions: sdeMeta.tableVersions || {},
     downloadedAt: sdeMeta.downloadedAt || null,
   },
   locales,
@@ -395,10 +412,14 @@ const manifest = {
       return Number.isNaN(parsed.getTime()) ? (raw.slice(0, 10) || null) : parsed.toISOString().slice(0, 10);
     })(),
   },
-  images: { baseUrl: IMAGE_BASE },
+  images: {
+    baseUrl: IMAGE_BASE,
+    eveSsoLoginSmall: EVE_SSO_SMALL,
+    eveSsoLoginLarge: EVE_SSO_LARGE,
+  },
   esi: { baseUrl: 'https://esi.evetech.net' },
   links: {
-    eveDocs: 'https://developers.eveonline.com/static-data',
+    eveDocs: 'https://developers.eveonline.com/static-data/',
     eveOnline: 'https://www.eveonline.com/',
     fenris: 'https://fenris.com/',
     glossary: 'https://ddd4512kk-source.github.io/EVE-Online-Tranquility-Chinese-Personas/glossary/',
@@ -406,12 +427,12 @@ const manifest = {
   },
   timeSource: TIME_SOURCE,
   answerPool: catalog.map((ship) => ship.id).sort((a, b) => a - b),
-  abyssAnswerPool,
+  auditAnswerPool,
   killPool,
-  abyssKillPool,
+  auditKillPool,
   killShipPool,
   normalShipPool,
-  abyssKillShipPool,
+  auditKillShipPool,
   killPoolsByShip,
   shipWeights: {
     source: 'zKillboard recent ship losses (90-day window)',
@@ -425,11 +446,11 @@ const manifest = {
   counts: {
     catalog: catalog.length,
     answers: catalog.length,
-    abyssPool: abyssAnswerPool.length,
+    auditPool: auditAnswerPool.length,
     killPool: killPool.length,
-    abyssKillPool: abyssKillPool.length,
+    auditKillPool: auditKillPool.length,
     killShipPool: killShipPool.length,
-    abyssKillShipPool: abyssKillShipPool.length,
+    auditKillShipPool: auditKillShipPool.length,
     modules: moduleTypes.length,
     groups: usedGroupIDs.size,
   },

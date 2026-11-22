@@ -69,7 +69,7 @@ export async function fetchKillmail(manifest, killId, options = {}) {
 }
 
 function hullPool(manifest, mode) {
-  if (mode === 'abyss') return manifest?.abyssKillShipPool || manifest?.killShipPool || [];
+  if (mode === 'audit') return manifest?.auditKillShipPool || manifest?.killShipPool || [];
   return manifest?.normalShipPool || manifest?.killShipPool || [];
 }
 

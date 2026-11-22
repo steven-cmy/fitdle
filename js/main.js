@@ -2,6 +2,8 @@ import {
   ATTEMPT_LIMIT,
   buildGuessResult,
   buildSearchIndex,
+  claimCaseNumber,
+  ycDateLabel,
   freeKillIdFromToken,
   emptyStats,
   formatMass,
@@ -26,22 +28,21 @@ import {
   searchShips,
   settleStats,
   shareUrl,
-  victimIsWatched,
   weightedHullOrder,
   weightedRendezvousOrder,
-  beaconRoundForStart,
   cyrb53,
 } from './game.js';
 import { detectLocale, createI18n, isLocale, resolveLocale, LOCALES, LOCALE_META } from './i18n.js';
-import { buildClues, getEquipment, selectAbyssFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
+import { buildClues, getEquipment, selectAuditFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
 import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
-import { initStarfield } from './starfield.js';
-import { HttpCachingChain, HttpChainClient, fetchBeacon } from '../vendor/drand-client/index.js';
-
-const MP_BRIDGE = new URLSearchParams(location.search).get('mp') === '1';
-const MP_SPECTATOR = MP_BRIDGE && new URLSearchParams(location.search).get('spectator') === '1';
+import { api } from './api.js';
+import { avatarHtml } from './avatar.js';
+import { brandLogoHtml, fitdleMark, FITDLE_SYSTEM_LONG, PEND_INSURANCE_ID, SCC_ID } from './brand.js';
+import { legalNotice } from './legal-copy.js';
+import { TRIGLAVIAN_CONVOCATION_ID, TRIGLAVIAN_FACTION_ID, triglavianBrand, triglavianDepartments } from './triglavian-copy.js';
+import { RoomSurface } from './rooms.js';
 
 const CATEGORIES = ['traits', 'hull', 'nav', 'defense', 'targeting', 'fitting', 'equipment', 'cargo', 'economy'];
 const CATEGORY_ALIASES = { identity: 'hull', slots: 'fitting' };
@@ -83,6 +84,9 @@ const state = {
   liveLosses: [],
   liveError: false,
   liveFetched: false,
+  insurancePrices: null,
+  insurancePromise: null,
+  insuranceLoaded: false,
   moduleDetails: null,
   extraTypeNames: {},
   extraTypeNamesLocale: null,
@@ -95,11 +99,19 @@ const state = {
   victimInfoLoading: false,
   victimEsiWarningKey: null,
   mode: 'normal',
-  watchlist: null,
+  appMode: 'practice',
+  gameplay: 'standard',
+  auth: { loading: true, loggedIn: false, name: '', characterId: null },
+  onlineRun: null,
+  onlineFinished: false,
+  roomRequest: null,
+  roomCode: null,
+  roomSurface: null,
+  roomRace: null,
+  loginRequired: false,
   serverAnchor: null,
   monotonicAnchor: 0,
   timeVerified: false,
-  beaconRound: null,
   dailySeed: null,
   dailyKillmail: null,
   gameDayStartMinutes: 11 * 60,
@@ -108,22 +120,33 @@ const state = {
   locale: 'en',
   i18n: null,
   massUnit: 't',
+  kbValueCompact: false,
+  payoutFrame: 0,
   date: null,
   today: null,
+  targetGameDay: '',
   answerId: null,
   answerKillId: null,
+  answerKillmail: null,
+  targetSource: '',
   freeKillId: null,
   freeKillToken: null,
   freeKillmail: null,
   freeRequested: false,
   freeFromRefresh: false,
   freeRoundActive: false,
-  freeStreaks: { standard: 0, abyss: 0, timed: 0 },
+  freeStreaks: { standard: 0, audit: 0, timed: 0 },
   freeStreakMode: 'standard',
   freeStreakBefore: 0,
   freeStreakEvent: null,
   answerShip: null,
   answerData: null,
+  claimDepartments: null,
+  claimDepartmentId: '',
+  claimDepartment: null,
+  claimMemo: '',
+  claimDebriefMemo: '',
+  claimMemoLast: '',
   dataVersionKey: null,
   guesses: [],
   status: 'playing',
@@ -160,87 +183,14 @@ const state = {
   timerHandle: null,
   gaveUp: false,
   booted: false,
-  mpBridge: MP_BRIDGE,
-  mpSpectator: MP_SPECTATOR,
-  mpReadySent: false,
   font: 'neue',
   fontClicks: 0,
   radarMosaicTimer: null,
+  salvageNoiseTimer: null,
+  lastRevealSize: 0,
+  clueScanTimer: null,
   resetting: false,
 };
-
-function isMpBridge() {
-  return Boolean(state.mpBridge);
-}
-
-function postMp(type, payload = {}) {
-  if (!isMpBridge() || window.parent === window) return;
-  try {
-    window.parent.postMessage({ type, ...payload }, location.origin);
-  } catch {
-    // A closed room must never break the puzzle.
-  }
-}
-
-function postMpReady() {
-  if (!isMpBridge() || state.mpReadySent) return;
-  state.mpReadySent = true;
-  postMp('mp-ready', { locale: state.locale });
-}
-
-function postMpStatus() {
-  if (!isMpBridge()) return;
-  const elapsedMs = state.timerStarted ? currentElapsed() : state.timerElapsedMs;
-  postMp('mp-status', {
-    status: state.status,
-    attempts: state.guesses.length,
-    elapsedMs: Math.max(0, Math.round(elapsedMs || 0)),
-  });
-}
-
-function applyMpLock() {
-  if (!isMpBridge()) return;
-  const locked = Boolean(state.mpSpectator) || state.status !== 'playing';
-  document.documentElement.dataset.mpLocked = locked ? '1' : '0';
-  const input = $('#ship-input');
-  const button = $('.lock-button');
-  const clock = $('.timed-clock-button');
-  if (input) input.disabled = locked;
-  if (button && locked) button.disabled = true;
-  if (clock) clock.disabled = locked;
-  if (state.mpSpectator && !state.shipInputLockedToast) {
-    state.shipInputLockedToast = true;
-    const hint = $('#mp-watch-hint');
-    if (!hint) {
-      const banner = document.createElement('div');
-      banner.id = 'mp-watch-hint';
-      banner.className = 'mp-watch-hint';
-      banner.textContent = state.i18n?.t('mp.watchOnly') || 'Watching only';
-      document.body.append(banner);
-    }
-  }
-}
-
-function setMpSpectator(value) {
-  state.mpSpectator = Boolean(value);
-  if (state.mpSpectator) {
-    state.status = state.status === 'playing' ? 'playing' : state.status;
-    applyMpLock();
-  } else {
-    document.getElementById('mp-watch-hint')?.remove();
-    state.shipInputLockedToast = false;
-    applyMpLock();
-  }
-}
-
-window.addEventListener('message', (event) => {
-  if (!isMpBridge() || event.origin !== location.origin) return;
-  const data = event.data;
-  if (!data || typeof data !== 'object') return;
-  if (data.type === 'mp-spectator') setMpSpectator(Boolean(data.value));
-  if (data.type === 'mp-lock') setMpSpectator(true);
-  if (data.type === 'mp-unlock') setMpSpectator(false);
-});
 
 const BASE = new URL('.', document.baseURI);
 const JSON_CACHE = new Map();
@@ -322,6 +272,11 @@ function t(key, vars = {}) {
   return state.i18n ? state.i18n.t(key, vars) : key;
 }
 
+function tl(key, fallback, vars = {}) {
+  const value = t(key, vars);
+  return value === key ? fallback : value;
+}
+
 function int(n) {
   return state.i18n.integer(n);
 }
@@ -338,6 +293,10 @@ function isk(n) {
   return state.i18n.isk(n);
 }
 
+function iskFull(n) {
+  return state.i18n.iskFull(n);
+}
+
 function pct(n) {
   return state.i18n.percent(n);
 }
@@ -351,7 +310,31 @@ function nextDowntime() {
   return state.i18n.duration(msUntilNextDowntime(serverNow(), gameDayStartMinutes()));
 }
 
+function dailyResetReady() {
+  return state.appMode === 'online'
+    && state.gameplay === 'daily'
+    && Boolean(state.targetGameDay)
+    && state.targetGameDay !== state.today;
+}
+
+function claimFileId() {
+  return claimCaseNumber({
+    gameplay: state.gameplay,
+    day: state.today,
+    killId: state.answerKillId,
+    killHash: state.answerKillmail?.zkb?.hash,
+  });
+}
+
 async function applyBootFlavor() {
+  if (isTriglavianBrand()) {
+    const brand = triglavianBrand(state.locale);
+    const status = $('.boot-status');
+    const sub = $('.boot-sub');
+    if (status) status.textContent = brand.faction;
+    if (sub) sub.textContent = brand.convocation;
+    return;
+  }
   try {
     const data = await fetchJson('assets/boot-flavor.json');
     const sub = $('.boot-sub');
@@ -368,15 +351,250 @@ async function applyBootFlavor() {
   }
 }
 
+function activeBrandLogos() {
+  if (isTriglavianBrand()) {
+    const brand = triglavianBrand(state.locale);
+    return {
+      first: { id: TRIGLAVIAN_FACTION_ID, alt: brand.faction, fallback: 'TC' },
+      second: { id: TRIGLAVIAN_CONVOCATION_ID, alt: brand.convocation, fallback: 'CT' },
+    };
+  }
+  return {
+    first: { id: PEND_INSURANCE_ID, alt: 'Pend Insurance', fallback: 'PI' },
+    second: { id: SCC_ID, alt: 'Secure Commerce Commission', fallback: 'SCC' },
+  };
+}
+
+function renderBootLogos() {
+  const host = $('[data-boot-logos]');
+  const baseUrl = state.manifest?.images?.baseUrl || '';
+  if (!host || !baseUrl) return;
+  const logos = activeBrandLogos();
+  host.innerHTML = [
+    brandLogoHtml({
+      corporationId: logos.first.id,
+      baseUrl,
+      size: 128,
+      alt: logos.first.alt,
+      fallback: logos.first.fallback,
+    }),
+    '<span class="boot-logo-divider" aria-hidden="true">//</span>',
+    brandLogoHtml({
+      corporationId: logos.second.id,
+      baseUrl,
+      size: 128,
+      alt: logos.second.alt,
+      fallback: logos.second.fallback,
+    }),
+  ].join('');
+}
+
+async function loadClaimDepartments() {
+  try {
+    const data = await fetchJson('assets/claim-departments.json');
+    state.claimDepartments = data.departments && typeof data.departments === 'object'
+      ? data.departments
+      : null;
+  } catch {
+    state.claimDepartments = null;
+  }
+}
+
+function claimDepartmentPool() {
+  if (isTriglavianBrand()) return triglavianDepartments(state.locale);
+  const pool = state.claimDepartments?.[state.locale];
+  if (!Array.isArray(pool)) return [];
+  return pool.filter((department) => (
+    department
+    && typeof department.id === 'string'
+    && typeof department.name === 'string'
+    && department.name.trim()
+    && Array.isArray(department.memos)
+  ));
+}
+
+function seededClaimIndex(pool, key) {
+  const seed = state.answerKillId
+    || state.answerKillmail?.killmail_id
+    || state.today
+    || 'claim';
+  return cyrb53(`fitdle:claim:${seed}:${key}`) % pool.length;
+}
+
+function pickClaimMemo(memos, key = 'memo') {
+  const pool = Array.isArray(memos) ? memos.filter((memo) => typeof memo === 'string' && memo) : [];
+  if (!pool.length) {
+    state.claimMemo = '';
+    state.claimDebriefMemo = '';
+    return;
+  }
+  const index = seededClaimIndex(pool, key);
+  state.claimMemo = pool[index];
+  state.claimDebriefMemo = pool.length > 1
+    ? pool[(index + 1) % pool.length]
+    : pool[index];
+  state.claimMemoLast = state.claimMemo;
+}
+
+function pickClaimDepartment(preserveId = false, seed = null) {
+  const pool = claimDepartmentPool();
+  if (!pool.length) {
+    state.claimDepartmentId = '';
+    state.claimDepartment = null;
+    state.claimMemo = '';
+    state.claimDebriefMemo = '';
+    return;
+  }
+
+  const key = seed == null ? (state.answerKillId || state.today) : seed;
+  let chosen;
+  if (preserveId) {
+    chosen = pool.find((department) => department.id === state.claimDepartmentId);
+  }
+  chosen ||= pool[seededClaimIndex(pool, `department:${key}`)];
+
+  state.claimDepartmentId = chosen.id;
+  state.claimDepartment = chosen;
+  pickClaimMemo(chosen.memos, `${chosen.id}:${key}`);
+}
+
 function isFree() {
   return Boolean(state.freeKillId);
 }
 
+function isTriglavianBrand() {
+  return state.font === 'triglavian';
+}
+
+function brandText(key) {
+  if (!isTriglavianBrand()) return t(key);
+  const brand = triglavianBrand(state.locale);
+  const map = {
+    'brand.parent': brand.faction,
+    'brand.claimDivision': brand.convocation,
+    'app.subtitle': brand.subtitle,
+    'app.description': brand.description,
+    'hero.kicker': brand.kicker,
+    'help.intro': brand.helpIntro,
+    'help.sourceBody': brand.sourceBody,
+    'share.tagline': brand.tagline,
+    'claim.disclaimer': brand.disclaimer,
+    'claim.scc': brand.scc,
+    'claim.fromValue': brand.convocation,
+  };
+  return map[key] ?? t(key);
+}
+
+function refreshBrandUI() {
+  if (!state.booted) return;
+  pickClaimDepartment();
+  renderAll();
+  if (document.querySelector('.modal[data-kind="manual"]')) renderManual();
+}
+
+const TARGET_CACHE_KEY = 'fitdle:v1:target-cache';
+
+function targetCacheUser() {
+  return state.auth.loggedIn ? `user:${state.auth.name}` : 'guest';
+}
+
+function readTargetCache() {
+  try {
+    const data = JSON.parse(localStorage.getItem(TARGET_CACHE_KEY) || 'null');
+    if (!data || typeof data !== 'object' || !data.entries) return null;
+    if (data.dataVersion !== state.dataVersionKey || data.gameDay !== state.today) return null;
+    if (data.user !== targetCacheUser()) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function writeTargetCache(data) {
+  try {
+    if (!data || !Object.keys(data.entries || {}).length) {
+      localStorage.removeItem(TARGET_CACHE_KEY);
+      return;
+    }
+    localStorage.setItem(TARGET_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // best effort
+  }
+}
+
+function cacheCurrentTarget() {
+  if (!state.answerKillmail || !state.answerKillId || state.roomCode || state.roomRequest) return;
+  if (state.guesses.length || state.timerStarted || state.onlineFinished) return;
+  const data = readTargetCache() || {
+    dataVersion: state.dataVersionKey,
+    gameDay: state.today,
+    user: targetCacheUser(),
+    entries: {},
+  };
+  data.entries[state.gameplay] = {
+    source: state.targetSource,
+    gameplay: state.gameplay,
+    run: state.onlineRun,
+    killId: state.answerKillId,
+    shipId: state.answerId,
+    killmail: state.answerKillmail,
+    cachedAt: Date.now(),
+  };
+  writeTargetCache(data);
+}
+
+function dropCurrentTargetCache() {
+  const data = readTargetCache();
+  if (!data) return;
+  delete data.entries[state.gameplay];
+  writeTargetCache(data);
+}
+
+async function restoreCachedTarget(gameplay) {
+  const data = readTargetCache();
+  const entry = data?.entries?.[gameplay];
+  if (!entry) return false;
+  try {
+    if (entry.source === 'online') {
+      if (!entry.run?.runId) throw new Error('cached run missing');
+      const run = await api.run(entry.run.runId);
+      if (!run || run.status !== 'playing' || Number(run.attempts) > 0) throw new Error('cached run consumed');
+      if (run.gameplay !== gameplay) throw new Error('cached run gameplay changed');
+      if (!run.target?.killmail) throw new Error('cached target missing');
+      installTarget({
+        killmail: run.target.killmail,
+        shipId: run.target.shipId,
+        killId: run.target.killId,
+        run,
+        source: 'online',
+        free: false,
+        cacheable: true,
+      });
+      return true;
+    }
+    if (!entry.killmail?.victim?.ship_type_id) throw new Error('cached practice target missing');
+    installTarget({
+      killmail: entry.killmail,
+      shipId: entry.shipId,
+      killId: entry.killId,
+      source: 'practice',
+      free: true,
+      cacheable: true,
+    });
+    return true;
+  } catch (error) {
+    debugLog('target cache', error);
+    delete data.entries[gameplay];
+    writeTargetCache(data);
+    return false;
+  }
+}
+
 function freeKillFromLocation(search) {
   const params = new URLSearchParams(search);
-  const raw = params.get('kb') || params.get('killmail') || params.get('kill');
+  const raw = params.get('kb');
   const id = raw ? freeKillIdFromToken(raw) : null;
-  return id ? { id, token: freeKillToken(id), legacy: /^\d+$/.test(raw) } : null;
+  return id ? { id, token: freeKillToken(id) } : null;
 }
 
 function applyFont(mode, persist = false) {
@@ -392,6 +610,20 @@ function applyFont(mode, persist = false) {
     }
   }
   syncFontControls();
+  if (state.booted) refreshBrandUI();
+  else if (state.font === 'triglavian') {
+    const brand = triglavianBrand(state.locale);
+    const status = $('.boot-status');
+    const sub = $('.boot-sub');
+    if (status) status.textContent = brand.faction;
+    if (sub) sub.textContent = brand.convocation;
+    for (const image of $$('[data-boot-logos] img')) {
+      image.src = image.src
+        .replace('/corporations/1000113/', `/corporations/${TRIGLAVIAN_FACTION_ID}/`)
+        .replace('/corporations/1000132/', `/corporations/${TRIGLAVIAN_CONVOCATION_ID}/`);
+      image.alt = image.src.includes(`/${TRIGLAVIAN_FACTION_ID}/`) ? brand.faction : brand.convocation;
+    }
+  }
 }
 
 function applyFontSize(size, persist = false) {
@@ -419,7 +651,6 @@ function readFontSize() {
 
 function setFontStyle(mode) {
   applyFont(mode, true);
-  renderManual();
 }
 
 function toggleFontFace() {
@@ -431,17 +662,19 @@ function toggleFontFace() {
   }
   if (state.fontClicks % 10 === 0) {
     applyFont('triglavian', true);
-    renderManual();
     showToast(t('font.triglavianToast'), t('font.triglavianSub'), 'info');
     return;
   }
   applyFont(state.font === 'classic' ? 'neue' : 'classic', true);
-  renderManual();
 }
 
 function setFontSize(size) {
   applyFontSize(size, true);
-  renderManual();
+  for (const button of $$('[data-action="set-font-size"]')) {
+    const active = button.dataset.size === state.fontSize;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
 }
 
 function syncFontControls() {
@@ -450,7 +683,7 @@ function syncFontControls() {
     : state.font === 'triglavian'
       ? t('font.triglavian')
       : t('font.neue');
-  for (const button of $$('[data-action="toggle-font"]')) {
+  for (const button of $$('[data-action="toggle-font"], [data-action="toggle-font-face"]')) {
     button.dataset.font = state.font;
     button.setAttribute('aria-pressed', String(state.font !== 'neue'));
     button.setAttribute('aria-label', t('font.switch'));
@@ -488,7 +721,9 @@ function setAllowEmptyKb(enabled) {
     location.reload();
     return;
   }
-  renderManual();
+  for (const button of $$('[data-action="toggle-empty-kb"]')) {
+    button.setAttribute('aria-checked', String(state.allowEmptyKb));
+  }
   showToast(t('manual.emptyKb'), t(state.allowEmptyKb ? 'manual.emptyKbOn' : 'manual.emptyKbOff'), 'info', 3200);
 }
 
@@ -501,7 +736,6 @@ function secretFontClick() {
   }
   if (state.fontClicks % 10 !== 0) return;
   applyFont('triglavian', true);
-  renderManual();
   showToast(t('font.triglavianToast'), t('font.triglavianSub'), 'info');
 }
 
@@ -526,7 +760,7 @@ function isTimed() {
 }
 
 function usesSimulatedFit() {
-  return state.mode === 'abyss' || isTimed();
+  return state.mode === 'audit' || isTimed();
 }
 
 function storageMode() {
@@ -535,10 +769,8 @@ function storageMode() {
 
 function timedFromLocation(search) {
   const params = new URLSearchParams(search);
-  return params.get('rule') === 'timed'
-    || params.get('timer') === '1'
-    || params.get('timed') === '1'
-    || params.get('mode') === 'timed';
+  return params.get('claim') === 'timed'
+    || params.get('rule') === 'timed';
 }
 
 function formatElapsed(ms) {
@@ -598,6 +830,7 @@ function updateTimedClock() {
       state.fresh = new Set([...state.revealed].filter((index) => !before.has(index)));
       renderHero();
       renderDossier();
+      syncClueScan();
       rememberNewClues(state.fresh);
       if (state.fresh.size) showToast(t('toast.intel'), t('toast.clue', { n: state.fresh.size }), 'info');
     }
@@ -680,6 +913,7 @@ function startLockCooldown() {
 function startTimedRun() {
   if (!isTimed() || state.timerStarted || state.status !== 'playing') return;
   recordDailyPlay();
+  dropCurrentTargetCache();
   startTimedClock();
   state.timerHoldStart = 0;
   state.gaveUp = false;
@@ -707,7 +941,6 @@ function failTimedRun() {
   recordDailyResult();
   recomputeRevealed();
   renderAll();
-  if (isMpBridge()) postMpStatus();
   persist();
   setTimeout(() => renderDebrief(), 300);
 }
@@ -728,24 +961,9 @@ function giveUpTimed() {
   recordDailyResult();
   recomputeRevealed();
   renderAll();
-  if (isMpBridge()) postMpStatus();
   markTimedForfeited();
   persist();
   setTimeout(() => renderDebrief(), 300);
-}
-
-function setMode(mode) {
-  const nextTimed = mode === 'timed';
-  const next = mode === 'abyss' ? 'abyss' : 'normal';
-  if (next === state.mode && nextTimed === state.timed) return;
-  const url = new URL(location.href);
-  url.searchParams.delete('mode');
-  url.searchParams.delete('timer');
-  url.searchParams.delete('timed');
-  if (nextTimed) url.searchParams.set('rule', 'timed');
-  else if (next === 'abyss') url.searchParams.set('rule', 'abyss');
-  else url.searchParams.delete('rule');
-  location.assign(url.toString());
 }
 
 function displayName(ship) {
@@ -790,9 +1008,8 @@ function victimMetaHtml() {
   const corporation = info.corporationName || t('dossier.corpFallback', { id: corporationId || '?' });
   const alliance = info.allianceName || t('dossier.allianceFallback', { id: allianceId || '?' });
   const zkillBase = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
-  const watched = victimIsWatched(victim, state.watchlist);
   const portrait = characterId && imageBase() && zkillBase
-    ? `<a class="victim-portrait zkb-item-link${watched ? ' is-watched' : ''}" href="${esc(`${zkillBase}/character/${characterId}/`)}" target="_blank" rel="noopener noreferrer"><img src="${esc(`${imageBase()}/characters/${characterId}/portrait?size=64`)}" alt="${esc(t('dossier.victimAlt'))}" onerror="this.parentElement.remove()"></a>`
+    ? `<a class="victim-portrait zkb-item-link" href="${esc(`${zkillBase}/character/${characterId}/`)}" target="_blank" rel="noopener noreferrer"><img src="${esc(`${imageBase()}/characters/${characterId}/portrait?size=64`)}" alt="${esc(t('dossier.victimAlt'))}" onerror="this.parentElement.remove()"></a>`
     : '';
   const corpIcon = corporationId && imageBase()
     ? `<img class="victim-org-icon" src="${esc(`${imageBase()}/corporations/${corporationId}/logo?size=32`)}" alt="" onerror="this.remove()">`
@@ -863,15 +1080,6 @@ function clueLabel(clue) {
   return t(`clue.${clue.k === 'cargoCapacity' ? 'cargo' : clue.k}`) || clue.k;
 }
 
-function brandMark() {
-  return `<svg viewBox="0 0 64 64" aria-hidden="true">
-    <path d="M32 6 54 18v28L32 58 10 46V18Z" fill="none" stroke="currentColor" stroke-width="1.5"/>
-    <circle cx="32" cy="32" r="13" fill="none" stroke="var(--cyan)" stroke-width="1"/>
-    <circle cx="32" cy="32" r="3" fill="currentColor"/>
-    <path d="M32 10v11M32 43v11M10 32h11M43 32h11" stroke="var(--cyan)" stroke-width="1"/>
-  </svg>`;
-}
-
 function shipThumb(ship, className = '') {
   if (!ship) return '';
   return `<span class="${className} ship-thumb">
@@ -913,6 +1121,79 @@ async function fetchJson(relative) {
   const json = await response.json();
   JSON_CACHE.set(relative, json);
   return json;
+}
+
+const INSURANCE_CACHE_KEY = 'fitdle:v1:insurance-prices';
+const INSURANCE_TTL_MS = 60 * 60 * 1000;
+
+function readInsuranceCache() {
+  try {
+    const data = JSON.parse(localStorage.getItem(INSURANCE_CACHE_KEY) || 'null');
+    if (!data || !data.prices || Date.now() - Number(data.at) > INSURANCE_TTL_MS) return null;
+    return data.prices;
+  } catch {
+    return null;
+  }
+}
+
+function writeInsuranceCache(prices) {
+  try {
+    localStorage.setItem(INSURANCE_CACHE_KEY, JSON.stringify({ at: Date.now(), prices }));
+  } catch {
+    // best effort
+  }
+}
+
+async function loadInsurancePrices() {
+  if (state.insuranceLoaded) return state.insurancePrices;
+  if (state.insurancePromise) return state.insurancePromise;
+  const cached = readInsuranceCache();
+  if (cached) {
+    state.insurancePrices = cached;
+    state.insuranceLoaded = true;
+    return cached;
+  }
+  const base = String(state.manifest?.esi?.baseUrl || '').replace(/\/+$/, '');
+  if (!base) {
+    state.insuranceLoaded = true;
+    return null;
+  }
+  state.insurancePromise = fetch(`${base}/latest/insurance/prices/?datasource=tranquility&language=en`, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(9000),
+  })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`insurance ${response.status}`);
+      return response.json();
+    })
+    .then((rows) => {
+      const prices = {};
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const id = Number(row?.type_id);
+        if (Number.isSafeInteger(id) && id > 0) prices[id] = row;
+      }
+      state.insurancePrices = prices;
+      state.insuranceLoaded = true;
+      writeInsuranceCache(prices);
+      return prices;
+    })
+    .catch((error) => {
+      debugLog('insurance', error);
+      state.insurancePrices = state.insurancePrices || {};
+      state.insuranceLoaded = true;
+      return state.insurancePrices;
+    })
+    .finally(() => {
+      state.insurancePromise = null;
+    });
+  return state.insurancePromise;
+}
+
+function platinumPayout(shipId) {
+  const row = state.insurancePrices?.[Number(shipId)];
+  const level = (row?.levels || []).find((entry) => String(entry?.name || '').toLowerCase() === 'platinum');
+  const value = Number(level?.payout);
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
 }
 
 async function fetchInternetTime() {
@@ -1114,74 +1395,6 @@ function kbSelectionStartDate() {
   return String(state.manifest?.kbSelectionStartDate || state.kbSelectionStartDate || '');
 }
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`${label || 'request'} timed out`)), ms);
-    }),
-  ]);
-}
-
-async function fetchBeaconRound(round) {
-  const config = state.manifest?.beacon;
-  if (!config?.chain || !Array.isArray(config.baseUrls) || !config.baseUrls.length) {
-    throw new DailyUnavailableError('beacon-config');
-  }
-  const options = {
-    disableBeaconVerification: false,
-    noCache: true,
-    chainVerificationParams: {
-      chainHash: config.chain,
-      publicKey: config.publicKey,
-    },
-  };
-  let lastError = null;
-  for (const baseUrl of config.baseUrls) {
-    const chainUrl = `${String(baseUrl).replace(/\/$/, '')}/${config.chain}`;
-    try {
-      const chain = new HttpCachingChain(chainUrl, options);
-      const client = new HttpChainClient(chain, options);
-      const beacon = await withTimeout(fetchBeacon(client, round), 5000, 'drand relay');
-      if (beacon?.round === round && typeof beacon.randomness === 'string' && beacon.randomness) {
-        return beacon.randomness;
-      }
-    } catch (error) {
-      lastError = error;
-      debugLog('drand relay', error, { relay: String(baseUrl), round });
-    }
-  }
-  throw lastError || new DailyUnavailableError('beacon-relays');
-}
-
-async function fetchDayBeacon(day) {
-  const config = state.manifest?.beacon;
-  if (!config?.chain || !config?.publicKey || !Array.isArray(config.baseUrls) || !config.baseUrls.length) {
-    throw new DailyUnavailableError('beacon-config');
-  }
-  const [year, month, date] = String(day).split('-').map(Number);
-  const startMinutes = gameDayStartMinutes();
-  const startEpoch = Math.floor(Date.UTC(year, month - 1, date, Math.floor(startMinutes / 60), startMinutes % 60, 0) / 1000);
-  const round = beaconRoundForStart(startEpoch, config);
-  if (!round) throw new DailyUnavailableError('beacon-round');
-  state.beaconRound = round;
-  let lastError = null;
-  const deadline = Date.now() + 60000;
-  while (Date.now() < deadline) {
-    try {
-      return await fetchBeaconRound(round);
-    } catch (error) {
-      lastError = error;
-      await wait(3000);
-    }
-  }
-  throw lastError || new DailyUnavailableError('beacon-unavailable');
-}
-
 const SHIP_PAGE_CACHE_MS = 10 * 60 * 1000;
 const FREE_PAGE_CACHE_MS = SHIP_PAGE_CACHE_MS;
 
@@ -1260,41 +1473,6 @@ async function fetchDailyKill(shipId, seed) {
 }
 
 
-function captureUrlLocale() {
-  const url = new URL(location.href);
-  const raw = url.searchParams.get('lang');
-  if (!raw) return;
-  url.searchParams.delete('lang');
-  history.replaceState(null, '', url);
-  if (!/^(en|de|es|fr|ja|ko|ru|zh)([-_]|$)/i.test(raw)) return;
-  try {
-    localStorage.setItem('fitdle:v1:lang', resolveLocale(raw));
-  } catch {
-    // best effort
-  }
-}
-
-async function resolveDailySelection() {
-  if (!state.timeVerified) throw new DailyUnavailableError('time');
-  const manifest = state.manifest;
-  const randomness = await fetchDayBeacon(state.today);
-  const seed = cyrb53(`fitdle:v4:${state.today}:${randomness}`, 0x5ca1ab1e);
-  state.dailySeed = seed;
-  const pool = state.mode === 'abyss'
-    ? (manifest.abyssKillShipPool || manifest.killShipPool)
-    : (manifest.normalShipPool || manifest.killShipPool);
-  const ships = weightedRendezvousOrder(
-    pool,
-    `${seed}:${state.mode}:${state.timed ? 'timed' : 'standard'}:ships`,
-  );
-  for (const shipId of ships) {
-    if (!state.catalogMap.has(shipId)) continue;
-    const killmail = await fetchDailyKill(shipId, seed);
-    if (killmail) return { shipId, killmail };
-  }
-  throw new NoTargetError();
-}
-
 function freeKillUrl(killId, fromRefresh = false, nonce = '') {
   const url = new URL(location.href);
   url.pathname = new URL('.', location.href).pathname;
@@ -1302,7 +1480,7 @@ function freeKillUrl(killId, fromRefresh = false, nonce = '') {
   url.hash = '';
   url.searchParams.set('kb', freeKillToken(killId));
   if (fromRefresh && nonce) url.searchParams.set('n', nonce);
-  const rule = isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+  const rule = isTimed() ? 'timed' : state.mode === 'audit' ? 'audit' : 'standard';
   if (rule !== 'standard') url.searchParams.set('rule', rule);
   else url.searchParams.delete('rule');
   return url.toString();
@@ -1369,15 +1547,15 @@ function enterFreeMode() {
   url.search = '';
   url.hash = '';
   url.searchParams.set('n', nonce);
-  const rule = isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+  const rule = isTimed() ? 'timed' : state.mode === 'audit' ? 'audit' : 'standard';
   if (rule !== 'standard') url.searchParams.set('rule', rule);
   else url.searchParams.delete('rule');
   location.assign(url.toString());
 }
 
 async function pickRandomFreeKill() {
-  const killShipPool = state.mode === 'abyss'
-    ? (state.manifest.abyssKillShipPool || state.manifest.killShipPool)
+  const killShipPool = state.mode === 'audit'
+    ? (state.manifest.auditKillShipPool || state.manifest.killShipPool)
     : (state.manifest.normalShipPool || state.manifest.killShipPool);
   const hulls = weightedHullOrder(
     killShipPool,
@@ -1429,10 +1607,10 @@ function revealBaseSeed() {
 }
 
 const FREE_STREAK_KEY = 'fitdle:v1:free-streak';
-const FREE_STREAK_MODES = ['standard', 'abyss', 'timed'];
+const FREE_STREAK_MODES = ['standard', 'audit', 'timed'];
 
 function loadFreeStreaks() {
-  const empty = { standard: 0, abyss: 0, timed: 0 };
+  const empty = { standard: 0, audit: 0, timed: 0 };
   try {
     const parsed = JSON.parse(localStorage.getItem(FREE_STREAK_KEY) || '{}');
     for (const mode of FREE_STREAK_MODES) {
@@ -1453,7 +1631,7 @@ function saveFreeStreaks() {
 }
 
 function freeGameplayKey() {
-  return isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+  return isTimed() ? 'timed' : state.mode === 'audit' ? 'audit' : 'standard';
 }
 
 function setFreeStreak(mode, value) {
@@ -1685,12 +1863,13 @@ function refreshVictimSlots() {
 }
 
 async function fetchCargoTypeNames() {
-  const base = (state.manifest?.esi?.baseUrl || '').replace(/\/$/, '');
-  if (!base || !state.refs?.modules) return;
+  const sdeBase = (state.manifest?.sde?.apiBase || '').replace(/\/$/, '');
+  const release = String(state.manifest?.sde?.release || '').trim();
+  if (!sdeBase || !release || !state.refs?.modules) return;
   const locale = state.locale;
   const requestId = ++state.cargoFetchId;
   if (state.extraTypeNamesLocale !== locale) {
-    // ESI names are language-specific; never reuse an English/Chinese cache
+    // SDE names are language-specific; never reuse an English/Chinese cache
     // after the player changes the interface language.
     state.extraTypeNames = {};
     state.extraTypeNamesLocale = locale;
@@ -1698,7 +1877,7 @@ async function fetchCargoTypeNames() {
       const cached = JSON.parse(localStorage.getItem(`fitdle:v1:typeNames:${locale}`) || '{}');
       if (cached && typeof cached === 'object') state.extraTypeNames = cached;
     } catch {
-      // localStorage may be unavailable; ESI remains the fallback
+      // localStorage may be unavailable; the SDE API remains the fallback
     }
   }
   const unknown = [...new Set(
@@ -1713,16 +1892,17 @@ async function fetchCargoTypeNames() {
     while (cursor < unknown.length) {
       const id = unknown[cursor++];
       try {
-        const response = await fetch(
-          esiUrl(`${base}/latest/universe/types/${id}/?datasource=tranquility&language=${encodeURIComponent(locale)}`),
-          {
-            cache: 'default',
-            signal: AbortSignal.timeout(8000),
-          },
-        );
+        const response = await fetch(`${sdeBase}/${encodeURIComponent(release)}/types/${encodeURIComponent(id)}.json`, {
+          cache: 'default',
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(8000),
+        });
         if (response.ok) {
           const data = await response.json();
-          if (data?.name) entries.push([id, data.name]);
+          const name = typeof data?.name === 'string'
+            ? data.name
+            : (data?.name?.[locale] || data?.name?.en);
+          if (name) entries.push([id, name]);
         }
       } catch {
         // keep the numeric fallback
@@ -1740,13 +1920,13 @@ async function fetchCargoTypeNames() {
   }
 }
 
-function abyssFallbackByModule() {
+function auditFallbackByModule() {
   const equipment = getEquipment(state.liveLosses, state.refs).equipment;
-  return selectAbyssFallbacks(equipment, state.refs, state.manifest.moduleFallbacks || {});
+  return selectAuditFallbacks(equipment, state.refs, state.manifest.moduleFallbacks || {});
 }
 
-function abyssCalculationKillmail(killmail) {
-  const fallbacks = abyssFallbackByModule();
+function auditCalculationKillmail(killmail) {
+  const fallbacks = auditFallbackByModule();
   if (!fallbacks.size || !killmail?.victim?.items) return killmail;
   return {
     ...killmail,
@@ -1766,7 +1946,7 @@ async function fetchModuleDetails() {
   const fallback = await fetchJson('data/module-fallback.json').catch(() => null);
   const equipment = getEquipment(state.liveLosses, state.refs).equipment;
   const unique = [...new Set(equipment.map((item) => item.module))];
-  const fallbackByModule = abyssFallbackByModule();
+  const fallbackByModule = auditFallbackByModule();
   const toDetail = (attributes) => {
     if (!attributes) return null;
     return {
@@ -1779,7 +1959,7 @@ async function fetchModuleDetails() {
     const detail = toDetail(fallback?.[id]);
     if (detail) state.moduleDetails[id] = detail;
   }
-  // Abyssal modules can lack their mutated effects; use the same slot-tier
+  // Audit modules can lack their mutated effects; use the same slot-tier
   // representative's local SDE attributes instead of a runtime ESI request.
   for (const id of unique) {
     if (state.moduleDetails[id]) continue;
@@ -1803,9 +1983,9 @@ function buildAnswerData() {
     stats: state.liveStats,
     losses: state.liveLosses,
     dateKey: isFree() ? `free:${freeAnswerSeed()}` : state.date,
-    dataVersion: state.manifest?.clueVersion || '4',
+    dataVersion: state.manifest?.clueVersion || '5',
     targetKillId: state.answerKillId,
-    mode: usesSimulatedFit() ? 'abyss' : state.mode,
+    mode: usesSimulatedFit() ? 'audit' : state.mode,
     moduleDetails: usesSimulatedFit() ? state.moduleDetails : null,
     fittedAttrs: usesSimulatedFit() ? state.dogmaAttrs : null,
     baselineAttrs: usesSimulatedFit() ? state.dogmaBaseline : null,
@@ -1845,7 +2025,7 @@ async function loadLocaleData(locale) {
     try {
       state.dogmaAttrs = await calculateDogmaFit(
         state.answerShip,
-        abyssCalculationKillmail(state.liveLosses[0]),
+        auditCalculationKillmail(state.liveLosses[0]),
       );
     } catch {
       state.dogmaError = true;
@@ -1966,10 +2146,90 @@ function copyrightHtml() {
   const fenris = state.manifest?.links?.fenris || '#';
   const site = new URL('./', location.href).href.replace(/\/$/, '');
   const siteLabel = site.replace(/^https?:\/\//, '');
-  return esc(t('footer.copyright'))
+  return esc(legalNotice(state.locale))
     .replace('{site}', `<a href="${esc(site)}" target="_blank" rel="noopener noreferrer">${esc(siteLabel)}</a>`)
     .replace('EVE Online', `<a href="${esc(eve)}" target="_blank" rel="noopener noreferrer">EVE Online</a>`)
     .replace('Fenris Creations', `<a href="${esc(fenris)}" target="_blank" rel="noopener noreferrer">Fenris Creations</a>`);
+}
+
+function pilotStatsHtml() {
+  const stats = state.stats || DEFAULT_STATS;
+  const played = stats.played || {};
+  const wins = stats.wins || {};
+  const totalPlayed = Object.values(played).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  const modes = [
+    ['standard', t('mode.standard')],
+    ['audit', t('mode.audit')],
+    ['timed', t('mode.timed')],
+  ];
+  return `
+    <div class="pilot-menu-record">
+      <div class="pilot-menu-kicker">${esc(t('help.statsTitle'))}</div>
+      <div class="pilot-menu-modes">
+        ${modes.map(([mode, label]) => `<div>
+          <span>${esc(label)}</span>
+          <strong>${Number(played[mode]) || 0} / ${Number(wins[mode]) || 0}</strong>
+        </div>`).join('')}
+      </div>
+      <div class="pilot-menu-streak">
+        <span>${esc(t('help.statStreak'))} <b>${Number(stats.streak) || 0}</b></span>
+        <span>${esc(t('help.statBest'))} <b>${Number(stats.maxStreak) || 0}</b></span>
+      </div>
+      ${totalPlayed ? '' : `<p class="pilot-menu-empty">${esc(t('help.statsEmpty'))}</p>`}
+    </div>`;
+}
+
+function pilotMenuHtml() {
+  return `
+    <div class="pilot-menu" id="pilot-menu" role="menu" hidden>
+      <div class="pilot-menu-head">
+        <span>${esc(t('claim.assessor'))}</span>
+        <strong>${esc(state.auth.name)}</strong>
+      </div>
+      ${pilotStatsHtml()}
+      <button type="button" class="button danger pilot-menu-logout" data-action="logout" role="menuitem">${esc(t('auth.logout'))}</button>
+    </div>`;
+}
+
+function appearanceMenuHtml() {
+  const fontValue = state.font === 'classic'
+    ? t('font.classic')
+    : state.font === 'triglavian'
+      ? t('font.triglavian')
+      : t('font.neue');
+  return `
+    <div class="appearance-menu" id="appearance-menu" hidden>
+      <div class="appearance-menu-head">${esc(t('manual.settingsTitle'))}</div>
+      <div class="setting-row">
+        <span>${esc(t('font.label'))}</span>
+        <button type="button" class="font-switch-button" data-action="toggle-font-face" aria-label="${esc(t('font.switch'))}">
+          <span class="font-toggle-value">${esc(fontValue)}</span>
+        </button>
+      </div>
+      <div class="setting-row">
+        <span>${esc(t('settings.fontSize'))}</span>
+        <div class="segmented">
+          ${[['smallest', 'settings.sizeSmallest'], ['smaller', 'settings.sizeSmaller'], ['normal', 'settings.sizeNormal'], ['larger', 'settings.sizeLarger'], ['largest', 'settings.sizeLargest']].map(([value, key]) => `<button type="button" class="${state.fontSize === value ? 'is-active' : ''}" data-action="set-font-size" data-size="${value}" aria-pressed="${state.fontSize === value}">${esc(t(key))}</button>`).join('')}
+        </div>
+      </div>
+      <button type="button" class="setting-toggle" data-action="toggle-empty-kb" role="switch" aria-checked="${state.allowEmptyKb}">
+        <span>
+          <strong>${esc(t('manual.emptyKb'))}</strong>
+          <small>${esc(t('manual.emptyKbHelp'))}</small>
+        </span>
+        <i class="toggle-track" aria-hidden="true"><b></b></i>
+      </button>
+    </div>`;
+}
+
+function closeTopbarMenus() {
+  const pilot = $('#pilot-menu');
+  if (pilot) pilot.hidden = true;
+  const appearance = $('#appearance-menu');
+  if (appearance) appearance.hidden = true;
+  for (const button of $$('[data-action="pilot-menu"], [data-action="appearance-menu"]')) {
+    button.setAttribute('aria-expanded', 'false');
+  }
 }
 
 function renderShell() {
@@ -1983,29 +2243,42 @@ function renderShell() {
   app.innerHTML = `
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">${brandMark()}</div>
+        <div class="brand-mark" aria-hidden="true">${fitdleMark()}</div>
         <div>
           <div class="brand-name">${esc(t('app.name'))}</div>
-          <div class="brand-sub">${esc(t('app.subtitle'))}</div>
+          <div class="brand-sub">F.I.T.D.L.E. // ${esc(brandText('brand.claimDivision'))}</div>
         </div>
       </div>
       <div class="topbar-center">
-        <div class="cycle-chip">
-          <span id="date-caption">${esc(t('common.utc'))} // ${esc(t('hero.daily'))}</span>
-          <strong id="date-label">${esc(state.date)}</strong>
-        </div>
-        <div class="countdown">
-          <span id="reset-label">${esc(t('header.reset'))}</span>
-          <strong id="countdown">--:--:--</strong>
+        <div class="cycle-chip${state.appMode === 'online' ? '' : ' is-unscored'}" tabindex="0"
+          aria-label="${esc(`${state.appMode === 'online' ? tl('online.label', 'ONLINE') : tl('practice.label', 'PRACTICE')} // ${tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase())} // ${state.appMode === 'online' ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED')}`)}"
+          data-tip="${esc(state.appMode === 'online' ? tl('status.scoredHelp', 'Online results are recorded in the service statistics.') : tl('status.unscoredHelp', 'Practice runs are not scored and do not affect online statistics.'))}">
+          <div class="cycle-mode-line">
+            <span>${esc(state.appMode === 'online' ? tl('online.label', 'ONLINE') : tl('practice.label', 'PRACTICE'))}</span>
+            <strong>${esc(tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase()))}</strong>
+          </div>
+          <em class="cycle-score">${esc(state.appMode === 'online' ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED'))}</em>
         </div>
       </div>
       <div class="topbar-actions">
-        <a class="icon-button" href="multiplayer.html" aria-label="${esc(t('header.multiplayer'))}" title="${esc(t('header.multiplayer'))}">
-          ${icon('radar')}<span class="label">${esc(t('header.multiplayer'))}</span>
-        </a>
-        <button class="icon-button" type="button" data-action="help" aria-label="${esc(t('header.help'))}">
-          ${icon('help')}<span class="label">${esc(t('header.help'))}</span>
-        </button>
+        ${state.auth.loggedIn
+          ? `<div class="pilot-wrap">
+               <button class="pilot-identity" type="button" data-action="pilot-menu" aria-haspopup="menu" aria-expanded="false" aria-controls="pilot-menu">
+                 ${avatarHtml(state.auth.name, state.auth.characterId, 64, 'pilot-avatar', state.manifest?.images?.baseUrl)}
+                 <span class="pilot-copy">
+                   <span class="pilot-name" title="${esc(state.auth.name)}">${esc(state.auth.name)}</span>
+                   <span class="pilot-role">${esc(t('claim.assessor'))}</span>
+                 </span>
+                 ${icon('chevron')}
+               </button>
+               ${pilotMenuHtml()}
+             </div>`
+          : `<div class="eve-sso-slot">${eveSsoButton('small')}</div>`}
+        <div class="appearance-wrap">
+          <button class="icon-button topbar-appearance" type="button" data-action="appearance-menu" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu" aria-label="${esc(t('manual.settingsTitle'))}">${icon('settings')}</button>
+          ${appearanceMenuHtml()}
+        </div>
+        <button class="button ghost topbar-help" type="button" data-action="help">${esc(t('header.help'))}</button>
         <label class="sr-only" for="lang-select">${esc(t('header.language'))}</label>
         <select id="lang-select" class="lang-select" ${state.localeLoading ? 'disabled' : ''}>
           ${localeOptions()}
@@ -2018,21 +2291,47 @@ function renderShell() {
     <main id="main" class="shell">
       <div class="mode-row">
         <div class="mode-bar" data-mode="${state.mode}">
-        <span class="mode-label">${esc(t('mode.label'))}</span>
-        <div class="mode-switch mode-nav" role="group" aria-label="${esc(t('help.modesTitle'))}">
-          <button type="button" class="mode-button${!isFree() ? ' is-active' : ''}" data-action="play-today" aria-pressed="${!isFree()}">${esc(t('mode.daily'))}</button>
-          <button type="button" class="mode-button${isFree() ? ' is-active' : ''}" data-action="free-mode" aria-pressed="${isFree()}">${esc(t('mode.free'))}</button>
+          <span class="mode-label">${esc(tl('mode.label', 'MODE'))}</span>
+          <div class="mode-switch mode-nav" role="group" aria-label="${esc(tl('mode.label', 'MODE'))}">
+            <button type="button" class="mode-button${state.gameplay === 'daily' ? ' is-active' : ''}${state.appMode === 'online' ? '' : ' is-unavailable'}"
+              data-action="set-gameplay" data-gameplay="daily"
+              ${state.appMode === 'online' ? '' : 'aria-disabled="true"'}
+              ${state.appMode === 'online' ? '' : `data-tip="${esc(tl('mode.dailyReason', 'Sign in with EVE to play Daily mode.'))}"`}
+              ${state.appMode === 'online' ? '' : `aria-label="${esc(`${t('mode.daily')} — ${tl('mode.dailyReason', 'Sign in with EVE to play Daily mode.')}`)}"`}>${esc(t('mode.daily'))}</button>
+            <button type="button" class="mode-button${state.gameplay === 'standard' ? ' is-active' : ''}" data-action="set-gameplay" data-gameplay="standard">${esc(tl('gameplay.standard', 'STANDARD'))}</button>
+            <button type="button" class="mode-button${state.gameplay === 'audit' ? ' is-active' : ''}" data-action="set-gameplay" data-gameplay="audit">${esc(t('mode.audit'))}</button>
+            <button type="button" class="mode-button${state.gameplay === 'timed' ? ' is-active' : ''}" data-action="set-gameplay" data-gameplay="timed">${esc(t('mode.timed'))}</button>
+            <span class="mode-divider" aria-hidden="true"></span>
+            <button type="button" class="mode-button mode-multiplayer${state.appMode === 'online' ? '' : ' is-unavailable'}"
+              data-action="rooms"
+              ${state.appMode === 'online' ? '' : 'aria-disabled="true"'}
+              ${state.appMode === 'online' ? '' : `data-tip="${esc(tl('mode.multiplayerReason', 'Sign in with EVE to enter multiplayer.'))}"`}
+              ${state.appMode === 'online' ? '' : `aria-label="${esc(`${tl('mode.multiplayer', 'MULTIPLAYER')} — ${tl('mode.multiplayerReason', 'Sign in with EVE to enter multiplayer.')}`)}"`}>${esc(tl('mode.multiplayer', 'MULTIPLAYER'))}</button>
+          </div>
         </div>
-        <span class="mode-divider" aria-hidden="true"></span>
-        <span class="mode-label">${esc(t('mode.ruleLabel'))}</span>
-        <div class="mode-switch" role="group" aria-label="${esc(t('help.gameplayTitle'))}">
-          <button type="button" class="mode-button${!isTimed() && state.mode === 'normal' ? ' is-active' : ''}" data-action="set-mode" data-mode="normal" aria-pressed="${!isTimed() && state.mode === 'normal'}">${esc(t('mode.standard'))}</button>
-          <button type="button" class="mode-button${!isTimed() && state.mode === 'abyss' ? ' is-active' : ''}" data-action="set-mode" data-mode="abyss" aria-pressed="${!isTimed() && state.mode === 'abyss'}">${esc(t('mode.abyss'))}</button>
-          <button type="button" class="mode-button${isTimed() ? ' is-active' : ''}" data-action="set-mode" data-mode="timed" aria-pressed="${isTimed()}">${esc(t('mode.timed'))}</button>
-        </div>
-        </div>
-        <div id="free-actions" class="free-mode-actions" hidden></div>
       </div>
+
+      <section class="target-dock" aria-label="${esc(tl('mode.targetControl', 'TARGET CONTROL'))}">
+        <div class="target-dock-meta">
+          <span>${esc(tl('mode.targetControl', 'TARGET CONTROL'))}</span>
+          <strong>${esc(tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase()))}</strong>
+        </div>
+        ${state.appMode === 'online' && state.gameplay === 'daily'
+          ? `<button class="button daily-reset-cta${dailyResetReady() ? ' is-ready' : ''}" type="button"
+              data-action="play-today"
+              aria-disabled="${dailyResetReady() ? 'false' : 'true'}"
+              data-tip="${esc(dailyResetReady() ? t('mode.dailyRefresh') : tl('mode.dailyFixed', 'The Daily target is fixed and cannot be refreshed.'))}">
+              ${icon('clock')}
+              <span>${esc(dailyResetReady() ? t('mode.dailyRefresh') : tl('header.reset', 'RESET IN'))}</span>
+              <strong id="daily-reset-countdown">${esc(dailyResetReady() ? '00:00:00' : nextDowntime())}</strong>
+            </button>`
+          : `<button class="button primary new-target-cta" type="button" data-action="new-target"
+              aria-label="${esc(tl('online.newTarget', 'NEW TARGET'))}">
+              ${icon('refresh')}
+              <span>${esc(tl('online.newTarget', 'NEW TARGET'))}</span>
+              <small>${esc(tl('mode.newSignal', 'NEW SIGNAL'))}</small>
+            </button>`}
+      </section>
 
       <section class="hero" id="hero" aria-labelledby="hero-title"></section>
 
@@ -2083,7 +2382,8 @@ function renderShell() {
 
       <footer class="site-footer">
         <div>
-          <div class="footer-brand"><b>${esc(t('app.name'))}</b> // ${esc(t('app.subtitle'))}</div>
+          <div class="footer-brand"><b>${esc(t('app.name'))}</b> // ${esc(brandText('app.subtitle'))}</div>
+          <div class="footer-disclaimer">${esc(brandText('claim.disclaimer'))}</div>
           <div class="footer-copyright">${copyrightHtml()}</div>
         </div>
         <div class="footer-links">
@@ -2102,15 +2402,29 @@ function renderShell() {
 // Chrome, hero, board, dossier
 // ---------------------------------------------------------------------------
 
+function eveSsoButton(size = 'small') {
+  const label = tl('auth.login', 'LOG IN WITH EVE');
+  const source = size === 'large'
+    ? state.manifest?.images?.eveSsoLoginLarge
+    : state.manifest?.images?.eveSsoLoginSmall;
+  const href = esc(api.loginUrl());
+  if (!source) {
+    return `<a class="eve-sso-button is-text ${size}" href="${href}">${esc(label)}</a>`;
+  }
+  return `<a class="eve-sso-button ${size}" href="${href}" aria-label="${esc(label)}">
+    <img src="${esc(source)}" alt="${esc(label)}" draggable="false" onerror="this.closest('.eve-sso-button').classList.add('is-error')">
+    <span class="eve-sso-fallback">${esc(label)}</span>
+  </a>`;
+}
+
 function renderChrome() {
   const free = isFree();
   const dateLabel = $('#date-label');
   if (dateLabel) {
-    dateLabel.textContent = free ? t('free.badge') : state.date.split('-').join('.');
-    dateLabel.setAttribute('title', free ? t('free.kicker') : state.i18n.date(state.date));
+    dateLabel.textContent = free ? t('free.badge') : (ycDateLabel(state.today || state.date) || state.date);
+    dateLabel.setAttribute('title', free ? t('free.kicker') : state.i18n.date(state.today || state.date));
   }
   const resetLabel = $('#reset-label');
-  const countdown = $('#countdown');
   const dateCaption = $('#date-caption');
     if (dateCaption) {
     if (free) {
@@ -2121,20 +2435,34 @@ function renderChrome() {
       dateCaption.textContent = `${t('common.utc')} // ${t('hero.daily')}`;
     }
   }
-  if (resetLabel) resetLabel.textContent = free ? t('free.reset') : t('header.reset');
-  if (countdown) countdown.textContent = free ? t('free.badge') : nextDowntime();
-  const countdownWrap = countdown?.closest('.countdown');
-  if (countdownWrap) countdownWrap.style.display = free ? 'none' : '';
+  if (resetLabel) resetLabel.textContent = t('header.reset');
+  const dailyButton = $('.daily-reset-cta');
+  if (dailyButton) {
+    const ready = dailyResetReady();
+    dailyButton.classList.toggle('is-ready', ready);
+    dailyButton.setAttribute('aria-disabled', String(!ready));
+    dailyButton.dataset.tip = ready
+      ? t('mode.dailyRefresh')
+      : tl('mode.dailyFixed', 'The Daily target is fixed and cannot be refreshed.');
+    const label = dailyButton.querySelector('span');
+    const countdown = dailyButton.querySelector('#daily-reset-countdown');
+    if (label) label.textContent = ready ? t('mode.dailyRefresh') : tl('header.reset', 'RESET IN');
+    if (countdown) countdown.textContent = ready ? '00:00:00' : nextDowntime();
+  }
+  const pilotMenu = $('#pilot-menu');
+  const pilotRecord = pilotMenu?.querySelector('.pilot-menu-record');
+  if (pilotMenu && pilotRecord) pilotRecord.outerHTML = pilotStatsHtml();
+  const brandSub = $('.brand-sub');
+  if (brandSub) brandSub.textContent = `F.I.T.D.L.E. // ${brandText('brand.claimDivision')}`;
+  const footerBrand = $('.footer-brand');
+  if (footerBrand) footerBrand.innerHTML = `<b>${esc(t('app.name'))}</b> // ${esc(brandText('app.subtitle'))}`;
+  const footerDisclaimer = $('.footer-disclaimer');
+  if (footerDisclaimer) footerDisclaimer.textContent = brandText('claim.disclaimer');
 
   const freeActions = $('#free-actions');
   if (freeActions) {
-    freeActions.hidden = !free;
-    if (free) {
-      freeActions.innerHTML = `
-        <button type="button" class="button ghost free-action" data-action="free-refresh">${icon('refresh')} ${esc(t('free.refresh'))}</button>
-        <button type="button" class="button ghost free-action" data-action="free-input">${icon('key')} ${esc(t('free.input'))}</button>
-        <button type="button" class="button ghost free-action" data-action="free-share">${icon('share')} ${esc(t('free.share'))}</button>`;
-    }
+    freeActions.hidden = true;
+    freeActions.innerHTML = '';
   }
   const newBanner = $('#new-target-banner');
   if (newBanner) {
@@ -2151,7 +2479,9 @@ function renderChrome() {
     : `<span>${esc(t('end.next'))}</span><strong>${esc(nextDowntime())}</strong>`;
   document.documentElement.lang = state.locale;
   document.documentElement.dataset.gameMode = state.mode;
-  document.title = free ? `FITDLE — ${t('free.badge')} ${state.freeKillToken}` : `FITDLE — ${state.date}`;
+  document.title = state.appMode === 'online'
+    ? `FITDLE — ${t(`gameplay.${state.gameplay}`)}`
+    : `FITDLE — ${t('practice.label')}`;
   syncFontControls();
 }
 
@@ -2165,21 +2495,59 @@ function hiddenTotals() {
 function renderHero() {
   const hero = $('#hero');
   if (!hero) return;
+  stopClueScan();
+  if (state.status !== 'playing') stopRadarMosaic();
   const total = state.answerData?.clues?.length || 0;
   const totalHidden = hiddenTotals();
   const visible = state.revealed.size;
   const totalLabel = totalHidden ? '?' : String(total);
   const ended = state.status !== 'playing';
   const answer = displayName(state.answerShip);
+  const logos = activeBrandLogos();
   const target = ended ? answer : t('hero.target');
   const free = isFree();
-  const heroDate = free
-    ? `${t('free.badge')} // ${t('free.kb', { id: state.freeKillToken })}`
-    : `${state.date} // UTC`;
+  const heroDate = `${state.appMode === 'online' ? t('online.label') : t('practice.label')} // ${t(`gameplay.${state.gameplay}`)}`;
+  const claimStatus = !ended ? t('claim.pending') : state.status === 'won' ? t('claim.confirmed') : t('claim.escalated');
   hero.innerHTML = `
     <div class="hero-copy">
-      <div class="hero-kicker"><span class="ping"></span>${esc(t('hero.kicker'))}<span class="hero-date">${esc(heroDate)}</span></div>
-      <h1 id="hero-title">${esc(t('hero.title'))}<span class="accent">${esc(target)}</span></h1>
+      <div class="claim-mail-head">
+        <div class="claim-mail-brand">
+          <div class="claim-mail-logos">
+            ${brandLogoHtml({
+              corporationId: logos.first.id,
+              baseUrl: state.manifest?.images?.baseUrl || '',
+              size: 128,
+              className: 'claim-mail-logo',
+              alt: logos.first.alt,
+              fallback: logos.first.fallback,
+            })}
+            <span class="claim-mail-logo-divider" aria-hidden="true">//</span>
+            ${brandLogoHtml({
+              corporationId: logos.second.id,
+              baseUrl: state.manifest?.images?.baseUrl || '',
+              size: 128,
+              className: 'claim-mail-logo',
+              alt: logos.second.alt,
+              fallback: logos.second.fallback,
+            })}
+          </div>
+          <div class="claim-mail-brand-copy">
+            <div class="claim-mail-company">${esc(brandText('brand.parent'))} // ${esc(brandText('brand.claimDivision'))}</div>
+            <div class="claim-mail-system">${esc(FITDLE_SYSTEM_LONG)}</div>
+            <div class="claim-mail-file">${esc(t('claim.file'))} <strong>${esc(claimFileId())}</strong></div>
+          </div>
+        </div>
+        <dl class="claim-mail-meta">
+          <div><dt>${esc(t('claim.from'))}</dt><dd>${esc(state.claimDepartment?.name || brandText('claim.fromValue'))}</dd></div>
+          <div><dt>${esc(t('claim.to'))}</dt><dd>${esc(state.auth.loggedIn ? state.auth.name : t('claim.provisional'))}</dd></div>
+          <div><dt>${esc(t('claim.subject'))}</dt><dd>${esc(t('claim.subjectValue'))}</dd></div>
+          <div><dt>${esc(t('claim.status'))}</dt><dd class="claim-status">${esc(claimStatus)}</dd></div>
+        </dl>
+      </div>
+      <div class="hero-kicker"><span class="ping"></span>${esc(brandText('hero.kicker'))}<span class="hero-date">${esc(heroDate)}</span></div>
+      <h1 id="hero-title">${esc(t('hero.title'))}</h1>
+      <div class="hero-targetline">${esc(target)}</div>
+      ${state.claimMemo ? `<p class="claim-memo">${esc(state.claimMemo)}</p>` : ''}
       <p class="hero-body">${esc(t('hero.body'))}</p>
       <div class="hero-stats">
         <div class="hero-stat">
@@ -2197,27 +2565,32 @@ function renderHero() {
         <div class="hero-stat">
           <span>${esc(t('hero.status'))}</span>
           <strong id="hero-status">${esc(ended ? t('dossier.answer') : t('hero.statusValue'))}</strong>
-          <small>${esc(free ? t('free.kicker') : t('hero.daily'))}</small>
         </div>
       </div>
-      <div class="hero-timer" id="hero-timer">${esc(free ? t('free.kicker') : t('header.reset'))} ${free ? '' : `<strong>${esc(nextDowntime())}</strong>`}</div>
     </div>
     <div class="hero-radar${ended ? ' resolved' : ''}">
-      <div class="radar" aria-hidden="true">
-        <div class="radar-visual${ended ? ' is-resolved' : ''}">
-          <img class="radar-visual-image" src="${ended ? esc(renderPath(state.answerId)) : ''}" alt="" draggable="false" onload="this.classList.remove('is-missing')" onerror="this.classList.add('is-missing')">
+      <div class="wreck-plate">
+        <div class="wreck-plate-tab microtype" aria-hidden="true">
+          <span>F.I.T.D.L.E. // SALVAGE PLATE</span>
+          <span>WRECK // ${ended ? 'CONFIRMED' : 'SCANNING'}</span>
         </div>
-        <div class="radar-grid"></div>
-        <div class="radar-sweep"></div>
-        <span class="radar-blip b1"></span>
-        <span class="radar-blip b2"></span>
-        <span class="radar-blip b3"></span>
-        <span class="radar-blip b4"></span>
-        <div class="radar-target"></div>
-      </div>
-      <div class="radar-caption">
-        <span>${esc(t('hero.status'))} <strong>${esc(ended ? t('dossier.complete') : t('hero.statusValue'))}</strong></span>
-        <span class="radar-scale" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <div class="radar" aria-hidden="true">
+          <div class="radar-visual${ended ? ' is-resolved' : ''}">
+            <img class="radar-visual-image" src="${ended ? esc(renderPath(state.answerId)) : ''}" alt="" draggable="false" onload="this.classList.remove('is-missing')" onerror="this.classList.add('is-missing')">
+          </div>
+          <div class="radar-grid"></div>
+          <div class="salvage-scanline"></div>
+          <div class="clue-reveal-scan" aria-hidden="true"></div>
+          <div class="salvage-noise" aria-hidden="true"></div>
+          <span class="scan-corner c1"></span>
+          <span class="scan-corner c2"></span>
+          <span class="scan-corner c3"></span>
+          <span class="scan-corner c4"></span>
+        </div>
+        <div class="radar-caption microtype">
+          <span>${esc(t('hero.scanLabel'))} <strong>${esc(ended ? t('hero.scanComplete') : t('hero.scanActive'))}</strong></span>
+          <span class="radar-scale" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
       </div>
     </div>
   `;
@@ -2229,6 +2602,66 @@ function stopRadarMosaic() {
     clearInterval(state.radarMosaicTimer);
     state.radarMosaicTimer = null;
   }
+  stopSalvageNoise();
+}
+
+function stopSalvageNoise() {
+  if (state.salvageNoiseTimer) {
+    clearTimeout(state.salvageNoiseTimer);
+    state.salvageNoiseTimer = null;
+  }
+  document.querySelector('.salvage-noise')?.replaceChildren();
+}
+
+function stopClueScan() {
+  if (state.clueScanTimer) {
+    clearTimeout(state.clueScanTimer);
+    state.clueScanTimer = null;
+  }
+  document.querySelector('.hero-radar')?.classList.remove('is-clue-scanning');
+  document.querySelector('.clue-reveal-scan')?.classList.remove('is-playing');
+}
+
+function playClueScan() {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
+  const hero = document.querySelector('.hero-radar');
+  const overlay = document.querySelector('.clue-reveal-scan');
+  if (!hero || !overlay) return;
+  stopClueScan();
+  hero.classList.add('is-clue-scanning');
+  overlay.classList.remove('is-playing');
+  void overlay.offsetWidth;
+  overlay.classList.add('is-playing');
+  state.clueScanTimer = setTimeout(stopClueScan, 850);
+}
+
+function syncClueScan() {
+  const revealSize = state.revealed.size;
+  if (state.booted && revealSize > state.lastRevealSize) playClueScan();
+  state.lastRevealSize = revealSize;
+}
+
+function spawnSalvageNoise() {
+  if (state.status !== 'playing') return;
+  const host = document.querySelector('.salvage-noise');
+  if (!host) return;
+  const count = Math.random() < 0.14 ? 0 : 1 + Math.floor(Math.random() * 10);
+  host.replaceChildren();
+  for (let index = 0; index < count; index++) {
+    const piece = document.createElement('i');
+    const life = 120 + Math.random() * 360;
+    const streak = Math.random() < 0.28;
+    piece.className = 'salvage-fragment';
+    piece.style.left = `${3 + Math.random() * 94}%`;
+    piece.style.top = `${4 + Math.random() * 92}%`;
+    piece.style.width = streak ? `${12 + Math.random() * 28}px` : `${3 + Math.random() * 10}px`;
+    piece.style.height = `${1 + Math.random() * 5}px`;
+    piece.style.setProperty('--noise-r', `${Math.random() * 180}deg`);
+    piece.style.setProperty('--noise-life', `${life}ms`);
+    piece.style.animationDelay = `${Math.random() * 50}ms`;
+    host.appendChild(piece);
+  }
+  state.salvageNoiseTimer = setTimeout(spawnSalvageNoise, 420 + Math.random() * 1050);
 }
 
 function startRadarMosaic() {
@@ -2236,6 +2669,7 @@ function startRadarMosaic() {
   if (state.status !== 'playing') return;
   const stage = document.querySelector('.radar-visual');
   if (!stage || !state.answerId) return;
+  spawnSalvageNoise();
 
   // Never put the answer render in the pre-reveal DOM. Cycle five unrelated
   // hulls with cosmetic random crops/drift; only the resolved radar swaps in
@@ -2259,8 +2693,8 @@ function startRadarMosaic() {
   let active = 0;
   frames[0].classList.add('is-active');
   const move = (frame) => {
-    frame.style.objectPosition = `${Math.floor(Math.random() * 80) + 10}% ${Math.floor(Math.random() * 80) + 10}%`;
-    frame.style.transform = `scale(${1.1 + Math.random() * 0.25}) translate(${(Math.random() - 0.5) * 5}%, ${(Math.random() - 0.5) * 5}%)`;
+    frame.style.objectPosition = `${Math.floor(Math.random() * 60) + 20}% ${Math.floor(Math.random() * 60) + 20}%`;
+    frame.style.transform = `scale(${1.6 + Math.random() * 0.4}) translate(${(Math.random() - 0.5) * 3}%, ${(Math.random() - 0.5) * 3}%)`;
   };
   const cycle = () => {
     active = (active + 1) % frames.length;
@@ -2268,13 +2702,14 @@ function startRadarMosaic() {
     move(frames[active]);
   };
   move(frames[0]);
-  // Swap roughly every 3 seconds; keep moving/cropping the visible hull.
+  // Deliberately slow: each hull stays for five frames (about twenty seconds)
+  // and the crops drift only once per frame.
   let ticks = 0;
   state.radarMosaicTimer = setInterval(() => {
     ticks++;
-    if (ticks % 4 === 0) cycle();
+    if (ticks % 5 === 0) cycle();
     else move(frames[active]);
-  }, 750);
+  }, 4000);
 }
 
 function attemptIcon(ship) {
@@ -2333,7 +2768,7 @@ function renderAttempts() {
     // Timed mode has no fixed slots: newest attempt first, oldest last.
     for (let i = state.guesses.length - 1; i >= 0; i--) rows.push(actualRow(i));
   } else {
-    // Standard/Abyss keep the original chronological six-slot board.
+    // Standard/Audit keep the original chronological six-slot board.
     for (let i = 0; i < ATTEMPT_LIMIT; i++) {
       if (state.guesses[i] != null) rows.push(actualRow(i));
       else rows.push(emptyRow(i, !ended && i === state.guesses.length));
@@ -2509,7 +2944,7 @@ function clueValue(clue) {
     case 'scanRes':
       return formatNumberValue(value, 'mm');
     case 'kbValue':
-      return `<span class="big">${esc(isk(value))}</span>`;
+      return `<span class="big">${esc(state.kbValueCompact ? isk(value) : iskFull(value))}</span>`;
     case 'losses30':
       return `<span class="big">≈ ${esc(compact(value))}</span>`;
     case 'usageRank':
@@ -2533,16 +2968,16 @@ function moduleBadge(tag, clue) {
     limited: { cls: 'badge-limited', icon: 'lock', label: t('dossier.limited'), hint: t('dossier.limitedHint') },
     unique: { cls: 'badge-unique', icon: 'lock', label: t('dossier.unique'), hint: t('dossier.uniqueHint') },
     officer: { cls: 'badge-officer', icon: 'star', label: t('dossier.officer'), hint: t('dossier.officerHint') },
-    abyss: { cls: 'badge-abyss', icon: 'radar', label: t('dossier.abyss'), hint: t('dossier.abyssHint') },
+    audit: { cls: 'badge-audit', icon: 'radar', label: t('dossier.audit'), hint: t('dossier.auditHint') },
     plex: { cls: 'badge-plex', icon: 'star', label: t('dossier.plex'), hint: t('dossier.plexHint') },
   };
   const badge = badges[tag];
   if (!badge) return '';
-  if (tag === 'abyss' && state.status !== 'playing' && clue?.calcModule) {
+  if (tag === 'audit' && state.status !== 'playing' && clue?.calcModule) {
     const calcName = state.refs.modules?.[clue.calcModule]?.name
       || state.extraTypeNames?.[clue.calcModule]
       || `Type #${clue.calcModule}`;
-    badge.hint = `${t('dossier.abyssHint')} ${t('dossier.abyssCalc', { name: calcName })}`;
+    badge.hint = `${t('dossier.auditHint')} ${t('dossier.auditCalc', { name: calcName })}`;
   }
   return `<span class="badge-hull ${badge.cls}" title="${esc(badge.hint)}" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
 }
@@ -2619,9 +3054,13 @@ function renderClueRow(clue, index, revealed) {
   if (revealed && !value) value = '—';
   const zeroWeight = (Number(clue.w) || 0) <= 0 && state.status === 'playing';
   const massToggle = clue.k === 'mass' && revealed;
-  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${clue.k === 'bonus' ? ' bonus-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-clue-kind="${esc(clue.k)}" data-category="${category}"${massToggle
+  const kbValueToggle = clue.k === 'kbValue' && revealed;
+  const toggleAttrs = massToggle
     ? ` data-mass-toggle="true" role="button" tabindex="0" title="${esc(t('clue.massToggle'))}"`
-    : ''}>
+    : kbValueToggle
+      ? ` data-kb-value-toggle="true" role="button" tabindex="0" title="${esc(t('clue.kbValueToggle'))}" aria-label="${esc(t('clue.kbValueToggle'))}"`
+      : '';
+  return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${clue.k === 'bonus' ? ' bonus-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-clue-kind="${esc(clue.k)}" data-category="${category}"${toggleAttrs}>
     <span class="attr-label">${esc(label)}</span>
     <span class="attr-value">${revealed ? value : '<span class="attr-redacted" aria-label="?">?</span>'}</span>
     <span class="attr-meta">${revealed ? weightPips(clue.w) : `<span class="attr-lock">${icon('lock')}</span>`}</span>
@@ -2631,6 +3070,15 @@ function renderClueRow(clue, index, revealed) {
 function toggleMassUnit() {
   state.massUnit = state.massUnit === 't' ? 'kg' : 't';
   for (const row of $$('.attr-row[data-clue-kind="mass"]')) {
+    const clue = state.answerData?.clues?.[Number(row.dataset.clueIndex)];
+    const value = row.querySelector('.attr-value');
+    if (clue && value) value.innerHTML = clueValue(clue);
+  }
+}
+
+function toggleKillValueFormat() {
+  state.kbValueCompact = !state.kbValueCompact;
+  for (const row of $$('.attr-row[data-clue-kind="kbValue"]')) {
     const clue = state.answerData?.clues?.[Number(row.dataset.clueIndex)];
     const value = row.querySelector('.attr-value');
     if (clue && value) value.innerHTML = clueValue(clue);
@@ -2968,7 +3416,7 @@ function renderAll() {
   renderAcquire();
   renderDossier();
   renderChrome();
-  applyMpLock();
+  syncClueScan();
   requestAnimationFrame(syncBoardHeight);
 }
 
@@ -3102,7 +3550,6 @@ function currentGuessShip() {
 
 function submitGuess() {
   if (state.status !== 'playing') return;
-  if (state.mpSpectator) return;
   if (isTimed() && Date.now() < state.lockCooldownUntil) return;
   const ship = currentGuessShip();
   if (!ship) {
@@ -3117,37 +3564,31 @@ function submitGuess() {
 }
 
 function statMode() {
-  return isTimed() ? 'timed' : state.mode === 'abyss' ? 'abyss' : 'standard';
+  return isTimed() ? 'timed' : state.mode === 'audit' ? 'audit' : 'standard';
 }
 
 function statsEligible() {
-  return !isMpBridge() && !isFree() && state.date === state.today;
+  return !isFree() && state.date === state.today;
 }
 
 function recordDailyPlay() {
-  if (!statsEligible()) return;
-  state.stats = recordPlay(localStorage, state.stats, {
-    date: state.date,
-    mode: statMode(),
-    isToday: true,
-  });
+  // Practice and online runs are not counted locally. Online runs are recorded
+  // by the service when the run finishes.
 }
 
 function recordDailyResult() {
-  if (!statsEligible()) return;
-  state.stats = recordResult(localStorage, state.stats, {
-    date: state.date,
-    mode: statMode(),
-    status: state.status,
-    attempts: state.guesses.length,
-    isToday: true,
-  });
+  if (state.roomRace) {
+    finishRoomRace();
+    return;
+  }
+  void finishOnlineRun();
 }
 
 function applyGuess(shipId) {
   const ship = state.catalogMap.get(shipId);
   if (!ship) return;
   recordDailyPlay();
+  dropCurrentTargetCache();
   const previousRevealed = new Set(state.revealed);
   const previousGuesses = state.guesses.length;
   hideSuggestions();
@@ -3173,7 +3614,6 @@ function applyGuess(shipId) {
 
   state.scanPulse = true;
   renderAll();
-  if (isMpBridge()) postMpStatus();
   rememberNewClues(state.fresh);
   if (isTimed() && !correct) startLockCooldown();
   if (state.status !== 'playing') {
@@ -3192,23 +3632,75 @@ function zkillKillUrl(killId) {
   return `${state.manifest.zkillboard.baseUrl.replace(/\/$/, '')}/kill/${killId}/`;
 }
 
+function updateDebriefPayout() {
+  const el = document.querySelector('[data-debrief-payout]');
+  if (!el) return;
+  const payout = platinumPayout(state.answerShip?.id);
+  el.dataset.amount = payout == null ? '' : String(payout);
+  animateDebriefPayout();
+}
+
+function animateDebriefPayout() {
+  if (state.payoutFrame) cancelAnimationFrame(state.payoutFrame);
+  state.payoutFrame = 0;
+  const el = document.querySelector('[data-debrief-payout]');
+  if (!el) return;
+  const raw = el.dataset.amount;
+  const target = raw === '' ? null : Number(raw);
+  if (!Number.isFinite(target)) {
+    el.textContent = '—';
+    return;
+  }
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+    el.textContent = iskFull(target);
+    return;
+  }
+  const start = performance.now();
+  const duration = 1100;
+  const tick = (now) => {
+    if (!el.isConnected) {
+      state.payoutFrame = 0;
+      return;
+    }
+    const progress = Math.min(1, (now - start) / duration);
+    const eased = 1 - (1 - progress) ** 3;
+    el.textContent = iskFull(Math.round(target * eased));
+    if (progress < 1) {
+      state.payoutFrame = requestAnimationFrame(tick);
+    } else {
+      el.textContent = iskFull(target);
+      state.payoutFrame = 0;
+    }
+  };
+  el.textContent = iskFull(0);
+  state.payoutFrame = requestAnimationFrame(tick);
+}
+
 function zkillShipUrl(shipId = state.answerId) {
   return `${state.manifest.zkillboard.baseUrl.replace(/\/$/, '')}/ship/${shipId}/`;
 }
 
 function shareLink() {
-  const timed = isTimed();
-  return shareUrl(
-    location,
-    state.answerKillId,
-    state.mode,
-    state.status,
-    state.guesses.length,
-    state.locale,
-    timed,
-    isFree(),
-    timed ? Math.round(state.timerElapsedMs / 1000) : 0,
-  );
+  const base = new URL('.', location.href);
+  base.search = '';
+  base.hash = '';
+  if (state.appMode === 'online' && state.gameplay === 'daily') {
+    base.searchParams.set('mode', 'online');
+    base.searchParams.set('claim', 'daily');
+    base.searchParams.set('share', 'daily');
+    return base.toString();
+  }
+  if (state.roomCode) {
+    base.searchParams.set('mode', 'multiplayer');
+    base.searchParams.set('share', 'room');
+    base.searchParams.set('room', state.roomCode);
+    return base.toString();
+  }
+  if (!state.freeKillToken) return location.href;
+  base.searchParams.set('claim', state.gameplay);
+  base.searchParams.set('kb', state.freeKillToken);
+  base.searchParams.set('share', 'kb');
+  return base.toString();
 }
 
 function renderDebrief() {
@@ -3220,6 +3712,7 @@ function renderDebrief() {
   const url = shareLink();
   const stats = state.stats || DEFAULT_STATS;
   const sampleKill = state.answerData.sampleKill;
+  const payout = platinumPayout(state.answerShip?.id);
   const description = (state.answerData.description || '').split(/\n{2,}/).filter(Boolean);
   const bonuses = state.answerData.bonuses || [];
   const bonusEntries = state.answerData.bonusEntries || [];
@@ -3250,21 +3743,7 @@ function renderDebrief() {
     : (oneShot
       ? t('oneShot.body')
       : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) })));
-  const freeStreakCounted = free && state.freeFromRefresh === true;
-  const freeStreakMode = free ? freeGameplayKey() : '';
-  const freeStreakValue = free ? Number(state.freeStreaks[freeStreakMode]) || 0 : 0;
-  const freeStreakOld = free ? Number(state.freeStreakBefore) || 0 : 0;
-  const freeStreakEvent = freeStreakCounted ? (state.freeStreakEvent || 'none') : 'neutral';
-  const freeStreakShown = freeStreakEvent === 'increment' || freeStreakEvent === 'reset'
-    ? freeStreakOld
-    : freeStreakValue;
-  const freeStreakStat = free
-    ? `<div class="debrief-stat debrief-streak${freeStreakCounted ? '' : ' is-neutral'}" data-event="${esc(freeStreakEvent)}" data-old="${freeStreakOld}" data-new="${freeStreakValue}" aria-label="${esc(t('free.streak'))} ${freeStreakValue}">
-        <span class="debrief-streak-label">${esc(t('free.streak'))} // ${esc(t(`mode.${freeStreakMode}`))}</span>
-        <strong class="debrief-streak-value">${freeStreakShown}</strong>
-        <span class="debrief-streak-burst" aria-hidden="true"></span>
-      </div>`
-    : '';
+  const freeStreakStat = '';
   const html = `
     <div class="modal debrief-modal${oneShot ? ' is-one-shot' : ''}" role="dialog" aria-modal="true" aria-labelledby="debrief-title" data-kind="debrief" data-status="${state.status}" data-one-shot="${oneShot}">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
@@ -3285,7 +3764,11 @@ function renderDebrief() {
           ${oneShot ? `<div class="one-shot-banner"><span class="one-shot-mark">01</span><span>${esc(t('end.victoryKicker'))} // ${esc(t('oneShot.kicker'))}</span></div>` : ''}
           <div class="debrief-kicker"><span class="dot"></span>${esc(kicker)}</div>
           <h2 id="debrief-title">${esc(title)}</h2>
-          <p class="debrief-body">${esc(body)}</p>
+          <div class="debrief-payout">
+            <span>${esc(t('end.insurancePayout'))}</span>
+            <strong data-debrief-payout data-amount="${payout == null ? '' : payout}" aria-live="polite">${payout == null ? '—' : iskFull(0)}</strong>
+          </div>
+          <p class="debrief-body">${esc(state.claimDebriefMemo || body)}</p>
 
           <div class="debrief-answer">
             <span class="icon"><img src="${esc(shipIconPath(ship))}" alt="" onerror="this.remove()"></span>
@@ -3300,11 +3783,9 @@ function renderDebrief() {
             ${timed
               ? `<div class="debrief-stat"><span>${esc(t('timed.time'))}</span><strong>${esc(formatElapsed(state.timerElapsedMs))}</strong></div>
                  <div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length}</strong></div>
-                 <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>
-                 ${free ? freeStreakStat : `<div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`}`
+                 <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>`
               : `<div class="debrief-stat"><span>${esc(t('end.attempts'))}</span><strong>${state.guesses.length} / 6</strong></div>
-                 <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>
-                 ${free ? freeStreakStat : `<div class="debrief-stat"><span>${esc(t('end.streak'))}</span><strong>${stats.streak || 0}</strong></div>`}`}
+                 <div class="debrief-stat"><span>${esc(t('end.intel'))}</span><strong>${total} / ${total}</strong></div>`}
           </div>
 
           <div class="debrief-description">${description.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
@@ -3322,14 +3803,21 @@ function renderDebrief() {
           </div>
 
           <div class="debrief-next" id="debrief-next">
-            ${free ? `<span>${esc(t('free.kicker'))}</span><strong>${esc(t('free.next'))}</strong>` : `<span>${esc(t('end.next'))}</span><strong>${esc(nextDowntime())}</strong>`}
+            ${state.appMode === 'online' && state.gameplay === 'daily'
+              ? `<span>${esc(t('end.next'))}</span><strong>${esc(nextDowntime())}</strong>`
+              : `<span>${esc(state.appMode === 'online' ? t('online.label') : t('practice.label'))}</span><strong>${esc(t(`gameplay.${state.gameplay}`))}</strong>`}
           </div>
         </div>
       </div>
     </div>
   `;
   openModal(html, 'debrief', state.status);
-  animateFreeStreak();
+  animateDebriefPayout();
+  if (payout == null && !state.insuranceLoaded) {
+    void loadInsurancePrices().then(() => {
+      if (state.modal?.kind === 'debrief') updateDebriefPayout();
+    });
+  }
   void fetchVictimInfo();
 }
 
@@ -3362,6 +3850,8 @@ function openModal(html, kind, status = null) {
 function closeModal() {
   const root = $('#modal-root');
   if (!root || !state.modal) return;
+  if (state.payoutFrame) cancelAnimationFrame(state.payoutFrame);
+  state.payoutFrame = 0;
   root.classList.remove('is-open');
   root.setAttribute('aria-hidden', 'true');
   root.innerHTML = '';
@@ -3404,17 +3894,13 @@ async function submitFreeKill() {
 }
 
 function renderManual() {
-  const stats = state.stats || DEFAULT_STATS;
-  const played = stats.played || {};
-  const wins = stats.wins || {};
-  const totalPlayed = Object.values(played).reduce((sum, value) => sum + (Number(value) || 0), 0);
   const html = `
     <div class="modal manual" role="dialog" aria-modal="true" aria-labelledby="manual-title" data-kind="manual">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
       <div class="manual-head">
         <div class="panel-kicker">${icon('help')} // ${esc(t('header.help'))}</div>
         <h2 id="manual-title">${esc(t('help.title'))}</h2>
-        <p>${esc(t('help.intro'))}</p>
+        <p>${esc(brandText('help.intro'))}</p>
       </div>
       <div class="manual-body">
         <div class="manual-column">
@@ -3431,6 +3917,19 @@ function renderManual() {
             </div>
           </div>
           <div class="manual-section">
+            <h3>${icon('radar')} ${esc(t('mode.multiplayer'))}</h3>
+            <div class="manual-mode-block">
+              <h4>${esc(t('mode.multiplayer'))}</h4>
+              <p>${esc(t('help.multiplayerBody'))}</p>
+            </div>
+            <div class="manual-mode-block">
+              <h4>${esc(t('gameplay.arbitration'))}</h4>
+              <p>${esc(t('help.arbitrationBody'))}</p>
+            </div>
+          </div>
+        </div>
+        <div class="manual-column">
+          <div class="manual-section">
             <h3>${icon('layers')} ${esc(t('help.gameplayTitle'))}</h3>
             <div class="manual-mode-block">
               <h4>${esc(t('help.generalTitle'))}</h4>
@@ -3442,9 +3941,9 @@ function renderManual() {
               <ul class="manual-mode-list">${t('mode.helpNormal').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
             </div>
             <div class="manual-mode-block">
-              <h4>${esc(t('mode.abyss'))}</h4>
-              <p class="manual-mode-hint">${esc(t('mode.abyssHint'))}</p>
-              <ul class="manual-mode-list">${t('mode.helpAbyss').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+              <h4>${esc(t('mode.audit'))}</h4>
+              <p class="manual-mode-hint">${esc(t('mode.auditHint'))}</p>
+              <ul class="manual-mode-list">${t('mode.helpAudit').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
             </div>
             <div class="manual-mode-block">
               <h4>${esc(t('mode.timed'))}</h4>
@@ -3452,56 +3951,11 @@ function renderManual() {
               <ul class="manual-mode-list">${t('mode.helpTimed').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
             </div>
           </div>
-          <div class="manual-section">
-            <h3>${icon('globe')} ${esc(t('help.langTitle'))}</h3>
-            <p>${esc(t('help.langBody'))}</p>
-          </div>
         </div>
-        <div class="manual-column">
-          <div class="manual-section">
-            <h3>${icon('slots')} ${esc(t('manual.settingsTitle'))}</h3>
-            <div class="setting-row">
-              <span>${esc(t('font.label'))}</span>
-              <button type="button" class="font-switch-button" data-action="toggle-font-face" aria-label="${esc(t('font.switch'))}">
-                ${esc(state.font === 'classic' ? t('font.classic') : state.font === 'triglavian' ? t('font.triglavian') : t('font.neue'))}
-              </button>
-            </div>
-            <div class="setting-row">
-              <span>${esc(t('settings.fontSize'))}</span>
-              <div class="segmented">
-                ${[['smallest', 'settings.sizeSmallest'], ['smaller', 'settings.sizeSmaller'], ['normal', 'settings.sizeNormal'], ['larger', 'settings.sizeLarger'], ['largest', 'settings.sizeLargest']].map(([value, key]) => `<button type="button" class="${state.fontSize === value ? 'is-active' : ''}" data-action="set-font-size" data-size="${value}" aria-pressed="${state.fontSize === value}">${esc(t(key))}</button>`).join('')}
-              </div>
-            </div>
-            <button type="button" class="setting-toggle" data-action="toggle-empty-kb" role="switch" aria-checked="${state.allowEmptyKb}">
-              <span>
-                <strong>${esc(t('manual.emptyKb'))}</strong>
-                <small>${esc(t('manual.emptyKbHelp'))}</small>
-              </span>
-              <i class="toggle-track" aria-hidden="true"><b></b></i>
-            </button>
-          </div>
-          <div class="manual-section">
-            <h3>${icon('database')} ${esc(t('help.statsTitle'))}</h3>
-            <div class="stats-mode-grid">
-              ${[['standard', t('mode.standard')], ['abyss', t('mode.abyss')], ['timed', t('mode.timed')]].map(([mode, label]) => `
-                <div class="stats-mode">
-                  <span>${esc(label)}</span>
-                  <strong>${Number(played[mode]) || 0} / ${Number(wins[mode]) || 0}</strong>
-                  <small>${esc(t('help.statPlayed'))} / ${esc(t('help.statWon'))}</small>
-                </div>`).join('')}
-            </div>
-            <div class="stats-grid stats-streak-grid">
-              <div><span>${esc(t('help.statStreak'))}</span><strong>${stats.streak || 0}</strong></div>
-              <div><span>${esc(t('help.statBest'))}</span><strong>${stats.maxStreak || 0}</strong></div>
-            </div>
-            ${totalPlayed ? '' : `<p class="stats-empty">${esc(t('help.statsEmpty'))}</p>`}
-            <div style="margin-top:12px"><button type="button" class="button ghost reset-hold" data-action="reset-hold"><span class="reset-hold-label">${icon('refresh')} ${esc(t('help.resetRecord'))}</span></button></div>
-          </div>
-          <div class="manual-section manual-legal">
-            <h3>${icon('external')} ${esc(t('footer.copyrightTitle'))}</h3>
-            <p>${copyrightHtml()}</p>
-          </div>
-        </div>
+      </div>
+      <div class="manual-section manual-legal">
+        <h3>${icon('external')} ${esc(t('footer.copyrightTitle'))}</h3>
+        <p>${copyrightHtml()}</p>
       </div>
       <div class="manual-footer">
         <span class="left"><b>FITDLE</b></span>
@@ -3586,32 +4040,14 @@ async function copyShare() {
 }
 
 function playToday() {
-  const url = new URL(location.href);
-  url.searchParams.delete('d');
-  url.searchParams.delete('kb');
-  url.searchParams.delete('killmail');
-  url.searchParams.delete('kill');
-  location.href = url.toString();
-}
-
-function resetAllProgress() {
-  state.resetting = true;
-  if (state.timerHandle) clearInterval(state.timerHandle);
-  state.timerHandle = null;
-  state.timerStarted = false;
-  state.timerStartAt = 0;
-  state.timerElapsedMs = 0;
-  state.gaveUp = false;
-  try {
-    // Iterate backwards: localStorage.length changes as keys are removed.
-    for (let index = localStorage.length - 1; index >= 0; index--) {
-      const key = localStorage.key(index);
-      if (key && key.startsWith('fitdle:v1:')) localStorage.removeItem(key);
-    }
-  } catch {
-    // ignore
+  if (state.gameplay === 'daily' && state.appMode === 'online' && !dailyResetReady()) {
+    showToast(t('mode.daily'), tl('mode.dailyFixed', 'The Daily target is fixed and cannot be refreshed.'), 'warn', 3200);
+    return;
   }
-  location.reload();
+  dropCurrentTargetCache();
+  const url = new URL(location.href);
+  url.searchParams.delete('kb');
+  location.href = url.toString();
 }
 
 async function changeLocale(nextLocale) {
@@ -3623,6 +4059,7 @@ async function changeLocale(nextLocale) {
     state.locale = nextLocale;
     state.i18n = createI18n(nextLocale);
     await loadLocaleData(nextLocale);
+    pickClaimDepartment(true);
     state.index = buildSearchIndex(state.catalog, state.refs.groups, {
       races: state.refs.races, factions: state.refs.factions, locale: state.locale, aliases: state.searchAliases,
     });
@@ -3641,6 +4078,7 @@ async function changeLocale(nextLocale) {
     }
     renderShell();
     renderAll();
+    state.roomSurface?.updateLocale?.(state.locale, state.refs);
     if (modalKind === 'debrief') renderDebrief();
     if (modalKind === 'manual') renderManual();
     showToast(t('toast.langChanged', { lang: LOCALE_META[nextLocale].label }), '', 'info', 2400);
@@ -3666,9 +4104,10 @@ function startTicker() {
     const currentDay = gameDateKey(now, gameDayStartMinutes());
     const dayChanged = currentDay !== state.today;
     if (dayChanged) {
+      const targetDay = state.targetGameDay || state.today;
       state.today = currentDay;
       if (!isFree()) {
-        if (state.date !== state.today && !state.newTargetAvailable) {
+        if (targetDay !== currentDay && !state.newTargetAvailable) {
           state.newTargetAvailable = true;
           showToast(t('toast.newPuzzle'), '', 'warn', 5000);
         }
@@ -3676,21 +4115,14 @@ function startTicker() {
         renderHero();
       }
     }
-    const countdown = $('#countdown');
-    if (countdown) {
-      if (isFree()) countdown.textContent = t('free.badge');
-      else countdown.textContent = nextDowntime();
-    }
-    const heroTimer = $('#hero-timer');
-    if (heroTimer) {
-      heroTimer.innerHTML = isFree()
-        ? esc(t('free.kicker'))
-        : `${esc(t('header.reset'))} <strong>${esc(nextDowntime())}</strong>`;
-    }
+    const countdown = $('#daily-reset-countdown');
+    if (countdown) countdown.textContent = dailyResetReady() ? '00:00:00' : nextDowntime();
     const dbNext = $('#debrief-next');
-    if (dbNext) dbNext.innerHTML = isFree()
-      ? `<span>${esc(t('free.kicker'))}</span><strong>${esc(t('free.next'))}</strong>`
-      : `<span>${esc(t('end.next'))}</span><strong>${esc(nextDowntime())}</strong>`;
+    if (dbNext) {
+      dbNext.innerHTML = state.appMode === 'online' && state.gameplay === 'daily'
+        ? `<span>${esc(t('end.next'))}</span><strong>${esc(nextDowntime())}</strong>`
+        : `<span>${esc(state.appMode === 'online' ? t('online.label') : t('practice.label'))}</span><strong>${esc(t(`gameplay.${state.gameplay}`))}</strong>`;
+    }
   };
   update();
   setInterval(update, 1000);
@@ -3732,48 +4164,79 @@ for (const name of ['pointerup', 'pointercancel', 'blur']) {
 }
 window.addEventListener('resize', syncBoardHeight);
 
-let resetHoldTimer = null;
-let resetHoldButton = null;
 
-function clearResetHold() {
-  if (resetHoldTimer) clearTimeout(resetHoldTimer);
-  resetHoldTimer = null;
-  if (resetHoldButton) resetHoldButton.classList.remove('is-holding');
-  resetHoldButton = null;
+
+let uiTipElement = null;
+function ensureUiTip() {
+  if (!uiTipElement) {
+    uiTipElement = document.createElement('div');
+    uiTipElement.id = 'ui-tooltip';
+    uiTipElement.className = 'ui-tooltip';
+    uiTipElement.setAttribute('role', 'tooltip');
+    uiTipElement.hidden = true;
+    document.body.append(uiTipElement);
+  }
+  return uiTipElement;
 }
 
-function beginResetHold(button) {
-  if (!button) return;
-  if (resetHoldButton === button && resetHoldTimer) return;
-  clearResetHold();
-  resetHoldButton = button;
-  button.classList.add('is-holding');
-  resetHoldTimer = setTimeout(() => {
-    resetHoldTimer = null;
-    button.classList.remove('is-holding');
-    resetAllProgress();
-  }, 5000);
+function showUiTip(target) {
+  const text = String(target?.dataset?.tip || '').trim();
+  if (!text) return;
+  const tip = ensureUiTip();
+  tip.textContent = text;
+  tip.hidden = false;
+  const rect = target.getBoundingClientRect();
+  const margin = 8;
+  const width = Math.min(320, Math.max(180, tip.offsetWidth || 240));
+  let left = rect.left + rect.width / 2 - width / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+  let top = rect.bottom + margin;
+  if (top + tip.offsetHeight > window.innerHeight - margin) {
+    top = Math.max(margin, rect.top - tip.offsetHeight - margin);
+  }
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+  tip.style.maxWidth = `${width}px`;
 }
+
+function hideUiTip() {
+  if (uiTipElement) uiTipElement.hidden = true;
+}
+
+document.addEventListener('pointerover', (event) => {
+  const target = event.target.closest?.('[data-tip]');
+  if (target && !target.contains(event.relatedTarget)) showUiTip(target);
+});
+document.addEventListener('pointerout', (event) => {
+  const target = event.target.closest?.('[data-tip]');
+  if (target && !target.contains(event.relatedTarget)) hideUiTip();
+});
+document.addEventListener('focusin', (event) => {
+  const target = event.target.closest?.('[data-tip]');
+  if (target) showUiTip(target);
+});
+document.addEventListener('focusout', (event) => {
+  const target = event.target.closest?.('[data-tip]');
+  if (target) hideUiTip();
+});
+document.addEventListener('click', (event) => {
+  const target = event.target.closest?.('[aria-disabled="true"][data-tip]');
+  if (target) {
+    event.preventDefault();
+    showUiTip(target);
+  }
+});
+window.addEventListener('scroll', hideUiTip, true);
+window.addEventListener('resize', hideUiTip);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') hideUiTip();
+});
 
 document.addEventListener('pointerdown', (event) => {
-  if (event.button !== 0) return;
-  const button = event.target.closest('[data-action="reset-hold"]');
-  if (!button) return;
-  event.preventDefault();
-  beginResetHold(button);
-});
-for (const name of ['pointerup', 'pointercancel', 'blur']) {
-  window.addEventListener(name, clearResetHold);
-}
-document.addEventListener('keydown', (event) => {
-  if (event.key !== ' ' && event.key !== 'Enter') return;
-  const button = event.target.closest('[data-action="reset-hold"]');
-  if (!button) return;
-  event.preventDefault();
-  beginResetHold(button);
-});
-document.addEventListener('keyup', (event) => {
-  if (event.key === ' ' || event.key === 'Enter') clearResetHold();
+  const target = event.target.closest?.('.new-target-cta');
+  if (target && target.getAttribute('aria-disabled') !== 'true' && typeof navigator.vibrate === 'function') {
+    navigator.vibrate(8);
+  }
 });
 
 
@@ -3782,10 +4245,59 @@ document.addEventListener('click', (event) => {
     toggleMassUnit();
     return;
   }
+  if (event.target.closest('[data-kb-value-toggle]')) {
+    toggleKillValueFormat();
+    return;
+  }
+  if (!event.target.closest('.pilot-wrap, .appearance-wrap')) closeTopbarMenus();
   const actionEl = event.target.closest('[data-action]');
   if (actionEl) {
+    if (actionEl.getAttribute('aria-disabled') === 'true') {
+      showUiTip(actionEl);
+      return;
+    }
     const action = actionEl.dataset.action;
+    if (action === 'pilot-menu') {
+      const menu = $('#pilot-menu');
+      if (!menu) return;
+      const open = menu.hidden;
+      closeTopbarMenus();
+      if (open) {
+        menu.hidden = false;
+        actionEl.setAttribute('aria-expanded', 'true');
+      }
+      return;
+    }
+    if (action === 'appearance-menu') {
+      const menu = $('#appearance-menu');
+      if (!menu) return;
+      const open = menu.hidden;
+      closeTopbarMenus();
+      if (open) {
+        menu.hidden = false;
+        actionEl.setAttribute('aria-expanded', 'true');
+      }
+      return;
+    }
     if (action === 'start-timed') { startTimedRun(); return; }
+    if (action === 'login') { location.assign(api.loginUrl()); return; }
+    if (action === 'logout') {
+      api.logout().finally(() => location.assign(location.pathname));
+      return;
+    }
+    if (action === 'set-gameplay') { setGameplay(actionEl.dataset.gameplay); return; }
+    if (action === 'new-target') {
+      dropCurrentTargetCache();
+      const url = new URL(location.href);
+      url.searchParams.delete('kb');
+      url.searchParams.delete('mode');
+      url.searchParams.delete('rule');
+      url.searchParams.set('claim', state.gameplay);
+      if (state.appMode === 'online') url.searchParams.set('mode', 'online');
+      location.assign(url.toString());
+      return;
+    }
+    if (action === 'rooms') { openRooms(); return; }
     if (action === 'free-mode' || action === 'free-refresh') { enterFreeMode(); return; }
     if (action === 'free-input') { openFreeModal(); return; }
     if (action === 'free-share') { void copyFreeShare(); return; }
@@ -3803,7 +4315,6 @@ document.addEventListener('click', (event) => {
     if (action === 'copy-share') { copyShare(); return; }
     if (action === 'play-today') { playToday(); return; }
     if (action === 'toggle-font') { toggleFont(); return; }
-    if (action === 'set-mode') { setMode(actionEl.dataset.mode); return; }
     if (action === 'go-back') { goBack(); return; }
   }
   const suggestion = event.target.closest('[data-ship-id]');
@@ -3835,6 +4346,16 @@ document.addEventListener('keydown', (event) => {
   if (event.target.closest('[data-mass-toggle]') && (event.key === 'Enter' || event.key === ' ')) {
     event.preventDefault();
     toggleMassUnit();
+    return;
+  }
+  if (event.target.closest('[data-kb-value-toggle]') && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault();
+    toggleKillValueFormat();
+    return;
+  }
+  if (event.key === 'Escape' && [$('#pilot-menu'), $('#appearance-menu')].some((menu) => menu && !menu.hidden)) {
+    event.preventDefault();
+    closeTopbarMenus();
     return;
   }
   if (state.modal) {
@@ -3949,13 +4470,6 @@ function dailyErrorCopy(reason) {
       body: 'error.timeBody',
     };
   }
-  if (value.startsWith('beacon')) {
-    return {
-      lore: 'error.drandLore',
-      code: 'error.drandTitle',
-      body: 'error.drandBody',
-    };
-  }
   if (value.startsWith('kb')) {
     return {
       lore: 'error.zkillLore',
@@ -3992,7 +4506,7 @@ function showFatal(error) {
       <h1>${esc(t(copy.lore))}</h1>
       <p>${esc(t(copy.body))}</p>
       <div class="fatal-actions">
-        <button class="button primary" type="button" data-action="free-mode">${icon('radar')} ${esc(t('error.freeMode'))}</button>
+        <button class="button primary" type="button" data-action="new-target">${icon('radar')} ${esc(tl('online.newTarget', 'NEW TARGET'))}</button>
         <button class="button" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
       </div>
     </div>`;
@@ -4017,7 +4531,7 @@ function showFatal(error) {
       <h1>${esc(t('error.noTargetLore'))}</h1>
       <p>${esc(t('error.noTargetBody'))}</p>
       <div class="fatal-actions">
-        <button class="button primary" type="button" data-action="free-mode">${icon('radar')} ${esc(t('error.freeMode'))}</button>
+        <button class="button primary" type="button" data-action="new-target">${icon('radar')} ${esc(tl('online.newTarget', 'NEW TARGET'))}</button>
         <button class="button" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
       </div>
     </div>`;
@@ -4029,7 +4543,7 @@ function showFatal(error) {
     <h1>${esc(t('error.genericLore'))}</h1>
     <p>${esc(t('error.body'))}</p>
     <div class="fatal-actions">
-      <button class="button primary" type="button" data-action="free-mode">${icon('radar')} ${esc(t('error.freeMode'))}</button>
+      <button class="button primary" type="button" data-action="new-target">${icon('radar')} ${esc(tl('online.newTarget', 'NEW TARGET'))}</button>
       <button class="button" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
     </div>
   </div>`;
@@ -4040,13 +4554,305 @@ function goBack() {
   else location.replace(BASE.href);
 }
 
+function routeGameplay(raw) {
+  return ['daily', 'standard', 'audit', 'timed'].includes(raw) ? raw : 'standard';
+}
+
+function applyGameplay(gameplay) {
+  state.gameplay = gameplay;
+  state.timed = gameplay === 'timed';
+  state.mode = gameplay === 'audit' ? 'audit' : 'normal';
+}
+
+function parseAppRoute() {
+  const params = new URLSearchParams(location.search);
+  return {
+    mode: params.get('mode') || '',
+    gameplay: routeGameplay(params.get('claim') || 'standard'),
+    kb: params.get('kb') || '',
+    room: params.get('room') || '',
+  };
+}
+
+function setGameplay(gameplay) {
+  const next = routeGameplay(gameplay);
+  if (state.appMode === 'practice' && next === 'daily') return;
+  cacheCurrentTarget();
+  const url = new URL(location.href);
+  url.searchParams.delete('gameplay');
+  url.searchParams.delete('rule');
+  url.searchParams.set('claim', next);
+  url.searchParams.delete('mode');
+  if (state.appMode === 'online') url.searchParams.set('mode', 'online');
+  location.assign(url.toString());
+}
+
+async function resolveSession() {
+  state.auth = { loading: false, loggedIn: false, name: '', characterId: null };
+  try {
+    const me = await api.me();
+    if (me?.loggedIn) {
+      state.auth = {
+        loading: false,
+        loggedIn: true,
+        name: String(me.name || ''),
+        characterId: Number(me.characterId) || null,
+      };
+    }
+  } catch {
+    // Backend unavailable: practice mode.
+  }
+  try {
+    const meta = await api.meta();
+    if (meta?.gameDay) state.meta = meta;
+    if (meta?.gameDay) state.today = meta.gameDay;
+  } catch {
+    // Static/offline fallback keeps the local date only for practice.
+  }
+}
+
+function installTarget({ killmail, shipId, killId, run = null, source, free = false, cacheable = true }) {
+  if (!killmail?.victim?.ship_type_id) throw new UnknownHullError();
+  state.freeKillId = free ? Number(killId) : null;
+  state.freeKillToken = free ? freeKillToken(Number(killId)) : null;
+  state.freeKillmail = free ? killmail : null;
+  state.answerKillmail = killmail;
+  state.targetSource = source;
+  state.answerId = Number(shipId || killmail.victim.ship_type_id);
+  state.answerKillId = Number(killId);
+  state.answerShip = state.catalogMap.get(state.answerId);
+  if (!state.answerShip) throw new UnknownHullError();
+  state.dailyKillmail = null;
+  state.dailySeed = null;
+  state.onlineRun = run;
+  state.onlineFinished = Boolean(run?.completed);
+  state.freeRequested = false;
+  state.freeFromRefresh = false;
+  state.freeRoundActive = false;
+  state.kbValueCompact = false;
+  state.lastRevealSize = 0;
+  state.targetGameDay = source === 'online'
+    ? String(run?.gameDay || state.today || '')
+    : String(state.today || '');
+  state.date = source === 'online' ? `online-${run?.runId || killId}` : `practice-${killId}`;
+  pickClaimDepartment(false, Number(killId));
+  void loadInsurancePrices();
+  if (cacheable) cacheCurrentTarget();
+}
+
+async function resolvePracticeTarget(route) {
+  if (route.kb) {
+    const killId = Number(freeKillIdFromToken(route.kb));
+    if (!Number.isInteger(killId) || killId <= 0) throw new UnknownHullError();
+    const data = await fetchZkill(`/api/killID/${killId}/`, { key: `kill:${killId}`, ttlMs: 3600000 });
+    const killmail = Array.isArray(data) ? data[0] : null;
+    if (!killmail?.victim?.ship_type_id) throw new DailyUnavailableError('kb-unavailable');
+    installTarget({ killmail, shipId: killmail.victim.ship_type_id, killId, source: 'practice', free: true, cacheable: false });
+    return;
+  }
+  if (route.gameplay === 'daily') route.gameplay = 'standard';
+  applyGameplay(route.gameplay);
+  const killmail = await pickRandomFreeKill();
+  if (!killmail?.victim?.ship_type_id) throw new DailyUnavailableError('kb-unavailable');
+  installTarget({
+    killmail,
+    shipId: killmail.victim.ship_type_id,
+    killId: killmail.killmail_id,
+    source: 'practice',
+    free: true,
+  });
+}
+
+async function resolveOnlineTarget(route) {
+  let run;
+  if (route.gameplay === 'daily') {
+    run = await api.daily();
+  } else if (route.kb) {
+    run = await api.custom(route.gameplay, route.kb);
+  } else {
+    run = await api.start(route.gameplay);
+  }
+  if (!run?.target?.killmail) throw new Error('online target missing');
+  applyGameplay(route.gameplay);
+  installTarget({
+    killmail: run.target.killmail,
+    shipId: run.target.shipId,
+    killId: run.target.killId,
+    run,
+    source: 'online',
+    free: false,
+    cacheable: !route.kb,
+  });
+}
+
+async function prepareAppTarget(route) {
+  const online = state.auth.loggedIn;
+  state.appMode = online ? 'online' : 'practice';
+  state.loginRequired = !online && (route.mode === 'online' || Boolean(route.room));
+  state.gameplay = online || route.gameplay !== 'daily' ? route.gameplay : 'standard';
+  state.roomRequest = route.mode === 'multiplayer' || route.room ? route.room || 'lobby' : null;
+  if (state.roomRequest) {
+    // The room surface takes over after boot; load a practice target first so the
+    // board has a valid shell if the room cannot connect.
+    state.gameplay = 'standard';
+    applyGameplay('standard');
+    try {
+      await resolvePracticeTarget({ ...route, gameplay: 'standard', kb: '' });
+    } catch {
+      state.freeKillId = null;
+    }
+    return;
+  }
+  applyGameplay(state.gameplay);
+  if (!route.kb && await restoreCachedTarget(state.gameplay)) return;
+  if (online) {
+    try {
+      await resolveOnlineTarget(route);
+      return;
+    } catch (error) {
+      debugLog('online target', error);
+      showToast(t('online.unavailable'), '', 'warn', 5000);
+      throw error;
+    }
+  }
+  await resolvePracticeTarget(route);
+  if (!online && route.mode === 'online') {
+    showToast(t('auth.loginRequired'), '', 'warn', 5000);
+  }
+}
+
+async function finishOnlineRun() {
+  if (state.appMode !== 'online' || !state.onlineRun?.runId || state.onlineFinished) return;
+  if (state.status === 'playing') return;
+  state.onlineFinished = true;
+  dropCurrentTargetCache();
+  try {
+    await api.finish(state.onlineRun.runId, {
+      status: state.status === 'won' ? 'won' : 'lost',
+      attempts: state.guesses.length,
+      elapsedMs: state.timerStarted ? currentElapsed() : state.timerElapsedMs,
+      answerId: state.status === 'won' ? state.answerId : null,
+      guesses: state.guesses,
+    });
+  } catch (error) {
+    debugLog('online finish', error);
+    showToast(t('online.recordFailed'), '', 'warn', 5000);
+  }
+}
+
+function finishRoomRace() {
+  const race = state.roomRace;
+  if (!race) return;
+  race.surface.send({
+    t: 'raceResult',
+    status: state.status === 'won' ? 'won' : 'lost',
+    answerId: state.status === 'won' ? state.answerId : null,
+    attempts: state.guesses.length,
+    elapsedMs: state.timerStarted ? currentElapsed() : state.timerElapsedMs,
+  });
+  state.roomRace = null;
+  race.surface.show();
+}
+
+function openRooms() {
+  if (!state.auth.loggedIn) {
+    showAuthGate();
+    return;
+  }
+  if (state.roomSurface) {
+    state.roomSurface.show();
+    return;
+  }
+  const surface = new RoomSurface({
+    api,
+    t,
+    refs: state.refs,
+    catalog: state.catalog,
+    locale: state.locale,
+    maxPlayers: Number(state.meta?.limits?.maxPlayers) || 8,
+    roomLimits: state.meta?.limits?.room || {},
+    imagesBase: state.manifest?.images?.baseUrl || '',
+    int,
+    onRaceTarget: (message) => void startRoomRace(message, surface),
+    onClose: () => {
+      state.roomSurface = null;
+      state.roomCode = null;
+      if (state.roomRace) {
+        state.roomRace = null;
+        state.guesses = [];
+        state.status = 'playing';
+      }
+    },
+  });
+  state.roomSurface = surface;
+  surface.mount();
+  if (state.roomRequest && state.roomRequest !== 'lobby') {
+    surface.joinRoom(String(state.roomRequest).toUpperCase(), '');
+  }
+  state.roomRequest = null;
+}
+
+function showAuthGate() {
+  if (document.getElementById('auth-gate')) return;
+  const gate = document.createElement('div');
+  gate.id = 'auth-gate';
+  gate.className = 'room-overlay';
+  gate.innerHTML = `<div class="room-surface auth-gate">
+    <div class="mp-kicker">FITDLE // ONLINE</div>
+    <h2>${esc(tl('auth.loginTitle', 'SIGN IN WITH EVE'))}</h2>
+    <p>${esc(t('auth.loginRequired'))}</p>
+    <div class="room-actions">
+      ${eveSsoButton('large')}
+      <button class="button ghost" type="button" data-auth-close>${esc(tl('auth.practice', 'CONTINUE IN PRACTICE'))}</button>
+    </div>
+  </div>`;
+  document.body.append(gate);
+  gate.querySelector('[data-auth-close]')?.addEventListener('click', () => gate.remove());
+}
+
+async function startRoomRace(message, surface) {
+  const target = message?.target;
+  if (!target?.killmail) return;
+  const gameplay = ['standard', 'audit', 'timed'].includes(message.gameplay) ? message.gameplay : 'standard';
+  applyGameplay(gameplay);
+  installTarget({
+    killmail: target.killmail,
+    shipId: target.shipId,
+    killId: target.killId,
+    source: 'online',
+    free: false,
+    cacheable: false,
+  });
+  state.appMode = 'online';
+  state.onlineRun = null;
+  state.onlineFinished = false;
+  state.roomRace = { surface, matchId: message.matchId };
+  state.roomCode = surface.code;
+  state.guesses = [];
+  state.status = 'playing';
+  state.visibleCount = 0;
+  state.revealed = new Set();
+  state.fresh = new Set();
+  state.timerStarted = false;
+  state.timerStartAt = 0;
+  state.timerElapsedMs = 0;
+  state.gaveUp = false;
+  state.timedExpired = false;
+  try {
+    await loadLocaleData(state.locale);
+  } catch {
+    // The room result will carry the error if the puzzle cannot be built.
+  }
+  recomputeRevealed();
+  surface.hide();
+  renderAll();
+  window.scrollTo(0, 0);
+}
+
+
 async function boot() {
-  if (isMpBridge()) document.documentElement.dataset.mp = '1';
-  initStarfield($('#starfield'));
-  captureUrlLocale();
   state.locale = detectLocale();
   state.i18n = createI18n(state.locale);
-  await applyBootFlavor();
   state.fontClicks = readFontClicks();
   state.allowEmptyKb = readAllowEmptyKb();
   try {
@@ -4055,30 +4861,30 @@ async function boot() {
   } catch {
     applyFont('neue');
   }
+  void applyBootFlavor();
   state.fontSize = readFontSize();
   applyFontSize(state.fontSize);
   try {
     const manifest = await fetchJson('data/manifest.json');
     state.manifest = manifest;
+    renderBootLogos();
+    await loadClaimDepartments();
     state.dataVersionKey = `${manifest.dataVersion}:${manifest.clueVersion || 1}`;
     state.gameDayStartMinutes = Number(manifest.gameDayStartMinutes ?? 11 * 60);
     state.kbSelectionStartDate = String(manifest.kbSelectionStartDate || '');
-    if (!isMpBridge()) await fetchInternetTime();
     const catalog = await fetchJson('data/catalog.json');
     state.catalog = catalog.ships;
     state.catalogMap = new Map(state.catalog.map((ship) => [ship.id, ship]));
     state.searchAliases = await fetchJson('data/search.json').catch(() => null);
-    state.watchlist = await fetchJson('assets/watchlist.json').catch(() => null);
     state.timed = timedFromLocation(location.search);
     state.mode = state.timed ? 'normal' : modeFromLocation(location.search);
     {
       const canonical = new URL(location.href);
-      canonical.searchParams.delete('mode');
-      canonical.searchParams.delete('timer');
-      canonical.searchParams.delete('timed');
-      if (state.timed) canonical.searchParams.set('rule', 'timed');
-      else if (state.mode === 'abyss') canonical.searchParams.set('rule', 'abyss');
-      else canonical.searchParams.delete('rule');
+      canonical.searchParams.delete('rule');
+      if (!canonical.searchParams.get('claim')) {
+        if (state.timed) canonical.searchParams.set('claim', 'timed');
+        else if (state.mode === 'audit') canonical.searchParams.set('claim', 'audit');
+      }
       if (canonical.href !== location.href) history.replaceState(null, '', canonical);
     }
     document.documentElement.dataset.gameMode = state.mode;
@@ -4086,128 +4892,25 @@ async function boot() {
 
     const now = serverNow();
     state.today = gameDateKey(now, state.gameDayStartMinutes);
-    const freeTarget = freeKillFromLocation(location.search);
-    const bootParams = new URLSearchParams(location.search);
-    const freeNonce = bootParams.get('n') || '';
-    const legacyFree = bootParams.get('free') === '1';
-    state.freeFromRefresh = false;
-    if (freeNonce) {
-      if (freeTarget?.id) {
-        state.freeFromRefresh = consumeFreeIntent(freeNonce, freeGameplayKey());
-      } else {
-        state.freeFromRefresh = freeIntentMatches(freeNonce, freeGameplayKey());
-      }
-    }
-    state.freeRequested = Boolean(
-      (freeNonce && state.freeFromRefresh)
-      || (!freeTarget?.id && legacyFree),
-    );
-    state.freeKillId = freeTarget?.id || null;
-    state.freeKillToken = freeTarget?.token || null;
-    state.date = state.freeKillId ? `free-${state.freeKillToken}` : state.today;
-    const staleDate = new URL(location.href);
-    if (staleDate.searchParams.has('d')) {
-      staleDate.searchParams.delete('d');
-      history.replaceState(null, '', staleDate);
-    }
-    if (freeTarget?.legacy) {
-      const clean = new URL(location.href);
-      clean.searchParams.set('kb', state.freeKillToken);
-      history.replaceState(null, '', clean);
-    }
+    const route = parseAppRoute();
+    api.setBase(String(manifest.apiBase || ''));
+    await resolveSession();
+    if (state.meta?.gameDay) state.today = state.meta.gameDay;
     state.locale = detectLocale();
     if (!isLocale(state.locale) || !manifest.locales.includes(state.locale)) state.locale = manifest.defaultLocale || 'en';
     state.i18n = createI18n(state.locale);
-    state.stats = isMpBridge() ? emptyStats() : settleStats(loadStats(localStorage), state.today);
-    state.freeStreaks = isMpBridge() ? { standard: 0, abyss: 0, timed: 0 } : loadFreeStreaks();
-    if (!isMpBridge()) saveStats(localStorage, state.stats);
-
-    if (state.freeRequested && !state.freeKillId) {
-      const kill = await pickRandomFreeKill();
-      if (kill) {
-        location.replace(freeKillUrl(
-          kill.killmail_id,
-          state.freeFromRefresh,
-          state.freeFromRefresh ? freeNonce : '',
-        ));
-        return;
-      }
-      showToast(t('free.randomFailed'), '', 'warn', 5000);
-      clearFreeIntent();
-      const clean = new URL(location.href);
-      clean.searchParams.delete('free');
-      clean.searchParams.delete('n');
-      history.replaceState(null, '', clean);
-    }
-
-    const rawFree = new URLSearchParams(location.search).get('kb')
-      || new URLSearchParams(location.search).get('killmail')
-      || new URLSearchParams(location.search).get('kill');
-    if (rawFree && !state.freeKillId) {
-      const clean = new URL(location.href);
-      for (const key of ['kb', 'killmail', 'kill', 'n']) clean.searchParams.delete(key);
-      history.replaceState(null, '', clean);
-    }
-    let freeReady = false;
-    if (state.freeKillId) {
-      try {
-        const data = await fetchZkill(`/api/killID/${state.freeKillId}/`, {
-          key: `kill:${state.freeKillId}`,
-          ttlMs: 3600000,
-        });
-        const killmail = Array.isArray(data) ? data[0] : null;
-        if (!killmail?.victim?.ship_type_id) throw new Error('free target unavailable');
-        if (!state.allowEmptyKb && !killHasFittedModules(killmail)) throw new Error('empty free target');
-        state.freeKillmail = killmail;
-        state.answerId = Number(killmail.victim.ship_type_id);
-        state.answerKillId = state.freeKillId;
-        state.answerShip = state.catalogMap.get(state.answerId);
-        if (!state.answerShip) throw new UnknownHullError();
-        freeReady = true;
-        if (!isMpBridge()) {
-          try {
-            const daily = await resolveDailySelection();
-            if (daily && Number(daily.killmail.killmail_id) === Number(state.freeKillId)) {
-              state.freeKillId = null;
-              state.freeKillToken = null;
-              state.freeKillmail = null;
-              state.freeRequested = false;
-              state.date = state.today;
-              freeReady = false;
-              const clean = new URL(location.href);
-              for (const key of ['kb', 'killmail', 'kill', 'free', 'n', 't']) clean.searchParams.delete(key);
-              history.replaceState(null, '', clean);
-            }
-          } catch {
-            // A daily lookup failure must not block the requested free target.
-          }
-        }
-      } catch (error) {
-        if (error instanceof UnknownHullError) throw error;
-        debugLog('free target', error);
-        if (isZkillUnavailable(error)) {
-          throw new DailyUnavailableError('kb-unavailable', error);
-        }
-        state.freeKillId = null;
-        state.freeKillToken = null;
-        state.freeKillmail = null;
-        state.date = state.today;
-        const clean = new URL(location.href);
-        for (const key of ['kb', 'killmail', 'kill', 'n']) clean.searchParams.delete(key);
-        history.replaceState(null, '', clean);
-      }
-    }
-    if (!freeReady) {
-      state.freeKillId = null;
-      state.freeKillToken = null;
-      state.freeKillmail = null;
-      state.date = state.today;
-      const target = await resolveDailySelection();
-      state.answerId = Number(target.shipId);
-      state.answerKillId = Number(target.killmail.killmail_id);
-      state.answerShip = state.catalogMap.get(state.answerId);
-      state.dailyKillmail = target.killmail;
-    }
+    state.stats = emptyStats();
+    state.freeStreaks = { standard: 0, audit: 0, timed: 0 };
+    state.allowEmptyKb = true;
+    state.timeVerified = true;
+    await prepareAppTarget(route);
+    applyGameplay(state.gameplay);
+    document.documentElement.dataset.gameMode = state.mode;
+    document.documentElement.dataset.timed = state.timed ? '1' : '0';
+    document.documentElement.dataset.appMode = state.appMode;
+    const canonical = new URL(location.href);
+    canonical.searchParams.delete('n');
+    if (canonical.href !== location.href) history.replaceState(null, '', canonical);
     await loadLocaleData(state.locale);
 
     const restored = readStoredState();
@@ -4222,6 +4925,7 @@ async function boot() {
       persist();
     } else {
       state.guesses = restored.guesses || [];
+      if (state.guesses.length) dropCurrentTargetCache();
       state.status = restored.status || 'playing';
       state.timerStarted = isTimed() && state.status === 'playing' && restored.timerStarted === true;
       state.timerStartAt = Number(restored.timerStartAt) || 0;
@@ -4231,20 +4935,6 @@ async function boot() {
       state.timedExpired = isTimed() && state.status === 'lost' && restored.timedExpired === true;
     }
     if (isFree()) initFreeRound();
-    if (freeNonce || bootParams.has('free')) {
-      const clean = new URL(location.href);
-      clean.searchParams.delete('n');
-      clean.searchParams.delete('free');
-      if (clean.href !== location.href) history.replaceState(null, '', clean);
-    }
-    if (statsEligible() && (
-      state.guesses.length > 0
-      || (isTimed() && state.timerStarted)
-      || state.status !== 'playing'
-    )) {
-      recordDailyPlay();
-      if (state.status !== 'playing') recordDailyResult();
-    }
     recomputeRevealed();
     state.fresh = new Set();
     state.inputValue = '';
@@ -4252,7 +4942,6 @@ async function boot() {
 
     renderShell();
     renderAll();
-    postMpReady();
     if (state.status === 'playing' && state.guesses.length === 0 && state.revealed.size) {
       // Initial reveals count as unseen too: if the dossier starts below the
       // fold, point the player to the first batch of intel.
@@ -4264,17 +4953,16 @@ async function boot() {
       markTimedForfeited();
     }
 
-    if (!isMpBridge() && !state.timeVerified) showToast(t('error.time'), '', 'warn', 5200);
-    if (!isMpBridge() && state.liveError) showToast(t('error.zkb'), '', 'warn', 5200);
-    if (restored.invalidated) showToast(t('error.oldState'), '', 'warn', 4600);
+    if (state.liveError) showToast(t('error.zkb'), '', 'warn', 5200);
     if (state.status !== 'playing') {
       state.visibleCount = state.answerData.clues.length;
       renderAll();
     }
     state.booted = true;
     startTicker();
+    if (state.loginRequired) showAuthGate();
+    if (state.roomRequest && state.auth.loggedIn) openRooms();
   } catch (error) {
-    if (isMpBridge()) postMp('mp-error', { code: error?.code || error?.name || 'boot-failed' });
     showFatal(error);
   }
 }

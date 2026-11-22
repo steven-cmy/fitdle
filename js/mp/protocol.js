@@ -10,7 +10,7 @@ export const MAX_TEXT = 120;
 
 export const HOST_TYPES = new Set([
   'welcome', 'error', 'room', 'start', 'target', 'tick', 'roundResult',
-  'settle', 'gameEnd', 'ping', 'pong', 'bye',
+  'settle', 'gameEnd', 'ping', 'pong', 'bye', 'chat-ack', 'chat-error',
 ]);
 
 export const DEALER_TYPES = new Set([
@@ -20,7 +20,7 @@ export const DEALER_TYPES = new Set([
 const MESSAGE_TYPES = new Set([
   'hello', 'welcome', 'error', 'room', 'start', 'target', 'tick', 'result',
   'roundResult', 'dealerReady', 'clue', 'guess', 'solved', 'chat', 'settle',
-  'dealerResult', 'dealerError', 'gameEnd', 'ping', 'pong', 'bye',
+  'dealerResult', 'dealerError', 'gameEnd', 'ping', 'pong', 'bye', 'chat-ack', 'chat-error',
 ]);
 
 export function encodeMessage(message) {
@@ -65,6 +65,17 @@ export function sanitizeText(raw) {
   return String(raw ?? '')
     .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_TEXT);
+}
+
+export function sanitizeChatText(raw) {
+  return String(raw ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ')
+    .split('\n')
+    .map((line) => line.replace(/[^\S\n]+/g, ' ').trimEnd())
+    .join('\n')
     .trim()
     .slice(0, MAX_TEXT);
 }

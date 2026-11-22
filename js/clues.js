@@ -101,7 +101,7 @@ const VALUE_MIN_TOLERANCE = {
 };
 const FIT_ADDITIVE = ['mass', 'sig', 'shield', 'armor', 'structure', 'capacitor', 'cargo', 'targetRange', 'scanRes', 'pg', 'cpu', 'calibration'];
 const FIT_RATIO = ['speed', 'align', 'warp', 'shieldRecharge'];
-const ABYSS_FITTED_WEIGHT_FACTOR = 0.7;
+const AUDIT_FITTED_WEIGHT_FACTOR = 0.7;
 export const STANDARD_DEFENSE_RANGE = 4;
 const STANDARD_DEFENSE_AUX_RANGE = 2;
 
@@ -275,11 +275,11 @@ const RESIST_KIND_LAYER = {
 };
 
 /**
- * Abyssal modules use the representative matching the highest meta module in
+ * Audit modules use the representative matching the highest meta module in
  * the same slot, or the closest available meta tier. Representatives are always
  * from the same module group (and therefore the same module variant).
  */
-export function selectAbyssFallbacks(equipment, refs, moduleFallbacks = {}) {
+export function selectAuditFallbacks(equipment, refs, moduleFallbacks = {}) {
   const metaLevelOf = (module) => {
     if (module?.metaLevel == null) return null;
     const level = Number(module.metaLevel);
@@ -393,7 +393,7 @@ function resistanceInfluences(equipmentClues, refs) {
  * - No resist gear, or only a plain/T1/T2 damage control: calculated values
  *   are shared by many hulls, so keep the clue quiet.
  * - Faction+ damage control, any resistance module, ADC or a non-uniform
- *   structure profile (abyssal weather) is a deliberate fit signal: never let
+ *   structure profile (audit weather) is a deliberate fit signal: never let
  *   it weigh less than the module that caused it.
  */
 function resistanceWeight(clue, baseWeight, influences) {
@@ -420,7 +420,7 @@ function resistanceWeight(clue, baseWeight, influences) {
   if (hasAssault) {
     weight = Math.max(weight, maxEquipmentWeight, layer === 'structure' ? 9.5 : 8.8);
   }
-  // Base structure resists are uniform, so a skew is abyssal weather rather
+  // Base structure resists are uniform, so a skew is audit weather rather
   // than a hull trait. Shield/armour are naturally asymmetric and keep their
   // equipment-derived weight.
   if (layer === 'structure' && !resistsAreUniform(clue.v)) {
@@ -797,7 +797,7 @@ function orderClues(clues, seed, mode = 'normal') {
   scored.sort((a, b) => a.key - b.key || a.tie - b.tie || a.index - b.index);
   const ordered = scored.map((entry) => entry.clue);
   const identity = (clue) => ['tech', 'race', 'faction', 'group'].includes(clue.k);
-  const hardAbyss = (clue) => mode === 'abyss' && (
+  const hardAudit = (clue) => mode === 'audit' && (
     clue.k === 'race'
     || clue.k === 'group'
     || (clue.k === 'equipment' && (clue.tags || [clue.tag]).some((tag) => tag === 'unique' || tag === 'limited'))
@@ -807,7 +807,7 @@ function orderClues(clues, seed, mode = 'normal') {
   for (const clue of ordered) {
     const canOpen = opening.length < 3
       && clue.k !== 'bonus'
-      && !hardAbyss(clue)
+      && !hardAudit(clue)
       && !(identity(clue) && opening.some(identity))
       && !(clue.k === 'equipment' && opening.some((entry) => entry.k === 'equipment'));
     if (canOpen) opening.push(clue);
@@ -832,19 +832,19 @@ export function buildClues({
   moduleFallbacks = {},
 }) {
   const { equipment, fittedKills } = parseFittings(losses, refs);
-  const abyssFallbacks = mode === 'abyss' ? selectAbyssFallbacks(equipment, refs, moduleFallbacks) : new Map();
-  const attrs = mode === 'abyss'
+  const auditFallbacks = mode === 'audit' ? selectAuditFallbacks(equipment, refs, moduleFallbacks) : new Map();
+  const attrs = mode === 'audit'
     ? (fittedAttrs || simulateFitting(ship, equipment, moduleDetails))
     : ship.attrs;
-  const fitDelta = mode === 'abyss' ? deriveFitDelta(ship.attrs || {}, attrs) : null;
-  const baseClueValues = mode === 'abyss'
+  const fitDelta = mode === 'audit' ? deriveFitDelta(ship.attrs || {}, attrs) : null;
+  const baseClueValues = mode === 'audit'
     ? new Map(staticClues(ship, ship.attrs || {}).map((clue) => [clue.k, clue.v]))
     : null;
-  const skillClueValues = mode === 'abyss'
+  const skillClueValues = mode === 'audit'
     ? new Map(staticClues(ship, baselineAttrs || ship.attrs || {}).map((clue) => [clue.k, clue.v]))
     : null;
   const clues = staticClues(ship, attrs);
-  if (mode !== 'abyss') {
+  if (mode !== 'audit') {
     for (const clue of clues) {
       if (clue.c !== 'defense') continue;
       clue.range = ['shield', 'armor', 'structure'].includes(clue.k)
@@ -886,7 +886,7 @@ export function buildClues({
     const tags = [];
     if (restriction) tags.push(restriction);
     if (meta === 5) tags.push('officer');
-    if (meta === 15) tags.push('abyss');
+    if (meta === 15) tags.push('audit');
     if (item.slot === 'cargo' && (PLEX_TYPES.has(Number(item.module)) || /plex|pilot'?s license/i.test(module?.name || ''))) {
       tags.push('plex');
     }
@@ -926,8 +926,8 @@ export function buildClues({
         weight = Math.max(weight, count > 0 ? 7.4 + Math.min(1.4, count * 0.35) : 5.8);
       }
     }
-    if (mode === 'abyss' && restriction === 'unique') weight = Math.max(weight, 10);
-    if (mode === 'abyss' && restriction === 'limited') weight = Math.max(weight, 8.8);
+    if (mode === 'audit' && restriction === 'unique') weight = Math.max(weight, 10);
+    if (mode === 'audit' && restriction === 'limited') weight = Math.max(weight, 8.8);
     // Faction+ damage controls and resistance modules are rare even when their
     // module group is common; the resistance clue inherits this floor.
     if (item.slot !== 'cargo' && Number(module?.categoryID) === 7 && meta >= HIGH_END_META_GROUP
@@ -944,7 +944,7 @@ export function buildClues({
       tags,
       sig: restriction === 'unique',
       charge: isCharge && !['cargo', 'fighterBay', 'fuelBay'].includes(item.slot),
-      calcModule: item.slot === 'cargo' ? null : (abyssFallbacks.get(item.module) || null),
+      calcModule: item.slot === 'cargo' ? null : (auditFallbacks.get(item.module) || null),
     };
     equipmentClues.push(clue);
     if (item.slot === 'high' && !isCharge && Array.isArray(module?.chargeGroups) && module.chargeGroups.length) {
@@ -997,7 +997,7 @@ export function buildClues({
     clue.tags = [];
     clue.sig = false;
   }
-  const resistanceContext = mode === 'abyss'
+  const resistanceContext = mode === 'audit'
     ? resistanceInfluences(equipmentClues, refs)
     : null;
 
@@ -1217,19 +1217,19 @@ export function buildClues({
       const weightClue = baseClueValues?.has(clue.k)
         ? { ...clue, v: baseClueValues.get(clue.k) }
         : clue;
-      clue.w = round(weightFor(weightClue, ship, catalog, mode === 'abyss' ? null : fitDelta), 1);
+      clue.w = round(weightFor(weightClue, ship, catalog, mode === 'audit' ? null : fitDelta), 1);
     }
-    if (mode === 'abyss') {
+    if (mode === 'audit') {
       if (clue.k === 'race' || clue.k === 'group') clue.w = 10;
       if (clue.k === 'equipment' && clue.sig) clue.w = 10;
       const baselineValue = skillClueValues?.get(clue.k);
       if (clue.k !== 'equipment' && clue.k !== 'bonus' && baselineValue !== undefined) {
         if (!sameClueValue(clue.k, baselineValue, clue.v)) {
-          clue.w = round(Math.max(1, clue.w * ABYSS_FITTED_WEIGHT_FACTOR), 1);
+          clue.w = round(Math.max(1, clue.w * AUDIT_FITTED_WEIGHT_FACTOR), 1);
         }
       }
     }
-    if (mode === 'abyss' && RESIST_KIND_LAYER[clue.k]) {
+    if (mode === 'audit' && RESIST_KIND_LAYER[clue.k]) {
       // Resistance strength follows the fit, not only the base hull profile.
       clue.w = resistanceWeight(clue, clue.w, resistanceContext);
     } else if (clue.k === 'structureResists') {

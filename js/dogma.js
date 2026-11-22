@@ -2,7 +2,7 @@
  * Browser adapter for EVEShip.fit's dogma-engine (MIT).
  *
  * The engine and its SDE are vendored under vendor/dogma-engine and loaded
- * lazily, only for Abyssal mode. The target killmail is the fit input, so
+ * lazily, only for Audit mode. The target killmail is the fit input, so
  * module state, charges and quantities come from the actual loss.
  */
 let enginePromise = null;
@@ -56,7 +56,7 @@ async function loadEngine() {
 }
 
 function applyAllVSkills(fit, skills) {
-  // Abyssal mode is a max-performance simulation: all skills V and every
+  // Audit mode is a max-performance simulation: all skills V and every
   // fitted module active. Killmails do not carry the victim's skill sheet.
   fit.character = {
     ...(fit.character || {}),

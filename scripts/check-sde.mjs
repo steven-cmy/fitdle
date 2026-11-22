@@ -1,61 +1,61 @@
 #!/usr/bin/env node
 /**
- * GitLab CI helper: compare the current SDE release with the deployed Pages
+ * GitLab CI helper: compare the SDE API latest release with the deployed
  * manifest. Writes .cache/sde-check.env for downstream jobs.
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadBuildEnv } from './build-env.mjs';
+import { fetchLatestRelease, sdeBase } from './sde-api.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+const ENV = loadBuildEnv(ROOT);
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
 const CACHE = path.join(ROOT, '.cache');
 const OUT = path.join(CACHE, 'sde-check.env');
-const URL = process.env.EVE_SDE_URL || 'https://developers.eveonline.com/static-data/eve-online-static-data-latest-jsonl.zip';
 const PAGES = (process.env.CI_PAGES_URL || process.env.PAGES_URL || '').replace(/\/$/, '');
 const FORCE = process.env.FORCE_SDE === '1' || process.env.FORCE_SDE === 'true';
 
-async function remoteVersion() {
+async function remoteRelease() {
   try {
-    let method = 'HEAD';
-    let response = await fetch(URL, { method, redirect: 'follow', headers: { 'User-Agent': USER_AGENT } });
-    if (!response.ok) {
-      method = 'GET';
-      response = await fetch(URL, { method, redirect: 'follow', headers: { 'User-Agent': USER_AGENT } });
-    }
-    const version = response.headers.get('etag')
-      || response.headers.get('last-modified')
-      || response.headers.get('content-length');
-    if (method !== 'HEAD') response.body?.cancel?.();
-    return version || '';
+    return await fetchLatestRelease({
+      base: sdeBase(ENV.EVE_SDE_BASE),
+      userAgent: USER_AGENT,
+    });
   } catch (error) {
-    console.warn(`SDE HEAD failed: ${error.message}`);
-    return '';
+    console.warn(`SDE latest check failed: ${error.message}`);
+    return null;
   }
 }
 
-async function deployedVersion() {
-  if (!PAGES) return '';
+async function deployedManifest() {
+  if (!PAGES) return null;
   try {
     const response = await fetch(`${PAGES}/data/manifest.json`, { cache: 'no-store' });
-    if (!response.ok) return '';
-    const manifest = await response.json();
-    return manifest?.sde?.etag || manifest?.sdeEtag || '';
+    if (!response.ok) return null;
+    return await response.json();
   } catch {
-    return '';
+    return null;
   }
 }
 
-const remote = await remoteVersion();
-const deployed = await deployedVersion();
-const changed = FORCE || !remote || !deployed || remote !== deployed;
+const remote = await remoteRelease();
+const deployed = await deployedManifest();
+const deployedSde = deployed?.sde || {};
+const deployedVersion = deployedSde.release || deployedSde.buildNumber || '';
+const remoteVersion = remote?.release || remote?.buildNumber || '';
+const changed = FORCE || !remoteVersion || !deployedVersion || String(remoteVersion) !== String(deployedVersion);
 fs.mkdirSync(CACHE, { recursive: true });
+const safe = (value) => String(value || '').replace(/[^A-Za-z0-9._-]+/g, '_');
 fs.writeFileSync(OUT, [
   `SDE_CHANGED=${changed ? '1' : '0'}`,
-  `SDE_VERSION=${String(remote).replace(/[^A-Za-z0-9._-]+/g, '_')}`,
-  `SDE_DEPLOYED_VERSION=${String(deployed).replace(/[^A-Za-z0-9._-]+/g, '_')}`,
+  `SDE_RELEASE=${safe(remote?.release)}`,
+  `SDE_BUILD_NUMBER=${safe(remote?.buildNumber)}`,
+  `SDE_VERSION=${safe(remoteVersion)}`,
+  `SDE_DEPLOYED_VERSION=${safe(deployedVersion)}`,
   '',
 ].join('\n'));
-console.log(`SDE remote: ${remote || '(unavailable)'}`);
-console.log(`SDE deployed: ${deployed || '(none)'}`);
+console.log(`SDE API latest: ${remote?.release || '(unavailable)'} (build ${remote?.buildNumber || 'unknown'})`);
+console.log(`SDE deployed: ${deployedVersion || '(none)'}`);
 console.log(`SDE changed: ${changed}`);

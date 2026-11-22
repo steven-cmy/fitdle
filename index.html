@@ -5,25 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#05080c">
   <meta name="color-scheme" content="dark">
-  <title>FITDLE — Daily EVE Online Killboard Puzzle</title>
-  <meta name="description" content="Read the fittings. Name the hull. A daily EVE Online killboard puzzle with six attempts, one target per UTC day, and eight client languages.">
+  <title>FITDLE — Pend Insurance Claims Assessment</title>
+  <meta name="description" content="A daily Pend Insurance loss-adjustment assessment in EVE Online. Verify the wreck against its fitting manifest.">
   <meta property="og:site_name" content="FITDLE">
-  <meta property="og:title" content="FITDLE — Daily EVE Online Killboard Puzzle">
-  <meta property="og:description" content="Read the fittings. Name the hull. Six attempts, one target per UTC day, eight languages. Can you read the killboard?">
+  <meta property="og:title" content="FITDLE — Pend Insurance Claims Assessment">
+  <meta property="og:description" content="Pend Insurance claims terminal. Verify a wreck against its fitting manifest, one loss report per UTC day.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="__SITE_URL__/">
-  <meta property="og:image" content="__SITE_URL__/assets/share/og.png">
-  <meta property="og:image:secure_url" content="__SITE_URL__/assets/share/og.png">
+  <meta property="og:image" content="__SITE_URL__/assets/share/og.png?v=3">
+  <meta property="og:image:secure_url" content="__SITE_URL__/assets/share/og.png?v=3">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="FITDLE daily EVE Online killboard puzzle">
+  <meta property="og:image:alt" content="FITDLE Pend Insurance claims assessment">
   <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="FITDLE — Daily EVE Online Killboard Puzzle">
-  <meta name="twitter:description" content="Read the fittings. Name the hull. Six attempts, one target per UTC day, eight languages.">
-  <meta name="twitter:image" content="__SITE_URL__/assets/share/og.png">
-  <meta name="twitter:image:alt" content="FITDLE daily EVE Online killboard puzzle">
+  <meta name="twitter:title" content="FITDLE — Pend Insurance Claims Assessment">
+  <meta name="twitter:description" content="Verify the wreck. Confirm the hull. Six review passes, one claim per UTC day, eight languages.">
+  <meta name="twitter:image" content="__SITE_URL__/assets/share/og.png?v=3">
+  <meta name="twitter:image:alt" content="FITDLE Pend Insurance claims assessment">
   <meta name="application-name" content="FITDLE">
   <link rel="canonical" href="__SITE_URL__/">
   <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
@@ -32,26 +32,13 @@
       if (localStorage.getItem('fitdle:v1:font') === 'classic') {
         document.documentElement.dataset.eveFont = 'classic';
       }
-      const params = new URLSearchParams(location.search);
-      if (params.get('rule') === 'abyss' || (!params.get('rule') && params.get('mode') === 'abyss')) {
-        document.documentElement.dataset.gameMode = 'abyss';
-        const theme = document.querySelector('meta[name="theme-color"]');
-        if (theme) theme.setAttribute('content', '#070203');
-      }
-      if (params.get('rule') === 'timed' || params.get('timer') === '1' || params.get('timed') === '1' || params.get('mode') === 'timed') {
-        document.documentElement.dataset.timed = '1';
-        const theme = document.querySelector('meta[name="theme-color"]');
-        if (theme) theme.setAttribute('content', '#031008');
-      }
     } catch {}
   </script>
   <link rel="stylesheet" href="styles/app.css">
   <link rel="stylesheet" href="styles/mp.css">
+  <link rel="stylesheet" href="styles/photon.css">
 </head>
 <body>
-  <canvas id="starfield" aria-hidden="true"></canvas>
-  <div class="atmosphere" aria-hidden="true"></div>
-
   <div id="app">
     <div class="boot-screen" role="status" aria-live="polite">
       <div class="boot-mark" aria-hidden="true">
@@ -61,9 +48,21 @@
         <span class="boot-cross boot-cross-y"></span>
         <span class="boot-core"></span>
       </div>
-      <div class="boot-title">FITDLE</div>
-      <div class="boot-status">ESTABLISHING UPLINK</div>
-      <div class="boot-sub">Decrypting daily intelligence package</div>
+      <div class="boot-title">F.I.T.D.L.E.</div>
+      <div class="boot-fullname">Fitting Identification, Testimony &amp; Damage Ledger Evaluation</div>
+      <div class="boot-logos" data-boot-logos aria-label="Pend Insurance and Secure Commerce Commission">
+        <span class="brand-emblem boot-logo">
+          <span class="brand-emblem-fallback" aria-hidden="true">PI</span>
+          <img src="__IMAGE_BASE__/corporations/1000113/logo?size=128" alt="Pend Insurance" referrerpolicy="no-referrer" onerror="this.remove()">
+        </span>
+        <span class="boot-logo-divider" aria-hidden="true">//</span>
+        <span class="brand-emblem boot-logo">
+          <span class="brand-emblem-fallback" aria-hidden="true">SCC</span>
+          <img src="__IMAGE_BASE__/corporations/1000132/logo?size=128" alt="Secure Commerce Commission" referrerpolicy="no-referrer" onerror="this.remove()">
+        </span>
+      </div>
+      <div class="boot-status">VERIFYING ASSESSOR</div>
+      <div class="boot-sub">Opening Pend Insurance claims terminal</div>
       <div class="boot-bar"><span></span></div>
     </div>
   </div>
@@ -71,14 +70,14 @@
   <script>
     (function () {
       const copy = {
-        en: ['SCANNING FOR SHIP SIGNALS', 'Resolving killboard telemetry'],
-        de: ['SCHIFFSSIGNALE WERDEN GESUCHT', 'Killboard-Telemetrie wird aufgelöst'],
-        es: ['ESCANEANDO SEÑALES DE NAVES', 'Resolviendo telemetría del killboard'],
-        fr: ['SCAN DES SIGNAUX DE VAISSEAUX', 'Résolution de la télémétrie killboard'],
-        ja: ['艦船信号をスキャン中', 'キルボード遠隔測定を解析中'],
-        ko: ['함선 신호 스캔 중', '킬보드 원격 측정 분석 중'],
-        ru: ['СКАНИРОВАНИЕ СИГНАЛОВ КОРАБЛЕЙ', 'Обработка телеметрии киллборда'],
-        zh: ['正在扫描舰船信号', '正在解析击杀板遥测'],
+        en: ['VERIFYING ASSESSOR', 'Opening Pend Insurance claims terminal'],
+        de: ['SACHBEARBEITER WIRD GEPRÜFT', 'Pend-Insurance-Schadensterminal wird geöffnet'],
+        es: ['VERIFICANDO PERITO', 'Abriendo terminal de siniestros de Pend Insurance'],
+        fr: ['VÉRIFICATION DE L’EXPERT', 'Ouverture du terminal sinistres Pend Insurance'],
+        ja: ['査定担当者を確認中', 'ペンド保険クレーム端末を起動中'],
+        ko: ['손해사정 담당자 확인 중', '펜드 보험 클레임 단말 여는 중'],
+        ru: ['ПРОВЕРКА ОЦЕНЩИКА', 'Открытие терминала убытков Pend Insurance'],
+        zh: ['正在验证评估员', '正在打开彭德保险理赔终端'],
       };
       const supported = Object.keys(copy);
       const normalize = (value) => {
@@ -89,8 +88,7 @@
       };
       let locale = null;
       try {
-        locale = normalize(new URLSearchParams(location.search).get('lang'))
-          || normalize(localStorage.getItem('fitdle:v1:lang'));
+        locale = normalize(localStorage.getItem('fitdle:v1:lang'));
       } catch {}
       if (!locale && navigator.languages) {
         for (const candidate of navigator.languages) {
@@ -116,7 +114,7 @@
   <noscript>
     <div class="noscript-panel">
       <h1>FITDLE</h1>
-      <p>This puzzle requires JavaScript. Enable JavaScript in your browser to establish the uplink.</p>
+      <p>This claims terminal requires JavaScript. Enable JavaScript in your browser to reach Pend Insurance loss intake.</p>
     </div>
   </noscript>
 

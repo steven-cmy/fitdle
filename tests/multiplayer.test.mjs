@@ -4,14 +4,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   RANK_POINTS, rankPoints, raceRoundScores, raceTargetReached, rankPlayers,
-  pvpRoundScores, unpublishedWeight, score,
+  arbitrationRoundScores, unpublishedWeight, score,
 } from '../js/mp/rules.js';
 import {
   clueForWire, decodeMessage, encodeMessage, normalizeName, RateLimiter,
-  sanitizeName, sanitizeText, validClueForWire, validName,
+  sanitizeChatText, sanitizeName, sanitizeText, validClueForWire, validName,
 } from '../js/mp/protocol.js';
 import { pickDealerRound, pickRaceTarget, KbUnavailableError } from '../js/mp/target.js';
 import { renderClueList } from '../js/mp/clue-view.js';
+import { avatarInitials, avatarHtml, portraitUrl } from '../js/avatar.js';
+import { shortPilotId, sortLocalPlayers } from '../js/rooms.js';
 import { MESSAGES } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -21,7 +23,7 @@ const refsEn = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'refs', 'en.js
 const manifest = {
   zkillboard: { baseUrl: 'https://example.test' },
   normalShipPool: [670, 670, 670],
-  abyssKillShipPool: [670],
+  auditKillShipPool: [670],
   clueVersion: 5,
   images: { baseUrl: 'https://images.example.test' },
 };
@@ -98,7 +100,7 @@ test('dealer scoring uses published weight and locked unpublished snapshots', ()
     { w: 10 }, { w: 8 }, { w: 6 }, { w: 4 }, { w: 2 },
   ];
   const published = [0, 1];
-  const result = pvpRoundScores({
+  const result = arbitrationRoundScores({
     clues,
     publishedIndices: published,
     solves: [
@@ -113,7 +115,7 @@ test('dealer scoring uses published weight and locked unpublished snapshots', ()
   assert.deepEqual(result.playerScores, { a: 10, b: 5 });
   assert.equal(result.correctCount, 2);
 
-  const noCorrect = pvpRoundScores({ clues, publishedIndices: published, solves: [] });
+  const noCorrect = arbitrationRoundScores({ clues, publishedIndices: published, solves: [] });
   assert.equal(noCorrect.dealerScore, 18);
   assert.deepEqual(noCorrect.playerScores, {});
 
@@ -134,6 +136,9 @@ test('protocol validates messages, names, text and rate limits', () => {
   assert.equal(validName('A'), false);
   assert.equal(validName('Pilot One'), true);
   assert.equal(sanitizeText('x'.repeat(200)).length, 120);
+  assert.equal(sanitizeChatText(' First line\r\nsecond\tline '), 'First line\nsecond line');
+  assert.equal(sanitizeChatText('a\n\nb'), 'a\n\nb');
+  assert.equal(sanitizeChatText('\u0001bad\u0002'), 'bad');
 
   const limiter = new RateLimiter({ messages: 2, guesses: 1, windowMs: 1000 });
   assert.equal(limiter.allow('p', 'message', 0), true);
@@ -227,29 +232,98 @@ test('multiplayer messages cover all eight locales', () => {
   const keys = Object.keys(MESSAGES.en).sort();
   for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh']) {
     assert.deepEqual(Object.keys(MESSAGES[locale]).sort(), keys, locale);
-    assert.ok(MESSAGES[locale]['header.multiplayer']);
+    assert.ok(MESSAGES[locale]['room.chatUnavailable']);
     assert.ok(MESSAGES[locale]['mp.dealer.publish']);
+    for (const key of ['room.title', 'room.chatPlaceholder', 'mode.multiplayer', 'status.unscoredHelp', 'mode.dailyReason']) {
+      assert.ok(MESSAGES[locale][key], `${locale} missing ${key}`);
+    }
+  }
+  assert.notEqual(MESSAGES.zh['room.title'], MESSAGES.en['room.title']);
+  assert.notEqual(MESSAGES.de['room.title'], MESSAGES.en['room.title']);
+});
+
+test('room local IDs are stable and collision-safe', () => {
+  const one = 'c4497b11-ba36-4ec2-a531-336a61a7c631';
+  const two = 'c4497b11-0000-4000-8000-000000000000';
+  assert.equal(shortPilotId(one), 'C4497B11');
+  assert.equal(shortPilotId(one, [one]), 'C4497B11');
+  assert.equal(shortPilotId(one, [one, two]).length > 8, true);
+  const sorted = sortLocalPlayers([
+    { id: 'b', name: 'Beta', score: 5, connected: true, spectator: false },
+    { id: 'a', name: 'Alpha', score: 5, connected: false, spectator: false },
+    { id: 'c', name: 'Owner', score: 10, connected: false, spectator: false },
+    { id: 'd', name: 'Watcher', score: 0, connected: true, spectator: true },
+  ], 'c');
+  assert.deepEqual(sorted.map((player) => player.id), ['c', 'a', 'b', 'd']);
+});
+
+test('character portraits and initials fall back safely', () => {
+  const imagesBase = 'https://images.example.test';
+  assert.equal(portraitUrl(90000001, 64, imagesBase), `${imagesBase}/characters/90000001/portrait?size=64`);
+  assert.equal(portraitUrl('bad', 64, imagesBase), '');
+  assert.equal(avatarInitials('Avatar Pilot'), 'AP');
+  assert.equal(avatarInitials('Single'), 'SI');
+  assert.match(avatarHtml('Avatar Pilot', 90000001, 64, '', imagesBase), /portrait\?size=64/);
+  assert.match(avatarHtml('Avatar Pilot', null, 64, '', imagesBase), /avatar-fallback/);
+});
+
+test('room lobby and match settings are compact and apply-free', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  const server = fs.readFileSync(path.join(ROOT, 'server', 'src', 'rooms.mjs'), 'utf8');
+  assert.match(source, /room-lobby-grid/);
+  assert.match(source, /room-matchbar/);
+  assert.doesNotMatch(source, /room\.apply/);
+  assert.match(source, /this\.send\(\{ t: 'start', gameplay: draft\.gameplay, settings: draft\.settings \}\)/);
+  assert.match(source, /button primary room-share/);
+  assert.match(source, /data-room-reset/);
+  assert.match(css, /\.room-field input,[\s\S]*?height:\s*2\.15rem/);
+  assert.match(server, /message\.gameplay == null \? room\.gameplay/);
+});
+
+test('room chat is a subspace communication beacon with an offline notice', () => {
+  const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  assert.equal(MESSAGES.en['room.chatTitle'], 'SUBSPACE COMMUNICATION BEACON');
+  assert.equal(MESSAGES.zh['room.chatTitle'], '亚空间通讯信标');
+  assert.match(MESSAGES.zh['room.chatUnavailable'], /亚空间通讯信标无法连接/);
+  assert.match(MESSAGES.en['room.chatUnavailable'], /Subspace communication beacon unreachable/);
+  for (const lang of Object.keys(MESSAGES)) {
+    assert.ok(MESSAGES[lang]['room.chatTitle']);
+    assert.ok(MESSAGES[lang]['room.chatPlaceholder']);
+    assert.ok(MESSAGES[lang]['room.chatUnavailable']);
+  }
+  assert.match(rooms, /room-chat-unavailable/);
+  assert.match(rooms, /!this\.connected/);
+  assert.match(css, /\.room-chat-unavailable/);
+});
+
+test('every locale provides a full ISK payout label', () => {
+  for (const lang of Object.keys(MESSAGES)) {
+    assert.ok(MESSAGES[lang]['end.insurancePayout']);
+    assert.ok(MESSAGES[lang]['clue.kbValueToggle']);
   }
 });
 
-test('multiplayer source and build inputs are present without hard-coded domains', () => {
+test('online shell and service inputs use the current direct room stack', () => {
   const files = [
-    'multiplayer.html',
-    'js/mp/main.js',
-    'js/mp/net.js',
+    'js/api.js',
+    'js/rooms.js',
     'js/mp/protocol.js',
     'js/mp/target.js',
     'js/mp/rules.js',
     'js/mp/clue-view.js',
-    'vendor/peerjs/peerjs.min.js',
+    'server/src/index.mjs',
+    'server/src/auth.mjs',
+    'server/src/rooms.mjs',
+    'server/src/targets.mjs',
+    'styles/photon.css',
   ];
   for (const file of files) assert.equal(fs.existsSync(path.join(ROOT, file)), true, file);
   const built = path.join(ROOT, 'dist');
   if (fs.existsSync(built)) {
-    assert.equal(fs.existsSync(path.join(built, 'multiplayer.html')), true);
-    assert.equal(fs.existsSync(path.join(built, 'vendor', 'peerjs', 'peerjs.min.js')), true);
     assert.equal(fs.existsSync(path.join(built, 'assets', 'fonts', 'eve_sans_neueregular_400_normal.woff2')), true);
-    assert.equal(fs.existsSync(path.join(built, 'styles', 'app.css')), true);
+    assert.equal(fs.existsSync(path.join(built, 'styles', 'photon.css')), true);
     const mjs = [];
     const walk = (dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

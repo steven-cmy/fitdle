@@ -27,51 +27,51 @@ DIM = "#28414b"
 LOCALES = {
     "en": {
         "badge": "EN", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "TARGET DESTROYED", "one": "FIRST-SHOT KILL", "lost": "TARGET ESCAPED",
-        "oneTag": "ONE SHOT", "lostTag": "SIGNAL LOST",
-        "tagline": "DAILY EVE ONLINE KILLBOARD PUZZLE", "cta": "CAN YOU BEAT THIS?",
+        "win": "CLAIM APPROVED", "one": "SINGLE-PASS APPROVAL", "lost": "CLAIM ESCALATED",
+        "oneTag": "ONE PASS", "lostTag": "ESCALATED",
+        "tagline": "PEND INSURANCE // CLAIMS ASSESSMENT", "cta": "CAN YOU MATCH IT?",
     },
     "de": {
         "badge": "DE", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "ZIEL ZERSTÖRT", "one": "TREFFER BEIM ERSTEN SCHUSS", "lost": "ZIEL ENTKOMMEN",
-        "oneTag": "ONE SHOT", "lostTag": "SIGNAL VERLOREN",
-        "tagline": "TÄGLICHES EVE-ONLINE-KILLBOARD-RÄTSEL", "cta": "SCHAFFST DU MEHR?",
+        "win": "AKTE GENEHMIGT", "one": "IN EINER PRÜFUNG GENEHMIGT", "lost": "AKTE ESKALIERT",
+        "oneTag": "EINE PRÜFUNG", "lostTag": "ESKALIERT",
+        "tagline": "PEND INSURANCE // SCHADENSBEWERTUNG", "cta": "SCHAFFST DU DAS AUCH?",
     },
     "es": {
         "badge": "ES", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "OBJETIVO DESTRUIDO", "one": "MUERTE AL PRIMER DISPARO", "lost": "EL OBJETIVO ESCAPÓ",
-        "oneTag": "UN SOLO DISPARO", "lostTag": "SEÑAL PERDIDA",
-        "tagline": "PUZLE DIARIO DE KILLBOARD DE EVE ONLINE", "cta": "¿PUEDES SUPERARLO?",
+        "win": "EXPEDIENTE APROBADO", "one": "APROBADO EN UNA REVISIÓN", "lost": "EXPEDIENTE ESCALADO",
+        "oneTag": "UNA REVISIÓN", "lostTag": "ESCALADO",
+        "tagline": "PEND INSURANCE // EVALUACIÓN DE SINIESTROS", "cta": "¿PUEDES IGUALARLO?",
     },
     "fr": {
         "badge": "FR", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "CIBLE DÉTRUITE", "one": "ÉLIMINATION AU PREMIER TIR", "lost": "CIBLE ÉCHAPPÉE",
-        "oneTag": "UN SEUL TIR", "lostTag": "SIGNAL PERDU",
-        "tagline": "PUZZLE QUOTIDIEN DE KILLBOARD EVE ONLINE", "cta": "PEUX-TU FAIRE MIEUX ?",
+        "win": "DOSSIER APPROUVÉ", "one": "APPROUVÉ EN UN EXAMEN", "lost": "DOSSIER ESCALADÉ",
+        "oneTag": "UN EXAMEN", "lostTag": "ESCALADÉ",
+        "tagline": "PEND INSURANCE // ÉVALUATION DES SINISTRES", "cta": "POUVEZ-VOUS FAIRE AUTANT ?",
     },
     "ja": {
         "badge": "日本語", "font": r"C:\Windows\Fonts\YuGothB.ttc",
-        "win": "目標撃破", "one": "初弾撃破", "lost": "目標逃げられました",
-        "oneTag": "一撃必殺", "lostTag": "信号喪失",
-        "tagline": "EVE Online 毎日キルボードパズル", "cta": "スコアを超えられる？",
+        "win": "クレーム承認", "one": "一発承認", "lost": "クレーム上申",
+        "oneTag": "一回の査定", "lostTag": "上申",
+        "tagline": "PEND INSURANCE // クレーム査定", "cta": "同じ査定ができますか？",
     },
     "ko": {
         "badge": "한국어", "font": r"C:\Windows\Fonts\malgunbd.ttf",
-        "win": "목표 격파", "one": "첫 발에 격파", "lost": "목표가 도주했습니다",
-        "oneTag": "원샷", "lostTag": "신호 상실",
-        "tagline": "EVE Online 일일 킬보드 퍼즐", "cta": "내 점수를 넘을 수 있나요?",
+        "win": "클레임 승인", "one": "한 번에 승인", "lost": "클레임 이관",
+        "oneTag": "한 번의 검토", "lostTag": "이관",
+        "tagline": "PEND INSURANCE // 클레임 평가", "cta": "같은 평가를 할 수 있나요?",
     },
     "ru": {
         "badge": "RU", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "ЦЕЛЬ УНИЧТОЖЕНА", "one": "УБИЙСТВО С ПЕРВОГО ВЫСТРЕЛА", "lost": "ЦЕЛЬ УШЛА",
-        "oneTag": "ОДИН ВЫСТРЕЛ", "lostTag": "СИГНАЛ ПОТЕРЯН",
-        "tagline": "ЕЖЕДНЕВНАЯ ГОЛОВОЛОМКА ПО КИЛЛБОРДУ EVE ONLINE", "cta": "СМОЖЕШЬ ЛУЧШЕ?",
+        "win": "ДЕЛО УТВЕРЖДЕНО", "one": "УТВЕРЖДЕНО ЗА ОДНУ ПРОВЕРКУ", "lost": "ДЕЛО ПЕРЕДАНО",
+        "oneTag": "ОДНА ПРОВЕРКА", "lostTag": "ПЕРЕДАНО",
+        "tagline": "PEND INSURANCE // ОЦЕНКА УБЫТКОВ", "cta": "СМОЖЕТЕ ТАК ЖЕ?",
     },
     "zh": {
         "badge": "中文", "font": r"C:\Windows\Fonts\msyhbd.ttc",
-        "win": "目标已击毁", "one": "首发命中", "lost": "目标逃逸",
-        "oneTag": "一枪入魂", "lostTag": "信号丢失",
-        "tagline": "EVE Online 每日击杀谜题", "cta": "你能超过我吗？",
+        "win": "理赔通过", "one": "一次复核通过", "lost": "案卷升级",
+        "oneTag": "一次复核", "lostTag": "已升级",
+        "tagline": "PEND INSURANCE // 理赔评估", "cta": "你能匹配这次评估吗？",
     },
 }
 
@@ -140,7 +140,7 @@ def frame(draw, copy):
     for y in range(0, H, 60):
         draw.line((0, y, W, y), fill=(20, 50, 62, 30), width=1)
     draw.text((70, 54), "FITDLE", font=font(BASE_FONT, 66), fill=TEXT)
-    draw.text((74, 126), "DAILY KILLBOARD", font=font(BASE_FONT, 22), fill=AMBER)
+    draw.text((74, 126), "PEND INSURANCE // CLAIMS ASSESSMENT", font=font(BASE_FONT, 20), fill=AMBER)
     badge_font = font(copy["font"], 18)
     badge_w = text_width(draw, copy["badge"], badge_font)
     draw.rounded_rectangle((W - 70 - badge_w - 30, 60, W - 70, 98), radius=3,
@@ -198,7 +198,7 @@ def escaped(draw, copy):
     import math
     frame(draw, copy)
     cx, cy = 900, 300
-    # Broken rings and a fading sweep communicate a lost target.
+    # Broken rings and a fading sweep communicate an escalated file.
     for r, start, extent, alpha in [(235, 205, 255, 32), (160, 20, 250, 48), (92, 120, 230, 62)]:
         draw.arc((cx-r, cy-r, cx+r, cy+r), start=start, end=start+extent,
                  fill=(242, 166, 59, alpha), width=2)
@@ -215,7 +215,7 @@ def escaped(draw, copy):
     bx, by = cx + 170, cy - 105
     draw.ellipse((bx-9, by-9, bx+9, by+9), outline=(242, 166, 59, 210), width=2)
     draw.ellipse((bx-26, by-26, bx+26, by+26), outline=(242, 166, 59, 60), width=1)
-    draw.text((cx-102, cy+248), "LOST // 06", font=font(MONO_FONT, 16), fill=(140, 112, 78))
+    draw.text((cx-102, cy+248), "ESCALATED // 06", font=font(MONO_FONT, 16), fill=(140, 112, 78))
 
     cells(draw, "lost", False)
     tag_font = font(copy["font"], 18)
@@ -264,4 +264,19 @@ for locale in LOCALES:
     for key in ["1", "2", "3", "4", "5", "6", "lost"]:
         card(locale, key, key)
 
-print(f"Wrote {len(LOCALES) * 7} share cards to {OUT}")
+
+def default_card():
+    copy = LOCALES["en"]
+    img = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(img, "RGBA")
+    frame(draw, copy)
+    cells(draw, "0", False)
+    draw.text((70, 246), "SIX REVIEW PASSES // ONE CLAIM", font=font(BASE_FONT, 22), fill=AMBER)
+    draw.text((66, 286), "VERIFY", font=font(BASE_FONT, 96), fill=TEXT)
+    draw.text((66, 382), "THE HULL", font=font(BASE_FONT, 96), fill=CYAN)
+    bottom(draw, copy, AMBER)
+    img.save(OUT / "og.png", optimize=True)
+
+
+default_card()
+print(f"Wrote {len(LOCALES) * 7 + 1} share cards to {OUT}")

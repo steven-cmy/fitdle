@@ -74,7 +74,7 @@ export function rankPlayers(players, scores, solveCounts = {}) {
  * unpublished when that player guessed correctly (`snapshot`). The dealer gets
  * the weight published by settlement; correct players split their snapshots.
  */
-export function pvpRoundScores({ clues, publishedIndices, solves }) {
+export function arbitrationRoundScores({ clues, publishedIndices, solves }) {
   const list = Array.isArray(clues) ? clues : [];
   const totalWeight = list.reduce((sum, clue) => sum + clueWeight(clue), 0);
   const published = new Set((publishedIndices || []).map(Number));

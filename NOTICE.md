@@ -21,9 +21,22 @@ Creations (formerly CCP hf. / CCP Games).
 These assets are not covered by the MIT license that applies to the Fitdle
 source code.
 
+## Pend Insurance and Secure Commerce Commission
+
+Pend Insurance and the Secure Commerce Commission are EVE Online NPC
+organizations. Their names, logos, associated marks and related intellectual
+property are the property of Fenris Creations (formerly CCP hf. / CCP Games).
+FITDLE uses their corporation logos from the official EVE image service at
+runtime for non-commercial fan use. The logos are not bundled in `dist/` and can
+be removed by changing `js/brand.js`.
+
+FITDLE is an unofficial, non-commercial fan project. It is not affiliated with,
+endorsed by, or sponsored by Fenris Creations, CCP Games, Pend Insurance or the
+Secure Commerce Commission.
+
 ## Dogma engine
 
-Abyssal fitting simulation uses **EVEShip.fit's dogma-engine** (MIT,
+The Fitting Audit simulation uses **EVEShip.fit's dogma-engine** (MIT,
 <https://github.com/EVEShipFit/dogma-engine>) and its patched SDE data
 (`@eveshipfit/sde`). The vendored copies live in `vendor/dogma-engine/` with
 their licenses in `LICENSE` and `LICENSE.EVE`.
@@ -37,13 +50,17 @@ the browser.
 - API documentation: <https://zkillboard.com/api/docs/>
 - MCP documentation: <https://zkillboard.com/mcp/>
 
-Abyssal mode also reads fitted-module dogma attributes from EVE ESI
-(`https://esi.evetech.net`) to simulate navigation and defense values. The UTC
-game day is obtained from Cloudflare's public `cdn-cgi/trace` endpoint.
+Fitting Audit uses the vendored dogma engine and local module fallback data; it
+does not request fitted-module attributes from ESI at runtime. The browser uses
+ESI for character/corporation/alliance names and Platinum insurance prices, and
+the EVE image service for ship, module and corporation images.
 
-Please respect zKillboard's API etiquette. Fitdle makes only the two requests
-needed for the daily target and relies on upstream Nginx / Cloudflare caching;
-it does not scrape HTML or persist API responses locally.
+The UTC game day comes from the server's configured game-day boundary; the
+browser verifies the clock against the manifest HTTP date.
+
+Please respect zKillboard's API etiquette. The browser requests target
+killmails and public ship statistics, and caches public responses locally for a
+short time; the FITDLE server does not persist those API responses.
 
 ## Fonts
 

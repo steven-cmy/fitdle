@@ -1,9 +1,9 @@
 {
   "name": "fitdle",
-  "version": "0.5.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "EVE Online daily killmail puzzle — static frontend with live zKillboard and SDE data.",
+  "description": "EVE Online killboard puzzle with a lightweight online service, EVE SSO, authoritative rooms, and a practice fallback.",
   "scripts": {
     "build": "node scripts/build-catalog.mjs && node scripts/build-dist.mjs",
     "build:killpool": "node scripts/build-killpool.mjs",
@@ -15,13 +15,14 @@
     "check:sde-cache": "node scripts/check-sde-cache.mjs",
     "update:dogma": "node scripts/update-dogma.mjs",
     "start": "node scripts/serve.mjs --root dist",
-    "serve": "node scripts/serve.mjs --root dist",
     "serve:source": "node scripts/serve.mjs --root .",
-    "test": "node tests/game.test.mjs && node tests/multiplayer.test.mjs",
+    "server:start": "node server/src/index.mjs",
+    "test": "node tests/game.test.mjs && node tests/multiplayer.test.mjs && node tests/sde-api.test.mjs",
+    "test:server": "npm test --prefix server",
     "hooks:install": "node scripts/install-git-hooks.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "license": "MIT"
 }

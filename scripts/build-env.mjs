@@ -22,25 +22,11 @@ export const DEFAULT_REVEAL = Object.freeze({
   standardEquipmentMax: 9,
   standardEquipmentDivisor: 8,
   standardCargoBudget: 6,
-  abyssEquipmentPerMiss: 1,
-  abyssOtherBase: 1,
-  abyssShortfallDivisor: 2,
-  abyssCargoDivisor: 10,
+  auditEquipmentPerMiss: 1,
+  auditOtherBase: 1,
+  auditShortfallDivisor: 2,
+  auditCargoDivisor: 10,
 });
-export const DEFAULT_DRAND = Object.freeze({
-  chain: '52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971',
-  publicKey: '83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a',
-  period: 3,
-  genesisTime: 1692803367,
-  graceSeconds: 5,
-  baseUrls: [
-    'https://api.drand.sh',
-    'https://api2.drand.sh',
-    'https://api3.drand.sh',
-    'https://drand.cloudflare.com',
-  ],
-});
-
 function parseDotEnv(contents) {
   const values = {};
   for (const rawLine of String(contents || '').split(/\r?\n/)) {
@@ -92,11 +78,6 @@ export function parseDateOnly(value) {
   return raw;
 }
 
-function positiveInt(value, fallback) {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function revealNumber(env, name, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER, integer = false } = {}) {
   const raw = env[name];
   if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
@@ -119,10 +100,10 @@ function loadRevealConfig(env) {
     standardEquipmentMax: revealNumber(env, 'FITDLE_REVEAL_STANDARD_EQUIPMENT_MAX', DEFAULT_REVEAL.standardEquipmentMax, { min: 1, max: 1000, integer: true }),
     standardEquipmentDivisor: revealNumber(env, 'FITDLE_REVEAL_STANDARD_EQUIPMENT_DIVISOR', DEFAULT_REVEAL.standardEquipmentDivisor, { min: 1, max: 1000, integer: true }),
     standardCargoBudget: revealNumber(env, 'FITDLE_REVEAL_STANDARD_CARGO_BUDGET', DEFAULT_REVEAL.standardCargoBudget, { min: 1, max: 1000, integer: true }),
-    abyssEquipmentPerMiss: revealNumber(env, 'FITDLE_REVEAL_ABYSS_EQUIPMENT_PER_MISS', DEFAULT_REVEAL.abyssEquipmentPerMiss, { min: 1, max: 100, integer: true }),
-    abyssOtherBase: revealNumber(env, 'FITDLE_REVEAL_ABYSS_OTHER_BASE', DEFAULT_REVEAL.abyssOtherBase, { min: 1, max: 100, integer: true }),
-    abyssShortfallDivisor: revealNumber(env, 'FITDLE_REVEAL_ABYSS_SHORTFALL_DIVISOR', DEFAULT_REVEAL.abyssShortfallDivisor, { min: 1, max: 100, integer: true }),
-    abyssCargoDivisor: revealNumber(env, 'FITDLE_REVEAL_ABYSS_CARGO_DIVISOR', DEFAULT_REVEAL.abyssCargoDivisor, { min: 1, max: 1000, integer: true }),
+    auditEquipmentPerMiss: revealNumber(env, 'FITDLE_REVEAL_AUDIT_EQUIPMENT_PER_MISS', DEFAULT_REVEAL.auditEquipmentPerMiss, { min: 1, max: 100, integer: true }),
+    auditOtherBase: revealNumber(env, 'FITDLE_REVEAL_AUDIT_OTHER_BASE', DEFAULT_REVEAL.auditOtherBase, { min: 1, max: 100, integer: true }),
+    auditShortfallDivisor: revealNumber(env, 'FITDLE_REVEAL_AUDIT_SHORTFALL_DIVISOR', DEFAULT_REVEAL.auditShortfallDivisor, { min: 1, max: 100, integer: true }),
+    auditCargoDivisor: revealNumber(env, 'FITDLE_REVEAL_AUDIT_CARGO_DIVISOR', DEFAULT_REVEAL.auditCargoDivisor, { min: 1, max: 1000, integer: true }),
   };
   if (reveal.openingMaxClues < reveal.openingMinClues) {
     throw new Error('FITDLE_REVEAL_OPENING_MAX_CLUES must be >= FITDLE_REVEAL_OPENING_MIN_CLUES');
@@ -150,14 +131,6 @@ export function loadBuildConfig(root) {
     { min: 1, max: 100, integer: true },
   );
   const reveal = loadRevealConfig(env);
-  const chain = String(env.FITDLE_DRAND_CHAIN || DEFAULT_DRAND.chain).trim();
-  if (!/^[0-9a-f]{64}$/i.test(chain)) {
-    throw new Error('FITDLE_DRAND_CHAIN must be a 64-character lowercase hex chain hash');
-  }
-  const publicKey = String(env.FITDLE_DRAND_PUBLIC_KEY || DEFAULT_DRAND.publicKey).trim();
-  if (!/^[0-9a-f]+$/i.test(publicKey)) {
-    throw new Error('FITDLE_DRAND_PUBLIC_KEY must be hex');
-  }
   return {
     gameDayStartUtc: gameDayStart.text,
     gameDayStartMinutes: gameDayStart.minutes,
@@ -165,13 +138,5 @@ export function loadBuildConfig(root) {
     kbRecencyHalfLifeDays,
     kbMaxScanPages,
     reveal,
-    beacon: {
-      baseUrls: DEFAULT_DRAND.baseUrls,
-      chain,
-      publicKey,
-      period: positiveInt(env.FITDLE_DRAND_PERIOD, DEFAULT_DRAND.period),
-      genesisTime: positiveInt(env.FITDLE_DRAND_GENESIS, DEFAULT_DRAND.genesisTime),
-      graceSeconds: positiveInt(env.FITDLE_DRAND_GRACE_SECONDS, DEFAULT_DRAND.graceSeconds),
-    },
   };
 }

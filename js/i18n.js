@@ -4,7 +4,8 @@
  */
 
 export const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
-import { MP_MESSAGES } from './mp/messages.js';
+import { ONLINE_MESSAGES } from './online/messages.js';
+import { BRAND_MESSAGES } from './brand-copy.js';
 
 export const LOCALE_META = {
   en: { label: 'English', intl: 'en-US' },
@@ -22,12 +23,10 @@ const en = {
   'app.subtitle': 'DAILY KILLBOARD',
   'app.description': 'A daily EVE Online killboard puzzle. Read the fittings, destroy the hull.',
   'header.reset': 'NEXT TARGET IN',
-  'header.archive': 'ARCHIVE',
   'header.playToday': 'PLAY TODAY',
   'header.language': 'LANGUAGE',
   'header.help': 'FIELD MANUAL',
   'header.newTarget': 'A NEW TARGET IS AVAILABLE',
-  'header.snapshot': 'INTEL SNAPSHOT',
   'hero.kicker': 'TQ // DAILY INTELLIGENCE',
   'hero.title': 'DESTROY THE HULL',
   'hero.body': 'Six attempts. One ship. Its fittings and vital statistics are sealed behind progressively declassified intelligence. Read the killmails. Destroy the hull.',
@@ -107,9 +106,7 @@ const en = {
   'clue.calibration': 'Calibration',
   'clue.targetRange': 'Targeting range',
   'clue.scanRes': 'Scan resolution',
-  'clue.avgValue': 'Typical loss value',
   'clue.losses30': 'Losses · 90 days',
-  'clue.iskLost30': 'ISK lost · 90 days',
   'clue.danger': 'Danger index',
   'clue.bonus': 'Hull bonuses',
   'clue.bonusRole': 'Role Bonus',
@@ -136,7 +133,6 @@ const en = {
   'end.share': 'SHARE BRIEFING',
   'end.copied': 'BRIEFING LINK COPIED',
   'end.copyFailed': 'Copy failed — select the link below',
-  'end.zkb': 'OPEN zKILLBOARD',
   'end.killmail': 'VIEW KILLMAIL',
   'end.killboard': 'VIEW KILLBOARD',
   'end.review': 'REVIEW DOSSIER',
@@ -211,12 +207,10 @@ const zh = {
   'app.subtitle': '每日击杀挑战',
   'app.description': 'EVE Online 每日击杀谜题。读取装配与击杀情报，锁定并击杀目标。',
   'header.reset': '距离下一个目标',
-  'header.archive': '档案模式',
   'header.playToday': '返回今日',
   'header.language': '语言',
   'header.help': '战地手册',
   'header.newTarget': '新的每日目标已就绪',
-  'header.snapshot': '情报快照',
   'hero.kicker': 'TQ // 每日情报',
   'hero.title': '击杀目标',
   'hero.body': '六次尝试，一艘目标。它的装备与关键属性被封存在逐步解密的情报中。读取击杀记录，完成击杀。',
@@ -296,9 +290,7 @@ const zh = {
   'clue.calibration': '校准值',
   'clue.targetRange': '锁定范围上限',
   'clue.scanRes': '扫描分辨率',
-  'clue.avgValue': '典型损失价值',
   'clue.losses30': '90 天损失数',
-  'clue.iskLost30': '90 天损失 ISK',
   'clue.danger': '危险指数',
   'clue.bonus': '舰船加成',
   'clue.bonusRole': '角色加成',
@@ -325,7 +317,6 @@ const zh = {
   'end.share': '分享简报',
   'end.copied': '简报链接已复制',
   'end.copyFailed': '复制失败——请手动选择下方链接',
-  'end.zkb': '打开 zKillboard',
   'end.killmail': '查看对应击杀',
   'end.killboard': '查看击杀板',
   'end.review': '查看档案',
@@ -400,12 +391,10 @@ const de = {
   'app.subtitle': 'TÄGLICHES KILLBOARD',
   'app.description': 'Ein tägliches EVE-Online-Killboard-Rätsel. Lies die Fittings, zerstöre die Hülle.',
   'header.reset': 'NÄCHSTES ZIEL IN',
-  'header.archive': 'ARCHIV',
   'header.playToday': 'HEUTE SPIELEN',
   'header.language': 'SPRACHE',
   'header.help': 'HANDBUCH',
   'header.newTarget': 'EIN NEUES ZIEL IST VERFÜGBAR',
-  'header.snapshot': 'INTEL-SNAPSHOT',
   'hero.kicker': 'TQ // TÄGLICHE AUFKLÄRUNG',
   'hero.title': 'ZERSTÖRE DIE HÜLLE',
   'hero.body': 'Sechs Versuche. Ein Schiff. Seine Fittings und Kennzahlen liegen hinter schrittweise freigegebener Aufklärung. Lies die Killmails. Zerstöre die Hülle.',
@@ -485,9 +474,7 @@ const de = {
   'clue.calibration': 'Kalibrierung',
   'clue.targetRange': 'Zielerfassungsreichweite',
   'clue.scanRes': 'Scanauflösung',
-  'clue.avgValue': 'Typischer Verlustwert',
   'clue.losses30': 'Verluste · 90 Tage',
-  'clue.iskLost30': 'ISK verloren · 90 Tage',
   'clue.danger': 'Gefahrenindex',
   'clue.bonus': 'Hüllen-Boni',
   'clue.bonusRole': 'Rollenbonus',
@@ -514,7 +501,6 @@ const de = {
   'end.share': 'BRIEFING TEILEN',
   'end.copied': 'BRIEFING-LINK KOPIERT',
   'end.copyFailed': 'Kopieren fehlgeschlagen — Link unten auswählen',
-  'end.zkb': 'zKILLBOARD ÖFFNEN',
   'end.killmail': 'KILLMAIL ANSEHEN',
   'end.killboard': 'KILLBOARD ANSEHEN',
   'end.review': 'DOSSIER ANSEHEN',
@@ -589,12 +575,10 @@ const es = {
   'app.subtitle': 'KILLBOARD DIARIO',
   'app.description': 'Un puzzle diario de killboard de EVE Online. Lee los ajustes, destruye el casco.',
   'header.reset': 'PRÓXIMO OBJETIVO EN',
-  'header.archive': 'ARCHIVO',
   'header.playToday': 'JUGAR HOY',
   'header.language': 'IDIOMA',
   'header.help': 'MANUAL DE CAMPO',
   'header.newTarget': 'HAY UN NUEVO OBJETIVO DISPONIBLE',
-  'header.snapshot': 'CAPTURA DE INTELIGENCIA',
   'hero.kicker': 'TQ // INTELIGENCIA DIARIA',
   'hero.title': 'DESTRUYE EL CASCO',
   'hero.body': 'Seis intentos. Una nave. Sus ajustes y estadísticas vitales están sellados tras inteligencia que se desclasifica por etapas. Lee los killmails. Destruye el casco.',
@@ -674,9 +658,7 @@ const es = {
   'clue.calibration': 'Calibración',
   'clue.targetRange': 'Alcance de objetivo',
   'clue.scanRes': 'Resolución de escaneo',
-  'clue.avgValue': 'Valor de pérdida típico',
   'clue.losses30': 'Pérdidas · 90 días',
-  'clue.iskLost30': 'ISK perdidos · 90 días',
   'clue.danger': 'Índice de peligro',
   'clue.bonus': 'Bonificaciones de casco',
   'clue.bonusRole': 'Bonificación de rol',
@@ -703,7 +685,6 @@ const es = {
   'end.share': 'COMPARTIR INFORME',
   'end.copied': 'ENLACE DEL INFORME COPIADO',
   'end.copyFailed': 'No se pudo copiar; selecciona el enlace de abajo',
-  'end.zkb': 'ABRIR zKILLBOARD',
   'end.killmail': 'VER KILLMAIL',
   'end.killboard': 'VER KILLBOARD',
   'end.review': 'VER DOSSIER',
@@ -778,12 +759,10 @@ const fr = {
   'app.subtitle': 'KILLBOARD QUOTIDIEN',
   'app.description': 'Un puzzle quotidien de killboard EVE Online. Lisez les fittings, détruisez la coque.',
   'header.reset': 'PROCHAINE CIBLE DANS',
-  'header.archive': 'ARCHIVES',
   'header.playToday': 'JOUER AUJOURD’HUI',
   'header.language': 'LANGUE',
   'header.help': 'MANUEL DE TERRAIN',
   'header.newTarget': 'UNE NOUVELLE CIBLE EST DISPONIBLE',
-  'header.snapshot': 'SNAPSHOT RENSEIGNEMENT',
   'hero.kicker': 'TQ // RENSEIGNEMENT QUOTIDIEN',
   'hero.title': 'DÉTRUISEZ LA COQUE',
   'hero.body': 'Six tentatives. Un vaisseau. Ses fittings et statistiques vitales sont scellés derrière des renseignements déclassifiés par étapes. Lisez les killmails. Détruisez la coque.',
@@ -863,9 +842,7 @@ const fr = {
   'clue.calibration': 'Calibration',
   'clue.targetRange': 'Portée de ciblage',
   'clue.scanRes': 'Résolution de scan',
-  'clue.avgValue': 'Valeur de perte typique',
   'clue.losses30': 'Pertes · 90 jours',
-  'clue.iskLost30': 'ISK perdus · 90 jours',
   'clue.danger': 'Indice de danger',
   'clue.bonus': 'Bonus de coque',
   'clue.bonusRole': 'Bonus de rôle',
@@ -892,7 +869,6 @@ const fr = {
   'end.share': 'PARTAGER LE RAPPORT',
   'end.copied': 'LIEN DU RAPPORT COPIÉ',
   'end.copyFailed': 'Copie impossible — sélectionnez le lien ci-dessous',
-  'end.zkb': 'OUVRIR zKILLBOARD',
   'end.killmail': 'VOIR LE KILLMAIL',
   'end.killboard': 'VOIR LE KILLBOARD',
   'end.review': 'VOIR LE DOSSIER',
@@ -967,12 +943,10 @@ const ja = {
   'app.subtitle': '毎日のキルボード',
   'app.description': 'EVE Online の毎日キルボードパズル。装備を読み、船体を撃破しよう。',
   'header.reset': '次のターゲットまで',
-  'header.archive': 'アーカイブ',
   'header.playToday': '今日をプレイ',
   'header.language': '言語',
   'header.help': 'フィールドマニュアル',
   'header.newTarget': '新しいターゲットが公開されました',
-  'header.snapshot': 'インテル・スナップショット',
   'hero.kicker': 'TQ // デイリー・インテリジェンス',
   'hero.title': '船体を撃破せよ',
   'hero.body': '試行は6回、ターゲットは1隻。装備と主要諸元は段階的に機密解除されるインテルの中に封じられている。キルメールを読み、船体を撃破せよ。',
@@ -1052,9 +1026,7 @@ const ja = {
   'clue.calibration': 'キャリブレーション',
   'clue.targetRange': 'ターゲット範囲',
   'clue.scanRes': 'スキャン分解能',
-  'clue.avgValue': '典型的な損失額',
   'clue.losses30': '損失 · 90日',
-  'clue.iskLost30': 'ISK 損失 · 90日',
   'clue.danger': '危険度',
   'clue.bonus': '船体ボーナス',
   'clue.bonusRole': 'ロールボーナス',
@@ -1081,7 +1053,6 @@ const ja = {
   'end.share': 'ブリーフィングを共有',
   'end.copied': 'ブリーフィングリンクをコピーしました',
   'end.copyFailed': 'コピー失敗 — 下のリンクを選択してください',
-  'end.zkb': 'zKILLBOARD を開く',
   'end.killmail': 'キルメールを見る',
   'end.killboard': 'キルボードを見る',
   'end.review': 'ドシエを見る',
@@ -1156,12 +1127,10 @@ const ko = {
   'app.subtitle': '매일 킬보드',
   'app.description': 'EVE Online 일일 킬보드 퍼즐. 장비를 읽고 선체를 격파하세요.',
   'header.reset': '다음 목표까지',
-  'header.archive': '아카이브',
   'header.playToday': '오늘 플레이',
   'header.language': '언어',
   'header.help': '필드 매뉴얼',
   'header.newTarget': '새 목표가 준비되었습니다',
-  'header.snapshot': '정보 스냅샷',
   'hero.kicker': 'TQ // 일일 정보',
   'hero.title': '선체를 격파하라',
   'hero.body': '여섯 번의 시도, 단 하나의 함선. 장비와 주요 제원은 단계적으로 해제되는 정보 속에 봉인되어 있습니다. 킬메일을 읽고 선체를 격파하세요.',
@@ -1241,9 +1210,7 @@ const ko = {
   'clue.calibration': '교정치',
   'clue.targetRange': '타겟팅 거리',
   'clue.scanRes': '스캔 정밀도',
-  'clue.avgValue': '일반 손실 가치',
   'clue.losses30': '손실 · 90일',
-  'clue.iskLost30': 'ISK 손실 · 90일',
   'clue.danger': '위험 지수',
   'clue.bonus': '선체 보너스',
   'clue.bonusRole': '역할 보너스',
@@ -1270,7 +1237,6 @@ const ko = {
   'end.share': '브리핑 공유',
   'end.copied': '브리핑 링크 복사됨',
   'end.copyFailed': '복사 실패 — 아래 링크를 선택하세요',
-  'end.zkb': 'zKILLBOARD 열기',
   'end.killmail': '킬메일 보기',
   'end.killboard': '킬보드 보기',
   'end.review': '문서 보기',
@@ -1345,12 +1311,10 @@ const ru = {
   'app.subtitle': 'ЕЖЕДНЕВНЫЙ KILLBOARD',
   'app.description': 'Ежедневная killboard-головоломка EVE Online. Читайте фитинги, уничтожайте корпус.',
   'header.reset': 'СЛЕДУЮЩАЯ ЦЕЛЬ ЧЕРЕЗ',
-  'header.archive': 'АРХИВ',
   'header.playToday': 'ИГРАТЬ СЕГОДНЯ',
   'header.language': 'ЯЗЫК',
   'header.help': 'ПОЛЕВОЕ РУКОВОДСТВО',
   'header.newTarget': 'ДОСТУПНА НОВАЯ ЦЕЛЬ',
-  'header.snapshot': 'СНИМОК РАЗВЕДКИ',
   'hero.kicker': 'TQ // ЕЖЕДНЕВНАЯ РАЗВЕДКА',
   'hero.title': 'УНИЧТОЖЬТЕ КОРПУС',
   'hero.body': 'Шесть попыток. Один корабль. Его фитинг и ключевые характеристики скрыты за постепенно рассекречиваемой разведкой. Прочитайте килмейлы. Уничтожьте корпус.',
@@ -1430,9 +1394,7 @@ const ru = {
   'clue.calibration': 'Калибровка',
   'clue.targetRange': 'Дальность захвата',
   'clue.scanRes': 'Разрешение сканера',
-  'clue.avgValue': 'Типичная стоимость потери',
   'clue.losses30': 'Потери · 90 дней',
-  'clue.iskLost30': 'Потеряно ISK · 90 дней',
   'clue.danger': 'Индекс опасности',
   'clue.bonus': 'Бонусы корпуса',
   'clue.bonusRole': 'Ролевой бонус',
@@ -1459,7 +1421,6 @@ const ru = {
   'end.share': 'ПОДЕЛИТЬСЯ СВОДКОЙ',
   'end.copied': 'ССЫЛКА НА СВОДКУ СКОПИРОВАНА',
   'end.copyFailed': 'Не удалось скопировать — выберите ссылку ниже',
-  'end.zkb': 'ОТКРЫТЬ zKILLBOARD',
   'end.killmail': 'ОТКРЫТЬ КИЛМЕЙЛ',
   'end.killboard': 'ОТКРЫТЬ KILLBOARD',
   'end.review': 'ОТКРЫТЬ ДОСЬЕ',
@@ -1567,8 +1528,8 @@ const EXTRAS = {
   'mode.standard': {
     en: 'STANDARD', de: 'STANDARD', es: 'ESTÁNDAR', fr: 'STANDARD', ja: '標準', ko: '표준', ru: 'СТАНДАРТ', zh: '标准',
   },
-  'mode.abyss': {
-    en: 'ABYSS', de: 'ABYSS', es: 'ABISMO', fr: 'ABYSS', ja: 'アビス', ko: '어비설', ru: 'БЕЗДНА', zh: '深渊',
+  'mode.audit': {
+    en: 'AUDIT', de: 'AUDIT', es: 'AUDITORÍA DE AJUSTES', fr: 'AUDIT', ja: '装備監査', ko: '장비 감사', ru: 'АУДИТ ОСНАСТКИ', zh: '装配审计',
   },
   'mode.standardHint': {
     en: 'Base stats + live killmails. Misses release fittings; matches release shared clues.',
@@ -1580,15 +1541,15 @@ const EXTRAS = {
     ru: 'Базовые данные + живые килмейлы. Промах раскрывает модули, совпадение — общие подсказки.',
     zh: '基础属性 + 实时击杀。猜错揭示装备；相同线索才揭示。',
   },
-  'mode.abyssHint': {
-    en: 'ABYSSAL: simulated fittings, rarer hulls, +1..+5 equipment +1 intel.',
-    de: 'ABYSS: simulierte Fittings, seltenere Hüllen, +1/+2/+3 Infos.',
-    es: 'ABISMO: ajustes simulados, cascos más raros, +1/+2/+3 pistas.',
-    fr: 'ABYSS : fittings simulés, coques plus rares, +1/+2/+3 indices.',
-    ja: 'アビス: 装備シミュレーション、希少船体、+1/+2/+3情報。',
-    ko: '어비설: 장비 시뮬레이션, 희귀 선체, +1/+2/+3 정보.',
-    ru: 'БЕЗДНА: симуляция фитинга, редкие корпуса, +1/+2/+3 данных.',
-    zh: '深渊：装备模拟、稀有船体，+1~+5 装备线索 +1 其他线索。',
+  'mode.auditHint': {
+    en: 'AUDIT: simulated fittings, rarer hulls, +1..+5 equipment +1 intel.',
+    de: 'AUDIT: simulierte Fittings, seltenere Hüllen, +1/+2/+3 Infos.',
+    es: 'AUDITORÍA DE AJUSTES: ajustes simulados, cascos más raros, +1/+2/+3 pistas.',
+    fr: 'AUDIT : fittings simulés, coques plus rares, +1/+2/+3 indices.',
+    ja: '装備監査: 装備シミュレーション、希少船体、+1/+2/+3情報。',
+    ko: '장비 감사: 장비 시뮬레이션, 희귀 선체, +1/+2/+3 정보.',
+    ru: 'АУДИТ ОСНАСТКИ: симуляция фитинга, редкие корпуса, +1/+2/+3 данных.',
+    zh: '装配审计：装备模拟、稀有船体，+1~+5 装备线索 +1 其他线索。',
   },
   'clue.kbValue': { en: 'KILLMAIL VALUE', de: 'KILLMAIL-WERT', es: 'VALOR DEL KILLMAIL', fr: 'VALEUR DU KILLMAIL', ja: 'キルメール価値', ko: '킬메일 가치', ru: 'СТОИМОСТЬ КИЛМЕЙЛА', zh: '击杀总价值' },
   'clue.sensorStrength': {
@@ -1724,9 +1685,9 @@ const EXTRAS = {
     en: 'STANDARD MODE', de: 'STANDARDMODUS', es: 'MODO ESTÁNDAR', fr: 'MODE STANDARD',
     ja: '標準モード', ko: '표준 모드', ru: 'СТАНДАРТНЫЙ РЕЖИМ', zh: '标准模式',
   },
-  'mode.helpAbyssTitle': {
-    en: 'ABYSSAL MODE', de: 'ABYSS-MODUS', es: 'MODO ABISMO', fr: 'MODE ABYSS',
-    ja: 'アビスモード', ko: '어비설 모드', ru: 'РЕЖИМ БЕЗДНЫ', zh: '深渊模式',
+  'mode.helpAuditTitle': {
+    en: 'AUDIT MODE', de: 'AUDIT-MODUS', es: 'MODO AUDITORÍA DE AJUSTES', fr: 'MODE AUDIT',
+    ja: '装備監査モード', ko: '장비 감사 모드', ru: 'АУДИТ ОСНАСТКИ', zh: '装配审计模式',
   },
   'mode.helpNormal': {
     en: 'Initial clues are drawn by a weight threshold.\nEach miss reveals up to 2 fittings.\nOther clues only reveal when your guess shares the same value.\nTraits and fittings counts stay hidden until fully revealed.\nRandom opening clues avoid combinations that would leave only a handful of hulls.',
@@ -1738,7 +1699,7 @@ const EXTRAS = {
     ru: 'Начальные подсказки выбираются по порогу веса.\nКаждый промах раскрывает до 2 модулей.\nОстальные подсказки появляются только при совпадении значения.\nКоличество бонусов и модулей скрыто до полного раскрытия.\nНачальные подсказки избегают комбинаций, оставляющих слишком мало корпусов.',
     zh: '初始线索按权重阈值动态抽取。\n每次猜错最多揭示 2 件装备。\n其他线索只在你猜的船与答案具有相同值时揭示。\n加成和装备数量在完全揭示前保持隐藏。\n开局随机线索会避免让候选只剩极少舰船的组合。',
   },
-  'mode.helpAbyss': {
+  'mode.helpAudit': {
     en: 'Navigation and defense are simulated from fitted modules.\nRare and specialised hulls are more likely to be selected.\nEach miss reveals +1..+5 equipment clues and one weighted other clue.\nTraits and fittings counts stay hidden until fully revealed.',
     de: 'Navigation und Verteidigung werden aus Fittings simuliert.\nSeltene und spezialisierte Hüllen werden häufiger gewählt.\nFehlversuche geben +1, +2, +3, +4, +5 Hinweise frei.\nBoni- und Fitting-Anzahl bleiben bis zur vollständigen Freigabe verborgen.',
     es: 'Navegación y defensa se simulan desde los ajustes.\nLos cascos raros y especializados son más probables.\nLos fallos revelan +1, +2, +3, +4, +5 pistas.\nEl número de bonos y ajustes permanece oculto hasta revelarse.',
@@ -1895,10 +1856,6 @@ const RENAMES = {
     en: 'TRACKING KILLS', de: 'KILLS IM BLICK', es: 'RASTREANDO KILLS', fr: 'KILLS SUIVIS',
     ja: 'キル追跡中', ko: '킬 추적 중', ru: 'ОТСЛЕЖИВАНИЕ КИЛЛОВ', zh: '追踪击杀',
   },
-  'header.snapshot': {
-    en: 'KILLBOARD SNAPSHOT', de: 'KILLBOARD-SNAPSHOT', es: 'SNAPSHOT KILLBOARD', fr: 'SNAPSHOT KILLBOARD',
-    ja: 'キルボード・スナップショット', ko: '킬보드 스냅샷', ru: 'СНИМОК KILLBOARD', zh: '击杀板快照',
-  },
   'end.intel': {
     en: 'KILLMAIL INTEL PARSED', de: 'KILLMAIL-INTEL GEPARST', es: 'INTEL DE KILLMAIL ANALIZADA', fr: 'INTEL KILLMAIL ANALYSÉ',
     ja: 'キルメール情報を解析', ko: '킬메일 정보 분석', ru: 'ДАННЫЕ КИЛМЕЙЛОВ РАСШИФРОВАНЫ', zh: '已解析击杀情报',
@@ -1917,14 +1874,14 @@ const RENAMES = {
     ja: '+{n} キルメール情報', ko: '+{n} 킬메일 정보', ru: '+{n} данных килмейлов', zh: '+{n} 条击杀情报',
   },
   'help.step1': {
-    en: 'Standard releases equipment on a miss, and only shared clues when your guess matches. Abyssal starts at +1 and increases by one each miss.',
-    de: 'Standard gibt bei Fehlversuch Fittings frei und nur gemeinsame Hinweise bei Übereinstimmung. Abyss beginnt bei +1 und steigert sich pro Fehlversuch.',
+    en: 'Standard releases equipment on a miss, and only shared clues when your guess matches. Audit starts at +1 and increases by one each miss.',
+    de: 'Standard gibt bei Fehlversuch Fittings frei und nur gemeinsame Hinweise bei Übereinstimmung. Audit beginnt bei +1 und steigert sich pro Fehlversuch.',
     es: 'El estándar libera ajustes al fallar y solo pistas compartidas al acertar. Abismo empieza en +1 y sube uno por fallo.',
-    fr: 'Le standard libère des fittings en cas d’erreur et seulement des indices partagés en cas de correspondance. Abyss commence à +1 et augmente d’un par erreur.',
-    ja: '標準は誤答で装備、一致で共通ヒントのみ公開。アビスは+1から始まり誤答ごとに1件ずつ増えます。',
-    ko: '표준은 오답 시 장비, 일치 시 공통 단서만 공개합니다. 어비설은 +1부터 시작해 오답마다 1개씩 증가합니다.',
-    ru: 'Стандарт раскрывает модули за промах и только общие подсказки при совпадении. Бездна начинается с +1 и растёт на один.',
-    zh: '标准模式猜错揭示装备，只有与答案相同的线索才会揭示；深渊模式从 +1 开始，逐次递增。',
+    fr: 'Le standard libère des fittings en cas d’erreur et seulement des indices partagés en cas de correspondance. Audit commence à +1 et augmente d’un par erreur.',
+    ja: '標準は誤答で装備、一致で共通ヒントのみ公開。装備監査は+1から始まり誤答ごとに1件ずつ増えます。',
+    ko: '표준은 오답 시 장비, 일치 시 공통 단서만 공개합니다. 장비 감사은 +1부터 시작해 오답마다 1개씩 증가합니다.',
+    ru: 'Стандарт раскрывает модули за промах и только общие подсказки при совпадении. Аудит оснастки начинается с +1 и растёт на один.',
+    zh: '标准模式猜错揭示装备，只有与答案相同的线索才会揭示；装配审计模式从 +1 开始，逐次递增。',
   },
   'help.step2': {
     en: 'Search any hull in any official client language. Six attempts. One target per EVE downtime (11:00 UTC).',
@@ -1993,7 +1950,7 @@ Object.assign(RENAMES, {
     ru: 'Неверные ответы раскрывают оборудование по бюджету количества и веса.\nСначала появляется оборудование с низким весом; выбор тяжёлого уменьшает число раскрытий.\nДругие подсказки открываются, когда ответ совпадает со значением цели.',
     zh: '猜错时按数量与权重预算揭示装备。\n低权重装备更容易先出现；抽到高权重装备会减少揭示数量。\n当猜测与目标拥有相同数值时，揭示其他线索。',
   },
-  'mode.helpAbyss': {
+  'mode.helpAudit': {
     en: 'All-V skills and every fitted module are simulated as active.\nRare and low-usage hulls are more likely than in standard mode.\nEach miss adds +1..+5 equipment clues, plus one weighted other clue.\nIf equipment runs short, the uncovered quota is halved (rounded up) into additional other clues; all picks follow the weight rule.',
     de: 'Alle V-Skills und jedes montierte Modul werden als aktiv simuliert.\nSeltene und wenig genutzte Hüllen sind wahrscheinlicher als im Standardmodus.\nJeder Fehlversuch fügt +1/+2/+3/+4/+5 Hinweise hinzu.\nOhne Ausrüstung oder nach vollständiger Ausrüstungsaufdeckung entfallen diese Hinweise auf andere Informationen.',
     es: 'Se simulan habilidades a V y todos los módulos equipados como activos.\nLos cascos raros y poco usados son más probables que en el modo estándar.\nCada fallo añade +1/+2/+3/+4/+5 pistas.\nSin equipo, o cuando todo el equipo ya se ha revelado, esas pistas recaen en otra información.',
@@ -2036,17 +1993,17 @@ Object.assign(RENAMES, {
     ru: 'Офицерский модуль. :O Дорого!',
     zh: '官员级装备。:O 好贵！',
   },
-  'dossier.abyssHint': {
-    en: 'Abyssal module; calculated with the closest matching representative.',
+  'dossier.auditHint': {
+    en: 'Audit module; calculated with the closest matching representative.',
     de: 'Abgrundmodul; Berechnung mit dem nächstliegenden passenden Vertreter.',
     es: 'Módulo abisal; se calcula con el representante compatible más cercano.',
-    fr: 'Module abyssal ; calculé avec le représentant compatible le plus proche.',
-    ja: 'アビサルモジュール。最も近い同型代表で計算します。',
-    ko: '어비설 모듈. 가장 가까운 동일 계열 대표로 계산합니다.',
+    fr: 'Module audit ; calculé avec le représentant compatible le plus proche.',
+    ja: '装備監査モジュール。最も近い同型代表で計算します。',
+    ko: '장비 감사 모듈. 가장 가까운 동일 계열 대표로 계산합니다.',
     ru: 'Абиссальный модуль; расчёт по ближайшему подходящему представителю.',
-    zh: '深渊装备；按最接近的同类代表计算。',
+    zh: '装配审计装备；按最接近的同类代表计算。',
   },
-  'dossier.abyssCalc': {
+  'dossier.auditCalc': {
     en: 'Calculation: {name}',
     de: 'Berechnung: {name}',
     es: 'Cálculo: {name}',
@@ -2276,9 +2233,9 @@ Object.assign(RENAMES, {
     en: 'OFFICER', de: 'OFFIZIER', es: 'OFICIAL', fr: 'OFFICIER',
     ja: 'オフィサー', ko: '오피서', ru: 'ОФИЦЕР', zh: '官员',
   },
-  'dossier.abyss': {
-    en: 'ABYSSAL', de: 'ABGRUND', es: 'ABISAL', fr: 'ABYSSAL',
-    ja: 'アビサル', ko: '어비설', ru: 'АБИССАЛЬНЫЙ', zh: '深渊',
+  'dossier.audit': {
+    en: 'AUDIT', de: 'ABGRUND', es: 'ABISAL', fr: 'AUDIT',
+    ja: '装備監査', ko: '장비 감사', ru: 'АУДИТ ОСНАСТКИ', zh: '装配审计',
   },
   'dossier.plex': {
     en: 'PLEX ???', de: 'PLEX ???', es: 'PLEX ???', fr: 'PLEX ???',
@@ -2337,14 +2294,14 @@ Object.assign(RENAMES, {
     ja: 'タイム', ko: '타임', ru: 'НА ВРЕМЯ', zh: '计时',
   },
   'mode.timedHint': {
-    en: 'An unscored alternate ruleset for Standard and Abyss.',
-    de: 'Ein ungewerteter alternativer Regelsatz für Standard und Abyss.',
+    en: 'An unscored alternate ruleset for Standard and Audit.',
+    de: 'Ein ungewerteter alternativer Regelsatz für Standard und Audit.',
     es: 'Un conjunto de reglas alternativo sin puntuación para Estándar y Abismo.',
-    fr: 'Une variante de règles non classée pour Standard et Abysse.',
-    ja: 'スタンダードとアビスのための、スコア対象外の別ルール。',
+    fr: 'Une variante de règles non classée pour Standard et Audite.',
+    ja: 'スタンダードと装備監査のための、スコア対象外の別ルール。',
     ko: '스탠다드와 어비스를 위한 점수 미반영 대체 규칙입니다.',
     ru: 'Альтернативные правила без очков для стандартного и безднового режимов.',
-    zh: '普通与深渊模式的无计分替代规则。',
+    zh: '普通与装配审计模式的无计分替代规则。',
   },
   'mode.helpTimed': {
     en: 'No clues are shown before you press start.\nPressing start begins the timer, reveals the opening intel, and shows the ship input.\nAttempts are unlimited. A weighted clue is released every 30 seconds; guesses do not release clues. Each target lock has a 5-second cooldown. If every usable clue is already revealed, the next scheduled release fails the run.\nThe timed target uses a different daily killmail seed.\nCorrectly naming the ship stops the timer and settles your elapsed time.\nHold the timer button for 3 seconds to give up; the red fill marks the hold. The answer is then revealed.\nProgress is saved without affecting score or streaks; data updates and progress reset clear it.',
@@ -2484,7 +2441,7 @@ Object.assign(RENAMES, {
     ru: `Шесть попыток. Промахи раскрывают установленное оборудование, совпадения — общие значения.`,
     zh: `六次尝试。猜错揭示已装配装备，猜中揭示共同数值。`,
   },
-  'mode.abyssHint': {
+  'mode.auditHint': {
     en: `Six attempts. Simulated all-V fittings, rarer hulls, larger reveal steps.`,
     de: `Sechs Versuche. Simulierte All-V-Fittings, seltenere Hüllen, größere Schritte.`,
     es: `Seis intentos. Ajustes simulados a V, cascos más raros, revelaciones mayores.`,
@@ -2515,14 +2472,14 @@ Object.assign(RENAMES, {
     zh: `游玩指定击杀，或随机刷新一个目标。若指定击杀与今日每日目标一致，会进入每日模式；否则保持自由模式且不计分。自由模式的独立连胜只通过随机刷新累积。`,
   },
   'help.step1': {
-    en: `Each UTC day has one target. Standard and Abyss give six attempts; Timed is unlimited.`,
-    de: `Jeder UTC-Tag hat ein Ziel. Standard und Abyss geben sechs Versuche; Timed ist unbegrenzt.`,
+    en: `Each UTC day has one target. Standard and Audit give six attempts; Timed is unlimited.`,
+    de: `Jeder UTC-Tag hat ein Ziel. Standard und Audit geben sechs Versuche; Timed ist unbegrenzt.`,
     es: `Cada día UTC tiene un objetivo. Estándar y Abismo dan seis intentos; Crono es ilimitado.`,
-    fr: `Chaque jour UTC a une cible. Standard et Abysse donnent six tentatives ; Chrono est illimité.`,
-    ja: `UTCごとに1つの目標。スタンダードとアビスは6回、タイムは無制限です。`,
+    fr: `Chaque jour UTC a une cible. Standard et Audite donnent six tentatives ; Chrono est illimité.`,
+    ja: `UTCごとに1つの目標。スタンダードと装備監査は6回、タイムは無制限です。`,
     ko: `UTC 기준 하루에 목표 하나. 스탠다드와 어비스는 6회, 타임은 무제한입니다.`,
     ru: `На каждый день UTC — одна цель. В стандартном и бездновом режимах шесть попыток, на время — без ограничений.`,
-    zh: `每个 UTC 日一个目标。普通和深渊有六次尝试；计时模式不限次数。`,
+    zh: `每个 UTC 日一个目标。普通和装配审计有六次尝试；计时模式不限次数。`,
   },
   'help.step2': {
     en: `Search by ship name, race, hull class or abbreviation in any supported language.`,
@@ -2556,11 +2513,11 @@ Object.assign(RENAMES, {
   },
   'help.sharedRules': {
     en: `One target per UTC day; reset at 11:00 UTC.
-Standard and Abyss: six attempts.
+Standard and Audit: six attempts.
 Timed: unlimited attempts.
 Free and Timed runs do not affect score or streaks.`,
     de: `Ein Ziel pro UTC-Tag; Reset um 11:00 UTC.
-Standard und Abyss: sechs Versuche.
+Standard und Audit: sechs Versuche.
 Timed: unbegrenzte Versuche.
 Freies Spiel und Timed beeinflussen weder Wertung noch Serie.`,
     es: `Un objetivo por día UTC; reinicio a las 11:00 UTC.
@@ -2568,21 +2525,21 @@ Estándar y Abismo: seis intentos.
 Crono: intentos ilimitados.
 Libre y Crono no afectan a la puntuación ni a las rachas.`,
     fr: `Une cible par jour UTC ; réinitialisation à 11:00 UTC.
-Standard et Abysse : six tentatives.
+Standard et Audite : six tentatives.
 Chrono : tentatives illimitées.
 Libre et Chrono n’affectent ni le score ni les séries.`,
     ja: `UTCごとに目標は1つ。11:00 UTCにリセット。
-スタンダードとアビスは6回、タイムは無制限。
+スタンダードと装備監査は6回、タイムは無制限。
 フリーとタイムはスコアや連勝に影響しません。`,
     ko: `UTC 기준 하루에 목표 하나. 11:00 UTC 초기화.
 스탠다드와 어비스는 6회, 타임은 무제한.
 자유와 타임은 점수와 연승에 영향을 주지 않습니다.`,
     ru: `Одна цель на день UTC; сброс в 11:00 UTC.
-Стандарт и Бездна: шесть попыток.
+Стандарт и Аудит оснастки: шесть попыток.
 На время: без ограничений.
 Свободная игра и режим на время не влияют на очки и серии.`,
     zh: `每个 UTC 日一个目标，11:00 UTC 重置。
-普通和深渊：六次尝试。
+普通和装配审计：六次尝试。
 计时：无限次尝试。
 自由和计时模式不计分、不影响连胜。`,
   },
@@ -2636,20 +2593,20 @@ Les résistances de structure sont toujours visibles et ne réduisent pas la coq
 船体加成和货仓有独立线索。
 结构抗性始终显示，但不会缩小船体范围。`,
   },
-  'mode.helpAbyss': {
+  'mode.helpAudit': {
     en: `Six attempts.
 Fittings and navigation/defense are simulated with all-V skills; fitted modules are online and active.
 Rare and low-usage hulls are more likely.
 Each miss reveals 1–5 equipment clues plus one other clue. If equipment runs out, half of the missing equipment quota (rounded up) becomes extra other clues.
 Cargo has its own clues.
-Abyssal modules use the closest same-group, same-size representative for attribute simulation.
+Audit modules use the closest same-group, same-size representative for attribute simulation.
 Resistance modules and Assault Damage Control can make resistance clues decisive.`,
     de: `Sechs Versuche.
 Fittings sowie Navigation/Verteidigung werden mit All-V-Skills simuliert; montierte Module sind online und aktiv.
 Seltene und wenig genutzte Hüllen sind wahrscheinlicher.
 Jeder Fehlversuch deckt 1–5 Ausrüstungshinweise plus einen weiteren Hinweis auf. Fehlt Ausrüstung, wird die Hälfte (aufgerundet) des fehlenden Ausrüstungsanteils zu zusätzlichen anderen Hinweisen.
 Fracht hat eigene Hinweise.
-Abyssale Module nutzen für die Attributssimulation den nächstgelegenen Vertreter derselben Gruppe und Größe.
+Audite Module nutzen für die Attributssimulation den nächstgelegenen Vertreter derselben Gruppe und Größe.
 Resistenzmodule und Assault Damage Control können Resistenzhinweise entscheidend machen.`,
     es: `Seis intentos.
 Los ajustes y la navegación/defensa se simulan con habilidades a V; los módulos montados están online y activos.
@@ -2663,21 +2620,21 @@ Les fittings et la navigation/défense sont simulés avec toutes les compétence
 Les coques rares et peu utilisées sont plus probables.
 Chaque erreur révèle 1 à 5 indices d’équipement et un autre indice. Si l’équipement manque, la moitié (arrondie au supérieur) du quota manquant devient des indices supplémentaires d’un autre type.
 La soute a ses propres indices.
-Les modules abyssaux utilisent le représentant le plus proche du même groupe et de même taille pour simuler les attributs.
+Les modules auditaux utilisent le représentant le plus proche du même groupe et de même taille pour simuler les attributs.
 Les modules de résistance et l’Assault Damage Control peuvent rendre les indices de résistance décisifs.`,
     ja: `6回の挑戦。
 装備と航行・防御は全スキルVでシミュレーションされ、装着モジュールはオンライン・アクティブとして扱われます。
 希少で使用頻度の低い船体が出やすくなります。
 誤答ごとに装備ヒント1～5個と、その他のヒント1個を公開。装備が足りない場合、不足分の半分（切り上げ）が追加のその他ヒントになります。
 貨物には専用のヒントがあります。
-アビサルモジュールは、同グループ・同サイズの最も近い代表モジュールで属性をシミュレーションします。
+装備監査モジュールは、同グループ・同サイズの最も近い代表モジュールで属性をシミュレーションします。
 レジストモジュールとアサルト・ダメージコントロールは、レジストヒントを決定的にすることがあります。`,
     ko: `6회 시도.
 장비와 항법/방어는 모든 스킬 V로 시뮬레이션되며, 장착 모듈은 온라인·활성 상태로 처리됩니다.
 희귀하고 사용 빈도가 낮은 선체가 더 자주 나옵니다.
 오답마다 장비 단서 1~5개와 다른 단서 1개를 공개합니다. 장비가 부족하면 부족분의 절반(올림)이 추가 다른 단서로 바뀝니다.
 화물은 별도 단서가 있습니다.
-어비설 모듈은 같은 그룹·같은 크기의 가장 가까운 대표 모듈로 속성을 시뮬레이션합니다.
+장비 감사 모듈은 같은 그룹·같은 크기의 가장 가까운 대표 모듈로 속성을 시뮬레이션합니다.
 저항 모듈과 어설트 대미지 컨트롤은 저항 단서를 결정적으로 만들 수 있습니다.`,
     ru: `Шесть попыток.
 Фитинг, навигация и защита моделируются со всеми навыками V; установленные модули считаются онлайн и активными.
@@ -2691,7 +2648,7 @@ Les modules de résistance et l’Assault Damage Control peuvent rendre les indi
 稀有和低使用率船体更容易出现。
 每次猜错揭示 1–5 条装备线索，并额外揭示一条其他线索。装备线索不足时，缺口的一半（向上取整）转为额外的其他线索。
 货仓有独立线索。
-深渊装备在属性模拟时使用同组、同尺寸中最接近的代表模块。
+装配审计装备在属性模拟时使用同组、同尺寸中最接近的代表模块。
 抗性装备和突击损控可能让抗性线索成为决定性线索。`,
   },
   'mode.helpTimed': {
@@ -2884,6 +2841,7 @@ export function createI18n(locale) {
   const decimal = (n, digits = 1) => numberFormat({ minimumFractionDigits: 0, maximumFractionDigits: digits }).format(Number(n) || 0);
   const compact = (n) => numberFormat({ notation: 'compact', maximumFractionDigits: 1 }).format(Number(n) || 0);
   const isk = (n) => `${compact(n)} ISK`;
+  const iskFull = (n) => `${integer(n)} ISK`;
   const percent = (n) => numberFormat({ maximumFractionDigits: 0 }).format(Number(n) || 0);
   const date = (dateKey) => {
     const d = new Date(`${dateKey}T12:00:00Z`);
@@ -2902,7 +2860,7 @@ export function createI18n(locale) {
     return `${h}:${m}:${s}`;
   };
 
-  return { lang, intl, t, integer, decimal, compact, isk, percent, date, duration };
+  return { lang, intl, t, integer, decimal, compact, isk, iskFull, percent, date, duration };
 }
 
 Object.assign(RENAMES, {
@@ -2919,25 +2877,25 @@ Object.assign(RENAMES, {
     ja: `共通`, ko: `공통`, ru: `ОБЩИЕ`, zh: `通用`,
   },
   'help.dailyBody': {
-    en: `One target per UTC day, reset at 11:00 UTC. Standard, Abyss and Timed each have their own daily target. All three record daily plays and wins; Standard and Abyss use the six-attempt score.`,
-    de: `Ein Ziel pro UTC-Tag, Reset um 11:00 UTC. Standard, Abyss und Timed haben jeweils ein eigenes Tagesziel. Alle drei erfassen tägliche Spiele und Siege; Standard und Abyss nutzen die Sechs-Versuche-Wertung.`,
+    en: `One target per UTC day, reset at 11:00 UTC. Standard, Audit and Timed each have their own daily target. All three record daily plays and wins; Standard and Audit use the six-attempt score.`,
+    de: `Ein Ziel pro UTC-Tag, Reset um 11:00 UTC. Standard, Audit und Timed haben jeweils ein eigenes Tagesziel. Alle drei erfassen tägliche Spiele und Siege; Standard und Audit nutzen die Sechs-Versuche-Wertung.`,
     es: `Un objetivo por día UTC, reinicio a las 11:00 UTC. Estándar, Abismo y Crono tienen su propio objetivo diario. Los tres registran partidas y victorias diarias; Estándar y Abismo usan la puntuación de seis intentos.`,
-    fr: `Une cible par jour UTC, réinitialisation à 11:00 UTC. Standard, Abysse et Chrono ont chacun leur propre cible quotidienne. Les trois enregistrent parties et victoires quotidiennes ; Standard et Abysse utilisent le score à six tentatives.`,
-    ja: `UTC ごとに1日1目標、11:00 UTC にリセット。スタンダード、アビス、タイムドはそれぞれ専用のデイリー目標を持ちます。3つともデイリーのプレイと勝利を記録し、スタンダードとアビスは6回制のスコアを使います。`,
+    fr: `Une cible par jour UTC, réinitialisation à 11:00 UTC. Standard, Audite et Chrono ont chacun leur propre cible quotidienne. Les trois enregistrent parties et victoires quotidiennes ; Standard et Audite utilisent le score à six tentatives.`,
+    ja: `UTC ごとに1日1目標、11:00 UTC にリセット。スタンダード、装備監査、タイムドはそれぞれ専用のデイリー目標を持ちます。3つともデイリーのプレイと勝利を記録し、スタンダードと装備監査は6回制のスコアを使います。`,
     ko: `UTC 기준 하루 하나의 목표, 11:00 UTC 초기화. 스탠다드, 어비스, 타임드는 각각 전용 일일 목표를 가집니다. 세 모드 모두 일일 플레이와 승리를 기록하며, 스탠다드와 어비스는 6회 점수를 사용합니다.`,
-    ru: `Одна цель на сутки UTC, сброс в 11:00 UTC. У Standard, Abyss и Timed свои ежедневные цели. Все три записывают ежедневные игры и победы; Standard и Abyss используют счёт по шести попыткам.`,
-    zh: `每个 UTC 日一个目标，11:00 UTC 重置。标准、深渊和计时模式各自拥有独立的每日目标。三者都会记录每日游玩与胜利；标准和深渊使用六次机会的成绩。`,
+    ru: `Одна цель на сутки UTC, сброс в 11:00 UTC. У Standard, Audit и Timed свои ежедневные цели. Все три записывают ежедневные игры и победы; Standard и Audit используют счёт по шести попыткам.`,
+    zh: `每个 UTC 日一个目标，11:00 UTC 重置。标准、装配审计和计时模式各自拥有独立的每日目标。三者都会记录每日游玩与胜利；标准和装配审计使用六次机会的成绩。`,
   },
   'help.sharedRules': {
     en: `The selected Daily or Free source determines the target.
-Standard and Abyss use six attempts; Timed is unlimited.
+Standard and Audit use six attempts; Timed is unlimited.
 A guess reveals values shared with the target; misses add equipment clues.
-Daily Standard, Abyss and Timed all record daily plays and wins; Free does not affect daily stats.
+Daily Standard, Audit and Timed all record daily plays and wins; Free does not affect daily stats.
 Any daily win counts once for the daily streak. Free keeps a separate per-gameplay streak from random refresh.`,
     de: `Die gewählte Daily- oder Free-Quelle bestimmt das Ziel.
-Standard und Abyss haben sechs Versuche; Timed ist unbegrenzt.
+Standard und Audit haben sechs Versuche; Timed ist unbegrenzt.
 Ein Tipp deckt Werte auf, die mit dem Ziel übereinstimmen; Fehlversuche fügen Ausrüstungshinweise hinzu.
-Daily-Standard, Daily-Abyss und Daily-Timed erfassen alle tägliche Spiele und Siege; Free beeinflusst die Tagesstatistik nicht.
+Daily-Standard, Daily-Audit und Daily-Timed erfassen alle tägliche Spiele und Siege; Free beeinflusst die Tagesstatistik nicht.
 Jeder Tagessieg zählt einmal für die Tages-Serie. Free führt über den Zufalls-Refresh eine eigene Serie pro Spielweise.`,
     es: `La fuente Diaria o Libre seleccionada determina el objetivo.
 Estándar y Abismo usan seis intentos; Crono es ilimitado.
@@ -2945,14 +2903,14 @@ Cada intento revela valores compartidos con el objetivo; los fallos añaden pist
 Diaria Estándar, Diaria Abismo y Diaria Crono registran partidas y victorias diarias; Libre no afecta a las estadísticas diarias.
 Cada victoria diaria cuenta una vez para la racha diaria. Libre mantiene una racha propia por modalidad mediante la actualización aleatoria.`,
     fr: `La source Quotidien ou Libre sélectionnée détermine la cible.
-Standard et Abysse utilisent six tentatives ; Chrono est illimité.
+Standard et Audite utilisent six tentatives ; Chrono est illimité.
 Chaque tentative révèle les valeurs partagées avec la cible ; les erreurs ajoutent des indices d’équipement.
-Quotidien Standard, Quotidien Abysse et Quotidien Chrono enregistrent parties et victoires quotidiennes ; Libre n’affecte pas les stats quotidiennes.
+Quotidien Standard, Quotidien Audite et Quotidien Chrono enregistrent parties et victoires quotidiennes ; Libre n’affecte pas les stats quotidiennes.
 Chaque victoire quotidienne compte une fois pour la série quotidienne. Libre conserve une série distincte par mode via le rafraîchissement aléatoire.`,
     ja: `選択中のデイリーまたはフリーの目標ソースに従います。
-スタンダードとアビスは6回、タイムドは無制限です。
+スタンダードと装備監査は6回、タイムドは無制限です。
 推測すると目標と共通する値が公開され、誤答は装備ヒントを追加します。
-デイリーのスタンダード、アビス、タイムドはすべてデイリーのプレイと勝利を記録し、フリーはデイリー統計に影響しません。
+デイリーのスタンダード、装備監査、タイムドはすべてデイリーのプレイと勝利を記録し、フリーはデイリー統計に影響しません。
 デイリーの勝利は1日1回だけ連勝日に数えます。フリーはランダム更新でモード別の独立した連勝を保持します。`,
     ko: `선택한 데일리 또는 자유 목표 소스가 목표를 결정합니다.
 스탠다드와 어비스는 6회, 타임드는 무제한입니다.
@@ -2960,14 +2918,14 @@ Chaque victoire quotidienne compte une fois pour la série quotidienne. Libre co
 데일리 스탠다드, 데일리 어비스, 데일리 타임드는 모두 일일 플레이와 승리를 기록하며, 자유는 일일 통계에 영향을 주지 않습니다.
 일일 승리는 하루 한 번만 일일 연승에 반영됩니다. 자유는 무작위 새로고침으로 모드별 별도 연승을 유지합니다.`,
     ru: `Выбранный источник Daily или Free определяет цель.
-Standard и Abyss дают шесть попыток; Timed — неограниченно.
+Standard и Audit дают шесть попыток; Timed — неограниченно.
 Догадка раскрывает совпадающие с целью значения; промахи добавляют подсказки об оборудовании.
-Daily Standard, Daily Abyss и Daily Timed записывают ежедневные игры и победы; Free не влияет на ежедневную статистику.
+Daily Standard, Daily Audit и Daily Timed записывают ежедневные игры и победы; Free не влияет на ежедневную статистику.
 Любая ежедневная победа учитывается для серии дней один раз в день. Free ведёт отдельную серию для каждой игровой моды при случайном обновлении.`,
     zh: `目标来源由当前选择的每日或自由模式决定。
-标准和深渊有六次尝试；计时模式尝试次数不限。
+标准和装配审计有六次尝试；计时模式尝试次数不限。
 每次猜测会揭示与目标相同的数值；猜错还会增加装备线索。
-每日标准、每日深渊和每日计时都会记录每日游玩与胜利；自由模式不影响每日统计。
+每日标准、每日装配审计和每日计时都会记录每日游玩与胜利；自由模式不影响每日统计。
 每个 UTC 日的任意一次胜利只计入一次连胜天数。自由模式通过随机刷新维护独立的玩法连胜。`,
   },
   'mode.timedHint': {
@@ -3125,14 +3083,14 @@ Object.assign(RENAMES, {
     ko: '일일 목표를 사용할 수 없습니다', ru: 'Ежедневная цель недоступна', zh: '每日目标暂不可用',
   },
   'error.dailyUnavailableBody': {
-    en: 'The authoritative time, drand beacon, or killmail record could not be verified. Open Free mode to choose a target manually.',
-    de: 'Die autoritative Zeit, der drand-Beacon oder der Killmail-Datensatz konnte nicht verifiziert werden. Öffne den Free-Modus, um ein Ziel manuell zu wählen.',
-    es: 'No se pudo verificar la hora autoritativa, el beacon de drand o el killmail. Abre el modo Libre para elegir un objetivo manualmente.',
-    fr: 'L’heure de référence, le beacon drand ou le killmail n’a pas pu être vérifié. Ouvrez le mode Libre pour choisir une cible manuellement.',
-    ja: '権威時刻、drand ビーコン、またはキルメールを検証できませんでした。フリーモードを開き、目標を手動で選択してください。',
-    ko: '권위 시간, drand 비컨 또는 킬메일을 검증할 수 없습니다. 자유 모드에서 목표를 직접 선택하세요.',
-    ru: 'Не удалось проверить авторитетное время, beacon drand или киллмейл. Откройте Free, чтобы выбрать цель вручную.',
-    zh: '无法验证权威时间、drand 信标或击杀记录。请打开自由模式手动选择目标。',
+    en: 'The authoritative time or killmail record could not be verified. Open Free mode to choose a target manually.',
+    de: 'Die autoritative Zeit oder der Killmail-Datensatz konnte nicht verifiziert werden. Öffne den Free-Modus, um ein Ziel manuell zu wählen.',
+    es: 'No se pudo verificar la hora autoritativa o el killmail. Abre el modo Libre para elegir un objetivo manualmente.',
+    fr: 'L’heure de référence ou le killmail n’a pas pu être vérifié. Ouvrez le mode Libre pour choisir une cible manuellement.',
+    ja: '権威時刻またはキルメールを検証できませんでした。フリーモードを開き、目標を手動で選択してください。',
+    ko: '권위 시간 또는 킬메일을 검증할 수 없습니다. 자유 모드에서 목표를 직접 선택하세요.',
+    ru: 'Не удалось проверить авторитетное время или киллмейл. Откройте Free, чтобы выбрать цель вручную.',
+    zh: '无法验证权威时间或击杀记录。请打开自由模式手动选择目标。',
   },
   'clue.unavailable': {
     en: 'UNAVAILABLE', de: 'NICHT VERFÜGBAR', es: 'NO DISPONIBLE', fr: 'INDISPONIBLE',
@@ -3195,36 +3153,6 @@ Object.assign(RENAMES, {
     "ko": "서버 시간을 검증할 수 없습니다. 일일 목표는 잠긴 상태로 유지되며 로컬 시계로 대체하지 않습니다. 자유 모드를 열거나 다시 시도하세요.",
     "ru": "Не удалось проверить серверное время. Ежедневная цель остаётся заблокированной; локальные часы не используются. Откройте Free или повторите попытку.",
     "zh": "无法验证服务器时间。每日目标保持锁定，不会退回本地时钟。请打开自由模式或重试。"
-  },
-  "error.drandCode": {
-    "en": "DRAND BEACON UNAVAILABLE",
-    "de": "DRAND-BEACON NICHT VERFÜGBAR",
-    "es": "BEACON DRAND NO DISPONIBLE",
-    "fr": "BEACON DRAND INDISPONIBLE",
-    "ja": "DRAND ビーコン利用不可",
-    "ko": "DRAND 비컨 사용 불가",
-    "ru": "BEACON DRAND НЕДОСТУПЕН",
-    "zh": "DRAND 信标不可用"
-  },
-  "error.drandTitle": {
-    "en": "Time-lock beacon unavailable",
-    "de": "Zeitlock-Beacon nicht verfügbar",
-    "es": "Beacon de bloqueo temporal no disponible",
-    "fr": "Beacon de verrouillage temporel indisponible",
-    "ja": "タイムロックビーコン利用不可",
-    "ko": "타임락 비컨 사용 불가",
-    "ru": "Тайм-лок beacon недоступен",
-    "zh": "时间锁信标不可用"
-  },
-  "error.drandBody": {
-    "en": "The configured drand round could not be fetched or verified. The daily target stays locked until the beacon is available. Open Free mode or retry.",
-    "de": "Die konfigurierte drand-Runde konnte nicht abgerufen oder verifiziert werden. Das Tagesziel bleibt gesperrt, bis der Beacon verfügbar ist. Öffne den Free-Modus oder versuche es erneut.",
-    "es": "No se pudo obtener ni verificar la ronda drand configurada. El objetivo diario sigue bloqueado hasta que el beacon esté disponible. Abre el modo Libre o reintenta.",
-    "fr": "La ronde drand configurée n’a pas pu être récupérée ou vérifiée. La cible quotidienne reste verrouillée jusqu’à la disponibilité du beacon. Ouvrez le mode Libre ou réessayez.",
-    "ja": "設定された drand ラウンドを取得・検証できませんでした。ビーコンが利用できるまでデイリー目標はロックされます。フリーモードを開くか再試行してください。",
-    "ko": "설정된 drand 라운드를 가져오거나 검증할 수 없습니다. 비컨이 사용 가능할 때까지 일일 목표는 잠깁니다. 자유 모드를 열거나 다시 시도하세요.",
-    "ru": "Не удалось получить или проверить настроенный раунд drand. Ежедневная цель остаётся заблокированной до появления beacon. Откройте Free или повторите попытку.",
-    "zh": "无法获取或验证配置的 drand 轮次。每日目标保持锁定，直到信标恢复。请打开自由模式或重试。"
   },
   "error.zkillCode": {
     "en": "ZKILLBOARD UNAVAILABLE",
@@ -3344,16 +3272,6 @@ Object.assign(RENAMES, {
     "ru": "СИГНАЛ ВРЕМЕНИ ПОТЕРЯН",
     "zh": "时间信号丢失"
   },
-  "error.drandLore": {
-    "en": "BEACON SIGNAL LOST",
-    "de": "BEACON-SIGNAL VERLOREN",
-    "es": "SEÑAL DEL BEACON PERDIDA",
-    "fr": "SIGNAL DU BEACON PERDU",
-    "ja": "ビーコン信号喪失",
-    "ko": "비컨 신호 상실",
-    "ru": "СИГНАЛ BEACON ПОТЕРЯН",
-    "zh": "信标信号丢失"
-  },
   "error.zkillLore": {
     "en": "UPLINK FAILED",
     "de": "UPLINK FEHLGESCHLAGEN",
@@ -3442,15 +3360,15 @@ Object.assign(RENAMES, {
     "ru": "Стандартный режим.\nНеверные ответы постепенно раскрывают сведения.\nВерный ответ показывает информацию, общую с целью.",
     "zh": "标准模式。\n猜错会逐步揭示情报。\n猜中会获得与目标共享的信息。"
   },
-  "mode.helpAbyss": {
-    "en": "Abyssal mode.\nFittings and attributes are simulated from the killmail.\nRare and specialised hulls are more likely.\nIntelligence unfolds at its own pace.",
-    "de": "Abyssmodus.\nFitting und Attribute werden aus dem Killmail simuliert.\nSeltene und spezialisierte Hüllen sind wahrscheinlicher.\nInformationen entfalten sich in ihrem eigenen Tempo.",
+  "mode.helpAudit": {
+    "en": "Audit mode.\nFittings and attributes are simulated from the killmail.\nRare and specialised hulls are more likely.\nIntelligence unfolds at its own pace.",
+    "de": "Auditmodus.\nFitting und Attribute werden aus dem Killmail simuliert.\nSeltene und spezialisierte Hüllen sind wahrscheinlicher.\nInformationen entfalten sich in ihrem eigenen Tempo.",
     "es": "Modo Abismo.\nLos ajustes y atributos se simulan desde el killmail.\nLos cascos raros y especializados son más probables.\nLa información se despliega a su propio ritmo.",
-    "fr": "Mode Abyssal.\nLes fittings et attributs sont simulés depuis le killmail.\nLes coques rares et spécialisées sont plus probables.\nLes informations se dévoilent à leur propre rythme.",
-    "ja": "アビサルモード。\n装備と属性はキルメールからシミュレーションされます。\n希少・特殊な船体が選ばれやすくなります。\n情報は独自のペースで公開されます。",
-    "ko": "어비설 모드.\n장비와 속성은 킬메일에서 시뮬레이션됩니다.\n희귀·특수 선체가 더 자주 선택됩니다.\n정보는 자체적인 속도로 공개됩니다.",
+    "fr": "Mode Audit.\nLes fittings et attributs sont simulés depuis le killmail.\nLes coques rares et spécialisées sont plus probables.\nLes informations se dévoilent à leur propre rythme.",
+    "ja": "装備監査モード。\n装備と属性はキルメールからシミュレーションされます。\n希少・特殊な船体が選ばれやすくなります。\n情報は独自のペースで公開されます。",
+    "ko": "장비 감사 모드.\n장비와 속성은 킬메일에서 시뮬레이션됩니다.\n희귀·특수 선체가 더 자주 선택됩니다.\n정보는 자체적인 속도로 공개됩니다.",
     "ru": "Режим Бездны.\nМодули и атрибуты симулируются по киллмейлу.\nРедкие и специальные корпуса встречаются чаще.\nСведения раскрываются в своём темпе.",
-    "zh": "深渊模式。\n装配与属性根据击杀记录模拟。\n稀有舰船更可能出现。\n情报按自身节奏释放。"
+    "zh": "装配审计模式。\n装配与属性根据击杀记录模拟。\n稀有舰船更可能出现。\n情报按自身节奏释放。"
   },
   "mode.helpTimed": {
     "en": "Timed mode.\nThe run starts when you start the timer.\nIntel unfolds on a schedule; guesses do not reveal extra intel.\nName the hull to stop the clock.",
@@ -3487,8 +3405,84 @@ for (const [key, values] of Object.entries(RENAMES)) {
   }
 }
 
-for (const [key, values] of Object.entries(MP_MESSAGES)) {
+for (const [key, values] of Object.entries(ONLINE_MESSAGES)) {
   for (const [lang, value] of Object.entries(values)) {
     if (MESSAGES[lang]) MESSAGES[lang][key] = value;
   }
+}
+for (const [key, values] of Object.entries(BRAND_MESSAGES)) {
+  for (const [lang, value] of Object.entries(values)) {
+    if (MESSAGES[lang]) MESSAGES[lang][key] = value;
+  }
+}
+
+const EXTRA_MESSAGES = {
+  en: {
+    'clue.kbValueToggle': 'Toggle killmail value format',
+    'help.multiplayerBody': 'Multiplayer rooms use one shared target. The host chooses Standard, Fitting Audit or Timed; all players race on the same wreck.',
+    'help.arbitrationBody': 'Arbitration rotates the dealer. The dealer publishes intel; active players guess once per round. A wrong guess awards the published clue weight to the dealer.',
+    'end.insurancePayout': 'INSURANCE PAYOUT',
+    'mp.dealer.publish': 'PUBLISH',
+    'mode.dailyRefresh': 'REFRESH',
+  },
+  de: {
+    'clue.kbValueToggle': 'Killmail-Wertformat umschalten',
+    'help.multiplayerBody': 'Mehrspieler-Räume nutzen ein gemeinsames Ziel. Der Host wählt Standard, Fitting-Audit oder Zeit; alle spielen am selben Wrack.',
+    'help.arbitrationBody': 'Bei Arbitration wechselt der Dealer. Der Dealer veröffentlicht Intel; aktive Spieler raten einmal pro Runde. Ein falscher Tipp gibt dem Dealer das Gewicht der veröffentlichten Hinweise.',
+    'end.insurancePayout': 'VERSICHERUNGSAUSZAHLUNG',
+    'mp.dealer.publish': 'VERÖFFENTLICHEN',
+    'mode.dailyRefresh': 'AKTUALISIEREN',
+  },
+  es: {
+    'clue.kbValueToggle': 'Cambiar formato del valor del killmail',
+    'help.multiplayerBody': 'Las salas multijugador usan un objetivo compartido. El anfitrión elige Estándar, Auditoría de ajuste o Cronometrado; todos compiten en el mismo pecio.',
+    'help.arbitrationBody': 'Arbitration rota al repartidor. El repartidor publica inteligencia; los jugadores activos adivinan una vez por ronda. Un fallo entrega al repartidor el peso de las pistas publicadas.',
+    'end.insurancePayout': 'PAGO DEL SEGURO',
+    'mp.dealer.publish': 'PUBLICAR',
+    'mode.dailyRefresh': 'ACTUALIZAR',
+  },
+  fr: {
+    'clue.kbValueToggle': 'Changer le format de la valeur du killmail',
+    'help.multiplayerBody': 'Les salles multijoueur partagent une cible. L’hôte choisit Standard, Audit de fitting ou Chronométré ; tous courent sur la même épave.',
+    'help.arbitrationBody': 'Arbitration fait tourner le donneur. Le donneur publie des renseignements ; les joueurs actifs devinent une fois par manche. Une erreur donne au donneur le poids des indices publiés.',
+    'end.insurancePayout': 'INDEMNISATION D’ASSURANCE',
+    'mp.dealer.publish': 'PUBLIER',
+    'mode.dailyRefresh': 'ACTUALISER',
+  },
+  ja: {
+    'clue.kbValueToggle': 'キルメール価値の表示形式を切り替え',
+    'help.multiplayerBody': 'マルチプレイヤールームでは全員が同じ目標を使います。ホストがスタンダード、フィッティング監査、タイムドを選び、全員が同じ残骸で競います。',
+    'help.arbitrationBody': 'Arbitration はディーラーを交代します。ディーラーが情報を公開し、参加者は毎ラウンド一度だけ推測します。不正解なら公開済みクルーの重みがディーラーに入ります。',
+    'end.insurancePayout': '保険支払額',
+    'mp.dealer.publish': '公開',
+    'mode.dailyRefresh': '更新',
+  },
+  ko: {
+    'clue.kbValueToggle': '킬메일 가치 형식 전환',
+    'help.multiplayerBody': '멀티플레이어 룸은 하나의 목표를 공유합니다. 호스트가 스탠다드, 피팅 감사, 타임드를 선택하고 모든 플레이어가 같은 잔해에서 경주합니다.',
+    'help.arbitrationBody': 'Arbitration은 딜러를 순환합니다. 딜러가 정보를 공개하고 활성 플레이어는 라운드마다 한 번 추측합니다. 틀리면 공개된 단서의 가중치가 딜러에게 돌아갑니다.',
+    'end.insurancePayout': '보험금 지급',
+    'mp.dealer.publish': '공개',
+    'mode.dailyRefresh': '새로고침',
+  },
+  ru: {
+    'clue.kbValueToggle': 'Переключить формат стоимости килмейла',
+    'help.multiplayerBody': 'В многопользовательских комнатах одна общая цель. Хост выбирает «Стандарт», «Аудит фитинга» или «На время»; все игроки ищут один и тот же обломок.',
+    'help.arbitrationBody': 'В Arbitration дилер меняется по кругу. Дилер публикует данные; активные игроки угадывают один раз за раунд. Ошибка отдаёт дилеру вес опубликованных подсказок.',
+    'end.insurancePayout': 'СТРАХОВАЯ ВЫПЛАТА',
+    'mp.dealer.publish': 'ОПУБЛИКОВАТЬ',
+    'mode.dailyRefresh': 'ОБНОВИТЬ',
+  },
+  zh: {
+    'clue.kbValueToggle': '切换击杀价值格式',
+    'help.multiplayerBody': '联机房间使用同一个目标。房主选择标准、装配审计或计时，所有玩家在同一份残骸上竞速。',
+    'help.arbitrationBody': '仲裁模式轮换发牌员。发牌员发布情报，在线玩家每轮猜测一次；猜错会把已发布线索的权重给发牌员。',
+    'end.insurancePayout': '保险赔付',
+    'mp.dealer.publish': '公布',
+    'mode.dailyRefresh': '刷新',
+  },
+};
+
+for (const [lang, values] of Object.entries(EXTRA_MESSAGES)) {
+  if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values);
 }

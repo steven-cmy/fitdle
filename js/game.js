@@ -11,7 +11,7 @@ export const DOWNTIME_HOUR_UTC = 11;
 /** Number of dossier fragments visible after N incorrect acquisitions. */
 export function revealCountFor(misses, totalClues, mode = 'normal') {
   const safeMisses = Math.max(0, misses);
-  const count = mode === 'abyss'
+  const count = mode === 'audit'
     ? INITIAL_REVEAL + (safeMisses * (safeMisses + 1)) / 2 + safeMisses
     : INITIAL_REVEAL + safeMisses * REVEAL_PER_MISS;
   return Math.min(totalClues, count);
@@ -51,10 +51,13 @@ export function msUntilNextDowntime(now = new Date(), resetMinutesUtc = DOWNTIME
 
 export function modeFromLocation(search = '') {
   const params = new URLSearchParams(search);
+  const claim = params.get('claim');
+  if (claim === 'audit') return 'audit';
+  if (claim === 'timed' || claim === 'standard' || claim === 'daily') return 'normal';
   const rule = params.get('rule');
-  if (rule === 'abyss') return 'abyss';
+  if (rule === 'audit') return 'audit';
   if (rule === 'timed' || rule === 'standard') return 'normal';
-  return params.get('mode') === 'abyss' ? 'abyss' : 'normal';
+  return 'normal';
 }
 
 export function shiftDateKey(value, days) {
@@ -240,17 +243,6 @@ export function pickWeightedKillByRecency(records, seed, shipId, latestDate, hal
   return candidates[candidates.length - 1].kill;
 }
 
-export function beaconRoundForStart(startEpochSeconds, beacon) {
-  const genesis = Number(beacon?.genesisTime);
-  const period = Number(beacon?.period);
-  const grace = Number(beacon?.graceSeconds) || 0;
-  if (!Number.isFinite(startEpochSeconds) || !Number.isFinite(genesis) || !Number.isFinite(period) || period <= 0) {
-    return null;
-  }
-  // The first round at or after the configured start plus a small grace period.
-  return Math.ceil((startEpochSeconds + grace - genesis) / period) + 1;
-}
-
 const FREE_KILL_SALT = 0x5bd1e995;
 
 export function freeKillToken(id) {
@@ -260,9 +252,40 @@ export function freeKillToken(id) {
   return `k${mixed.toString(36)}${check}`;
 }
 
+const CLAIM_KB_SALT = 0x6c61696d;
+
+export function ycDateLabel(day) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || '').trim());
+  if (!match) return '';
+  const year = Number(match[1]) - 1898;
+  if (year < 0) return '';
+  return `YC${year}.${match[2]}.${match[3]}`;
+}
+
+export function kbCaseHash(killId) {
+  const id = Number(killId);
+  if (!Number.isSafeInteger(id) || id <= 0) return '';
+  return cyrb53(`fitdle:claim-kb:${id}`, CLAIM_KB_SALT)
+    .toString(36)
+    .toUpperCase()
+    .padStart(8, '0')
+    .slice(-8);
+}
+
+export function claimCaseNumber({ gameplay = 'standard', day = '', killId = null, killHash = '' } = {}) {
+  const date = ycDateLabel(day) || 'YC000.00.00';
+  const opaque = String(killHash || '')
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, '')
+    .slice(0, 8)
+    || kbCaseHash(killId)
+    || 'OPEN';
+  if (gameplay === 'daily') return `PI-${date}-${opaque}`;
+  return `PI-${opaque}`;
+}
+
 export function freeKillIdFromToken(raw) {
   const value = String(raw || '').trim();
-  if (/^\d+$/.test(value) && Number(value) > 0) return Number(value);
   const match = /^k([0-9a-z]+)([0-9a-z]{2})$/.exec(value);
   if (!match) return null;
   const mixed = Number.parseInt(match[1], 36) >>> 0;
@@ -609,7 +632,7 @@ export function shareUrl(locationLike, killId, mode = 'normal', status = 'playin
   const url = new URL(locationLike.href);
   const language = String(locale || 'en').toLowerCase().split(/[-_]/)[0];
   const safeLocale = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'].includes(language) ? language : 'en';
-  const rule = timed ? 'timed' : mode === 'abyss' ? 'abyss' : 'standard';
+  const rule = timed ? 'timed' : mode === 'audit' ? 'audit' : 'standard';
   url.search = '';
   url.hash = '';
   if (timed) {
@@ -669,10 +692,10 @@ export function saveState(storage, date, state, mode = 'normal') {
   }
 }
 
-const STAT_MODES = ['standard', 'abyss', 'timed'];
+const STAT_MODES = ['standard', 'audit', 'timed'];
 
 function normalizeStatMode(mode) {
-  return mode === 'abyss' ? 'abyss' : mode === 'timed' ? 'timed' : 'standard';
+  return mode === 'audit' ? 'audit' : mode === 'timed' ? 'timed' : 'standard';
 }
 
 function statCounts(value) {
@@ -711,8 +734,7 @@ export function loadStats(storage) {
     const raw = storage.getItem('fitdle:v1:stats');
     const parsed = raw ? JSON.parse(raw) : null;
     if (!parsed) return emptyStats();
-    // Pre-per-mode totals are intentionally ignored; do not migrate or display
-    // legacy aggregate data.
+    // Pre-v1 aggregate stats are discarded, never migrated.
     if (typeof parsed.played === 'number' || typeof parsed.wins === 'number') {
       return emptyStats();
     }

@@ -8,9 +8,11 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { loadBuildEnv } from './build-env.mjs';
 import { LOCALES, MESSAGES } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
+const ENV = loadBuildEnv(ROOT);
 const DIST = path.join(ROOT, 'dist');
 const DATA = path.join(ROOT, 'data');
 
@@ -21,12 +23,12 @@ if (!fs.existsSync(path.join(DATA, 'catalog.json'))) {
 await fsp.rm(DIST, { recursive: true, force: true });
 await fsp.mkdir(DIST, { recursive: true });
 
-for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share', 'data', 'vendor/dogma-engine', 'vendor/drand-client', 'vendor/peerjs']) {
+for (const dir of ['js', 'styles', 'assets/fonts', 'assets/brand', 'assets/share', 'data', 'vendor/dogma-engine']) {
   const source = path.join(ROOT, dir);
   if (!fs.existsSync(source)) continue;
   await fsp.cp(source, path.join(DIST, dir), { recursive: true });
 }
-for (const file of ['assets/boot-flavor.json', 'assets/watchlist.json', 'multiplayer.html']) {
+for (const file of ['assets/watchlist.json', 'assets/boot-flavor.json', 'assets/claim-departments.json']) {
   const source = path.join(ROOT, file);
   if (!fs.existsSync(source)) continue;
   await fsp.mkdir(path.dirname(path.join(DIST, file)), { recursive: true });
@@ -36,31 +38,21 @@ for (const file of ['assets/boot-flavor.json', 'assets/watchlist.json', 'multipl
 // Localized static score pages give Discord/other crawlers real Open Graph
 // metadata. Humans are redirected into the puzzle; crawlers never see the
 // answer or target hull in the preview.
-function localSiteUrl() {
-  if (process.env.CI) return '';
-  try {
-    const file = path.join(ROOT, '.cache', 'local.env');
-    if (!fs.existsSync(file)) return '';
-    const line = fs.readFileSync(file, 'utf8').split('\n')
-      .map((entry) => entry.trim())
-      .find((entry) => entry.startsWith('SITE_URL='));
-    return line ? line.slice('SITE_URL='.length).trim() : '';
-  } catch {
-    return '';
-  }
-}
 const SITE_URL = (
-  process.env.SITE_URL
+  ENV.PUBLIC_ORIGIN
   || process.env.CI_PAGES_URL
-  || localSiteUrl()
   || 'http://127.0.0.1:4173'
-).replace(/\/$/, '');
+).replace(/\/+$/, '');
+
+const runtimeManifest = JSON.parse(await fsp.readFile(path.join(DATA, 'manifest.json'), 'utf8'));
+const IMAGE_BASE = String(runtimeManifest?.images?.baseUrl || '').replace(/\/+$/, '');
 
 const indexHtml = (await fsp.readFile(path.join(ROOT, 'index.html'), 'utf8'))
-  .replaceAll('__SITE_URL__', SITE_URL);
+  .replaceAll('__SITE_URL__', SITE_URL)
+  .replaceAll('__IMAGE_BASE__', IMAGE_BASE);
 await fsp.writeFile(path.join(DIST, 'index.html'), indexHtml);
 
-const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png?v=2`;
+const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png?v=3`;
 const OG_LOCALES = {
   en: 'en_US', de: 'de_DE', es: 'es_ES', fr: 'fr_FR',
   ja: 'ja_JP', ko: 'ko_KR', ru: 'ru_RU', zh: 'zh_CN',
@@ -135,7 +127,7 @@ for (const score of [1, 2, 3, 4, 5, 6]) {
     title: message(locale, 'share.freeTitle'),
     description: message(locale, 'share.freeDescription'),
     depth: 2,
-    image: `${SITE_URL}/assets/share/og.png`,
+    image: `${SITE_URL}/assets/share/og.png?v=3`,
   }));
 }
 for (const locale of LOCALES) {
@@ -146,7 +138,7 @@ for (const locale of LOCALES) {
     title: message(locale, 'share.timedTitle'),
     description: message(locale, 'share.timedDescription'),
     depth: 2,
-    image: `${SITE_URL}/assets/share/og.png`,
+    image: `${SITE_URL}/assets/share/og.png?v=3`,
   }));
 }
 for (const locale of LOCALES) {

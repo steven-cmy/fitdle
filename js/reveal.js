@@ -1,5 +1,5 @@
 /**
- * Reveal planning for normal, abyssal and timed modes.
+ * Reveal planning for normal, audit and timed modes.
  *
  * The queue order is fixed at the start of an answer. Guesses never re-roll a
  * queue; they only add matching clues and are skipped when a queue is consumed.
@@ -23,10 +23,10 @@ export const DEFAULT_REVEAL_CONFIG = Object.freeze({
   standardEquipmentMax: 9,
   standardEquipmentDivisor: 8,
   standardCargoBudget: 6,
-  abyssEquipmentPerMiss: 1,
-  abyssOtherBase: 1,
-  abyssShortfallDivisor: 2,
-  abyssCargoDivisor: 10,
+  auditEquipmentPerMiss: 1,
+  auditOtherBase: 1,
+  auditShortfallDivisor: 2,
+  auditCargoDivisor: 10,
 });
 
 const STATIC_CATEGORIES = new Set(['identity', 'hull', 'slots', 'nav', 'defense', 'targeting', 'fitting']);
@@ -76,10 +76,10 @@ export function normalizeRevealConfig(input = null) {
     standardEquipmentMax: number('standardEquipmentMax', DEFAULT_REVEAL_CONFIG.standardEquipmentMax, 1),
     standardEquipmentDivisor: number('standardEquipmentDivisor', DEFAULT_REVEAL_CONFIG.standardEquipmentDivisor, 1),
     standardCargoBudget: number('standardCargoBudget', DEFAULT_REVEAL_CONFIG.standardCargoBudget, 1),
-    abyssEquipmentPerMiss: number('abyssEquipmentPerMiss', DEFAULT_REVEAL_CONFIG.abyssEquipmentPerMiss, 1),
-    abyssOtherBase: number('abyssOtherBase', DEFAULT_REVEAL_CONFIG.abyssOtherBase, 1),
-    abyssShortfallDivisor: number('abyssShortfallDivisor', DEFAULT_REVEAL_CONFIG.abyssShortfallDivisor, 1),
-    abyssCargoDivisor: number('abyssCargoDivisor', DEFAULT_REVEAL_CONFIG.abyssCargoDivisor, 1),
+    auditEquipmentPerMiss: number('auditEquipmentPerMiss', DEFAULT_REVEAL_CONFIG.auditEquipmentPerMiss, 1),
+    auditOtherBase: number('auditOtherBase', DEFAULT_REVEAL_CONFIG.auditOtherBase, 1),
+    auditShortfallDivisor: number('auditShortfallDivisor', DEFAULT_REVEAL_CONFIG.auditShortfallDivisor, 1),
+    auditCargoDivisor: number('auditCargoDivisor', DEFAULT_REVEAL_CONFIG.auditCargoDivisor, 1),
   };
 }
 
@@ -135,7 +135,7 @@ export function buildRevealPlan({
   const queues = {
     equipment: buildQueue(queueEntries(clues, (clue) => clue.k === 'equipment'), queueSeeds.equipment, cfg.queueWeightPower),
     cargo: buildQueue(queueEntries(clues, (clue) => clue.k === 'cargo'), queueSeeds.cargo, cfg.queueWeightPower),
-    other: mode === 'abyss'
+    other: mode === 'audit'
       ? buildQueue(queueEntries(clues, (clue) => clue.k !== 'equipment' && clue.k !== 'cargo'), queueSeeds.other, cfg.queueWeightPower)
       : [],
     timed: timed
@@ -334,11 +334,11 @@ export function computeRevealed({
   const misses = guesses.filter((id) => Number(id) !== Number(answerId)).length;
   const revealed = new Set();
 
-  if (mode !== 'abyss') addStructureResists(revealed, clues);
+  if (mode !== 'audit') addStructureResists(revealed, clues);
 
-  // Only Standard reveals shared clues from guesses. Abyss and Timed have
+  // Only Standard reveals shared clues from guesses. Audit and Timed have
   // their own reveal mechanisms.
-  if (mode !== 'abyss' && !timedMode) {
+  if (mode !== 'audit' && !timedMode) {
     for (const id of guesses) {
       if (Number(id) === Number(answerId)) continue;
       addMatching({
@@ -357,9 +357,9 @@ export function computeRevealed({
 
   if (timedMode) return revealed;
 
-  if (mode === 'abyss') {
+  if (mode === 'audit') {
     for (let miss = 1; miss <= misses; miss++) {
-      const requested = miss * cfg.abyssEquipmentPerMiss;
+      const requested = miss * cfg.auditEquipmentPerMiss;
       const added = consumeCountQueue({
         revealed,
         queue: activePlan.queues.equipment,
@@ -369,7 +369,7 @@ export function computeRevealed({
         fitDelta,
       });
       const shortfall = Math.max(0, requested - added);
-      const otherCount = cfg.abyssOtherBase + Math.ceil(shortfall / cfg.abyssShortfallDivisor);
+      const otherCount = cfg.auditOtherBase + Math.ceil(shortfall / cfg.auditShortfallDivisor);
       consumeCountQueue({
         revealed,
         queue: activePlan.queues.other,
@@ -384,7 +384,7 @@ export function computeRevealed({
       consumeCountQueue({
         revealed,
         queue: activePlan.queues.cargo,
-        count: Math.max(1, Math.ceil(cargoCount / cfg.abyssCargoDivisor)),
+        count: Math.max(1, Math.ceil(cargoCount / cfg.auditCargoDivisor)),
         clues,
         catalog,
         fitDelta,

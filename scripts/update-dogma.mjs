@@ -103,7 +103,7 @@ async function main() {
   await fsp.rm(WORK, { recursive: true, force: true });
 
   console.log(`Updated dogma engine ${engineVersion}, SDE ${sdeVersion}.`);
-  console.log('Run npm test and smoke-test Abyss mode before deploying.');
+  console.log('Run npm test and smoke-test Audit mode before deploying.');
 }
 
 main().catch((error) => {

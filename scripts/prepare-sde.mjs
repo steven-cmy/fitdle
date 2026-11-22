@@ -3,13 +3,17 @@
  * Normalize the CCP Static Data Export into a compact cache used by the Fitdle
  * data builder. This is build tooling only; the shipped game is static.
  *
- * Usage: node scripts/prepare-sde.mjs
+ * The source is the official SDE HTTP API at sde.evetech.net. Tables are
+ * downloaded from a single release; no zip download or extraction is used.
+ *
+ * Usage: node scripts/prepare-sde.mjs [--refresh]
  */
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline';
-import { spawnSync } from 'node:child_process';
+import { loadBuildEnv } from './build-env.mjs';
+import { fetchLatestRelease, downloadRelease, sdeBase, SDE_TABLES } from './sde-api.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
@@ -17,125 +21,48 @@ const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
 const CACHE = path.join(ROOT, '.cache');
 const SOURCE = path.join(CACHE, 'sde-source');
 const OUT = path.join(CACHE, 'normalized.json');
-const ARCHIVE = path.join(CACHE, 'sde-jsonl.zip');
 const META = path.join(CACHE, 'sde-meta.json');
-const SDE_URL = process.env.EVE_SDE_URL || 'https://developers.eveonline.com/static-data/eve-online-static-data-latest-jsonl.zip';
-let archiveMeta = null;
+const ENV = loadBuildEnv(ROOT);
 const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
 const SHIP_CATEGORY = 6;
 const MODULE_CATEGORIES = new Set([7, 18, 22, 32, 87]);
 const SIMULATION_ATTRIBUTE_IDS = new Set([4, 20, 554, 796, 983, 1076]);
-const NORMALIZED_VERSION = 2;
-const REQUIRED = [
-  'groups.jsonl',
-  'categories.jsonl',
-  'metaGroups.jsonl',
-  'races.jsonl',
-  'factions.jsonl',
-  'dogmaUnits.jsonl',
-  'dogmaAttributes.jsonl',
-  'types.jsonl',
-  'typeDogma.jsonl',
-  'typeBonus.jsonl',
-];
+const NORMALIZED_VERSION = 3;
+const REQUIRED = SDE_TABLES.map((table) => `${table}.jsonl`);
 const REFRESH = process.argv.includes('--refresh');
-const KEEP_ARCHIVE = process.argv.includes('--keep-archive');
 let SDE = CACHE;
 
 function hasFiles(directory) {
   return REQUIRED.every((file) => fs.existsSync(path.join(directory, file)));
 }
 
-function extractArchive() {
-  fs.mkdirSync(SOURCE, { recursive: true });
-  const tar = spawnSync('tar', ['-xf', ARCHIVE, '-C', SOURCE, ...REQUIRED], { stdio: 'inherit' });
-  if (tar.status === 0) return;
-  const unzip = spawnSync('unzip', ['-o', ARCHIVE, ...REQUIRED, '-d', SOURCE], { stdio: 'inherit' });
-  if (unzip.status === 0) return;
-  throw new Error('Could not extract SDE zip. Install bsdtar or unzip, or extract it manually into .cache/sde-source.');
-}
-
-async function latestSdeRelease() {
+function readMeta() {
   try {
-    const response = await fetch('https://developers.eveonline.com/static-data/tranquility/latest.jsonl', {
-      headers: { 'User-Agent': USER_AGENT },
-    });
-    if (!response.ok) return null;
-    const line = (await response.text()).split('\n').find(Boolean);
-    const data = JSON.parse(line);
-    return {
-      buildNumber: data?.buildNumber || null,
-      releaseDate: data?.releaseDate || null,
-    };
+    return JSON.parse(fs.readFileSync(META, 'utf8'));
   } catch {
     return null;
   }
 }
 
-async function downloadArchive() {
-  console.log(`Downloading EVE SDE: ${SDE_URL}`);
-  const response = await fetch(SDE_URL, { redirect: 'follow', headers: { 'User-Agent': USER_AGENT } });
-  if (!response.ok || !response.body) throw new Error(`SDE download failed: ${response.status}`);
-  const official = await latestSdeRelease();
-  archiveMeta = {
-    url: SDE_URL,
-    etag: response.headers.get('etag') || '',
-    lastModified: response.headers.get('last-modified') || '',
-    buildNumber: official?.buildNumber || null,
-    releaseDate: official?.releaseDate || null,
-    size: Number(response.headers.get('content-length') || 0),
-    downloadedAt: new Date().toISOString(),
-  };
-  const temp = `${ARCHIVE}.tmp`;
-  const stream = fs.createWriteStream(temp);
-  await new Promise((resolve, reject) => {
-    const reader = response.body.getReader();
-    const pump = async () => {
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (!stream.write(Buffer.from(value))) await new Promise((r) => stream.once('drain', r));
-        }
-        stream.end(resolve);
-      } catch (error) {
-        stream.destroy();
-        reject(error);
-      }
-    };
-    pump();
-  });
-  await fsp.rename(temp, ARCHIVE);
-  await fsp.writeFile(META, `${JSON.stringify(archiveMeta, null, 2)}\n`);
-  console.log(`Downloaded ${(fs.statSync(ARCHIVE).size / 1024 / 1024).toFixed(1)} MiB`);
-}
-
 async function ensureSde() {
-  if (!REFRESH && hasFiles(SOURCE)) {
-    console.log('Using cached .cache/sde-source');
+  const meta = readMeta();
+  if (!REFRESH && hasFiles(SOURCE) && meta?.source === 'sde-api' && meta?.release && meta?.buildNumber) {
+    console.log(`Using cached SDE ${meta.release} (.cache/sde-source)`);
     return SOURCE;
   }
-  if (!REFRESH && hasFiles(CACHE)) {
-    console.log('Using existing SDE JSONL files in .cache');
-    return CACHE;
-  }
   await fsp.mkdir(CACHE, { recursive: true });
-  if (REFRESH || !fs.existsSync(ARCHIVE)) await downloadArchive();
-  console.log('Extracting required SDE files...');
-  await fsp.rm(SOURCE, { recursive: true, force: true });
-  extractArchive();
-  if (!hasFiles(SOURCE)) throw new Error('SDE extraction incomplete');
-  if (!KEEP_ARCHIVE) await fsp.rm(ARCHIVE, { force: true });
-  if (!archiveMeta) {
-    let meta = fs.existsSync(META)
-      ? JSON.parse(await fsp.readFile(META, 'utf8'))
-      : { url: SDE_URL, etag: '', lastModified: '', source: 'cached' };
-    if (!meta.buildNumber) {
-      const official = await latestSdeRelease();
-      if (official) Object.assign(meta, official);
-      await fsp.writeFile(META, `${JSON.stringify(meta, null, 2)}\n`);
-    }
-  }
+  console.log(`Fetching SDE latest from ${sdeBase(ENV.EVE_SDE_BASE)}/latest/`);
+  const latest = await fetchLatestRelease({
+    base: sdeBase(ENV.EVE_SDE_BASE),
+    userAgent: USER_AGENT,
+  });
+  console.log(`Downloading SDE ${latest.release} (build ${latest.buildNumber})`);
+  const nextMeta = await downloadRelease(latest, SOURCE, {
+    userAgent: USER_AGENT,
+    onTable: (table) => console.log(`  ${table}.jsonl`),
+  });
+  await fsp.writeFile(META, `${JSON.stringify(nextMeta, null, 2)}\n`);
+  console.log(`SDE source ready: ${nextMeta.release}`);
   return SOURCE;
 }
 
@@ -156,6 +83,14 @@ function stream(file, onLine) {
     rl.on('close', resolve);
     rl.on('error', reject);
   });
+}
+
+function recordId(record, field) {
+  const id = Number(record?.[field]);
+  if (!Number.isInteger(id) || id < 0) {
+    throw new Error(`SDE record is missing a valid ${field}`);
+  }
+  return id;
 }
 
 function decodeEntities(input) {
@@ -216,49 +151,56 @@ async function main() {
   const attributes = new Map();
   const units = new Map();
 
-  await stream('groups.jsonl', (o) => groups.set(o._key, {
-    id: o._key,
-    categoryID: o.categoryID,
-    names: o.name || {},
-    published: o.published,
-  }));
-  await stream('categories.jsonl', (o) => categories.set(o._key, {
-    id: o._key,
-    names: o.name || {},
-  }));
-  await stream('metaGroups.jsonl', (o) => metaGroups.set(o._key, {
-    id: o._key,
-    names: o.name || {},
-  }));
-  await stream('races.jsonl', (o) => races.set(o._key, {
-    id: o._key,
-    names: o.name || o.raceName || {},
-  }));
-  await stream('factions.jsonl', (o) => factions.set(o._key, {
-    id: o._key,
-    names: o.name || o.factionName || {},
-  }));
-  await stream('dogmaUnits.jsonl', (o) => units.set(o._key, {
-    id: o._key,
-    names: o.displayName || {},
-  }));
-  await stream('dogmaAttributes.jsonl', (o) => attributes.set(o._key, {
-    id: o._key,
-    name: o.name,
-    displayNames: o.displayName || {},
-    unitID: o.unitID ?? null,
-    defaultValue: o.defaultValue ?? 0,
-  }));
+  await stream('groups.jsonl', (o) => {
+    const id = recordId(o, 'groupID');
+    groups.set(id, {
+      id,
+      categoryID: o.categoryID,
+      names: o.name || {},
+      published: o.published,
+    });
+  });
+  await stream('categories.jsonl', (o) => {
+    const id = recordId(o, 'categoryID');
+    categories.set(id, { id, names: o.name || {} });
+  });
+  await stream('metaGroups.jsonl', (o) => {
+    const id = recordId(o, 'metaGroupID');
+    metaGroups.set(id, { id, names: o.name || {} });
+  });
+  await stream('races.jsonl', (o) => {
+    const id = recordId(o, 'raceID');
+    races.set(id, { id, names: o.name || o.raceName || {} });
+  });
+  await stream('factions.jsonl', (o) => {
+    const id = recordId(o, 'factionID');
+    factions.set(id, { id, names: o.name || o.factionName || {} });
+  });
+  await stream('dogmaUnits.jsonl', (o) => {
+    const id = recordId(o, 'unitID');
+    units.set(id, { id, names: o.displayName || {} });
+  });
+  await stream('dogmaAttributes.jsonl', (o) => {
+    const id = recordId(o, 'attributeID');
+    attributes.set(id, {
+      id,
+      name: o.name,
+      displayNames: o.displayName || {},
+      unitID: o.unitID ?? null,
+      defaultValue: o.defaultValue ?? 0,
+    });
+  });
 
   console.log('Loading all types...');
   const types = new Map();
   const ships = [];
   await stream('types.jsonl', (o) => {
     if (!o.name?.en) return;
+    const id = recordId(o, 'typeID');
     const group = groups.get(o.groupID);
     const categoryID = group?.categoryID ?? null;
     const entry = {
-      id: o._key,
+      id,
       names: o.name,
       groupID: o.groupID,
       categoryID,
@@ -277,7 +219,7 @@ async function main() {
       description: categoryID === SHIP_CATEGORY ? (o.description || null) : null,
       marketGroupID: o.marketGroupID ?? null,
     };
-    types.set(o._key, entry);
+    types.set(id, entry);
     if (categoryID === SHIP_CATEGORY && o.published && o.techLevel != null) ships.push(entry);
   });
 
@@ -295,7 +237,8 @@ async function main() {
   const moduleSimulationAttrs = new Map();
   const assaultDamageControls = new Set();
   await stream('typeDogma.jsonl', (o) => {
-    const t = types.get(o._key);
+    const typeID = recordId(o, 'typeID');
+    const t = types.get(typeID);
     if (!t) return;
     const attrs = {};
     const canFitShipTypes = [];
@@ -352,25 +295,25 @@ async function main() {
         }
       }
     }
-    if (t.categoryID === SHIP_CATEGORY) shipAttrs.set(o._key, attrs);
+    if (t.categoryID === SHIP_CATEGORY) shipAttrs.set(typeID, attrs);
     if (canFitShipTypes.length || canFitShipGroups.length) {
-      fitRestrictions.set(o._key, { shipTypes: canFitShipTypes, shipGroups: canFitShipGroups });
+      fitRestrictions.set(typeID, { shipTypes: canFitShipTypes, shipGroups: canFitShipGroups });
     }
     if (chargeGroups.length) {
-      moduleChargeGroups.set(o._key, [...new Set(chargeGroups)]);
+      moduleChargeGroups.set(typeID, [...new Set(chargeGroups)]);
     }
     if (requiredSkills.length) {
-      moduleRequiredSkills.set(o._key, [...new Set(requiredSkills)]);
+      moduleRequiredSkills.set(typeID, [...new Set(requiredSkills)]);
     }
-    if (metaLevel != null) moduleMetaLevels.set(o._key, metaLevel);
-    if (power != null) modulePower.set(o._key, power);
-    if (cpu != null) moduleCpu.set(o._key, cpu);
-    if (Object.keys(simulationAttrs).length) moduleSimulationAttrs.set(o._key, simulationAttrs);
+    if (metaLevel != null) moduleMetaLevels.set(typeID, metaLevel);
+    if (power != null) modulePower.set(typeID, power);
+    if (cpu != null) moduleCpu.set(typeID, cpu);
+    if (Object.keys(simulationAttrs).length) moduleSimulationAttrs.set(typeID, simulationAttrs);
     if (t.categoryID === 7 && Object.values(resistLayers).some(Boolean)) {
-      moduleResistLayers.set(o._key, resistLayers);
+      moduleResistLayers.set(typeID, resistLayers);
     }
     if (t.categoryID === 7 && /assault damage control/i.test(t.names?.en || '')) {
-      assaultDamageControls.add(o._key);
+      assaultDamageControls.add(typeID);
     }
   });
 
@@ -378,7 +321,8 @@ async function main() {
   const bonusEntries = new Map();
   const bonuses = new Map();
   await stream('typeBonus.jsonl', (o) => {
-    if (!types.has(o._key) || types.get(o._key).categoryID !== SHIP_CATEGORY) return;
+    const typeID = recordId(o, 'typeID');
+    if (!types.has(typeID) || types.get(typeID).categoryID !== SHIP_CATEGORY) return;
     const entries = [];
     const addEntry = (b, section, skill) => {
       if (!b?.bonusText) return;
@@ -412,10 +356,10 @@ async function main() {
 
     for (const b of o.roleBonuses || []) addEntry(b, 'role', null);
     for (const group of o.types || []) {
-      const skill = types.get(group._key);
-      for (const b of group._value || []) addEntry(b, 'types', skill);
+      const skill = types.get(Number(group.typeID));
+      for (const b of group.bonuses || []) addEntry(b, 'types', skill);
     }
-    bonusEntries.set(o._key, entries);
+    bonusEntries.set(typeID, entries);
 
     const localized = {};
     for (const locale of LOCALES) {
@@ -429,7 +373,7 @@ async function main() {
       }).filter(Boolean);
       localized[locale] = [...new Set(lines)];
     }
-    bonuses.set(o._key, localized);
+    bonuses.set(typeID, localized);
   });
 
   const shipPayload = ships.map((s) => {
@@ -537,13 +481,15 @@ async function main() {
   const usedFactionIDs = new Set(shipPayload.map((s) => s.factionID).filter(Boolean));
   const usedMetaGroupIDs = new Set(shipPayload.map((s) => s.metaGroupID).filter(Boolean));
 
-  const sourceMeta = archiveMeta || (fs.existsSync(META) ? JSON.parse(await fsp.readFile(META, 'utf8')) : {});
-  const sourceStamp = sourceMeta.etag || sourceMeta.lastModified || null;
+  const sourceMeta = readMeta() || {};
+  const sourceStamp = sourceMeta.release || sourceMeta.latestEtag || null;
   const payload = {
     // Stable source stamp, not the moment this script happened to run.
     generatedAt: sourceStamp || new Date().toISOString(),
     normalizedVersion: NORMALIZED_VERSION,
-    sourceEtag: sourceMeta.etag || null,
+    sourceRelease: sourceMeta.release || null,
+    sourceBuildNumber: sourceMeta.buildNumber ?? null,
+    sourceEtag: sourceMeta.latestEtag || null,
     locales: LOCALES,
     ships: shipPayload,
     moduleTypes,

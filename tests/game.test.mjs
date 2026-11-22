@@ -6,15 +6,17 @@ import {
   ATTEMPT_LIMIT,
   INITIAL_REVEAL,
   DOWNTIME_HOUR_UTC,
-  beaconRoundForStart,
   buildSearchIndex,
   buildGuessResult,
+  claimCaseNumber,
+  ycDateLabel,
   freeKillIdFromToken,
   emptyStats,
   formatMass,
   freeKillToken,
   gameDateKey,
   killHasFittedModules,
+  kbCaseHash,
   lastCompleteMonth,
   lastCompleteMonthEnd,
   loadState,
@@ -45,9 +47,13 @@ import {
   victimIsWatched,
   weightedRendezvousOrder,
 } from '../js/game.js';
-import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, humanBucketKey, moduleFitSize, selectAbyssFallbacks, STANDARD_DEFENSE_RANGE } from '../js/clues.js';
+import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, humanBucketKey, moduleFitSize, selectAuditFallbacks, STANDARD_DEFENSE_RANGE } from '../js/clues.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed, DEFAULT_REVEAL_CONFIG, timedRevealTotal } from '../js/reveal.js';
 import { MESSAGES, resolveLocale } from '../js/i18n.js';
+import { brandLogoHtml, fitdleMark, FITDLE_SYSTEM_LONG, PEND_INSURANCE_ID, SCC_ID } from '../js/brand.js';
+import { avatarHtml, DEFAULT_PORTRAIT_ID, portraitUrl } from '../js/avatar.js';
+import { TRIGLAVIAN_CONVOCATION_ID, TRIGLAVIAN_FACTION_ID, triglavianBrand, triglavianDepartments } from '../js/triglavian-copy.js';
+import { LEGAL_NOTICES } from '../js/legal-copy.js';
 import { DEFAULT_REVEAL, DEFAULT_KB_RECENCY_HALF_LIFE_DAYS, DEFAULT_KB_MAX_SCAN_PAGES, loadBuildConfig, parseDateOnly, parseGameDayStart } from '../scripts/build-env.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -88,12 +94,12 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(msUntilNextDowntime(new Date('2026-11-14T10:30:00Z')), 30 * 60 * 1000);
   assert.equal(msUntilNextDowntime(new Date('2026-11-14T10:00:00Z'), 10 * 60 + 30), 30 * 60 * 1000);
   assert.equal(msUntilNextDowntime(new Date('2026-11-14T11:00:00Z')), 24 * 60 * 60 * 1000);
-  assert.equal(modeFromLocation('?rule=abyss'), 'abyss');
+  assert.equal(modeFromLocation('?rule=audit'), 'audit');
   assert.equal(modeFromLocation('?rule=standard'), 'normal');
   assert.equal(modeFromLocation('?rule=timed'), 'normal');
-  assert.equal(modeFromLocation('?mode=abyss'), 'abyss');
-  assert.equal(modeFromLocation('?mode=normal'), 'normal');
-  assert.equal(modeFromLocation('?mode=timed'), 'normal');
+  assert.equal(modeFromLocation('?claim=audit'), 'audit');
+  assert.equal(modeFromLocation('?claim=standard'), 'normal');
+  assert.equal(modeFromLocation('?claim=timed'), 'normal');
   assert.equal(shiftDateKey('2012-05-22', -1), '2012-05-21');
   assert.equal(shiftDateKey('2026-11-14', 1), '2026-11-15');
   assert.deepEqual(lastCompleteMonth('2026-11-14'), { year: 2026, month: 10 });
@@ -109,18 +115,10 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   const freeToken = freeKillToken(139037509);
   assert.ok(!freeToken.includes('139037509'));
   assert.equal(freeKillIdFromToken(freeToken), 139037509);
+  assert.equal(freeKillIdFromToken('139037509'), null);
   assert.equal(freeKillIdFromToken('kbad00'), null);
   assert.equal(killHasFittedModules({ victim: { items: [{ flag: 5, item_type_id: 1 }] } }), false);
   assert.equal(killHasFittedModules({ victim: { items: [{ flag: 19, item_type_id: 1 }] } }), true);
-});
-
-test('beacon rounds start after the configured boundary and grace', () => {
-  const beacon = { genesisTime: 1692803367, period: 3, graceSeconds: 5 };
-  const genesis = beacon.genesisTime;
-  assert.equal(beaconRoundForStart(genesis, beacon), 3);
-  assert.equal(beaconRoundForStart(genesis + 1, beacon), 3);
-  assert.equal(beaconRoundForStart(genesis + 10, beacon), 6);
-  assert.equal(beaconRoundForStart(genesis, { ...beacon, graceSeconds: 0 }), 1);
 });
 
 test('weighted rendezvous and kill selection are order independent', () => {
@@ -239,8 +237,7 @@ test('build configuration validates the game day and KB lower bound', () => {
   assert.equal(manifest.kbRecencyHalfLifeDays, DEFAULT_KB_RECENCY_HALF_LIFE_DAYS);
   assert.equal(manifest.kbMaxScanPages, DEFAULT_KB_MAX_SCAN_PAGES);
   assert.equal(manifest.kbMaxScanPages, 20);
-  assert.equal(manifest.beacon.baseUrls.length, 4);
-  assert.match(manifest.beacon.chain, /^[0-9a-f]{64}$/);
+  assert.equal(manifest.beacon, undefined);
   assert.deepEqual(manifest.reveal, { ...DEFAULT_REVEAL });
   assert.equal(manifest.reveal.standardCargoBudget, 6);
 });
@@ -287,15 +284,15 @@ test('build-time KB weight and scan overrides are validated', () => {
   }
 });
 
-test('abyssal reveal cadence matches the six-attempt design', () => {
-  assert.equal(revealCountFor(0, 40, 'abyss'), INITIAL_REVEAL);
-  assert.equal(revealCountFor(1, 40, 'abyss'), 5);
-  assert.equal(revealCountFor(2, 40, 'abyss'), 8);
-  assert.equal(revealCountFor(3, 40, 'abyss'), 12);
-  assert.equal(revealCountFor(5, 40, 'abyss'), 23);
-  assert.equal(newlyRevealedFor(1, 40, 'abyss'), 2);
-  assert.equal(newlyRevealedFor(2, 40, 'abyss'), 3);
-  assert.equal(newlyRevealedFor(3, 40, 'abyss'), 4);
+test('audit reveal cadence matches the six-attempt design', () => {
+  assert.equal(revealCountFor(0, 40, 'audit'), INITIAL_REVEAL);
+  assert.equal(revealCountFor(1, 40, 'audit'), 5);
+  assert.equal(revealCountFor(2, 40, 'audit'), 8);
+  assert.equal(revealCountFor(3, 40, 'audit'), 12);
+  assert.equal(revealCountFor(5, 40, 'audit'), 23);
+  assert.equal(newlyRevealedFor(1, 40, 'audit'), 2);
+  assert.equal(newlyRevealedFor(2, 40, 'audit'), 3);
+  assert.equal(newlyRevealedFor(3, 40, 'audit'), 4);
   assert.equal(INITIAL_REVEAL, 3);
 });
 
@@ -339,8 +336,8 @@ test('queue plans are deterministic per seed and mode', () => {
   assert.equal(a.opening.includes(5), false, 'bonus is not in the Standard opening queue');
   assert.equal(a.queues.equipment.length, 1);
   assert.equal(a.queues.cargo.length, 1);
-  const abyss = buildRevealPlan({ clues, seed: 'same-seed', mode: 'abyss' });
-  assert.ok(abyss.queues.other.length >= 1);
+  const audit = buildRevealPlan({ clues, seed: 'same-seed', mode: 'audit' });
+  assert.ok(audit.queues.other.length >= 1);
   const timed = buildRevealPlan({ clues, seed: 'same-seed', mode: 'normal', timed: true });
   assert.ok(timed.queues.timed.length >= 1);
   assert.notDeepEqual(timed.queueSeeds.timed, a.queueSeeds.timed);
@@ -446,8 +443,8 @@ test('only Standard applies shared-clue matching from guesses', () => {
   };
   const standard = computeRevealed({ ...base, mode: 'normal', plan });
   assert.equal(standard.has(0), true);
-  const abyss = computeRevealed({ ...base, mode: 'abyss', plan: { ...plan, mode: 'abyss' } });
-  assert.equal(abyss.has(0), false);
+  const audit = computeRevealed({ ...base, mode: 'audit', plan: { ...plan, mode: 'audit' } });
+  assert.equal(audit.has(0), false);
   const timed = computeRevealed({
     ...base,
     mode: 'normal',
@@ -457,17 +454,17 @@ test('only Standard applies shared-clue matching from guesses', () => {
   assert.equal(timed.has(0), false);
 });
 
-test('abyss misses reveal nested equipment plus one other clue', () => {
+test('audit misses reveal nested equipment plus one other clue', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const built = buildClues({
     ship, catalog, refs, stats: null, losses: makeLosses(),
-    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'audit',
   });
   const wrong = catalog.find((entry) => entry.id !== 587).id;
   const run = (guesses) => computeRevealed({
     clues: built.clues, catalog, guesses, status: 'playing', answerId: 587,
-    mode: 'abyss', locale: 'en', getShip: (id) => catalog.find((entry) => entry.id === id),
-    seed: 'abyss-cadence',
+    mode: 'audit', locale: 'en', getShip: (id) => catalog.find((entry) => entry.id === id),
+    seed: 'audit-cadence',
   });
   const count = (set, equipment) => [...set]
     .filter((index) => (equipment
@@ -484,12 +481,12 @@ test('abyss misses reveal nested equipment plus one other clue', () => {
   const empty = buildClues({
     ship, catalog, refs, stats: null,
     losses: [{ killmail_id: 1, zkb: { totalValue: 0 }, victim: { items: [] } }],
-    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'audit',
   });
   const emptyRun = (guesses) => computeRevealed({
     clues: empty.clues, catalog, guesses, status: 'playing', answerId: 587,
-    mode: 'abyss', locale: 'en', getShip: (id) => catalog.find((entry) => entry.id === id),
-    seed: 'abyss-cadence',
+    mode: 'audit', locale: 'en', getShip: (id) => catalog.find((entry) => entry.id === id),
+    seed: 'audit-cadence',
   });
   const emptyZero = emptyRun([]);
   const emptyOne = emptyRun([wrong]);
@@ -685,10 +682,10 @@ test('ship search results follow tech, class, race and faction order', () => {
   assert.equal(searchShips(aliases, '舰刺', { limit: 5 })[0]?.id, stabber.id);
 });
 
-test('hidden authored JSON files are shipped to dist', () => {
-  for (const file of ['boot-flavor.json', 'watchlist.json']) {
-    assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'assets', file)), true, file);
-  }
+test('watchlist and claim assets are shipped to dist', () => {
+  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'assets', 'watchlist.json')), true);
+  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'assets', 'boot-flavor.json')), true);
+  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'assets', 'claim-departments.json')), true);
 });
 
 test('watchlist matches victim character, corporation, or alliance IDs', () => {
@@ -779,11 +776,11 @@ test('daily stats count plays and wins per gameplay and streak by day', () => {
   });
   assert.equal(stats.wins.standard, 1);
   assert.equal(stats.streak, 1);
-  stats = recordPlay(storage, stats, { date: '2026-11-17', mode: 'abyss', isToday: true });
+  stats = recordPlay(storage, stats, { date: '2026-11-17', mode: 'audit', isToday: true });
   stats = recordResult(storage, stats, {
-    date: '2026-11-17', mode: 'abyss', status: 'won', attempts: 2, isToday: true,
+    date: '2026-11-17', mode: 'audit', status: 'won', attempts: 2, isToday: true,
   });
-  assert.equal(stats.wins.abyss, 1);
+  assert.equal(stats.wins.audit, 1);
   assert.equal(stats.streak, 1, 'multiple wins on one day count once');
   stats = recordResult(storage, stats, {
     date: '2026-11-18', mode: 'timed', status: 'won', attempts: 1, isToday: true,
@@ -795,7 +792,7 @@ test('daily stats count plays and wins per gameplay and streak by day', () => {
   let losing = recordResult(storage, emptyStats(), {
     date: '2026-11-21', mode: 'standard', status: 'won', attempts: 1, isToday: true,
   });
-  for (const mode of ['standard', 'abyss', 'timed']) {
+  for (const mode of ['standard', 'audit', 'timed']) {
     losing = recordResult(storage, losing, {
       date: '2026-11-22', mode, status: 'lost', attempts: 6, isToday: true,
     });
@@ -824,15 +821,15 @@ test('share URLs and result grids are spoiler-safe', () => {
   const url = shareUrl({ href: 'https://example.test/fitdle/index.html?d=2026-11-01&lang=de#x' }, killId, 'normal', 'won', 3);
   assert.equal(url, 'https://example.test/fitdle/share/3/en.html');
   assert.equal(new URL(url).origin, 'https://example.test');
-  const abyssUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'won', 4, 'zh-Hant');
-  assert.equal(abyssUrl, 'https://example.test/fitdle/share/4/zh.html?rule=abyss');
-  const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'lost', 6, 'de');
-  assert.equal(lostUrl, 'https://example.test/fitdle/share/lost/de.html?rule=abyss');
-  const freeUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'playing', 0, 'zh-Hant', false, true);
-  assert.equal(freeUrl, `https://example.test/fitdle/share/free/zh.html?kb=${token}&rule=abyss`);
-  const timedUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'won', 4, 'de', true, true, 125);
+  const auditUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'audit', 'won', 4, 'zh-Hant');
+  assert.equal(auditUrl, 'https://example.test/fitdle/share/4/zh.html?rule=audit');
+  const lostUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'audit', 'lost', 6, 'de');
+  assert.equal(lostUrl, 'https://example.test/fitdle/share/lost/de.html?rule=audit');
+  const freeUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'audit', 'playing', 0, 'zh-Hant', false, true);
+  assert.equal(freeUrl, `https://example.test/fitdle/share/free/zh.html?kb=${token}&rule=audit`);
+  const timedUrl = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'audit', 'won', 4, 'de', true, true, 125);
   assert.equal(timedUrl, `https://example.test/fitdle/share/timed/de.html?t=125&kb=${token}&rule=timed`);
-  const timedDaily = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'abyss', 'won', 4, 'de', true, false, 125);
+  const timedDaily = shareUrl({ href: 'https://example.test/fitdle/index.html' }, killId, 'audit', 'won', 4, 'de', true, false, 125);
   assert.equal(timedDaily, 'https://example.test/fitdle/share/timed/de.html?t=125&rule=timed');
   assert.equal(url.includes('lang='), false);
   assert.equal(url.includes('d='), false);
@@ -840,9 +837,9 @@ test('share URLs and result grids are spoiler-safe', () => {
   assert.equal(freeUrl.includes('mode='), false);
   const storage = { data: new Map(), getItem(k) { return this.data.get(k) ?? null; }, setItem(k, v) { this.data.set(k, v); } };
   saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [1], status: 'playing' }, 'normal');
-  saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [2], status: 'playing' }, 'abyss');
+  saveState(storage, '2026-11-14', { dataVersion: 'v', guesses: [2], status: 'playing' }, 'audit');
   assert.deepEqual(loadState(storage, '2026-11-14', 'v', 'normal').guesses, [1]);
-  assert.deepEqual(loadState(storage, '2026-11-14', 'v', 'abyss').guesses, [2]);
+  assert.deepEqual(loadState(storage, '2026-11-14', 'v', 'audit').guesses, [2]);
   const grid = resultGrid('won', 3);
   assert.equal([...grid].length, ATTEMPT_LIMIT);
   assert.ok(grid.includes('🟩'));
@@ -850,20 +847,44 @@ test('share URLs and result grids are spoiler-safe', () => {
   assert.equal([...loss].length, ATTEMPT_LIMIT);
 });
 
+test('claim numbers use an opaque hash, with the date only for Daily', () => {
+  const day = '2026-11-21';
+  const killId = 139037509;
+  const hash = kbCaseHash(killId);
+  assert.equal(ycDateLabel(day), 'YC128.11.21');
+  assert.equal(ycDateLabel('invalid'), '');
+  assert.equal(claimCaseNumber({ gameplay: 'daily', day, killId }), `PI-YC128.11.21-${hash}`);
+  assert.equal(claimCaseNumber({ gameplay: 'standard', day, killId: null }), 'PI-OPEN');
+  const first = claimCaseNumber({ gameplay: 'standard', day, killId });
+  const second = claimCaseNumber({ gameplay: 'standard', day, killId });
+  const other = claimCaseNumber({ gameplay: 'standard', day, killId: killId + 1 });
+  assert.match(first, /^PI-[0-9A-Z]{8}$/);
+  assert.equal(first, second);
+  assert.notEqual(first, other);
+  assert.equal(first.includes(String(killId)), false);
+  assert.equal(first.includes('YC128'), false);
+  assert.equal(claimCaseNumber({ gameplay: 'daily', day, killId }).includes('DAY'), false);
+  assert.equal(claimCaseNumber({ gameplay: 'daily', day, killId }).includes(String(killId)), false);
+  assert.equal(claimCaseNumber({ gameplay: 'standard', killHash: 'abcd-1234' }), 'PI-ABCD1234');
+  assert.match(kbCaseHash(killId), /^[0-9A-Z]{8}$/);
+  assert.equal(kbCaseHash(null), '');
+});
+
 test('localized static share pages carry the score for link previews', () => {
   const sharePage = path.join(ROOT, 'dist', 'share', '3', 'en.html');
   const zhPage = path.join(ROOT, 'dist', 'share', '3', 'zh.html');
   if (fs.existsSync(sharePage)) {
     const html = fs.readFileSync(sharePage, 'utf8');
-    assert.match(html, /FITDLE — 3\/6 — Target destroyed 🎯/);
-    assert.match(html, /I cracked the hull in 3 attempts/);
-    assert.match(html, /og:image" content="[^"]+\/assets\/share\/og-3-en\.png\?v=2"/);
+    assert.match(html, /FITDLE — 3\/6 — Claim approved/);
+    assert.match(html, /Hull identity verified in 3 review passes/);
+    assert.match(html, /og:image" content="[^"]+\/assets\/share\/og-3-en\.png\?v=3"/);
     assert.match(html, /twitter:card" content="summary_large_image"/);
     assert.match(html, /location\.replace/);
     assert.ok(fs.existsSync(zhPage));
     const zh = fs.readFileSync(zhPage, 'utf8');
-    assert.match(zh, /3\/6 — 目标已击毁 🎯/);
-    assert.match(zh, /og:image" content="[^"]+\/assets\/share\/og-3-zh\.png\?v=2"/);
+    assert.match(zh, /3\/6 — 理赔通过/);
+    assert.match(zh, /经过 3 次复核，舰体身份已确认/);
+    assert.match(zh, /og:image" content="[^"]+\/assets\/share\/og-3-zh\.png\?v=3"/);
     assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-3-zh.png')));
     assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-lost-de.png')));
     const timed = fs.readFileSync(path.join(ROOT, 'dist', 'share', 'timed', 'en.html'), 'utf8');
@@ -877,59 +898,76 @@ test('localized static share pages carry the score for link previews', () => {
   }
 });
 
-test('container build scripts create the catalog before the kill pool', () => {
+test('container image builds the catalog before the kill pool and serves online', () => {
   const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
-  const oneshot = fs.readFileSync(path.join(ROOT, 'docker', 'oneshot-entrypoint.sh'), 'utf8');
-  for (const script of [dockerfile, oneshot]) {
-    const catalogBuild = script.indexOf('npm run build:catalog');
-    const killPool = script.indexOf('npm run build:killpool');
-    assert.ok(catalogBuild >= 0, 'missing catalog build');
-    assert.ok(killPool > catalogBuild, 'kill pool must run after catalog build');
-  }
+  const catalogBuild = dockerfile.indexOf('npm run build:catalog');
+  const killPool = dockerfile.indexOf('npm run build:killpool');
+  assert.ok(catalogBuild >= 0, 'missing catalog build');
+  assert.ok(killPool > catalogBuild, 'kill pool must run after catalog build');
+  assert.match(dockerfile, /server\/src\/index\.mjs/);
+  assert.match(dockerfile, /FROM node:24/);
 });
 
-test('one-shot builder detects SDE updates and supports forced refresh', () => {
-  const entrypoint = fs.readFileSync(path.join(ROOT, 'docker', 'oneshot-entrypoint.sh'), 'utf8');
+test('SDE API release and deployment checks are wired', () => {
   const checker = fs.readFileSync(path.join(ROOT, 'scripts', 'check-sde-cache.mjs'), 'utf8');
+  const ciChecker = fs.readFileSync(path.join(ROOT, 'scripts', 'check-sde.mjs'), 'utf8');
+  const sdeApi = fs.readFileSync(path.join(ROOT, 'scripts', 'sde-api.mjs'), 'utf8');
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  assert.match(entrypoint, /FORCE_SDE/);
-  assert.match(entrypoint, /check-sde-cache\.mjs/);
-  assert.match(entrypoint, /prepare:sde -- --refresh/);
-  assert.match(checker, /latest\.jsonl/);
-  assert.match(checker, /buildNumber/);
+  assert.match(sdeApi, /sde\.evetech\.net/);
+  assert.match(checker, /fetchLatestRelease/);
+  assert.match(checker, /release/);
+  assert.match(ciChecker, /SDE_RELEASE/);
+  assert.match(ciChecker, /release/);
   assert.equal(pkg.scripts['check:sde-cache'], 'node scripts/check-sde-cache.mjs');
 });
 
-test('daily target uses the beacon path and does not fall back to static data', () => {
+test('client reads cargo type names from the SDE record API', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.equal(main.includes('/universe/types'), false);
+  assert.match(main, /manifest\?\.sde\?\.apiBase/);
+  assert.match(main, /manifest\?\.sde\?\.release/);
+  assert.match(main, /\/types\/\$\{encodeURIComponent\(id\)\}\.json/);
+});
+
+test('SDE preparation uses the HTTP API without zip or legacy fields', () => {
+  const prepare = fs.readFileSync(path.join(ROOT, 'scripts', 'prepare-sde.mjs'), 'utf8');
+  const sdeApi = fs.readFileSync(path.join(ROOT, 'scripts', 'sde-api.mjs'), 'utf8');
+  assert.match(prepare, /fetchLatestRelease/);
+  assert.match(prepare, /downloadRelease/);
+  assert.match(prepare, /recordId\(o, 'typeID'\)/);
+  assert.equal(prepare.includes('sde-jsonl.zip'), false);
+  assert.equal(prepare.includes('extractArchive'), false);
+  assert.equal(prepare.includes('spawnSync'), false);
+  assert.equal(prepare.includes('_key'), false);
+  assert.equal(prepare.includes('_value'), false);
+  assert.match(sdeApi, /tables\?\.\[table\]\?\.jsonl\?\.url/);
+  assert.match(sdeApi, /source: 'sde-api'/);
+});
+
+test('online daily uses the server target and direct room transport', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const api = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
   const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
-  assert.match(main, /fetchDayBeacon/);
-  assert.match(main, /DailyUnavailableError/);
-  assert.match(main, /page\/\$\{page\}\//);
-  assert.match(main, /kbSelectionStartDate/);
-  assert.match(main, /data-action="free-mode"/);
-  assert.equal(main.includes('filterDailyKillPool'), false);
-  assert.equal(main.includes('selectDailyKillPair'), false);
-  assert.equal(fs.existsSync(path.join(ROOT, 'vendor', 'drand-client', 'index.js')), true);
-  assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'vendor', 'drand-client', 'index.js')), true);
+  assert.match(main, /prepareAppTarget/);
+  assert.match(main, /resolveOnlineTarget/);
+  assert.match(api, /\/api\/v1\/online\/daily/);
   assert.match(MESSAGES.en['error.dailyUnavailableBody'], /authoritative time/);
   assert.match(MESSAGES.zh['error.dailyUnavailableBody'], /权威时间/);
   assert.match(css, /fatal-screen/);
 });
 
 test('reset countdown copy and source-specific error screens are localized', () => {
-  assert.equal(MESSAGES.en['header.reset'], 'NEXT RESET IN');
-  assert.equal(MESSAGES.zh['header.reset'], '距离下次重置');
-  assert.equal(MESSAGES.en['end.next'], 'NEXT RESET');
-  assert.equal(MESSAGES.zh['end.next'], '下次重置');
+  assert.equal(MESSAGES.en['header.reset'], 'NEXT INTAKE');
+  assert.equal(MESSAGES.zh['header.reset'], '下一批案卷');
+  assert.equal(MESSAGES.en['end.next'], 'NEXT CLAIM');
+  assert.equal(MESSAGES.zh['end.next'], '下一份案卷');
   for (const lang of Object.keys(MESSAGES)) {
     for (const key of [
       'error.timeCode', 'error.timeTitle', 'error.timeBody',
-      'error.drandCode', 'error.drandTitle', 'error.drandBody',
       'error.zkillCode', 'error.zkillTitle', 'error.zkillBody',
       'error.esiCode', 'error.esiTitle', 'error.esiBody',
       'error.noTargetCode', 'error.noTargetTitle', 'error.noTargetBody',
-      'error.dailyLore', 'error.timeLore', 'error.drandLore', 'error.zkillLore',
+      'error.dailyLore', 'error.timeLore', 'error.zkillLore',
       'error.esiLore', 'error.noTargetLore', 'error.unknownHullLore',
       'error.genericLore', 'error.genericCode',
     ]) {
@@ -938,7 +976,6 @@ test('reset countdown copy and source-specific error screens are localized', () 
   }
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   assert.match(main, /dailyErrorCopy/);
-  assert.match(main, /error\.drandLore/);
   assert.match(main, /error\.zkillLore/);
   assert.match(main, /error\.esiTitle/);
   assert.match(main, /<h1>\$\{esc\(t\(copy\.lore\)\)\}<\/h1>/);
@@ -965,12 +1002,332 @@ test('boot flavor file covers all locales and tags every egg', () => {
   assert.ok(boot.eggs.every((egg) => ['en', 'ja', 'zh'].includes(egg.lang) && egg.text?.trim()));
 });
 
+test('claim departments are complete and bind their own memos', () => {
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'claim-departments.json'), 'utf8'));
+  assert.deepEqual(Object.keys(data.departments).sort(), ['de', 'en', 'es', 'fr', 'ja', 'ko', 'ru', 'zh']);
+  const expectedIds = [
+    'salvage', 'hull', 'intake', 'fitting', 'wreck',
+    'cargo', 'arbitration', 'compliance', 'alliance-srp',
+  ];
+  for (const [locale, departments] of Object.entries(data.departments)) {
+    assert.deepEqual(departments.map((department) => department.id), expectedIds, `${locale} department ids`);
+    for (const department of departments) {
+      assert.ok(department.name?.trim(), `${locale}/${department.id} missing name`);
+      assert.ok(Array.isArray(department.memos) && department.memos.length >= 2, `${locale}/${department.id} needs memos`);
+      assert.ok(department.memos.every((memo) => typeof memo === 'string' && memo.trim()), `${locale}/${department.id} empty memo`);
+      assert.ok(department.memos.every((memo) => !memo.includes('{name}')), `${locale}/${department.id} leaked placeholder`);
+    }
+    const srp = departments.find((department) => department.id === 'alliance-srp');
+    assert.ok(srp.memos.includes('Can I bring my Drake?'), `${locale} SRP Drake memo`);
+    assert.ok(srp.memos.includes('FC wat do?'), `${locale} SRP FC memo`);
+  }
+});
+
+test('boot screen shows the full system name and restores eggs', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  assert.match(html, />F\.I\.T\.D\.L\.E\.</);
+  assert.match(html, /Fitting Identification, Testimony &amp; Damage Ledger Evaluation/);
+  assert.match(html, /data-boot-logos/);
+  assert.match(main, /void applyBootFlavor\(\)/);
+  assert.match(main, /renderBootLogos\(\)/);
+  assert.match(main, /Math\.random\(\) < 0\.05/);
+  assert.match(main, /pickClaimDepartment\(\)/);
+  assert.match(main, /loadClaimDepartments\(\)/);
+  assert.match(css, /\.boot-fullname/);
+  assert.match(css, /\.boot-logos/);
+  const distHtml = fs.readFileSync(path.join(ROOT, 'dist', 'index.html'), 'utf8');
+  assert.match(distHtml, /images\.evetech\.net\/corporations\/1000113\/logo/);
+  assert.equal(distHtml.includes('__IMAGE_BASE__'), false);
+});
+
+test('topbar is full bleed and the dossier uses a default cursor', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  const photon = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  assert.match(css, /\.topbar\s*\{[^}]*width:\s*100%/);
+  assert.match(css, /padding-inline:\s*max\(24px/);
+  assert.match(photon, /\.dossier-panel,[\s\S]*?cursor:\s*default/);
+  assert.match(photon, /\.dossier-panel \.attr-row\[data-mass-toggle\][\s\S]*?cursor:\s*pointer/);
+});
+
+test('login uses the official EVE SSO images and handbook uses the shared button', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const photon = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  assert.equal(
+    manifest.images.eveSsoLoginSmall,
+    'https://web.ccpgamescdn.com/eveonlineassets/developers/eve-sso-login-black-small.png',
+  );
+  assert.equal(
+    manifest.images.eveSsoLoginLarge,
+    'https://web.ccpgamescdn.com/eveonlineassets/developers/eve-sso-login-black-large.png',
+  );
+  assert.match(main, /eveSsoLoginSmall/);
+  assert.match(main, /eveSsoLoginLarge/);
+  assert.match(main, /eveSsoButton\('small'\)/);
+  assert.match(main, /eveSsoButton\('large'\)/);
+  assert.match(main, /class="button ghost topbar-help"/);
+  assert.match(photon, /\.eve-sso-button img/);
+  assert.match(photon, /\.topbar-actions \.button/);
+});
+
+test('typography uses the base font and rem sizing outside fixed exceptions', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  const photon = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  const mp = fs.readFileSync(path.join(ROOT, 'styles', 'mp.css'), 'utf8');
+  assert.match(css, /--font-base:\s*var\(--font-ui\)/);
+  assert.match(css, /body\s*\{[\s\S]*?font-size:\s*1rem/);
+  assert.doesNotMatch(mp, /font-eve-new-display/);
+  assert.match(photon, /\.site-footer,[\s\S]*?font-size:\s*8px/);
+  assert.match(photon, /\.boot-fullname\s*\{[\s\S]*?font-size:\s*11px/);
+  assert.match(photon, /\.microtype\s*\{[\s\S]*?font-size:\s*8px/);
+  for (const [file, text] of [['app.css', css], ['photon.css', photon], ['mp.css', mp]]) {
+    for (const [index, line] of text.split(/\r?\n/).entries()) {
+      if (!/^\s*font(?:-size)?\s*:/.test(line) || !line.includes('px')) continue;
+      if (/^\s*html\[data-font-size/.test(line)) continue;
+      assert.match(
+        line,
+        /font-size:\s*(8|9|11)px/,
+        `${file}:${index + 1} has an unscaled functional font: ${line.trim()}`,
+      );
+    }
+  }
+});
+
+test('hero wreck scan is a dossier plate with pixelated pre-reveal frames', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  assert.match(main, /class="wreck-plate"/);
+  assert.match(main, /wreck-plate-tab/);
+  assert.match(main, /scan-corner/);
+  assert.match(main, /size=32/);
+  assert.match(main, /setInterval\(\(\) => \{[\s\S]*?4000\)/);
+  assert.match(main, /ticks % 5 === 0/);
+  assert.match(main, /1\.6 \+ Math\.random\(\) \* 0\.4/);
+  assert.match(main, /Number\(ship\.id\) !== Number\(state\.answerId\)/);
+  assert.match(main, /ended \? esc\(renderPath\(state\.answerId\)\) : ''/);
+  assert.match(css, /\.radar\s*\{[\s\S]*?aspect-ratio:\s*4 \/ 3/);
+  assert.doesNotMatch(css, /\.radar\s*\{[^}]*border-radius:\s*50%/);
+  assert.match(css, /\.radar-visual img\s*\{[\s\S]*?object-fit:\s*cover/);
+  assert.match(css, /\.radar-visual\.is-resolved img\s*\{[\s\S]*?object-fit:\s*cover/);
+  assert.match(css, /@keyframes wreck-vertical-scan/);
+  assert.match(css, /@media \(max-width: 860px\)[\s\S]*?\.hero-radar\s*\{[\s\S]*?display:\s*flex/);
+});
+
+test('topbar controls, boot logo and claim logos share the new geometry', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  const photon = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  assert.match(css, /--topbar-control-height:\s*2\.25rem/);
+  assert.match(css, /\.topbar-center\s*\{[\s\S]*?height:\s*auto/);
+  assert.match(css, /\.topbar-center\s*\{[\s\S]*?min-height:\s*var\(--topbar-control-height\)/);
+  assert.match(css, /\.icon-button\s*\{[\s\S]*?height:\s*var\(--topbar-control-height\)/);
+  assert.match(css, /\.lang-select\s*\{[\s\S]*?height:\s*var\(--topbar-control-height\)/);
+  assert.match(photon, /\.eve-sso-button img\s*\{[\s\S]*?height:\s*var\(--topbar-control-height\)/);
+  assert.match(photon, /\.claim-mail-logo\s*\{[\s\S]*?width:\s*3\.35rem/);
+  assert.match(photon, /\.claim-mail-logo\s*\{[\s\S]*?height:\s*3\.35rem/);
+  assert.match(css, /\.boot-logos \.brand-emblem\s*\{[\s\S]*?width:\s*64px/);
+  assert.match(css, /\.boot-logos \.brand-emblem\s*\{[\s\S]*?height:\s*64px/);
+});
+
+test('loading boot animation is visible in the Photon theme', () => {
+  const photon = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  assert.match(photon, /\.boot-ring-a\s*\{[\s\S]*?animation:\s*spin/);
+  assert.match(photon, /\.boot-core\s*\{[\s\S]*?animation:\s*boot-core-pulse/);
+  assert.match(photon, /@keyframes boot-core-pulse/);
+  assert.match(photon, /\.boot-ring-b,[\s\S]*?\.boot-cross\s*\{[\s\S]*?display:\s*none/);
+});
+
+test('legal notices include Pend, SCC and fan-work declarations', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /legalNotice\(state\.locale\)/);
+  const files = [
+    fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8'),
+    fs.readFileSync(path.join(ROOT, 'NOTICE.md'), 'utf8'),
+  ];
+  for (const [index, text] of files.entries()) {
+    for (const term of ['Pend Insurance', 'Secure Commerce Commission', 'Fenris Creations']) {
+      assert.ok(text.includes(term), `legal file ${index} missing ${term}`);
+    }
+  }
+  for (const locale of manifest.locales) {
+    assert.ok(LEGAL_NOTICES[locale], `${locale} missing legal notice`);
+    assert.ok(LEGAL_NOTICES[locale].includes('{site}'), `${locale} missing site placeholder`);
+    assert.ok(LEGAL_NOTICES[locale].includes('Pend Insurance'), `${locale} missing Pend Insurance`);
+    assert.ok(LEGAL_NOTICES[locale].includes('Secure Commerce Commission'), `${locale} missing SCC`);
+    assert.ok(LEGAL_NOTICES[locale].includes('Fenris Creations'), `${locale} missing Fenris Creations`);
+  }
+});
+
+test('avatars are square and fall back to the official ID 1 portrait', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  const appCss = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  assert.equal(DEFAULT_PORTRAIT_ID, 1);
+  assert.match(portraitUrl(1, 64, '/images'), /\/characters\/1\/portrait\?size=64/);
+  const html = avatarHtml('Test Pilot', null, 64, 'pilot-avatar', '/images');
+  assert.match(html, /characters\/1\/portrait/);
+  assert.match(html, /data-fallback=/);
+  assert.match(css, /\.avatar\s*\{[\s\S]*?border-radius:\s*0/);
+  assert.match(appCss, /\.victim-portrait\s*\{[\s\S]*?border-radius:\s*0/);
+});
+
+test('Triglavian mode uses official names, logos and departments', () => {
+  assert.equal(TRIGLAVIAN_FACTION_ID, 500026);
+  assert.equal(TRIGLAVIAN_CONVOCATION_ID, 1000298);
+  assert.equal(triglavianBrand('en').faction, 'Triglavian Collective');
+  assert.equal(triglavianBrand('en').convocation, 'The Convocation of Triglav');
+  assert.equal(triglavianBrand('zh').faction, '三神裔');
+  assert.equal(triglavianBrand('zh').convocation, '三神避世会');
+  const departments = triglavianDepartments('zh');
+  assert.deepEqual(departments.map((department) => department.id), [
+    'convocation', 'perun', 'svarog', 'veles', 'navka',
+  ]);
+  assert.equal(departments[1].name, '雷电裔演化枝');
+  assert.equal(departments[2].name, '熔火裔演化枝');
+  assert.equal(departments[3].name, '暗泽裔演化枝');
+  assert.equal(departments[4].name, '纳夫卡主宰');
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /TRIGLAVIAN_FACTION_ID/);
+  assert.match(main, /TRIGLAVIAN_CONVOCATION_ID/);
+  assert.match(main, /triglavianDepartments/);
+});
+
+test('unplayed target cache, online audit and scan refinements are wired', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  assert.match(main, /fitdle:v1:target-cache/);
+  assert.match(main, /restoreCachedTarget/);
+  assert.match(main, /freeKillId = free \?/);
+  assert.match(main, /state\.appMode = online \? 'online' : 'practice'/);
+  assert.doesNotMatch(main, /state\.appMode = 'practice';\s*\n\s*\}\s*\n\s*await resolvePracticeTarget/);
+  assert.match(main, /spawnSalvageNoise/);
+  assert.match(main, /Math\.random\(\) < 0\.14 \? 0 : 1 \+ Math\.floor\(Math\.random\(\) \* 10\)/);
+  assert.match(css, /@keyframes salvage-flicker/);
+  assert.match(css, /\.hero-radar\.resolved \.salvage-noise/);
+  assert.match(css, /\.salvage-scanline::before\s*\{[\s\S]*?left:\s*0;[\s\S]*?width:\s*100%/);
+  assert.match(css, /wreck-vertical-scan 20s/);
+  assert.match(css, /salvage-scan 22s/);
+  assert.match(css, /transition: opacity 2\.8s ease, transform 3\.2s ease/);
+});
+
+test('kill value starts unabridged and toggles compact', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  assert.match(main, /state\.kbValueCompact \? isk\(value\) : iskFull\(value\)/);
+  assert.match(main, /data-kb-value-toggle="true"/);
+  assert.match(main, /function toggleKillValueFormat\(\)/);
+  assert.match(css, /\.attr-row\[data-kb-value-toggle\]\s*\{[\s\S]*?cursor:\s*pointer/);
+  assert.match(MESSAGES.en['clue.kbValueToggle'], /killmail/i);
+  assert.ok(MESSAGES.zh['clue.kbValueToggle'].length > 0);
+});
+
+test('manual is pure instructions and copyright with all modes', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /help\.multiplayerBody/);
+  assert.match(main, /help\.arbitrationBody/);
+  assert.match(main, /mode\.helpNormal/);
+  assert.match(main, /mode\.helpAudit/);
+  assert.match(main, /mode\.helpTimed/);
+  assert.match(main, /manual-legal/);
+  assert.doesNotMatch(main, /data-action="reset-hold"/);
+  assert.doesNotMatch(main, /function resetAllProgress/);
+  for (const lang of Object.keys(MESSAGES)) {
+    assert.ok(MESSAGES[lang]['help.multiplayerBody']);
+    assert.ok(MESSAGES[lang]['help.arbitrationBody']);
+  }
+});
+
+test('pilot menu and display menu replace manual utilities', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  assert.match(main, /id="pilot-menu"/);
+  assert.match(main, /data-action="pilot-menu"/);
+  assert.match(main, /pilot-menu-logout/);
+  assert.match(main, /id="appearance-menu"/);
+  assert.match(main, /data-action="toggle-font-face"/);
+  assert.match(css, /\.pilot-menu(?:,|\s*\{)/);
+  assert.match(css, /\.modal-close\s*\{[\s\S]*?color:\s*var\(--photon-danger\)/);
+});
+
+test('debrief shows a full ISK payout with a count-up animation', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  assert.match(main, /data-debrief-payout/);
+  assert.match(main, /function animateDebriefPayout/);
+  assert.match(main, /end\.insurancePayout/);
+  assert.match(main, /iskFull/);
+  assert.match(main, /platinumPayout/);
+  assert.match(css, /\.debrief-payout/);
+  for (const lang of Object.keys(MESSAGES)) {
+    assert.ok(MESSAGES[lang]['end.insurancePayout']);
+  }
+});
+
+test('gear, daily reset and clue-reveal scan are wired', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const appCss = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  const photon = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
+  const icons = fs.readFileSync(path.join(ROOT, 'js', 'icons.js'), 'utf8');
+  assert.match(icons, /settings:/);
+  assert.match(main, /icon\('settings'\)/);
+  assert.match(photon, /\.daily-reset-cta\.is-ready/);
+  assert.match(main, /function dailyResetReady/);
+  assert.match(main, /dailyButton\.classList\.toggle\('is-ready'/);
+  assert.match(main, /aria-disabled="\$\{dailyResetReady\(\)/);
+  assert.match(main, /targetGameDay/);
+  assert.match(main, /clue-reveal-scan/);
+  assert.match(appCss, /\.hero-radar\.is-clue-scanning \.salvage-scanline/);
+  assert.match(appCss, /@keyframes clue-scan/);
+  assert.match(main, /function playClueScan/);
+});
+
+test('department memos are seeded per killmail and debrief keeps a second one', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /function seededClaimIndex/);
+  assert.match(main, /state\.claimDebriefMemo/);
+  assert.match(main, /state\.claimDebriefMemo \|\| body/);
+  assert.match(main, /pickClaimMemo\(chosen\.memos,/);
+});
+
+test('Platinum payout uses ESI insurance prices', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /insurance\/prices/);
+  assert.match(main, /function platinumPayout/);
+  assert.match(main, /insuranceLoaded/);
+  assert.match(main, /platinumPayout\(state\.answerShip\?\.id\)/);
+  assert.doesNotMatch(main, /const payout = targetKillValue/);
+});
+
+test('1.0.0 removes the legacy beacon, iframe bridge and stale assets', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const game = fs.readFileSync(path.join(ROOT, 'js', 'game.js'), 'utf8');
+  const buildEnv = fs.readFileSync(path.join(ROOT, 'scripts', 'build-env.mjs'), 'utf8');
+  const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const serverPkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'package.json'), 'utf8'));
+  const changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
+  assert.equal(pkg.version, '1.0.0');
+  assert.equal(serverPkg.version, '1.0.0');
+  assert.match(pkg.engines.node, />=24/);
+  assert.equal(main.includes('MP_BRIDGE'), false);
+  assert.equal(main.includes('isMpBridge'), false);
+  assert.equal(main.includes('mp-watch-hint'), false);
+  assert.equal(main.includes('captureUrlLocale'), false);
+  assert.equal(game.includes('beaconRoundForStart'), false);
+  assert.equal(buildEnv.includes('DEFAULT_DRAND'), false);
+  assert.equal(fs.existsSync(path.join(ROOT, 'js', 'mp', 'messages.js')), false);
+  assert.equal(fs.existsSync(path.join(ROOT, 'docs', 'screenshot-abyss.png')), false);
+  assert.equal(rooms.includes("searchParams.set('share', 'room')"), false);
+  assert.match(changelog, /^## v1\.0\.0$/m);
+});
+
 test('every locale provides the same message keys', () => {
   const keys = Object.keys(MESSAGES.en).sort();
   for (const locale of manifest.locales) {
     assert.deepEqual(Object.keys(MESSAGES[locale]).sort(), keys, `${locale} key set differs`);
-    assert.ok(MESSAGES[locale]['footer.copyright'].includes('{site}'));
-    assert.equal(MESSAGES[locale]['footer.copyright'].includes('gitlab.com/cmy/fitdle'), false);
+    assert.ok(LEGAL_NOTICES[locale]?.includes('{site}'), `${locale} legal site placeholder`);
+    for (const term of ['Pend Insurance', 'Secure Commerce Commission', 'Fenris Creations']) {
+      assert.ok(LEGAL_NOTICES[locale].includes(term), `${locale} legal missing ${term}`);
+    }
     assert.ok(MESSAGES[locale]['help.sharedRules'].length > 20);
     assert.ok(!MESSAGES[locale]['help.step4'].includes('UTC'));
   }
@@ -1011,9 +1368,8 @@ test('API caching and builder cache policies are wired', () => {
   assert.match(main, /data\/module-fallback\.json/);
   const ci = fs.readFileSync(path.join(ROOT, '.gitlab-ci.yml'), 'utf8');
   assert.match(ci, /normalizedVersion/);
-  const entrypoint = fs.readFileSync(path.join(ROOT, 'docker', 'oneshot-entrypoint.sh'), 'utf8');
-  assert.match(entrypoint, /CACHE_DIR/);
-  assert.match(entrypoint, /npm run build:weights\n/);
+  assert.match(ci, /!= "3"/);
+  assert.match(ci, /fitdle-build-v6/);
 });
 
 test('unknown hull killmail shows a localized back-navigation error', () => {
@@ -1041,8 +1397,8 @@ test('field manual stays abstract and does not expose reveal mechanics', () => {
   assert.match(MESSAGES.zh['mode.helpNormal'], /逐步揭示/);
   assert.doesNotMatch(MESSAGES.en['mode.helpNormal'], /budget|queue|fittings|weight/i);
   assert.doesNotMatch(MESSAGES.zh['mode.helpNormal'], /预算|队列|装备|权重/);
-  assert.match(MESSAGES.en['mode.helpAbyss'], /simulated/);
-  assert.doesNotMatch(MESSAGES.en['mode.helpAbyss'], /\+1|equipment clues|half/i);
+  assert.match(MESSAGES.en['mode.helpAudit'], /simulated/);
+  assert.doesNotMatch(MESSAGES.en['mode.helpAudit'], /\+1|equipment clues|half/i);
   assert.match(MESSAGES.en['mode.helpFree'], /random target/);
   assert.match(MESSAGES.zh['mode.helpFree'], /随机/);
   assert.match(MESSAGES.en['mode.helpTimed'], /on a schedule/);
@@ -1055,18 +1411,18 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   assert.equal(catalog.length, 430);
   assert.equal(manifest.counts.catalog, catalog.length);
   assert.equal(manifest.downtimeUtcHour, 11);
-  assert.ok(manifest.abyssAnswerPool.length > manifest.answerPool.length);
-  assert.equal(new Set(manifest.abyssAnswerPool).size, manifest.answerPool.length);
-  for (const id of manifest.answerPool) assert.ok(manifest.abyssAnswerPool.includes(id));
+  assert.ok(manifest.auditAnswerPool.length > manifest.answerPool.length);
+  assert.equal(new Set(manifest.auditAnswerPool).size, manifest.answerPool.length);
+  for (const id of manifest.answerPool) assert.ok(manifest.auditAnswerPool.includes(id));
   assert.ok(manifest.killPool.length > 0);
   assert.equal(new Set(manifest.killPool.map((entry) => entry.killmail_id)).size, manifest.killPool.length);
-  assert.ok(manifest.abyssKillPool.length >= manifest.killPool.length);
+  assert.ok(manifest.auditKillPool.length >= manifest.killPool.length);
   for (const entry of manifest.killPool) assert.ok(catalog.some((ship) => ship.id === entry.ship_id));
   assert.ok(new Set(manifest.killPool.map((entry) => entry.ship_id)).size < manifest.killPool.length);
   assert.equal(manifest.killShipPool.length, new Set(manifest.killShipPool).size);
   assert.ok(manifest.killShipPool.length >= new Set(manifest.killPool.map((entry) => entry.ship_id)).size);
   assert.ok(manifest.normalShipPool.length >= manifest.killShipPool.length);
-  assert.ok(manifest.abyssKillShipPool.length >= manifest.killShipPool.length);
+  assert.ok(manifest.auditKillShipPool.length >= manifest.killShipPool.length);
   for (const shipId of manifest.killShipPool) assert.ok(catalog.some((ship) => ship.id === shipId));
   assert.equal(manifest.counts.modules, Object.keys(refs.modules).length);
   assert.ok(refs.modules[3186]?.chargeGroups?.includes(377));
@@ -1075,15 +1431,15 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   assert.deepEqual(refs.modules[11642]?.resistLayers, { shield: false, armor: true, structure: false });
   assert.equal(refs.modules[202]?.resistLayers, null);
   assert.equal(refs.modules[47257]?.assaultDamageControl, true);
-  const abyssFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => entry && typeof entry === 'object');
-  assert.ok(abyssFallback);
-  assert.ok(Object.values(abyssFallback).some((candidates) => Array.isArray(candidates) && candidates.length));
-  for (const [abyssId, entry] of Object.entries(manifest.moduleFallbacks || {})) {
-    const source = refs.modules[abyssId];
+  const auditFallback = Object.values(manifest.moduleFallbacks || {}).find((entry) => entry && typeof entry === 'object');
+  assert.ok(auditFallback);
+  assert.ok(Object.values(auditFallback).some((candidates) => Array.isArray(candidates) && candidates.length));
+  for (const [auditId, entry] of Object.entries(manifest.moduleFallbacks || {})) {
+    const source = refs.modules[auditId];
     if (!source) continue;
     for (const candidates of Object.values(entry)) {
       for (const representative of Array.isArray(candidates) ? candidates : [candidates]) {
-        assert.equal(refs.modules[representative]?.groupID, source.groupID, `${abyssId} borrowed ${representative}`);
+        assert.equal(refs.modules[representative]?.groupID, source.groupID, `${auditId} borrowed ${representative}`);
       }
     }
   }
@@ -1091,11 +1447,13 @@ test('catalog is SDE-only, complete, and references official data lazily', () =>
   assert.ok(manifest.zkillboard.baseUrl);
   assert.ok(manifest.links.repo);
   assert.ok(manifest.sde.buildNumber);
+  assert.ok(manifest.sde.release);
+  assert.equal(manifest.sde.apiBase, 'https://sde.evetech.net/tranquility');
   assert.match(manifest.zkillboard.snapshot, /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(manifest.timeSource);
-  assert.equal(manifest.links.eveDocs, 'https://developers.eveonline.com/static-data');
+  assert.equal(manifest.links.eveDocs, 'https://developers.eveonline.com/static-data/');
   assert.ok(manifest.links.glossary);
-  assert.ok(manifest.moduleFallbacks['47804'], 'abyssal modules need a T2/faction fallback');
+  assert.ok(manifest.moduleFallbacks['47804'], 'audit modules need a T2/faction fallback');
   for (const ship of catalog) {
     assert.ok(ship.id && ship.names?.en);
     assert.ok(ship.attrs && Number.isFinite(ship.attrs.speed));
@@ -1151,7 +1509,7 @@ test('runtime clue builder uses SDE plus live-shaped zKill fixtures', () => {
   assert.deepEqual(repeat.clues.map((clue) => `${clue.k}:${clue.v}`), repeatAgain.clues.map((clue) => `${clue.k}:${clue.v}`));
 });
 
-test('abyssal clues simulate fittings and delay identity reveals', () => {
+test('audit clues simulate fittings and delay identity reveals', () => {
   const ship = catalog.find((entry) => {
     if (entry.groupID !== 27) return false;
     const race = String(refs.races?.[entry.raceID] || '').toLowerCase();
@@ -1187,7 +1545,7 @@ test('abyssal clues simulate fittings and delay identity reveals', () => {
     losses,
     dateKey: '2026-11-14',
     dataVersion: manifest.dataVersion,
-    mode: 'abyss',
+    mode: 'audit',
     moduleDetails,
   });
   const byKind = (kind) => built.clues.find((clue) => clue.k === kind);
@@ -1361,14 +1719,14 @@ test('built-in equipment on corvettes and Zephyr is limited', () => {
   assert.ok(zephyr.w >= 8.2);
 });
 
-test('assault damage control raises abyss structure resist weight', () => {
+test('assault damage control raises audit structure resist weight', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const build = (moduleId) => buildClues({
     ship, catalog, refs, stats: null,
     losses: [{ killmail_id: 7, zkb: { totalValue: 1000 }, victim: { items: [
       { flag: 12, item_type_id: moduleId, quantity_destroyed: 1, quantity_dropped: 0 },
     ] } }],
-    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'audit',
   }).clues.find((clue) => clue.k === 'structureResists');
   const adc = build(47257);
   const dc = build(2048);
@@ -1382,16 +1740,16 @@ test('assault damage control raises abyss structure resist weight', () => {
   assert.ok(standard.w <= 0.4);
 });
 
-test('standard defense clues use a wider matching range than abyss', () => {
+test('standard defense clues use a wider matching range than audit', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const build = (mode) => buildClues({
     ship, catalog, refs, stats: null, losses: [], dateKey: '2026-11-14',
     dataVersion: manifest.dataVersion, mode,
   }).clues.find((clue) => clue.k === 'shield');
   const standard = build(undefined);
-  const abyss = build('abyss');
+  const audit = build('audit');
   assert.equal(standard.range, STANDARD_DEFENSE_RANGE);
-  assert.equal(abyss.range, undefined);
+  assert.equal(audit.range, undefined);
   assert.ok(clueMatchesShip({ ...standard, v: standard.v * 1.08 }, ship));
   assert.equal(clueMatchesShip({ ...standard, v: standard.v * 1.3 }, ship), false);
 });
@@ -1446,7 +1804,7 @@ test('resistance weights follow fitted resist gear instead of base values alone'
   const build = (items) => buildClues({
     ship, catalog, refs, stats: null,
     losses: [{ killmail_id: 12, zkb: { totalValue: 1000 }, victim: { items } }],
-    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'audit',
   });
   const clue = (built, kind) => built.clues.find((entry) => entry.k === kind);
   const equipment = (built, id) => built.clues.find((entry) => entry.k === 'equipment' && entry.v.module === id);
@@ -1495,12 +1853,12 @@ test('resistance weights follow fitted resist gear instead of base values alone'
   assert.ok(clue(energizer, 'armorResists').w <= 3.2);
 });
 
-test('abyss weather boosts non-uniform structure resists', () => {
+test('audit weather boosts non-uniform structure resists', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const build = (structureResists) => buildClues({
     ship, catalog, refs, stats: null,
     losses: [{ killmail_id: 77, zkb: { totalValue: 1000 }, victim: { items: [] } }],
-    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'abyss',
+    dateKey: '2026-11-14', dataVersion: manifest.dataVersion, mode: 'audit',
     fittedAttrs: { ...ship.attrs, structureResists },
   }).clues.find((clue) => clue.k === 'structureResists');
   const uniform = build({ em: 33, thermal: 33, kinetic: 33, explosive: 33 });
@@ -1694,18 +2052,18 @@ test('cargo charges inherit fitted equipment weight without markers', () => {
   assert.deepEqual(cargoScript.tags, []);
 });
 
-test('officer, abyssal and PLEX items expose their own markers', () => {
+test('officer, audit and PLEX items expose their own markers', () => {
   const battleship = catalog.find((entry) => entry.groupID === 27);
   const officer = Object.entries(refs.modules).find(([, module]) => Number(module.metaGroupID) === 5);
-  const abyssal = Object.entries(refs.modules).find(([, module]) => Number(module.metaGroupID) === 15);
-  assert.ok(officer && abyssal);
+  const audit = Object.entries(refs.modules).find(([, module]) => Number(module.metaGroupID) === 15);
+  assert.ok(officer && audit);
   const losses = [{
     killmail_id: 424251,
     zkb: { totalValue: 1000 },
     victim: {
       items: [
         { flag: 27, item_type_id: Number(officer[0]), quantity_destroyed: 1, quantity_dropped: 0 },
-        { flag: 28, item_type_id: Number(abyssal[0]), quantity_destroyed: 1, quantity_dropped: 0 },
+        { flag: 28, item_type_id: Number(audit[0]), quantity_destroyed: 1, quantity_dropped: 0 },
         { flag: 5, item_type_id: 44992, quantity_destroyed: 1, quantity_dropped: 0 },
       ],
     },
@@ -1715,14 +2073,14 @@ test('officer, abyssal and PLEX items expose their own markers', () => {
     dataVersion: manifest.dataVersion,
   });
   const officerClue = built.clues.find((clue) => clue.v?.module === Number(officer[0]));
-  const abyssalClue = built.clues.find((clue) => clue.v?.module === Number(abyssal[0]));
+  const auditClue = built.clues.find((clue) => clue.v?.module === Number(audit[0]));
   const plexClue = built.clues.find((clue) => clue.v?.module === 44992);
   assert.ok(officerClue.tags.includes('officer'));
-  assert.ok(abyssalClue.tags.includes('abyss'));
+  assert.ok(auditClue.tags.includes('audit'));
   assert.ok(plexClue.tags.includes('plex'));
 });
 
-test('abyss fallback picks the nearest meta of the same module variant', () => {
+test('audit fallback picks the nearest meta of the same module variant', () => {
   const officerRepair = Object.entries(refs.modules).find(([, module]) => (
     module.groupID === 62 && Number(module.metaGroupID) === 5
   ));
@@ -1731,13 +2089,13 @@ test('abyss fallback picks the nearest meta of the same module variant', () => {
     { module: 49738, slot: 'low' },
     { module: Number(officerRepair[0]), slot: 'low' },
   ];
-  const fallbacks = selectAbyssFallbacks(equipment, refs, manifest.moduleFallbacks);
+  const fallbacks = selectAuditFallbacks(equipment, refs, manifest.moduleFallbacks);
   const ballistic = fallbacks.get(49738);
   assert.ok(ballistic);
   assert.equal(refs.modules[ballistic].groupID, 367);
   assert.equal(Number(refs.modules[ballistic].metaGroupID), 5);
 
-  const repairFallbacks = selectAbyssFallbacks([
+  const repairFallbacks = selectAuditFallbacks([
     { module: 47777, slot: 'low' },
     { module: 18973, slot: 'low' },
   ], refs, manifest.moduleFallbacks);
@@ -1747,7 +2105,7 @@ test('abyss fallback picks the nearest meta of the same module variant', () => {
   assert.equal(Number(refs.modules[repair].metaLevel), 16);
   assert.notEqual(repair, 19035);
 
-  const entropicFallbacks = selectAbyssFallbacks([
+  const entropicFallbacks = selectAuditFallbacks([
     { module: 49734, slot: 'low' },
     { module: 18973, slot: 'low' },
   ], refs, manifest.moduleFallbacks);
@@ -1774,29 +2132,29 @@ test('fitted module PG/CPU implies a size floor but cargo spares do not', () => 
   assert.ok(cargo.w < 6.2);
 });
 
-test('abyss weights start from base stats and drop when fitted values change', () => {
+test('audit weights start from base stats and drop when fitted values change', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const losses = [{ killmail_id: 424250, zkb: { totalValue: 1000 }, victim: { items: [] } }];
   const normal = buildClues({
     ship, catalog, refs, stats: null, losses, dateKey: '2026-11-14',
     dataVersion: manifest.dataVersion,
   });
-  const abyss = buildClues({
+  const audit = buildClues({
     ship, catalog, refs, stats: null, losses, dateKey: '2026-11-14',
-    dataVersion: manifest.dataVersion, mode: 'abyss',
+    dataVersion: manifest.dataVersion, mode: 'audit',
     fittedAttrs: { ...ship.attrs, mass: ship.attrs.mass + 5000000 },
   });
   const normalMass = normal.clues.find((clue) => clue.k === 'mass');
-  const abyssMass = abyss.clues.find((clue) => clue.k === 'mass');
-  assert.notEqual(abyssMass.v, normalMass.v);
-  assert.ok(abyssMass.w < normalMass.w);
+  const auditMass = audit.clues.find((clue) => clue.k === 'mass');
+  assert.notEqual(auditMass.v, normalMass.v);
+  assert.ok(auditMass.w < normalMass.w);
   const normalTech = normal.clues.find((clue) => clue.k === 'tech');
-  const abyssTech = abyss.clues.find((clue) => clue.k === 'tech');
-  assert.equal(abyssTech.w, normalTech.w);
+  const auditTech = audit.clues.find((clue) => clue.k === 'tech');
+  assert.equal(auditTech.w, normalTech.w);
 
   const skillOnly = buildClues({
     ship, catalog, refs, stats: null, losses, dateKey: '2026-11-14',
-    dataVersion: manifest.dataVersion, mode: 'abyss',
+    dataVersion: manifest.dataVersion, mode: 'audit',
     baselineAttrs: { ...ship.attrs, mass: ship.attrs.mass + 5000000 },
     fittedAttrs: { ...ship.attrs, mass: ship.attrs.mass + 5000000 },
   });
@@ -1838,20 +2196,20 @@ test('single-class bastion modules are unique and weighted heavily', () => {
   assert.equal(bastion.w, 10);
 });
 
-test('abyss multi-clue reveals mix equipment and attributes', () => {
+test('audit multi-clue reveals mix equipment and attributes', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const built = buildClues({
     ship, catalog, refs, stats: null, losses: makeLosses(), dateKey: '2026-11-14',
-    dataVersion: manifest.dataVersion, mode: 'abyss',
+    dataVersion: manifest.dataVersion, mode: 'audit',
   });
   const getShip = (id) => catalog.find((entry) => entry.id === id);
   const initial = computeRevealed({
     clues: built.clues, catalog, guesses: [], status: 'playing', answerId: ship.id,
-    mode: 'abyss', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
+    mode: 'audit', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
   });
   const revealed = computeRevealed({
     clues: built.clues, catalog, guesses: [999999, 999998], status: 'playing', answerId: ship.id,
-    mode: 'abyss', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
+    mode: 'audit', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
   });
   const added = [...revealed].filter((index) => !initial.has(index));
   assert.ok(added.length >= 2);
@@ -1859,20 +2217,20 @@ test('abyss multi-clue reveals mix equipment and attributes', () => {
   assert.ok(equipment > 0 && equipment < added.length, 'multi-reveal should mix equipment and attributes');
 });
 
-test('abyss falls back to other clues when there is no equipment', () => {
+test('audit falls back to other clues when there is no equipment', () => {
   const ship = catalog.find((entry) => entry.id === 587);
   const built = buildClues({
     ship, catalog, refs, stats: null, losses: [], dateKey: '2026-11-14',
-    dataVersion: manifest.dataVersion, mode: 'abyss',
+    dataVersion: manifest.dataVersion, mode: 'audit',
   });
   const getShip = (id) => catalog.find((entry) => entry.id === id);
   const initial = computeRevealed({
     clues: built.clues, catalog, guesses: [], status: 'playing', answerId: ship.id,
-    mode: 'abyss', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
+    mode: 'audit', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
   });
   const revealed = computeRevealed({
     clues: built.clues, catalog, guesses: [999999, 999998], status: 'playing', answerId: ship.id,
-    mode: 'abyss', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
+    mode: 'audit', locale: 'en', getShip, answerBonuses: ship.bonuses.en, answer: ship,
   });
   const added = [...revealed].filter((index) => !initial.has(index));
   assert.ok(added.length > 0);
@@ -1933,12 +2291,12 @@ test('normal mode releases equipment on misses and shared clues on matching gues
     previous = next;
   }
 
-  const abyssInitial = compute([], 'abyss');
-  const abyssOne = compute([999999], 'abyss');
-  const abyssTwo = compute([999999, 999998], 'abyss');
-  assert.ok(abyssInitial.size >= 2 && abyssInitial.size <= 7);
-  assert.ok(abyssOne.size >= abyssInitial.size && abyssOne.size <= abyssInitial.size + 5);
-  assert.ok(abyssTwo.size >= abyssOne.size && abyssTwo.size <= abyssInitial.size + 9);
+  const auditInitial = compute([], 'audit');
+  const auditOne = compute([999999], 'audit');
+  const auditTwo = compute([999999, 999998], 'audit');
+  assert.ok(auditInitial.size >= 2 && auditInitial.size <= 7);
+  assert.ok(auditOne.size >= auditInitial.size && auditOne.size <= auditInitial.size + 5);
+  assert.ok(auditTwo.size >= auditOne.size && auditTwo.size <= auditInitial.size + 9);
 });
 
 test('Standard cargo queue consumes its own weight budget', () => {
@@ -1963,6 +2321,62 @@ test('Standard cargo queue consumes its own weight budget', () => {
     plan,
   });
   assert.equal(revealed.size, DEFAULT_REVEAL_CONFIG.standardCargoBudget);
+});
+
+test('Pend branding, claim copy and official corporation logos are wired', () => {
+  assert.equal(MESSAGES.en['brand.parent'], 'PEND INSURANCE');
+  assert.equal(MESSAGES.zh['brand.parent'], '彭德保险集团');
+  assert.equal(MESSAGES.zh['brand.claimDivision'], '商业安全委员会 理赔评估处');
+  assert.ok(MESSAGES.en['brand.claimDivision'].includes('SECURE COMMERCE COMMISSION'));
+  assert.equal(MESSAGES.en['app.subtitle'], 'PEND INSURANCE // CLAIMS ASSESSMENT');
+  assert.equal(MESSAGES.en['mode.audit'], 'AUDIT');
+  assert.equal(MESSAGES.zh['mode.audit'], '审计');
+  assert.equal(MESSAGES.zh['mode.helpAuditTitle'], '审计模式');
+  assert.equal(MESSAGES.en['gameplay.arbitration'], 'ARBITRATION');
+  assert.equal(MESSAGES.zh['gameplay.arbitration'], '仲裁复核');
+  for (const locale of manifest.locales) {
+    for (const key of ['claim.from', 'claim.to', 'claim.subject', 'claim.status', 'claim.file', 'claim.disclaimer']) {
+      assert.ok(MESSAGES[locale][key], `${locale} missing ${key}`);
+    }
+  }
+  assert.equal(PEND_INSURANCE_ID, 1000113);
+  assert.equal(SCC_ID, 1000132);
+  const logo = brandLogoHtml({ baseUrl: '/images', size: 256, className: 'test-logo', alt: 'Pend' });
+  assert.match(logo, /\/images\/corporations\/1000113\/logo\?size=256/);
+  assert.match(logo, /brand-emblem/);
+  const mark = fitdleMark();
+  assert.match(mark, /<svg/);
+  assert.equal(mark.includes('PI'), false);
+  assert.equal(mark.toLowerCase().includes('pend'), false);
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(FITDLE_SYSTEM_LONG, /F\.I\.T\.D\.L\.E\./);
+  assert.match(main, /claimDivision/);
+  assert.match(main, /fitdleMark\(\)/);
+  assert.match(main, /claim-mail-logos/);
+  assert.match(main, /PEND_INSURANCE_ID/);
+  assert.match(main, /SCC_ID/);
+  assert.equal(main.includes('footer-compliance'), false);
+});
+
+test('new URLs use claim instead of gameplay', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.equal(main.includes("searchParams.set('gameplay'"), false);
+  assert.equal(main.includes("params.get('gameplay')"), false);
+  assert.match(main, /searchParams\.set\('claim'/);
+});
+
+test('legacy mode names are absent from authored UI copy', () => {
+  const files = [
+    'index.html',
+    'js/main.js',
+    'js/i18n.js',
+    'js/online/messages.js',
+    'README.md',
+  ];
+  for (const file of files) {
+    const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.doesNotMatch(text, /abyss|Abyss|ABYSS|pvp|PvP|PVP|深渊|试炼场/, `${file} still contains a legacy mode name`);
+  }
 });
 
 test('frontend source has no hard-coded deployment domains or local image caches', () => {
