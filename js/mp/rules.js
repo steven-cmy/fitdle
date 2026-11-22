@@ -8,6 +8,95 @@ export const DEFAULT_SCORE_TARGET = 20;
 export const DEFAULT_RACE_ROUND_MS = 180000;
 export const DEFAULT_DEAL_MS = 120000;
 export const MAX_PLAYERS = 8;
+export const ROOM_SCORE_PER_KB = 3000;
+export const ARBITRATION_ROUNDS = 6;
+
+/** Integer points for one non-arbitration endless round. */
+export function endlessRoundScore({ status, attempts, x = ROOM_SCORE_PER_KB } = {}) {
+  if (status !== 'won') return 0;
+  const total = Math.max(1, Math.floor(Number(x) || ROOM_SCORE_PER_KB));
+  const wrong = Math.max(0, Math.min(6, Math.floor(Number(attempts) || 0) - 1));
+  return Math.max(0, Math.floor(total - wrong * (total / 6)));
+}
+
+function allocateByWeights(weights, budget) {
+  const totalBudget = Math.max(0, Math.floor(Number(budget) || 0));
+  const list = Array.isArray(weights) ? weights.map((value) => Math.max(0, Number(value) || 0)) : [];
+  if (!list.length) return [];
+  const result = Array(list.length).fill(0);
+  const totalWeight = list.reduce((sum, value) => sum + value, 0);
+  if (!totalWeight) {
+    result[0] = totalBudget;
+    return result;
+  }
+  const fractions = [];
+  let assigned = 0;
+  list.forEach((weight, index) => {
+    const raw = (totalBudget * weight) / totalWeight;
+    const base = Math.floor(raw);
+    result[index] = base;
+    assigned += base;
+    fractions.push({ index, fraction: raw - base });
+  });
+  fractions.sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+  let remaining = totalBudget - assigned;
+  for (let index = 0; remaining > 0 && index < fractions.length; index += 1) {
+    result[fractions[index].index] += 1;
+    remaining -= 1;
+  }
+  return result;
+}
+
+/**
+ * Split X across every (round, non-dealer) bucket, then split each bucket
+ * across all clues by weight. All values are integers and every bucket sums
+ * exactly to its assigned budget.
+ */
+export function allocatePlayerRoundScores({
+  clues,
+  players,
+  rounds = ARBITRATION_ROUNDS,
+  x = ROOM_SCORE_PER_KB,
+} = {}) {
+  const list = Array.isArray(clues) ? clues : [];
+  const ids = [...new Set((Array.isArray(players) ? players : []).map(String))].filter(Boolean);
+  const roundCount = Math.max(1, Math.floor(Number(rounds) || ARBITRATION_ROUNDS));
+  const total = Math.max(0, Math.floor(Number(x) || ROOM_SCORE_PER_KB));
+  if (!ids.length || !list.length) {
+    return { budgets: {}, scores: {}, total: 0 };
+  }
+  const bucketCount = ids.length * roundCount;
+  const base = Math.floor(total / bucketCount);
+  let remainder = total - base * bucketCount;
+  const budgets = {};
+  const scores = {};
+  const weights = list.map((clue) => Math.max(0, Number(clue?.w) || 0));
+  for (const id of ids) {
+    budgets[id] = Array(roundCount).fill(base);
+    scores[id] = Array.from({ length: roundCount }, () => Array(list.length).fill(0));
+  }
+  // Remainder buckets are assigned deterministically by round then player order.
+  for (let round = 0; round < roundCount && remainder > 0; round += 1) {
+    for (const id of ids) {
+      if (remainder <= 0) break;
+      budgets[id][round] += 1;
+      remainder -= 1;
+    }
+  }
+  for (const id of ids) {
+    for (let round = 0; round < roundCount; round += 1) {
+      scores[id][round] = allocateByWeights(weights, budgets[id][round]);
+    }
+  }
+  return { budgets, scores, total };
+}
+
+export function allocateClueScores(clues, x = ROOM_SCORE_PER_KB) {
+  return allocateByWeights(
+    (Array.isArray(clues) ? clues : []).map((clue) => Math.max(0, Number(clue?.w) || 0)),
+    x,
+  );
+}
 
 /** Points for a 1-based finish position. */
 export function rankPoints(rank) {

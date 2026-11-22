@@ -79,7 +79,7 @@ const en = {
   'cat.defense': 'DEFENSE',
   'cat.fitting': 'FITTING',
   'cat.equipment': 'EQUIPMENT',
-  'cat.economy': 'ZKILLBOARD',
+  'cat.economy': 'ZKILLBOARD · LAST 90 DAYS',
   'cat.traits': 'TRAITS',
   'clue.race': 'Race',
   'clue.faction': 'Faction',
@@ -106,7 +106,7 @@ const en = {
   'clue.calibration': 'Calibration',
   'clue.targetRange': 'Targeting range',
   'clue.scanRes': 'Scan resolution',
-  'clue.losses30': 'Losses · 90 days',
+  'clue.losses90': 'Losses',
   'clue.danger': 'Danger index',
   'clue.bonus': 'Hull bonuses',
   'clue.bonusRole': 'Role Bonus',
@@ -120,7 +120,6 @@ const en = {
   'clue.techValue': 'Tech {n}',
   'clue.percent': '{n}%',
   'clue.medianNote': 'zKillboard median of recent losses',
-  'clue.zkbNote': 'zKillboard · 90-day window',
   'clue.count30': '{n} losses',
   'end.victoryKicker': 'SIGNAL LOCK ESTABLISHED',
   'end.victoryTitle': 'SHIP SIGNAL LOCKED',
@@ -263,7 +262,7 @@ const zh = {
   'cat.defense': '防御',
   'cat.fitting': '装配',
   'cat.equipment': '装备',
-  'cat.economy': 'ZKILLBOARD',
+  'cat.economy': 'ZKILLBOARD · 近90天',
   'cat.traits': '特性',
   'clue.race': '种族',
   'clue.faction': '势力',
@@ -290,7 +289,7 @@ const zh = {
   'clue.calibration': '校准值',
   'clue.targetRange': '锁定范围上限',
   'clue.scanRes': '扫描分辨率',
-  'clue.losses30': '90 天损失数',
+  'clue.losses90': '损失数',
   'clue.danger': '危险指数',
   'clue.bonus': '舰船加成',
   'clue.bonusRole': '角色加成',
@@ -304,7 +303,6 @@ const zh = {
   'clue.techValue': '科技 {n} 级',
   'clue.percent': '{n}%',
   'clue.medianNote': 'zKillboard 近期损失中位数',
-  'clue.zkbNote': 'zKillboard · 90 天窗口',
   'clue.count30': '{n} 次损失',
   'end.victoryKicker': '信号锁定完成',
   'end.victoryTitle': '舰船信号已锁定',
@@ -447,7 +445,7 @@ const de = {
   'cat.defense': 'VERTEIDIGUNG',
   'cat.fitting': 'FITTING',
   'cat.equipment': 'AUSRÜSTUNG',
-  'cat.economy': 'ZKILLBOARD',
+  'cat.economy': 'ZKILLBOARD · LETZTE 90 TAGE',
   'cat.traits': 'EIGENSCHAFTEN',
   'clue.race': 'Rasse',
   'clue.faction': 'Fraktion',
@@ -474,7 +472,7 @@ const de = {
   'clue.calibration': 'Kalibrierung',
   'clue.targetRange': 'Zielerfassungsreichweite',
   'clue.scanRes': 'Scanauflösung',
-  'clue.losses30': 'Verluste · 90 Tage',
+  'clue.losses90': 'Verluste',
   'clue.danger': 'Gefahrenindex',
   'clue.bonus': 'Hüllen-Boni',
   'clue.bonusRole': 'Rollenbonus',
@@ -488,7 +486,6 @@ const de = {
   'clue.techValue': 'Tech {n}',
   'clue.percent': '{n}%',
   'clue.medianNote': 'zKillboard-Median aktueller Verluste',
-  'clue.zkbNote': 'zKillboard · 90-Tage-Fenster',
   'clue.count30': '{n} Verluste',
   'end.victoryKicker': 'SIGNALSPERRE BESTÄTIGT',
   'end.victoryTitle': 'SCHIFFSSIGNAL GESPERRT',
@@ -631,7 +628,7 @@ const es = {
   'cat.defense': 'DEFENSA',
   'cat.fitting': 'AJUSTE',
   'cat.equipment': 'EQUIPO',
-  'cat.economy': 'ZKILLBOARD',
+  'cat.economy': 'ZKILLBOARD · ÚLTIMOS 90 DÍAS',
   'cat.traits': 'RASGOS',
   'clue.race': 'Raza',
   'clue.faction': 'Facción',
@@ -658,7 +655,7 @@ const es = {
   'clue.calibration': 'Calibración',
   'clue.targetRange': 'Alcance de objetivo',
   'clue.scanRes': 'Resolución de escaneo',
-  'clue.losses30': 'Pérdidas · 90 días',
+  'clue.losses90': 'Pérdidas',
   'clue.danger': 'Índice de peligro',
   'clue.bonus': 'Bonificaciones de casco',
   'clue.bonusRole': 'Bonificación de rol',
@@ -672,7 +669,6 @@ const es = {
   'clue.techValue': 'Tecnología {n}',
   'clue.percent': '{n}%',
   'clue.medianNote': 'Mediana de pérdidas recientes de zKillboard',
-  'clue.zkbNote': 'zKillboard · ventana de 90 días',
   'clue.count30': '{n} pérdidas',
   'end.victoryKicker': 'BLOQUEO DE SEÑAL CONFIRMADO',
   'end.victoryTitle': 'SEÑAL DE NAVE BLOQUEADA',
@@ -815,7 +811,7 @@ const fr = {
   'cat.defense': 'DÉFENSE',
   'cat.fitting': 'FITTING',
   'cat.equipment': 'ÉQUIPEMENT',
-  'cat.economy': 'ZKILLBOARD',
+  'cat.economy': 'ZKILLBOARD · 90 DERNIERS JOURS',
   'cat.traits': 'TRAITS',
   'clue.race': 'Race',
   'clue.faction': 'Faction',
@@ -842,7 +838,7 @@ const fr = {
   'clue.calibration': 'Calibration',
   'clue.targetRange': 'Portée de ciblage',
   'clue.scanRes': 'Résolution de scan',
-  'clue.losses30': 'Pertes · 90 jours',
+  'clue.losses90': 'Pertes',
   'clue.danger': 'Indice de danger',
   'clue.bonus': 'Bonus de coque',
   'clue.bonusRole': 'Bonus de rôle',
@@ -856,7 +852,6 @@ const fr = {
   'clue.techValue': 'Tech {n}',
   'clue.percent': '{n}%',
   'clue.medianNote': 'Médiane des pertes récentes zKillboard',
-  'clue.zkbNote': 'zKillboard · fenêtre de 90 jours',
   'clue.count30': '{n} pertes',
   'end.victoryKicker': 'VERROUILLAGE SIGNAL CONFIRMÉ',
   'end.victoryTitle': 'SIGNAL DU VAISSEAU VERROUILLÉ',
@@ -999,7 +994,7 @@ const ja = {
   'cat.defense': '防御',
   'cat.fitting': 'フィッティング',
   'cat.equipment': '装備',
-  'cat.economy': 'ZKILLBOARD',
+  'cat.economy': 'ZKILLBOARD · 過去90日',
   'cat.traits': '特性',
   'clue.race': '種族',
   'clue.faction': '勢力',
@@ -1026,7 +1021,7 @@ const ja = {
   'clue.calibration': 'キャリブレーション',
   'clue.targetRange': 'ターゲット範囲',
   'clue.scanRes': 'スキャン分解能',
-  'clue.losses30': '損失 · 90日',
+  'clue.losses90': '損失',
   'clue.danger': '危険度',
   'clue.bonus': '船体ボーナス',
   'clue.bonusRole': 'ロールボーナス',
@@ -1040,7 +1035,6 @@ const ja = {
   'clue.techValue': 'テック {n}',
   'clue.percent': '{n}%',
   'clue.medianNote': 'zKillboard 最近の損失中央値',
-  'clue.zkbNote': 'zKillboard · 90日間',
   'clue.count30': '{n} 件の損失',
   'end.victoryKicker': 'シップ・シグナル・ロック完了',
   'end.victoryTitle': '艦船信号ロック完了',
@@ -1183,7 +1177,7 @@ const ko = {
   'cat.defense': '방어',
   'cat.fitting': '피팅',
   'cat.equipment': '장비',
-  'cat.economy': 'ZKILLBOARD',
+  'cat.economy': 'ZKILLBOARD · 최근 90일',
   'cat.traits': '특성',
   'clue.race': '종족',
   'clue.faction': '팩션',
@@ -1210,7 +1204,7 @@ const ko = {
   'clue.calibration': '교정치',
   'clue.targetRange': '타겟팅 거리',
   'clue.scanRes': '스캔 정밀도',
-  'clue.losses30': '손실 · 90일',
+  'clue.losses90': '손실',
   'clue.danger': '위험 지수',
   'clue.bonus': '선체 보너스',
   'clue.bonusRole': '역할 보너스',
@@ -1224,7 +1218,6 @@ const ko = {
   'clue.techValue': '테크 {n}',
   'clue.percent': '{n}%',
   'clue.medianNote': 'zKillboard 최근 손실 중앙값',
-  'clue.zkbNote': 'zKillboard · 90일 기준',
   'clue.count30': '손실 {n}건',
   'end.victoryKicker': '함선 신호 락 완료',
   'end.victoryTitle': '함선 신호 락 완료',
@@ -1367,7 +1360,7 @@ const ru = {
   'cat.defense': 'ЗАЩИТА',
   'cat.fitting': 'ФИТИНГ',
   'cat.equipment': 'ОСНАЩЕНИЕ',
-  'cat.economy': 'ZKILLBOARD',
+  'cat.economy': 'ZKILLBOARD · ПОСЛЕДНИЕ 90 ДНЕЙ',
   'cat.traits': 'ОСОБЕННОСТИ',
   'clue.race': 'Раса',
   'clue.faction': 'Фракция',
@@ -1394,7 +1387,7 @@ const ru = {
   'clue.calibration': 'Калибровка',
   'clue.targetRange': 'Дальность захвата',
   'clue.scanRes': 'Разрешение сканера',
-  'clue.losses30': 'Потери · 90 дней',
+  'clue.losses90': 'Потери',
   'clue.danger': 'Индекс опасности',
   'clue.bonus': 'Бонусы корпуса',
   'clue.bonusRole': 'Ролевой бонус',
@@ -1408,7 +1401,6 @@ const ru = {
   'clue.techValue': 'Тех {n}',
   'clue.percent': '{n}%',
   'clue.medianNote': 'Медиана недавних потерь zKillboard',
-  'clue.zkbNote': 'zKillboard · окно 90 дней',
   'clue.count30': '{n} потерь',
   'end.victoryKicker': 'СИГНАЛ ЗАХВАЧЕН',
   'end.victoryTitle': 'СИГНАЛ КОРАБЛЯ ЗАХВАЧЕН',
@@ -1551,7 +1543,7 @@ const EXTRAS = {
     ru: 'АУДИТ ОСНАСТКИ: симуляция фитинга, редкие корпуса, +1/+2/+3 данных.',
     zh: '装配审计：装备模拟、稀有船体，+1~+5 装备线索 +1 其他线索。',
   },
-  'clue.kbValue': { en: 'KILLMAIL VALUE', de: 'KILLMAIL-WERT', es: 'VALOR DEL KILLMAIL', fr: 'VALEUR DU KILLMAIL', ja: 'キルメール価値', ko: '킬메일 가치', ru: 'СТОИМОСТЬ КИЛМЕЙЛА', zh: '击杀总价值' },
+  'clue.kbValue': { en: 'CURRENT KILL VALUE', de: 'AKTUELLER KILLMAIL-WERT', es: 'VALOR DEL KILLMAIL ACTUAL', fr: 'VALEUR DU KILLMAIL ACTUEL', ja: '今回のキルメール価値', ko: '현재 킬메일 가치', ru: 'СТОИМОСТЬ ТЕКУЩЕГО КИЛМЕЙЛА', zh: '本次击杀总价值' },
   'clue.sensorStrength': {
     en: 'SENSOR STRENGTH', de: 'SENSORSTÄRKE', es: 'INTENSIDAD DE SENSORES',
     fr: 'INTENSITÉ DES CAPTEURS', ja: 'センサー強度', ko: '센서 강도',
@@ -2003,6 +1995,16 @@ Object.assign(RENAMES, {
     ru: 'Абиссальный модуль; расчёт по ближайшему подходящему представителю.',
     zh: '装配审计装备；按最接近的同类代表计算。',
   },
+  'dossier.cloakHint': {
+    en: 'Cloaking device fitted. It is simulated online but inactive; speed and bonuses are calculated as uncloaked.',
+    de: 'Tarnvorrichtung montiert. Sie wird online, aber inaktiv simuliert; Geschwindigkeit und Boni gelten ohne Tarnung.',
+    es: 'Dispositivo de camuflaje instalado. Se simula en línea pero inactivo; velocidad y bonificaciones se calculan sin camuflaje.',
+    fr: 'Dispositif de camouflage installé. Il est simulé en ligne mais inactif ; vitesse et bonus sont calculés sans camouflage.',
+    ja: 'クローキング装置を搭載。オンラインだが未起動として扱い、速度とボーナスは非クローク状態で計算します。',
+    ko: '클로킹 장치가 장착되었습니다. 온라인이지만 비활성으로 시뮬레이션하며 속도와 보너스는 클로킹 해제 상태로 계산합니다.',
+    ru: 'Устройство маскировки установлено. Оно считается онлайн, но неактивным; скорость и бонусы рассчитываются без маскировки.',
+    zh: '已装配隐身装置。模拟为上线但未开启；速度与加成按未隐身计算。',
+  },
   'dossier.auditCalc': {
     en: 'Calculation: {name}',
     de: 'Berechnung: {name}',
@@ -2236,6 +2238,10 @@ Object.assign(RENAMES, {
   'dossier.audit': {
     en: 'AUDIT', de: 'ABGRUND', es: 'ABISAL', fr: 'AUDIT',
     ja: '装備監査', ko: '장비 감사', ru: 'АУДИТ ОСНАСТКИ', zh: '装配审计',
+  },
+  'dossier.cloak': {
+    en: 'CLOAK', de: 'TARNUNG', es: 'CAMUFLAJE', fr: 'CAMOUFLAGE',
+    ja: 'クローク', ko: '클로킹', ru: 'МАСКИРОВКА', zh: '隐身',
   },
   'dossier.plex': {
     en: 'PLEX ???', de: 'PLEX ???', es: 'PLEX ???', fr: 'PLEX ???',
@@ -3418,7 +3424,7 @@ for (const [key, values] of Object.entries(BRAND_MESSAGES)) {
 
 const EXTRA_MESSAGES = {
   en: {
-    'clue.kbValueToggle': 'Toggle killmail value format',
+    'clue.kbValueToggle': 'Toggle current killmail value format',
     'help.multiplayerBody': 'Multiplayer rooms use one shared target. The host chooses Standard, Fitting Audit or Timed; all players race on the same wreck.',
     'help.arbitrationBody': 'Arbitration rotates the dealer. The dealer publishes intel; active players guess once per round. A wrong guess awards the published clue weight to the dealer.',
     'end.insurancePayout': 'INSURANCE PAYOUT',
@@ -3426,7 +3432,7 @@ const EXTRA_MESSAGES = {
     'mode.dailyRefresh': 'REFRESH',
   },
   de: {
-    'clue.kbValueToggle': 'Killmail-Wertformat umschalten',
+    'clue.kbValueToggle': 'Format des aktuellen Killmail-Werts umschalten',
     'help.multiplayerBody': 'Mehrspieler-Räume nutzen ein gemeinsames Ziel. Der Host wählt Standard, Fitting-Audit oder Zeit; alle spielen am selben Wrack.',
     'help.arbitrationBody': 'Bei Arbitration wechselt der Dealer. Der Dealer veröffentlicht Intel; aktive Spieler raten einmal pro Runde. Ein falscher Tipp gibt dem Dealer das Gewicht der veröffentlichten Hinweise.',
     'end.insurancePayout': 'VERSICHERUNGSAUSZAHLUNG',
@@ -3434,7 +3440,7 @@ const EXTRA_MESSAGES = {
     'mode.dailyRefresh': 'AKTUALISIEREN',
   },
   es: {
-    'clue.kbValueToggle': 'Cambiar formato del valor del killmail',
+    'clue.kbValueToggle': 'Cambiar formato del valor de este killmail',
     'help.multiplayerBody': 'Las salas multijugador usan un objetivo compartido. El anfitrión elige Estándar, Auditoría de ajuste o Cronometrado; todos compiten en el mismo pecio.',
     'help.arbitrationBody': 'Arbitration rota al repartidor. El repartidor publica inteligencia; los jugadores activos adivinan una vez por ronda. Un fallo entrega al repartidor el peso de las pistas publicadas.',
     'end.insurancePayout': 'PAGO DEL SEGURO',
@@ -3442,7 +3448,7 @@ const EXTRA_MESSAGES = {
     'mode.dailyRefresh': 'ACTUALIZAR',
   },
   fr: {
-    'clue.kbValueToggle': 'Changer le format de la valeur du killmail',
+    'clue.kbValueToggle': 'Changer le format de la valeur de ce killmail',
     'help.multiplayerBody': 'Les salles multijoueur partagent une cible. L’hôte choisit Standard, Audit de fitting ou Chronométré ; tous courent sur la même épave.',
     'help.arbitrationBody': 'Arbitration fait tourner le donneur. Le donneur publie des renseignements ; les joueurs actifs devinent une fois par manche. Une erreur donne au donneur le poids des indices publiés.',
     'end.insurancePayout': 'INDEMNISATION D’ASSURANCE',
@@ -3450,7 +3456,7 @@ const EXTRA_MESSAGES = {
     'mode.dailyRefresh': 'ACTUALISER',
   },
   ja: {
-    'clue.kbValueToggle': 'キルメール価値の表示形式を切り替え',
+    'clue.kbValueToggle': '今回のキルメール価値の表示形式を切り替え',
     'help.multiplayerBody': 'マルチプレイヤールームでは全員が同じ目標を使います。ホストがスタンダード、フィッティング監査、タイムドを選び、全員が同じ残骸で競います。',
     'help.arbitrationBody': 'Arbitration はディーラーを交代します。ディーラーが情報を公開し、参加者は毎ラウンド一度だけ推測します。不正解なら公開済みクルーの重みがディーラーに入ります。',
     'end.insurancePayout': '保険支払額',
@@ -3458,7 +3464,7 @@ const EXTRA_MESSAGES = {
     'mode.dailyRefresh': '更新',
   },
   ko: {
-    'clue.kbValueToggle': '킬메일 가치 형식 전환',
+    'clue.kbValueToggle': '현재 킬메일 가치 형식 전환',
     'help.multiplayerBody': '멀티플레이어 룸은 하나의 목표를 공유합니다. 호스트가 스탠다드, 피팅 감사, 타임드를 선택하고 모든 플레이어가 같은 잔해에서 경주합니다.',
     'help.arbitrationBody': 'Arbitration은 딜러를 순환합니다. 딜러가 정보를 공개하고 활성 플레이어는 라운드마다 한 번 추측합니다. 틀리면 공개된 단서의 가중치가 딜러에게 돌아갑니다.',
     'end.insurancePayout': '보험금 지급',
@@ -3466,7 +3472,7 @@ const EXTRA_MESSAGES = {
     'mode.dailyRefresh': '새로고침',
   },
   ru: {
-    'clue.kbValueToggle': 'Переключить формат стоимости килмейла',
+    'clue.kbValueToggle': 'Переключить формат стоимости текущего килмейла',
     'help.multiplayerBody': 'В многопользовательских комнатах одна общая цель. Хост выбирает «Стандарт», «Аудит фитинга» или «На время»; все игроки ищут один и тот же обломок.',
     'help.arbitrationBody': 'В Arbitration дилер меняется по кругу. Дилер публикует данные; активные игроки угадывают один раз за раунд. Ошибка отдаёт дилеру вес опубликованных подсказок.',
     'end.insurancePayout': 'СТРАХОВАЯ ВЫПЛАТА',
@@ -3474,7 +3480,7 @@ const EXTRA_MESSAGES = {
     'mode.dailyRefresh': 'ОБНОВИТЬ',
   },
   zh: {
-    'clue.kbValueToggle': '切换击杀价值格式',
+    'clue.kbValueToggle': '切换本次击杀价值格式',
     'help.multiplayerBody': '联机房间使用同一个目标。房主选择标准、装配审计或计时，所有玩家在同一份残骸上竞速。',
     'help.arbitrationBody': '仲裁模式轮换发牌员。发牌员发布情报，在线玩家每轮猜测一次；猜错会把已发布线索的权重给发牌员。',
     'end.insurancePayout': '保险赔付',
@@ -3486,3 +3492,468 @@ const EXTRA_MESSAGES = {
 for (const [lang, values] of Object.entries(EXTRA_MESSAGES)) {
   if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values);
 }
+
+
+const ROOM_EXTRA_MESSAGES = {
+  en: {
+    'gameplay.arbitration': 'ARBITRATION',
+    'room.reconnecting': 'RECONNECTING',
+    'room.kick': 'KICK',
+    'room.kickConfirm': 'Remove {name} from the room?',
+    'room.kicked': 'You were removed from the room by the host.',
+    'room.dealerOffline': 'The dealer is reconnecting. The round is paused.',
+    'room.arbitration.waiting': 'Waiting for the round to open.',
+    'room.arbitration.dealerPublish': 'Publish at least one clue to open the round.',
+    'room.arbitration.solved': 'You solved this round. Spectating.',
+  },
+  de: {
+    'gameplay.arbitration': 'Schiedsverfahren',
+    'room.reconnecting': 'VERBINDUNG WIRD WIEDERHERGESTELLT',
+    'room.kick': 'ENTFERNEN',
+    'room.kickConfirm': '{name} aus dem Raum entfernen?',
+    'room.kicked': 'Du wurdest vom Host aus dem Raum entfernt.',
+    'room.dealerOffline': 'Der Dealer verbindet sich neu. Die Runde ist pausiert.',
+    'room.arbitration.waiting': 'Warte auf den Rundenstart.',
+    'room.arbitration.dealerPublish': 'Veröffentliche mindestens einen Hinweis, um die Runde zu starten.',
+    'room.arbitration.solved': 'Du hast diese Runde gelöst. Du schaust zu.',
+  },
+  es: {
+    'gameplay.arbitration': 'Arbitraje',
+    'room.reconnecting': 'RECONECTANDO',
+    'room.kick': 'EXPULSAR',
+    'room.kickConfirm': '¿Expulsar a {name} de la sala?',
+    'room.kicked': 'El anfitrión te ha expulsado de la sala.',
+    'room.dealerOffline': 'El repartidor se está reconectando. La ronda está en pausa.',
+    'room.arbitration.waiting': 'Esperando a que se abra la ronda.',
+    'room.arbitration.dealerPublish': 'Publica al menos una pista para abrir la ronda.',
+    'room.arbitration.solved': 'Has resuelto esta ronda. Estás observando.',
+  },
+  fr: {
+    'gameplay.arbitration': 'Arbitrage',
+    'room.reconnecting': 'RECONNEXION',
+    'room.kick': 'EXCLURE',
+    'room.kickConfirm': 'Retirer {name} de la salle ?',
+    'room.kicked': 'L’hôte vous a retiré de la salle.',
+    'room.dealerOffline': 'Le donneur se reconnecte. La manche est en pause.',
+    'room.arbitration.waiting': 'En attente de l’ouverture de la manche.',
+    'room.arbitration.dealerPublish': 'Publiez au moins un indice pour ouvrir la manche.',
+    'room.arbitration.solved': 'Vous avez résolu cette manche. Vous observez.',
+  },
+  ja: {
+    'gameplay.arbitration': '仲裁',
+    'room.reconnecting': '再接続中',
+    'room.kick': 'キック',
+    'room.kickConfirm': '{name} をルームから削除しますか？',
+    'room.kicked': 'ホストによってルームから削除されました。',
+    'room.dealerOffline': 'ディーラーが再接続中です。ラウンドは一時停止しています。',
+    'room.arbitration.waiting': 'ラウンド開始を待っています。',
+    'room.arbitration.dealerPublish': 'ラウンドを開始するには、少なくとも1つの手がかりを公開してください。',
+    'room.arbitration.solved': 'このラウンドを解決しました。観戦中です。',
+  },
+  ko: {
+    'gameplay.arbitration': '중재',
+    'room.reconnecting': '재연결 중',
+    'room.kick': '추방',
+    'room.kickConfirm': '{name} 님을 룸에서 추방할까요?',
+    'room.kicked': '호스트가 룸에서 추방했습니다.',
+    'room.dealerOffline': '딜러가 재연결 중입니다. 라운드가 일시 중지되었습니다.',
+    'room.arbitration.waiting': '라운드 시작을 기다리는 중입니다.',
+    'room.arbitration.dealerPublish': '라운드를 시작하려면 최소 하나의 단서를 공개하세요.',
+    'room.arbitration.solved': '이번 라운드를 해결했습니다. 관전 중입니다.',
+  },
+  ru: {
+    'gameplay.arbitration': 'Арбитраж',
+    'room.reconnecting': 'ПЕРЕПОДКЛЮЧЕНИЕ',
+    'room.kick': 'ИСКЛЮЧИТЬ',
+    'room.kickConfirm': 'Удалить {name} из комнаты?',
+    'room.kicked': 'Хост удалил вас из комнаты.',
+    'room.dealerOffline': 'Дилер переподключается. Раунд приостановлен.',
+    'room.arbitration.waiting': 'Ожидание начала раунда.',
+    'room.arbitration.dealerPublish': 'Опубликуйте хотя бы одну подсказку, чтобы начать раунд.',
+    'room.arbitration.solved': 'Вы разгадали этот раунд. Наблюдаете.',
+  },
+  zh: {
+    'gameplay.arbitration': '仲裁复核',
+    'room.reconnecting': '重连中',
+    'room.kick': '踢出',
+    'room.kickConfirm': '将 {name} 移出房间？',
+    'room.kicked': '你已被房主移出房间。',
+    'room.dealerOffline': '发牌员正在重连，本轮已暂停。',
+    'room.arbitration.waiting': '等待本轮开放。',
+    'room.arbitration.dealerPublish': '至少发布一条线索以开始本轮。',
+    'room.arbitration.solved': '你已猜中本轮，正在观战。',
+  },
+};
+for (const [lang, values] of Object.entries(ROOM_EXTRA_MESSAGES)) {
+  if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values);
+}
+
+const ROOM_ROUND_MESSAGES = {
+  "en": {
+    "help.dailyWins": "Daily wins",
+    "room.loadingRound": "LOADING ROUND…",
+    "room.startingRound": "STARTING…",
+    "room.readyForNext": "READY",
+    "room.preparedState": "READY ✓",
+    "room.waitingReady": "Waiting for all players to ready.",
+    "room.finishedState": "FINISHED",
+    "room.readyState": "READY",
+    "room.endlessRound": "ROUND {round}",
+    "room.endlessPhase.loading": "Loading {ready}/{total}",
+    "room.endlessPhase.starting": "Starting…",
+    "room.endlessPhase.playing": "Round in progress",
+    "room.endlessPhase.finished": "Waiting for players"
+  },
+  "de": {
+    "help.dailyWins": "Tägliche Siege",
+    "room.loadingRound": "RUNDE WIRD GELADEN…",
+    "room.startingRound": "STARTET…",
+    "room.readyForNext": "BEREIT",
+    "room.preparedState": "BEREIT ✓",
+    "room.waitingReady": "Warte, bis alle Spieler bereit sind.",
+    "room.finishedState": "BEENDET",
+    "room.readyState": "BEREIT",
+    "room.endlessRound": "RUNDE {round}",
+    "room.endlessPhase.loading": "Lädt {ready}/{total}",
+    "room.endlessPhase.starting": "Startet…",
+    "room.endlessPhase.playing": "Runde läuft",
+    "room.endlessPhase.finished": "Warte auf Spieler"
+  },
+  "es": {
+    "help.dailyWins": "Victorias diarias",
+    "room.loadingRound": "CARGANDO RONDA…",
+    "room.startingRound": "EMPEZANDO…",
+    "room.readyForNext": "LISTO",
+    "room.preparedState": "LISTO ✓",
+    "room.waitingReady": "Esperando a que todos estén listos.",
+    "room.finishedState": "TERMINADO",
+    "room.readyState": "LISTO",
+    "room.endlessRound": "RONDA {round}",
+    "room.endlessPhase.loading": "Cargando {ready}/{total}",
+    "room.endlessPhase.starting": "Empezando…",
+    "room.endlessPhase.playing": "Ronda en curso",
+    "room.endlessPhase.finished": "Esperando jugadores"
+  },
+  "fr": {
+    "help.dailyWins": "Victoires quotidiennes",
+    "room.loadingRound": "CHARGEMENT DE LA MANCHE…",
+    "room.startingRound": "DÉMARRAGE…",
+    "room.readyForNext": "PRÊT",
+    "room.preparedState": "PRÊT ✓",
+    "room.waitingReady": "En attente que tous les joueurs soient prêts.",
+    "room.finishedState": "TERMINÉ",
+    "room.readyState": "PRÊT",
+    "room.endlessRound": "MANCHE {round}",
+    "room.endlessPhase.loading": "Chargement {ready}/{total}",
+    "room.endlessPhase.starting": "Démarrage…",
+    "room.endlessPhase.playing": "Manche en cours",
+    "room.endlessPhase.finished": "En attente des joueurs"
+  },
+  "ja": {
+    "help.dailyWins": "デイリー勝利数",
+    "room.loadingRound": "ラウンドを読み込み中…",
+    "room.startingRound": "開始中…",
+    "room.readyForNext": "準備完了",
+    "room.preparedState": "準備完了 ✓",
+    "room.waitingReady": "全員の準備を待っています。",
+    "room.finishedState": "終了",
+    "room.readyState": "準備完了",
+    "room.endlessRound": "ラウンド {round}",
+    "room.endlessPhase.loading": "読み込み中 {ready}/{total}",
+    "room.endlessPhase.starting": "開始中…",
+    "room.endlessPhase.playing": "ラウンド進行中",
+    "room.endlessPhase.finished": "プレイヤーを待機中"
+  },
+  "ko": {
+    "help.dailyWins": "일일 승리",
+    "room.loadingRound": "라운드 불러오는 중…",
+    "room.startingRound": "시작 중…",
+    "room.readyForNext": "준비",
+    "room.preparedState": "준비 완료 ✓",
+    "room.waitingReady": "모든 플레이어가 준비되기를 기다리는 중입니다.",
+    "room.finishedState": "종료",
+    "room.readyState": "준비",
+    "room.endlessRound": "라운드 {round}",
+    "room.endlessPhase.loading": "불러오는 중 {ready}/{total}",
+    "room.endlessPhase.starting": "시작 중…",
+    "room.endlessPhase.playing": "라운드 진행 중",
+    "room.endlessPhase.finished": "플레이어 대기 중"
+  },
+  "ru": {
+    "help.dailyWins": "Победы за день",
+    "room.loadingRound": "ЗАГРУЗКА РАУНДА…",
+    "room.startingRound": "СТАРТ…",
+    "room.readyForNext": "ГОТОВ",
+    "room.preparedState": "ГОТОВ ✓",
+    "room.waitingReady": "Ожидание готовности всех игроков.",
+    "room.finishedState": "ЗАВЕРШЕНО",
+    "room.readyState": "ГОТОВ",
+    "room.endlessRound": "РАУНД {round}",
+    "room.endlessPhase.loading": "Загрузка {ready}/{total}",
+    "room.endlessPhase.starting": "Старт…",
+    "room.endlessPhase.playing": "Раунд идёт",
+    "room.endlessPhase.finished": "Ожидание игроков"
+  },
+  "zh": {
+    "help.dailyWins": "每日胜场",
+    "room.loadingRound": "正在装载本轮回合…",
+    "room.startingRound": "即将开始…",
+    "room.readyForNext": "准备",
+    "room.preparedState": "已准备 ✓",
+    "room.waitingReady": "等待所有玩家准备。",
+    "room.finishedState": "已完成",
+    "room.readyState": "已准备",
+    "room.endlessRound": "第 {round} 轮",
+    "room.endlessPhase.loading": "装载中 {ready}/{total}",
+    "room.endlessPhase.starting": "即将开始…",
+    "room.endlessPhase.playing": "本轮进行中",
+    "room.endlessPhase.finished": "等待玩家"
+  }
+};
+for (const [lang, values] of Object.entries(ROOM_ROUND_MESSAGES)) {
+  if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values);
+}
+
+const ROOM_MANUAL_MESSAGES = {
+  "en": {
+    "room.manualTitle": "MULTIPLAYER GAMEPLAY",
+    "room.manualEndless": "Every round uses one shared KB. All players preload it, then the round starts at the same time with the same reveal order. Finish and ready up; the next round starts when everyone is ready.",
+    "room.manualScore": "Each KB is worth 300 points. A clean solve is 300; each wrong guess removes 50; six wrong guesses give 0.",
+    "room.manualArbitrationScore": "Each clue has an integer score. The dealer earns published clue scores from players who miss."
+  },
+  "de": {
+    "room.manualTitle": "MEHRSPIELER-MODUS",
+    "room.manualEndless": "Jede Runde nutzt ein gemeinsames KB. Alle laden vor, dann startet die Runde gleichzeitig mit derselben Hinweisreihenfolge. Wer fertig ist, bereitet sich vor; die nächste Runde startet, wenn alle bereit sind.",
+    "room.manualScore": "Jedes KB zählt 300 Punkte. Ein sauberer Treffer gibt 300; jeder Fehlversuch kostet 50; sechs Fehler geben 0.",
+    "room.manualArbitrationScore": "Jeder Hinweis hat einen ganzzahligen Wert. Der Dealer erhält die Werte veröffentlichter Hinweise von Spielern, die danebenliegen."
+  },
+  "es": {
+    "room.manualTitle": "MODO MULTIJUGADOR",
+    "room.manualEndless": "Cada ronda usa un KB compartido. Todos lo precargan y la ronda empieza a la vez con el mismo orden de pistas. Al terminar, preparaos; la siguiente ronda empieza cuando todos estén listos.",
+    "room.manualScore": "Cada KB vale 300 puntos. Un acierto limpio da 300; cada fallo quita 50; seis fallos dan 0.",
+    "room.manualArbitrationScore": "Cada pista tiene una puntuación entera. El repartidor gana la puntuación de las pistas publicadas de los jugadores que fallan."
+  },
+  "fr": {
+    "room.manualTitle": "MODE MULTIJOUEUR",
+    "room.manualEndless": "Chaque manche utilise un KB partagé. Tous le préchargent, puis la manche démarre en même temps avec le même ordre d’indices. Une fois terminé, préparez-vous ; la manche suivante démarre quand tout le monde est prêt.",
+    "room.manualScore": "Chaque KB vaut 300 points. Une réussite sans erreur donne 300 ; chaque erreur retire 50 ; six erreurs donnent 0.",
+    "room.manualArbitrationScore": "Chaque indice a un score entier. Le donneur gagne le score des indices publiés des joueurs qui se trompent."
+  },
+  "ja": {
+    "room.manualTitle": "マルチプレイヤー",
+    "room.manualEndless": "各ラウンドは同じKBを使います。全員が事前読み込みし、同じ開示順で同時に開始します。終了後は準備し、全員が準備完了すると次のラウンドが始まります。",
+    "room.manualScore": "各KBは300点。一発正解は300点、誤答ごとに50点減点、6回誤答で0点です。",
+    "room.manualArbitrationScore": "各手がかりには整数の点数があります。ディーラーは不正解プレイヤーの公開済み手がかり点を獲得します。"
+  },
+  "ko": {
+    "room.manualTitle": "멀티플레이어",
+    "room.manualEndless": "각 라운드는 같은 KB를 사용합니다. 모든 플레이어가 미리 로드한 뒤 같은 공개 순서로 동시에 시작합니다. 끝나면 준비하고, 모두 준비되면 다음 라운드가 시작됩니다.",
+    "room.manualScore": "각 KB는 300점입니다. 한 번에 맞히면 300점, 오답마다 50점 감점, 6회 오답은 0점입니다.",
+    "room.manualArbitrationScore": "각 단서에는 정수 점수가 있습니다. 딜러는 오답 플레이어의 공개된 단서 점수를 얻습니다."
+  },
+  "ru": {
+    "room.manualTitle": "МНОГОПОЛЬЗОВАТЕЛЬСКИЙ РЕЖИМ",
+    "room.manualEndless": "В каждом раунде используется общий KB. Все игроки предварительно загружают его, затем раунд начинается одновременно с одинаковым порядком подсказок. После завершения нажмите «Готов»; следующий раунд начнётся, когда будут готовы все.",
+    "room.manualScore": "Каждый KB стоит 300 очков. Чистое попадание — 300; каждая ошибка снимает 50; шесть ошибок — 0.",
+    "room.manualArbitrationScore": "У каждой подсказки есть целочисленная стоимость. Дилер получает стоимость опубликованных подсказок от игроков, которые ошиблись."
+  },
+  "zh": {
+    "room.manualTitle": "联机玩法",
+    "room.manualEndless": "每轮使用同一份 KB。所有玩家先完成预加载，然后按同一揭示顺序同时开始。自己结束后准备，所有人准备后才开始下一轮。",
+    "room.manualScore": "每份 KB 共 300 分：一次猜中得 300，每猜错一次扣 50，6 次全错得 0。",
+    "room.manualArbitrationScore": "每条线索有整数分值；庄家从猜错玩家已公布的线索中获得对应分值。"
+  }
+};
+for (const [lang, values] of Object.entries(ROOM_MANUAL_MESSAGES)) { if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values); }
+
+const MANUAL_SCORE_SAFE = {
+  "en": "Each KB has a fixed total score. A clean solve keeps the full score; each wrong guess reduces it.",
+  "de": "Jedes KB hat eine feste Gesamtpunktzahl. Ein sauberer Treffer behält die volle Punktzahl; jeder Fehlversuch reduziert sie.",
+  "es": "Cada KB tiene una puntuación total fija. Un acierto limpio conserva la puntuación completa; cada fallo la reduce.",
+  "fr": "Chaque KB a un score total fixe. Une réussite sans erreur conserve le score complet ; chaque erreur le réduit.",
+  "ja": "各KBには固定の合計点があります。一発正解なら満点、誤答ごとに減点されます。",
+  "ko": "각 KB에는 고정 총점이 있습니다. 한 번에 맞히면 만점, 오답마다 감점됩니다.",
+  "ru": "У каждого KB фиксированный общий счёт. Чистое попадание сохраняет полный счёт; каждая ошибка его уменьшает.",
+  "zh": "每份 KB 有固定总分：一次猜中保留满分，每次猜错都会扣分。"
+};
+for (const [lang, value] of Object.entries(MANUAL_SCORE_SAFE)) { if (MESSAGES[lang]) MESSAGES[lang]['room.manualScore'] = value; }
+
+const ROOM_TURN_MESSAGES = {
+  "en": {
+    "room.phase.dealer": "Dealer is selecting intel",
+    "room.phase.player": "Players are guessing",
+    "room.phase.reveal": "ANSWER REVEALED",
+    "room.phase.publishLocked": "WAITING FOR PLAYERS",
+    "room.clueWeight": "WEIGHT {weight} / 10",
+    "room.feed.intelBatch": "Intel published this round: {count}",
+    "room.readyHighlight": "READY",
+    "room.revealAnswer": "ROUND ANSWER"
+  },
+  "de": {
+    "room.phase.dealer": "Dealer wählt Hinweise",
+    "room.phase.player": "Spieler raten",
+    "room.phase.reveal": "ANTWORT OFFENGELEGT",
+    "room.phase.publishLocked": "WARTE AUF SPIELER",
+    "room.clueWeight": "GEWICHT {weight} / 10",
+    "room.feed.intelBatch": "Hinweise dieser Runde: {count}",
+    "room.readyHighlight": "BEREIT",
+    "room.revealAnswer": "RUNDENANTWORT"
+  },
+  "es": {
+    "room.phase.dealer": "El repartidor elige pistas",
+    "room.phase.player": "Los jugadores adivinan",
+    "room.phase.reveal": "RESPUESTA REVELADA",
+    "room.phase.publishLocked": "ESPERANDO JUGADORES",
+    "room.clueWeight": "PESO {weight} / 10",
+    "room.feed.intelBatch": "Pistas publicadas esta ronda: {count}",
+    "room.readyHighlight": "LISTO",
+    "room.revealAnswer": "RESPUESTA DE LA RONDA"
+  },
+  "fr": {
+    "room.phase.dealer": "Le donneur choisit les indices",
+    "room.phase.player": "Les joueurs devinent",
+    "room.phase.reveal": "RÉPONSE RÉVÉLÉE",
+    "room.phase.publishLocked": "EN ATTENTE DES JOUEURS",
+    "room.clueWeight": "POIDS {weight} / 10",
+    "room.feed.intelBatch": "Indices publiés cette manche : {count}",
+    "room.readyHighlight": "PRÊT",
+    "room.revealAnswer": "RÉPONSE DE LA MANCHE"
+  },
+  "ja": {
+    "room.phase.dealer": "ディーラーが手がかりを選択中",
+    "room.phase.player": "プレイヤーが推測中",
+    "room.phase.reveal": "答えを公開",
+    "room.phase.publishLocked": "プレイヤーを待機中",
+    "room.clueWeight": "重み {weight} / 10",
+    "room.feed.intelBatch": "このラウンドの公開手がかり: {count}",
+    "room.readyHighlight": "準備完了",
+    "room.revealAnswer": "ラウンドの答え"
+  },
+  "ko": {
+    "room.phase.dealer": "딜러가 단서 선택 중",
+    "room.phase.player": "플레이어 추측 중",
+    "room.phase.reveal": "정답 공개",
+    "room.phase.publishLocked": "플레이어 대기 중",
+    "room.clueWeight": "가중치 {weight} / 10",
+    "room.feed.intelBatch": "이번 라운드 공개 단서: {count}",
+    "room.readyHighlight": "준비",
+    "room.revealAnswer": "라운드 정답"
+  },
+  "ru": {
+    "room.phase.dealer": "Дилер выбирает подсказки",
+    "room.phase.player": "Игроки угадывают",
+    "room.phase.reveal": "ОТВЕТ РАСКРЫТ",
+    "room.phase.publishLocked": "ОЖИДАНИЕ ИГРОКОВ",
+    "room.clueWeight": "ВЕС {weight} / 10",
+    "room.feed.intelBatch": "Подсказок опубликовано: {count}",
+    "room.readyHighlight": "ГОТОВ",
+    "room.revealAnswer": "ОТВЕТ РАУНДА"
+  },
+  "zh": {
+    "room.phase.dealer": "庄家选择线索中",
+    "room.phase.player": "玩家猜测中",
+    "room.phase.reveal": "答案已揭示",
+    "room.phase.publishLocked": "等待玩家回合",
+    "room.clueWeight": "权重 {weight} / 10",
+    "room.feed.intelBatch": "本轮已公布 {count} 条线索",
+    "room.readyHighlight": "已准备",
+    "room.revealAnswer": "本轮答案"
+  }
+};
+for (const [lang, values] of Object.entries(ROOM_TURN_MESSAGES)) { if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values); }
+
+const ROOM_UI_MESSAGES = {
+  "en": {
+    "room.loadingKicker": "ROOM UPLINK",
+    "room.loadingKb": "LOADING KB",
+    "room.readyCount": "{ready} / {total} players ready",
+    "room.dealerAnswer": "DEALER // ANSWER",
+    "room.roundAnswer": "ROUND ANSWER",
+    "room.holdToKick": "Hold to kick",
+    "room.holdToEnd": "Hold to end match",
+    "room.holdToLeave": "Hold to leave room"
+  },
+  "de": {
+    "room.loadingKicker": "RAUM-UPLINK",
+    "room.loadingKb": "KB WIRD GELADEN",
+    "room.readyCount": "{ready} / {total} Spieler bereit",
+    "room.dealerAnswer": "DEALER // ANTWORT",
+    "room.roundAnswer": "RUNDENANTWORT",
+    "room.holdToKick": "Zum Kicken halten",
+    "room.holdToEnd": "Zum Beenden halten",
+    "room.holdToLeave": "Zum Verlassen halten"
+  },
+  "es": {
+    "room.loadingKicker": "ENLACE DE SALA",
+    "room.loadingKb": "CARGANDO KB",
+    "room.readyCount": "{ready} / {total} jugadores listos",
+    "room.dealerAnswer": "REPARTIDOR // RESPUESTA",
+    "room.roundAnswer": "RESPUESTA DE LA RONDA",
+    "room.holdToKick": "Mantén para expulsar",
+    "room.holdToEnd": "Mantén para terminar",
+    "room.holdToLeave": "Mantén para salir"
+  },
+  "fr": {
+    "room.loadingKicker": "LIAISON SALLE",
+    "room.loadingKb": "CHARGEMENT DU KB",
+    "room.readyCount": "{ready} / {total} joueurs prêts",
+    "room.dealerAnswer": "DONNEUR // RÉPONSE",
+    "room.roundAnswer": "RÉPONSE DE LA MANCHE",
+    "room.holdToKick": "Maintenir pour expulser",
+    "room.holdToEnd": "Maintenir pour terminer",
+    "room.holdToLeave": "Maintenir pour quitter"
+  },
+  "ja": {
+    "room.loadingKicker": "ルームアップリンク",
+    "room.loadingKb": "KB読み込み中",
+    "room.readyCount": "{ready} / {total} 人準備完了",
+    "room.dealerAnswer": "ディーラー // 答え",
+    "room.roundAnswer": "ラウンドの答え",
+    "room.holdToKick": "長押しでキック",
+    "room.holdToEnd": "長押しで終了",
+    "room.holdToLeave": "長押しで退出"
+  },
+  "ko": {
+    "room.loadingKicker": "룸 업링크",
+    "room.loadingKb": "KB 불러오는 중",
+    "room.readyCount": "{ready} / {total}명 준비",
+    "room.dealerAnswer": "딜러 // 정답",
+    "room.roundAnswer": "라운드 정답",
+    "room.holdToKick": "길게 눌러 추방",
+    "room.holdToEnd": "길게 눌러 종료",
+    "room.holdToLeave": "길게 눌러 나가기"
+  },
+  "ru": {
+    "room.loadingKicker": "КАНАЛ КОМНАТЫ",
+    "room.loadingKb": "ЗАГРУЗКА KB",
+    "room.readyCount": "{ready} / {total} игроков готовы",
+    "room.dealerAnswer": "ДИЛЕР // ОТВЕТ",
+    "room.roundAnswer": "ОТВЕТ РАУНДА",
+    "room.holdToKick": "Удерживайте для исключения",
+    "room.holdToEnd": "Удерживайте для завершения",
+    "room.holdToLeave": "Удерживайте для выхода"
+  },
+  "zh": {
+    "room.loadingKicker": "房间上行链路",
+    "room.loadingKb": "正在加载 KB",
+    "room.readyCount": "{ready} / {total} 名玩家已准备",
+    "room.dealerAnswer": "庄家 // 答案",
+    "room.roundAnswer": "本轮答案",
+    "room.holdToKick": "长按踢出",
+    "room.holdToEnd": "长按结束对局",
+    "room.holdToLeave": "长按离开房间"
+  }
+};
+for (const [lang, values] of Object.entries(ROOM_UI_MESSAGES)) { if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values); }
+
+const ROOM_SCORE_LABEL = {
+  "en": "ROUND CLUE SCORE",
+  "de": "HINWEISWERT DIESER RUNDE",
+  "es": "PUNTUACIÓN DE PISTAS",
+  "fr": "SCORE DES INDICES",
+  "ja": "このラウンドの手がかり点数",
+  "ko": "이번 라운드 단서 점수",
+  "ru": "СЧЁТ ПОДСКАЗОК РАУНДА",
+  "zh": "本轮线索分值"
+};
+for (const [lang, value] of Object.entries(ROOM_SCORE_LABEL)) { if (MESSAGES[lang]) MESSAGES[lang]['room.roundScore'] = value; }

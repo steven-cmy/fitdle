@@ -30,10 +30,10 @@ import {
   shareUrl,
   weightedHullOrder,
   weightedRendezvousOrder,
-  cyrb53,
 } from './game.js';
+import { claimGroups, claimSeed, pickClaimDebrief, pickClaimGroup, pickClaimMemo } from './claim.js';
 import { detectLocale, createI18n, isLocale, resolveLocale, LOCALES, LOCALE_META } from './i18n.js';
-import { buildClues, getEquipment, selectAuditFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
+import { buildClues, auditSimulationItems, getEquipment, selectAuditFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
 import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
@@ -102,12 +102,22 @@ const state = {
   appMode: 'practice',
   gameplay: 'standard',
   auth: { loading: true, loggedIn: false, name: '', characterId: null },
+  profileStats: null,
   onlineRun: null,
   onlineFinished: false,
   roomRequest: null,
   roomCode: null,
   roomSurface: null,
   roomRace: null,
+  roomView: null,
+  roomArbitration: null,
+  arbSeenMatchId: '',
+  arbSeenPublished: new Set(),
+  arbFresh: new Set(),
+  arbFreshRound: null,
+  arbRadarTimer: null,
+  roomEndless: null,
+  roomEntry: null,
   loginRequired: false,
   serverAnchor: null,
   monotonicAnchor: 0,
@@ -145,14 +155,13 @@ const state = {
   claimDepartmentId: '',
   claimDepartment: null,
   claimMemo: '',
-  claimDebriefMemo: '',
-  claimMemoLast: '',
   dataVersionKey: null,
   guesses: [],
   status: 'playing',
   visibleCount: 0,
   revealed: new Set(),
   fresh: new Set(),
+  initialFreshDone: false,
   unseen: new Set(),
   hintRaf: 0,
   hintKey: '',
@@ -402,38 +411,15 @@ async function loadClaimDepartments() {
 
 function claimDepartmentPool() {
   if (isTriglavianBrand()) return triglavianDepartments(state.locale);
-  const pool = state.claimDepartments?.[state.locale];
-  if (!Array.isArray(pool)) return [];
-  return pool.filter((department) => (
-    department
-    && typeof department.id === 'string'
-    && typeof department.name === 'string'
-    && department.name.trim()
-    && Array.isArray(department.memos)
-  ));
+  return claimGroups(state.claimDepartments, state.locale);
 }
 
-function seededClaimIndex(pool, key) {
-  const seed = state.answerKillId
-    || state.answerKillmail?.killmail_id
-    || state.today
-    || 'claim';
-  return cyrb53(`fitdle:claim:${seed}:${key}`) % pool.length;
-}
-
-function pickClaimMemo(memos, key = 'memo') {
-  const pool = Array.isArray(memos) ? memos.filter((memo) => typeof memo === 'string' && memo) : [];
-  if (!pool.length) {
-    state.claimMemo = '';
-    state.claimDebriefMemo = '';
-    return;
-  }
-  const index = seededClaimIndex(pool, key);
-  state.claimMemo = pool[index];
-  state.claimDebriefMemo = pool.length > 1
-    ? pool[(index + 1) % pool.length]
-    : pool[index];
-  state.claimMemoLast = state.claimMemo;
+function currentClaimSeed(seed = null) {
+  return claimSeed({
+    killId: seed ?? state.answerKillId,
+    killmailId: state.answerKillmail?.killmail_id,
+    day: state.today,
+  });
 }
 
 function pickClaimDepartment(preserveId = false, seed = null) {
@@ -442,20 +428,19 @@ function pickClaimDepartment(preserveId = false, seed = null) {
     state.claimDepartmentId = '';
     state.claimDepartment = null;
     state.claimMemo = '';
-    state.claimDebriefMemo = '';
     return;
   }
 
-  const key = seed == null ? (state.answerKillId || state.today) : seed;
-  let chosen;
-  if (preserveId) {
-    chosen = pool.find((department) => department.id === state.claimDepartmentId);
-  }
-  chosen ||= pool[seededClaimIndex(pool, `department:${key}`)];
-
+  const selectionSeed = currentClaimSeed(seed);
+  const chosen = pickClaimGroup(pool, selectionSeed, preserveId ? state.claimDepartmentId : '');
   state.claimDepartmentId = chosen.id;
   state.claimDepartment = chosen;
-  pickClaimMemo(chosen.memos, `${chosen.id}:${key}`);
+  state.claimMemo = pickClaimMemo(chosen, selectionSeed);
+}
+
+function claimDebriefForStatus() {
+  if (state.status !== 'won' && state.status !== 'lost') return '';
+  return pickClaimDebrief(state.claimDepartment, state.status, currentClaimSeed());
 }
 
 function isFree() {
@@ -472,6 +457,7 @@ function brandText(key) {
   const map = {
     'brand.parent': brand.faction,
     'brand.claimDivision': brand.convocation,
+    'brand.scc': brand.convocation,
     'app.subtitle': brand.subtitle,
     'app.description': brand.description,
     'hero.kicker': brand.kicker,
@@ -920,7 +906,7 @@ function startTimedRun() {
   state.timedExpired = false;
   const before = new Set(state.revealed);
   recomputeRevealed();
-  state.fresh = new Set([...state.revealed].filter((index) => !before.has(index)));
+  state.fresh = new Set([...state.revealed].filter((index) => isHighlightableClue(state.answerData?.clues?.[index])));
   renderAll();
   rememberNewClues(state.fresh);
   persist();
@@ -1932,11 +1918,11 @@ function auditCalculationKillmail(killmail) {
     ...killmail,
     victim: {
       ...killmail.victim,
-      items: killmail.victim.items.map((item) => {
+      items: auditSimulationItems(killmail.victim.items.map((item) => {
         if (Number(item.flag) === 5) return item;
         const fallback = fallbacks.get(Number(item.item_type_id));
         return fallback ? { ...item, item_type_id: fallback } : item;
-      }),
+      }), state.refs),
     },
   };
 }
@@ -1990,6 +1976,8 @@ function buildAnswerData() {
     fittedAttrs: usesSimulatedFit() ? state.dogmaAttrs : null,
     baselineAttrs: usesSimulatedFit() ? state.dogmaBaseline : null,
     moduleFallbacks: usesSimulatedFit() ? state.manifest.moduleFallbacks || {} : {},
+    weaponUpgradeGroups: state.manifest.weaponUpgradeGroups || null,
+    weaponGroups: state.manifest.weaponGroups || null,
   });
   const revealSeed = revealBaseSeed();
   const revealPlan = buildRevealPlan({
@@ -2070,6 +2058,16 @@ function readStoredState() {
   };
 }
 
+function isHighlightableClue(clue) {
+  return Number(clue?.w) > 0 && clue?.k !== 'structureResists';
+}
+
+function markInitialFresh() {
+  if (state.initialFreshDone || state.guesses.length || !state.revealed.size || !state.answerData) return;
+  state.initialFreshDone = true;
+  state.fresh = new Set([...state.revealed].filter((index) => isHighlightableClue(state.answerData.clues[index])));
+}
+
 function recomputeRevealed() {
   const base = {
     clues: state.answerData.clues,
@@ -2106,10 +2104,12 @@ function recomputeRevealed() {
     state.revealed = new Set([...initial, ...extras]);
     state.timedClueCount = releases;
     state.visibleCount = state.revealed.size;
+    markInitialFresh();
     return;
   }
   state.revealed = computeRevealed(base);
   state.visibleCount = state.revealed.size;
+  markInitialFresh();
 }
 
 function persist() {
@@ -2153,10 +2153,8 @@ function copyrightHtml() {
 }
 
 function pilotStatsHtml() {
-  const stats = state.stats || DEFAULT_STATS;
-  const played = stats.played || {};
-  const wins = stats.wins || {};
-  const totalPlayed = Object.values(played).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  const stats = state.profileStats || { dailyWins: 0, winStreak: 0, streaks: {} };
+  const streaks = stats.streaks || {};
   const modes = [
     ['standard', t('mode.standard')],
     ['audit', t('mode.audit')],
@@ -2165,17 +2163,16 @@ function pilotStatsHtml() {
   return `
     <div class="pilot-menu-record">
       <div class="pilot-menu-kicker">${esc(t('help.statsTitle'))}</div>
+      <div class="pilot-menu-streak">
+        <span>${esc(t('help.dailyWins'))} <b>${Number(stats.dailyWins) || 0}</b></span>
+        <span>${esc(t('help.statStreak'))} <b>${Number(stats.winStreak) || 0}</b></span>
+      </div>
       <div class="pilot-menu-modes">
         ${modes.map(([mode, label]) => `<div>
           <span>${esc(label)}</span>
-          <strong>${Number(played[mode]) || 0} / ${Number(wins[mode]) || 0}</strong>
+          <strong>${Number(streaks[mode]) || 0}</strong>
         </div>`).join('')}
       </div>
-      <div class="pilot-menu-streak">
-        <span>${esc(t('help.statStreak'))} <b>${Number(stats.streak) || 0}</b></span>
-        <span>${esc(t('help.statBest'))} <b>${Number(stats.maxStreak) || 0}</b></span>
-      </div>
-      ${totalPlayed ? '' : `<p class="pilot-menu-empty">${esc(t('help.statsEmpty'))}</p>`}
     </div>`;
 }
 
@@ -2232,6 +2229,89 @@ function closeTopbarMenus() {
   }
 }
 
+function applyRoomLayout() {
+  const main = $('#main');
+  const roomView = $('#room-view');
+  const roomRail = $('#room-rail');
+  if (!main || !roomView || !roomRail) return;
+  const open = Boolean(state.roomSurface && state.roomView);
+  const overlayView = open && ['lobby', 'result'].includes(state.roomView);
+  const arbitrationView = open && state.roomView === 'arbitration';
+  const endlessView = open && state.roomView === 'endless';
+  const gameplayView = arbitrationView || endlessView;
+  const loadingRoom = endlessView && ['loading', 'ready', 'starting'].includes(state.roomEndless?.phase);
+  roomView.hidden = !overlayView;
+  roomRail.hidden = !gameplayView;
+  main.classList.toggle('is-room', overlayView);
+  main.classList.toggle('is-in-room', open);
+  main.classList.toggle('is-room-arbitration', arbitrationView);
+  main.classList.toggle('is-room-endless', endlessView);
+  main.classList.toggle('is-room-loading', Boolean(loadingRoom));
+  const loadingHost = $('#room-loading');
+  if (loadingHost) loadingHost.hidden = !loadingRoom;
+  document.querySelector('.target-dock')?.toggleAttribute('hidden', overlayView);
+  $('#hero')?.toggleAttribute('hidden', overlayView);
+  document.querySelector('.console')?.toggleAttribute('hidden', overlayView);
+  syncRoomChrome();
+  syncRoomAction();
+}
+
+function syncRoomChrome() {
+  const inRoom = Boolean(state.roomSurface && state.roomView);
+  const joinedRoom = Boolean(state.roomSurface?.room?.code);
+  const gameplay = state.roomSurface?.room?.gameplay || '';
+  document.documentElement.dataset.multiplayer = inRoom ? '1' : '';
+  if (!inRoom) delete document.documentElement.dataset.multiplayer;
+  document.documentElement.dataset.roomGameplay = inRoom && gameplay ? gameplay : '';
+  if (!(inRoom && gameplay)) delete document.documentElement.dataset.roomGameplay;
+  const nav = document.querySelector('.mode-nav');
+  if (!nav) return;
+  const multiplayer = nav.querySelector('.mode-multiplayer');
+  multiplayer?.classList.toggle('is-active', inRoom);
+  multiplayer?.setAttribute('aria-current', inRoom ? 'page' : 'false');
+  for (const button of nav.querySelectorAll('[data-action="set-gameplay"]')) {
+    const active = !inRoom && button.dataset.gameplay === state.gameplay;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-current', active ? 'page' : 'false');
+    button.disabled = joinedRoom;
+    button.classList.toggle('is-unavailable', joinedRoom);
+    if (joinedRoom) button.setAttribute('aria-disabled', 'true');
+    else if (button.dataset.gameplay === 'daily' && state.appMode !== 'online') button.setAttribute('aria-disabled', 'true');
+    else button.removeAttribute('aria-disabled');
+  }
+  const bar = document.querySelector('.mode-bar');
+  if (bar) bar.dataset.mode = inRoom ? 'multiplayer' : state.mode;
+  const chip = document.querySelector('.cycle-chip');
+  if (chip) {
+    const modeLine = chip.querySelector('.cycle-mode-line');
+    if (modeLine) {
+      modeLine.innerHTML = inRoom
+        ? `<span>${esc(tl('mode.multiplayer', 'MULTIPLAYER'))}</span><strong>${esc(tl(`gameplay.${gameplay}`, gameplay.toUpperCase()))}</strong>`
+        : `<span>${esc(state.appMode === 'online' ? tl('online.label', 'ONLINE') : tl('practice.label', 'PRACTICE'))}</span><strong>${esc(tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase()))}</strong>`;
+    }
+    const score = chip.querySelector('.cycle-score');
+    if (score) score.textContent = inRoom ? tl('status.scored', 'SCORED') : (state.appMode === 'online' ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED'));
+  }
+}
+
+function footerVersionHtml() {
+  const manifest = state.manifest || {};
+  const sde = manifest.sde || {};
+  const zkill = manifest.zkillboard || {};
+  const sdeLabel = sde.buildNumber || sde.generatedAt || '—';
+  const sdeTitle = [
+    sde.release ? `release ${sde.release}` : '',
+    sde.url || sde.apiBase || '',
+  ].filter(Boolean).join(' · ');
+  const zkillLabel = zkill.version || zkill.snapshot || '—';
+  const zkillTitle = [
+    zkill.versionSource || '',
+    zkill.versionCapturedAt || zkill.capturedAt || '',
+    zkill.snapshot ? `loss snapshot ${zkill.snapshot}` : '',
+  ].filter(Boolean).join(' · ');
+  return `<span class="footer-meta footer-version">v${esc(manifest.version || '0.1.0')} · <span title="${esc(sdeTitle)}">SDE ${esc(sdeLabel)}</span> · <span title="${esc(zkillTitle)}">ZKILL ${esc(zkillLabel)}</span></span>`;
+}
+
 function renderShell() {
   hideSuggestions();
   const app = $('#app');
@@ -2246,7 +2326,7 @@ function renderShell() {
         <div class="brand-mark" aria-hidden="true">${fitdleMark()}</div>
         <div>
           <div class="brand-name">${esc(t('app.name'))}</div>
-          <div class="brand-sub">F.I.T.D.L.E. // ${esc(brandText('brand.claimDivision'))}</div>
+          <div class="brand-sub">${esc(brandText('brand.parent'))} // ${esc(brandText('brand.scc'))}</div>
         </div>
       </div>
       <div class="topbar-center">
@@ -2311,11 +2391,14 @@ function renderShell() {
         </div>
       </div>
 
+      <section id="room-view" class="room-view" hidden></section>
+
       <section class="target-dock" aria-label="${esc(tl('mode.targetControl', 'TARGET CONTROL'))}">
         <div class="target-dock-meta">
           <span>${esc(tl('mode.targetControl', 'TARGET CONTROL'))}</span>
           <strong>${esc(tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase()))}</strong>
         </div>
+        <button id="room-action-button" class="button primary" type="button" data-action="room-action" hidden></button>
         ${state.appMode === 'online' && state.gameplay === 'daily'
           ? `<button class="button daily-reset-cta${dailyResetReady() ? ' is-ready' : ''}" type="button"
               data-action="play-today"
@@ -2332,6 +2415,8 @@ function renderShell() {
               <small>${esc(tl('mode.newSignal', 'NEW SIGNAL'))}</small>
             </button>`}
       </section>
+
+      <section id="room-loading" class="room-loading" hidden></section>
 
       <section class="hero" id="hero" aria-labelledby="hero-title"></section>
 
@@ -2356,7 +2441,9 @@ function renderShell() {
           <ol class="attempts" id="attempts" aria-label="${esc(t('board.title'))}"></ol>
         </section>
 
-        <section class="panel dossier-panel" id="dossier-panel" aria-labelledby="dossier-title">
+        <div class="console-side">
+          <section id="room-rail" class="room-rail" hidden></section>
+          <section class="panel dossier-panel" id="dossier-panel" aria-labelledby="dossier-title">
           <header class="panel-head">
             <div>
               <div class="panel-kicker"><span class="idx">02</span> // ${esc(t('dossier.title'))}</div>
@@ -2378,6 +2465,7 @@ function renderShell() {
             <div class="dossier-groups" id="dossier-groups"></div>
           </div>
         </section>
+        </div>
       </div>
 
       <footer class="site-footer">
@@ -2390,12 +2478,16 @@ function renderShell() {
           <a class="repo-link" href="${esc(state.manifest.links?.repo || '#')}" target="_blank" rel="noopener noreferrer" title="${esc(state.manifest.links?.repo || '')}">${esc(t('footer.source'))}</a>
           <a class="zkill-link" href="${esc(state.manifest.zkillboard.baseUrl)}" target="_blank" rel="noopener noreferrer">zKillboard</a>
           <a href="${esc(state.manifest.links?.eveDocs || '#')}" target="_blank" rel="noopener noreferrer">EVE SDE</a>
-          <span class="footer-meta footer-version">v${esc(state.manifest?.version || '0.1.0')} · SDE ${esc(state.manifest?.sde?.buildNumber || state.manifest?.sde?.generatedAt || '—')}${state.manifest.zkillboard?.snapshot ? ` · ZKILL ${esc(state.manifest.zkillboard.snapshot)}` : ''}</span>
+          ${footerVersionHtml()}
         </div>
       </footer>
     </main>
   `;
   renderChrome();
+  if (state.roomSurface) {
+    state.roomSurface.attach($('#room-view'), $('#room-rail'));
+    applyRoomLayout();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2453,7 +2545,7 @@ function renderChrome() {
   const pilotRecord = pilotMenu?.querySelector('.pilot-menu-record');
   if (pilotMenu && pilotRecord) pilotRecord.outerHTML = pilotStatsHtml();
   const brandSub = $('.brand-sub');
-  if (brandSub) brandSub.textContent = `F.I.T.D.L.E. // ${brandText('brand.claimDivision')}`;
+  if (brandSub) brandSub.textContent = `${brandText('brand.parent')} // ${brandText('brand.scc')}`;
   const footerBrand = $('.footer-brand');
   if (footerBrand) footerBrand.innerHTML = `<b>${esc(t('app.name'))}</b> // ${esc(brandText('app.subtitle'))}`;
   const footerDisclaimer = $('.footer-disclaimer');
@@ -2496,6 +2588,11 @@ function renderHero() {
   const hero = $('#hero');
   if (!hero) return;
   stopClueScan();
+  if (state.roomArbitration) {
+    renderArbitrationHero(hero);
+    return;
+  }
+  stopArbitrationRadar();
   if (state.status !== 'playing') stopRadarMosaic();
   const total = state.answerData?.clues?.length || 0;
   const totalHidden = hiddenTotals();
@@ -2504,10 +2601,10 @@ function renderHero() {
   const ended = state.status !== 'playing';
   const answer = displayName(state.answerShip);
   const logos = activeBrandLogos();
-  const target = ended ? answer : t('hero.target');
   const free = isFree();
   const heroDate = `${state.appMode === 'online' ? t('online.label') : t('practice.label')} // ${t(`gameplay.${state.gameplay}`)}`;
   const claimStatus = !ended ? t('claim.pending') : state.status === 'won' ? t('claim.confirmed') : t('claim.escalated');
+  const subject = ended ? claimStatus : t('hero.target');
   hero.innerHTML = `
     <div class="hero-copy">
       <div class="claim-mail-head">
@@ -2545,8 +2642,8 @@ function renderHero() {
         </dl>
       </div>
       <div class="hero-kicker"><span class="ping"></span>${esc(brandText('hero.kicker'))}<span class="hero-date">${esc(heroDate)}</span></div>
-      <h1 id="hero-title">${esc(t('hero.title'))}</h1>
-      <div class="hero-targetline">${esc(target)}</div>
+      <h1 id="hero-title">${esc(ended ? answer : t('hero.title'))}</h1>
+      <div class="hero-subject">${esc(subject)}</div>
       ${state.claimMemo ? `<p class="claim-memo">${esc(state.claimMemo)}</p>` : ''}
       <p class="hero-body">${esc(t('hero.body'))}</p>
       <div class="hero-stats">
@@ -2595,6 +2692,123 @@ function renderHero() {
     </div>
   `;
   startRadarMosaic();
+}
+
+function arbitrationRole() {
+  const arb = state.roomArbitration;
+  const selfId = state.roomSurface?.playerId;
+  if (!arb || !selfId) return 'spectator';
+  if (arb.dealerId === selfId) return 'dealer';
+  if (arb.solved?.has(selfId)) return 'solved';
+  if (arb.spectator || arb.role === 'spectator') return 'spectator';
+  return 'player';
+}
+
+function stopArbitrationRadar() {
+  if (state.arbRadarTimer) {
+    clearInterval(state.arbRadarTimer);
+    state.arbRadarTimer = null;
+  }
+}
+
+function startArbitrationRadar(host, decoyIds) {
+  stopArbitrationRadar();
+  const stage = host?.querySelector('.radar-visual[data-arb-radar]');
+  if (!stage || !Array.isArray(decoyIds) || !decoyIds.length) return;
+  const frames = decoyIds.slice(0, 5).map((id, index) => {
+    const img = document.createElement('img');
+    img.className = 'radar-visual-image radar-frame';
+    img.alt = '';
+    img.draggable = false;
+    img.src = renderPath(id).replace('size=512', 'size=32');
+    img.style.objectPosition = `${24 + index * 13}% ${32 + index * 9}%`;
+    img.onerror = () => img.classList.add('is-missing');
+    stage.appendChild(img);
+    return img;
+  });
+  if (!frames.length) return;
+  let active = 0;
+  frames[0].classList.add('is-active');
+  state.arbRadarTimer = setInterval(() => {
+    active = (active + 1) % frames.length;
+    frames.forEach((frame, index) => frame.classList.toggle('is-active', index === active));
+  }, 4200);
+}
+
+function renderArbitrationHero(hero) {
+  const arb = state.roomArbitration;
+  const selfId = state.roomSurface?.playerId;
+  const role = arbitrationRole();
+  const revealed = arb.phase === 'reveal' && Boolean(arb.revealResult);
+  const answerId = role === 'dealer' ? Number(arb.dealerTarget?.shipId) || null : null;
+  const finalAnswerId = revealed ? Number(arb.revealResult?.target?.shipId) || null : null;
+  const targetId = finalAnswerId || answerId;
+  const targetShip = targetId ? state.catalogMap.get(targetId) : null;
+  const targetName = targetShip ? displayName(targetShip) : '';
+  const published = Number(arb.published?.size ?? arb.publishedCount ?? 0);
+  const total = Number(arb.clueCount || arb.clues?.length || 0);
+  const roleLabel = role === 'dealer'
+    ? t('room.dealerTag')
+    : role === 'solved'
+      ? t('room.solvedSpectating')
+      : role === 'spectator'
+        ? t('room.spectator')
+        : t('room.guess');
+  const titleAnswer = targetName && (role === 'dealer' || revealed);
+  hero.innerHTML = `
+    <div class="hero-copy">
+      <div class="hero-kicker"><span class="ping"></span>${esc(t('gameplay.arbitration'))}<span class="hero-date">${esc(arb.roomCode || '')}</span></div>
+      <h1 id="hero-title">${esc(titleAnswer ? targetName : t('gameplay.arbitration'))}</h1>
+      <div class="hero-subject">${esc(titleAnswer ? (revealed ? t('room.roundAnswer') : t('room.dealerAnswer')) : `${arb.roomCode || ''} // ${arb.room?.code || ''}`)}</div>
+      <p class="hero-body">${esc(revealed ? t('room.revealAnswer') : role === 'dealer' ? t('room.fullIntel') : t('room.publishedIntel'))}</p>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span>${esc(t('room.round', { round: Number(arb.round) || 1, total: Number(arb.totalRounds) || 6 }))}</span>
+          <strong>${esc(String(Number(arb.round) || 1))}<em>/${esc(String(Number(arb.totalRounds) || 6))}</em></strong>
+          <small>${esc(arb.bigRound ? t('room.bigRound', { number: arb.bigRound.number, total: arb.bigRound.total }) : '')}</small>
+        </div>
+        <div class="hero-stat">
+          <span>${esc(t('room.publishedIntel'))}</span>
+          <strong>${published}<em>/${total || '?'}</em></strong>
+          <small>${esc(t('room.dealerLine', { name: state.roomSurface?.playerName(arb.dealerId) || '—' }))}</small>
+        </div>
+        <div class="hero-stat">
+          <span>${esc(t('hero.status'))}</span>
+          <strong>${esc(roleLabel)}</strong>
+          <small>${selfId ? `#${esc(state.roomSurface?.localId(selfId))}` : ''}</small>
+        </div>
+      </div>
+    </div>
+    <div class="hero-radar${targetId ? ' resolved' : ''}">
+      <div class="wreck-plate">
+        <div class="wreck-plate-tab microtype" aria-hidden="true">
+          <span>F.I.T.D.L.E. // ARBITRATION</span>
+          <span>ROOM // ${esc(arb.roomCode || '')}</span>
+        </div>
+        <div class="radar" aria-hidden="true">
+          <div class="radar-visual${targetId ? ' is-resolved' : ''}" data-arb-radar>
+            ${targetId ? `<img class="radar-visual-image" src="${esc(renderPath(targetId))}" alt="" draggable="false" onload="this.classList.remove('is-missing')" onerror="this.classList.add('is-missing')">` : ''}
+          </div>
+          <div class="radar-grid"></div>
+          <div class="salvage-scanline"></div>
+          <div class="clue-reveal-scan" aria-hidden="true"></div>
+          <div class="salvage-noise" aria-hidden="true"></div>
+          <span class="scan-corner c1"></span>
+          <span class="scan-corner c2"></span>
+          <span class="scan-corner c3"></span>
+          <span class="scan-corner c4"></span>
+        </div>
+        <div class="radar-caption microtype">
+          <span>${esc(t('room.publishedIntel'))} <strong>${targetId ? esc(targetName || t('room.revealAnswer')) : published}</strong></span>
+        </div>
+      </div>
+    </div>
+  `;
+  if (!targetId) {
+    requestAnimationFrame(() => startArbitrationRadar(hero, arb.decoyShipIds || []));
+  } else {
+    stopArbitrationRadar();
+  }
 }
 
 function stopRadarMosaic() {
@@ -2719,9 +2933,34 @@ function attemptIcon(ship) {
   </span>`;
 }
 
+function renderArbitrationAttempts(list) {
+  const arb = state.roomArbitration;
+  const players = arb.players || [];
+  list.innerHTML = players.map((player) => {
+    const solved = arb.solved?.has(player.id);
+    const guessed = arb.guessed?.has(player.id);
+    const dealer = player.id === arb.dealerId;
+    const status = dealer ? t('room.dealerTag') : solved ? t('board.confirmed') : guessed ? t('board.locked') : t('board.awaiting');
+    return `<li class="attempt ${dealer ? 'is-active' : solved ? 'is-correct' : guessed ? 'is-wrong' : 'is-empty'}">
+      <span class="attempt-marker">${avatarHtml(player.name, player.characterId, 32, 'attempt-avatar', state.manifest?.images?.baseUrl)}</span>
+      <span class="attempt-body">
+        <span class="attempt-name">${esc(player.name)}</span>
+        <span class="attempt-meta">${esc(status)}</span>
+      </span>
+      <span class="attempt-status"><strong>${esc(status)}</strong></span>
+    </li>`;
+  }).join('');
+  const boardCount = $('#board-count-text');
+  if (boardCount) boardCount.textContent = `${Number(arb.round) || 1} / ${Number(arb.totalRounds) || 6}`;
+}
+
 function renderAttempts() {
   const list = $('#attempts');
   if (!list) return;
+  if (state.roomArbitration) {
+    renderArbitrationAttempts(list);
+    return;
+  }
   if (isTimed() && !state.timerStarted && state.status === 'playing') {
     list.innerHTML = '';
     const boardCount = $('#board-count-text');
@@ -2792,9 +3031,67 @@ function renderAttempts() {
   }, 700);
 }
 
+function renderArbitrationAcquire(slot) {
+  const arb = state.roomArbitration;
+  if (arb.phase === 'reveal') {
+    slot.innerHTML = `<div class="acquire"><p class="room-note">${esc(t('room.phase.reveal'))}</p></div>`;
+    return;
+  }
+  const role = arbitrationRole();
+  const selfId = state.roomSurface?.playerId;
+  const canGuess = role === 'player'
+    && arb.acceptingGuesses
+    && !arb.guessed?.has(selfId)
+    && !arb.solved?.has(selfId);
+  if (!canGuess) {
+    const key = role === 'dealer'
+      ? 'room.arbitration.dealerPublish'
+      : arb.solved?.has(selfId)
+        ? 'room.solvedSpectating'
+        : role === 'spectator'
+          ? 'room.spectator'
+          : 'room.arbitration.waiting';
+    slot.innerHTML = `<div class="acquire"><p class="room-note">${esc(t(key))}</p></div>`;
+    return;
+  }
+  slot.innerHTML = `
+    <div class="acquire">
+      <div class="search-shell">
+        <div class="search-wrap">
+          <span class="search-icon">${icon('search')}</span>
+          <input id="ship-input" class="search-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" aria-label="${esc(t('board.inputLabel'))}" placeholder="${esc(t('board.placeholder'))}" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(state.inputValue)}">
+          <span class="search-key">ENTER</span>
+        </div>
+        <button type="button" class="lock-button" data-action="submit" ${state.inputValue.trim() ? '' : 'disabled'}>
+          ${icon('lock')} ${esc(t('board.submit'))}
+        </button>
+      </div>
+      <div class="acquire-meta">
+        <span>${icon('globe')} ${esc(t('board.typeAnyLanguage'))}</span>
+        <span>${icon('key')} ${esc(t('board.enterHint'))}</span>
+      </div>
+    </div>
+  `;
+}
+
 function renderAcquire() {
   const slot = $('#acquire-slot');
   if (!slot) return;
+  if (state.roomEndless) {
+    const phase = state.roomEndless.phase;
+    if (phase === 'loading' || phase === 'starting') {
+      slot.innerHTML = `<div class="acquire"><p class="room-note">${esc(phase === 'loading' ? t('room.loadingRound') : t('room.startingRound'))}</p></div>`;
+      return;
+    }
+    if (phase === 'waiting' || phase === 'finished') {
+      slot.innerHTML = `<div class="acquire"><p class="room-note">${esc(t('room.waitingReady'))}</p></div>`;
+      return;
+    }
+  }
+  if (state.roomArbitration) {
+    renderArbitrationAcquire(slot);
+    return;
+  }
   if (state.status !== 'playing') {
     slot.innerHTML = `
       <div class="complete-block" data-status="${state.status}">
@@ -2945,7 +3242,7 @@ function clueValue(clue) {
       return formatNumberValue(value, 'mm');
     case 'kbValue':
       return `<span class="big">${esc(state.kbValueCompact ? isk(value) : iskFull(value))}</span>`;
-    case 'losses30':
+    case 'losses90':
       return `<span class="big">≈ ${esc(compact(value))}</span>`;
     case 'usageRank':
       return `<span class="big">${esc(t('clue.rankTop', { n: int(value) }))}</span>`;
@@ -2969,6 +3266,7 @@ function moduleBadge(tag, clue) {
     unique: { cls: 'badge-unique', icon: 'lock', label: t('dossier.unique'), hint: t('dossier.uniqueHint') },
     officer: { cls: 'badge-officer', icon: 'star', label: t('dossier.officer'), hint: t('dossier.officerHint') },
     audit: { cls: 'badge-audit', icon: 'radar', label: t('dossier.audit'), hint: t('dossier.auditHint') },
+    cloak: { cls: 'badge-cloak', icon: 'lock', label: t('dossier.cloak'), hint: t('dossier.cloakHint') },
     plex: { cls: 'badge-plex', icon: 'star', label: t('dossier.plex'), hint: t('dossier.plexHint') },
   };
   const badge = badges[tag];
@@ -2979,7 +3277,7 @@ function moduleBadge(tag, clue) {
       || `Type #${clue.calcModule}`;
     badge.hint = `${t('dossier.auditHint')} ${t('dossier.auditCalc', { name: calcName })}`;
   }
-  return `<span class="badge-hull ${badge.cls}" title="${esc(badge.hint)}" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
+  return `<span class="badge-hull ${badge.cls}" title="${esc(badge.hint)}" data-tip="${esc(badge.hint)}" tabindex="0" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
 }
 
 function bonusAmountText(entry) {
@@ -3186,7 +3484,236 @@ function scrollToNewClue(direction) {
   scheduleNewClueHint();
 }
 
+function arbitrationTurnLock(arb, role) {
+  if (arb.phase === 'dealer' && role !== 'dealer' && role !== 'spectator') {
+    return { locked: true, text: t('room.phase.dealer') };
+  }
+  if (arb.phase === 'player' && role === 'dealer') {
+    return { locked: true, text: t('room.phase.player') };
+  }
+  return { locked: false, text: '' };
+}
+
+function arbitrationPlaceholderHtml() {
+  return ['hull', 'nav', 'defense', 'targeting', 'fitting', 'equipment', 'cargo'].map((category) => `
+    <section class="dossier-group cat-${category} is-sealed">
+      <header class="group-head">
+        <span class="group-title">${icon(CATEGORY_ICON[category] || 'dot')}<span>${esc(categoryLabel(category))}</span></span>
+        <span class="group-progress" aria-hidden="true"><span style="--p:0"></span></span>
+        <span class="group-count"><b>?</b></span>
+      </header>
+      <div class="group-rows">
+        <div class="attr-row is-hidden equipment-sealed">
+          <span class="attr-label">${esc(t('dossier.encrypted'))}</span>
+          <span class="attr-value"><span class="attr-redacted" aria-label="?">?</span></span>
+          <span class="attr-meta"><span class="attr-lock">${icon('lock')}</span></span>
+        </div>
+      </div>
+    </section>`).join('');
+}
+
+function renderArbitrationTurnLock(host, arb, role) {
+  const body = host?.closest('.dossier-body');
+  if (!body) return;
+  const lock = arbitrationTurnLock(arb, role);
+  body.classList.toggle('is-turn-locked', lock.locked);
+  let overlay = body.querySelector('.dossier-turn-lock');
+  if (!lock.locked) {
+    overlay?.remove();
+    return;
+  }
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'dossier-turn-lock';
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+    body.appendChild(overlay);
+  }
+  overlay.innerHTML = `<span class="dossier-turn-lock-kicker">${icon('radar')}</span><strong>${esc(lock.text)}</strong>`;
+}
+
+function clearFreshHighlight(event) {
+  const row = event.currentTarget?.classList?.contains('attr-row')
+    ? event.currentTarget
+    : event.target?.closest?.('.attr-row.is-fresh, .attr-row.is-new-clue');
+  if (!row) return;
+  const index = Number(row.dataset.clueIndex);
+  row.classList.remove('is-fresh', 'is-new-clue');
+  if (Number.isInteger(index)) {
+    state.fresh.delete(index);
+    state.arbFresh.delete(index);
+  }
+}
+
+function renderArbitrationHiddenRow(clue, index) {
+  const category = groupCategory(clue);
+  return `<div class="attr-row cat-${category} is-hidden" data-clue-index="${index}" data-clue-kind="${esc(clue.k || 'hidden')}" data-category="${category}">
+    <span class="attr-label">${esc(t('dossier.encrypted'))}</span>
+    <span class="attr-value"><span class="attr-redacted" aria-label="?">?</span></span>
+    <span class="attr-meta"><span class="attr-lock">${icon('lock')}</span></span>
+  </div>`;
+}
+
+function renderArbitrationDossier() {
+  const arb = state.roomArbitration;
+  const role = arbitrationRole();
+  const isDealer = role === 'dealer';
+  const published = arb.published || new Set();
+  if (state.arbSeenMatchId !== arb.matchId) {
+    state.arbSeenMatchId = arb.matchId;
+    state.arbSeenPublished = new Set();
+    state.arbFresh = new Set();
+    state.arbFreshRound = null;
+  }
+  if (state.arbFreshRound !== arb.round) {
+    state.arbFreshRound = arb.round;
+    state.arbFresh = new Set();
+    state.arbSeenPublished = new Set(published);
+  }
+  const freshClues = [...published].filter((index) => !state.arbSeenPublished.has(index));
+  for (const index of freshClues) {
+    state.arbSeenPublished.add(index);
+    if (!isDealer) state.arbFresh.add(index);
+  }
+  const publishedByIndex = new Map((arb.publishedClues || []).map((clue) => [Number(clue.i), clue]));
+  const clueMeta = Array.isArray(arb.clueMeta) ? arb.clueMeta : [];
+  const clues = isDealer
+    ? (arb.dealerClues || [])
+    : clueMeta.map((meta) => {
+      const index = Number(meta.i);
+      return publishedByIndex.get(index) || { ...meta, hidden: true };
+    });
+  const total = Number(arb.clueCount || clues.length || 0);
+  const shown = published.size;
+  const countText = $('#dossier-count-text');
+  const countLabel = countText?.parentElement?.querySelector('span');
+  const orb = $('#dossier-orb');
+  const progressLine = document.querySelector('.dossier-panel .progress-line');
+  if (isDealer) {
+    const selected = state.roomSurface?.selected || new Set();
+    const auto = new Set();
+    for (const clue of (arb.dealerClues || [])) {
+      if (clue.auto && !published.has(Number(clue.i))) auto.add(Number(clue.i));
+    }
+    const pending = [...new Set([...selected, ...auto])].filter((index) => !published.has(Number(index)));
+    const roundScore = pending.reduce((sum, index) => {
+      const clue = (arb.dealerClues || []).find((entry) => Number(entry.i) === Number(index));
+      return sum + Object.values(clue?.scores || {}).reduce((inner, value) => inner + (Number(value) || 0), 0);
+    }, 0);
+    if (countText) countText.textContent = String(roundScore);
+    if (countLabel) countLabel.textContent = t('room.roundScore');
+    if (orb) {
+      orb.hidden = true;
+      orb.style.display = 'none';
+    }
+    if (progressLine) {
+      progressLine.hidden = true;
+      progressLine.style.display = 'none';
+    }
+  } else {
+    if (countText) countText.textContent = `${shown} / ${total || '?'}`;
+    if (countLabel) countLabel.textContent = t('dossier.decrypted');
+    if (orb) {
+      orb.hidden = false;
+      orb.style.display = '';
+    }
+    if (progressLine) {
+      progressLine.hidden = false;
+      progressLine.style.display = '';
+    }
+    const progress = total ? Math.round((shown / total) * 100) : 0;
+    const progressBar = $('#dossier-progress');
+    if (progressBar) progressBar.style.width = `${progress}%`;
+    if (orb) {
+      orb.style.setProperty('--p', progress);
+      orb.setAttribute('aria-valuenow', String(progress));
+    }
+    const orbText = $('#dossier-orb-text');
+    if (orbText) orbText.textContent = total ? `${progress}%` : '?';
+  }
+  if ($('#answer-banner')) $('#answer-banner').innerHTML = '';
+  const host = $('#dossier-groups');
+  if (!host) return;
+  if (!clues.length) {
+    host.innerHTML = arbitrationPlaceholderHtml();
+    renderArbitrationTurnLock(host, arb, role);
+    return;
+  }
+  const groups = CATEGORIES.map((category) => ({
+    category,
+    entries: clues.map((clue, index) => ({ clue, index: Number(clue.i ?? index) }))
+      .filter((entry) => groupCategory(entry.clue) === category),
+  })).filter((group) => group.entries.length);
+  host.innerHTML = groups.map(({ category, entries }) => {
+    const revealedCount = entries.filter((entry) => !entry.clue.hidden).length;
+    return `
+    <section class="dossier-group cat-${category}">
+      <header class="group-head">
+        <span class="group-title">${icon(CATEGORY_ICON[category] || 'dot')}<span>${esc(categoryLabel(category))}</span></span>
+        <span class="group-progress" aria-hidden="true"><span style="--p:100"></span></span>
+        <span class="group-count"><b>${isDealer ? entries.length : revealedCount}</b> / ${entries.length}</span>
+      </header>
+      <div class="group-rows">
+        ${entries.map(({ clue, index }) => {
+          if (clue.hidden) return renderArbitrationHiddenRow(clue, index);
+          if (clue.k !== 'bonus') return renderClueRow(clue, index, true);
+          const text = clue.text?.[state.locale] || clue.text?.en || '';
+          return `<div class="attr-row cat-traits bonus-row is-revealed" data-clue-index="${index}" data-clue-kind="bonus" data-category="traits">
+            <span class="attr-label"></span>
+            <span class="attr-value">${esc(text)}</span>
+            <span class="attr-meta"></span>
+          </div>`;
+        }).join('')}
+      </div>
+    </section>`;
+  }).join('');
+  host.querySelectorAll('.attr-row[data-clue-index]').forEach((row) => {
+    const index = Number(row.dataset.clueIndex);
+    const clue = clues.find((entry) => Number(entry.i) === index);
+    if (!clue || clue.hidden) return;
+    const values = [...new Set(Object.values(clue.scores || {}).map((value) => Number(value) || 0))];
+    const scoreText = values.length > 1 ? values.join(' / ') : String(values[0] ?? 0);
+    const weight = Math.max(0, Number(clue.w) || 0);
+    const tip = t('room.clueWeight', { weight });
+    const meta = row.querySelector('.attr-meta');
+    if (meta) {
+      meta.innerHTML = `<span class="room-clue-score" tabindex="0" title="${esc(tip)}" data-tip="${esc(tip)}" aria-label="${esc(`${scoreText} — ${tip}`)}">${esc(scoreText)}</span>`;
+    }
+    const autoSelected = Boolean(clue.auto) && !published.has(index) && isDealer;
+    row.classList.toggle('is-auto-selected', autoSelected);
+    row.classList.toggle('is-published', published.has(index));
+    row.classList.toggle('is-dealer-published', isDealer && published.has(index));
+    if (isDealer && (autoSelected || state.roomSurface?.selected?.has(index))) row.classList.add('is-selected');
+    if (!isDealer && state.arbFresh.has(index)) {
+      row.classList.add('is-new-clue');
+      row.addEventListener('pointerenter', clearFreshHighlight, { once: true });
+      row.addEventListener('focusin', clearFreshHighlight, { once: true });
+    }
+    if (isDealer && arb.phase === 'dealer' && !published.has(index) && clue.k !== 'equipment' && clue.k !== 'cargo') {
+      row.classList.add('is-selectable');
+      row.dataset.selectIndex = String(index);
+      if (state.roomSurface?.selected?.has(index)) row.classList.add('is-selected');
+      row.addEventListener('click', () => {
+        if (!state.roomSurface) return;
+        if (state.roomSurface.selected.has(index)) state.roomSurface.selected.delete(index);
+        else state.roomSurface.selected.add(index);
+        renderDossier();
+        syncRoomAction();
+      });
+    }
+  });
+  if (freshClues.length) requestAnimationFrame(() => playClueScan());
+  renderArbitrationTurnLock(host, arb, role);
+}
+
 function renderDossier() {
+  if (state.roomArbitration) {
+    renderArbitrationDossier();
+    return;
+  }
+  const arbBody = document.querySelector('.dossier-body');
+  arbBody?.classList.remove('is-turn-locked');
+  arbBody?.querySelector('.dossier-turn-lock')?.remove();
   if (!state.answerData) return;
   if (isTimed() && !state.timerStarted && state.status === 'playing') {
     const countText = $('#dossier-count-text');
@@ -3391,10 +3918,10 @@ function renderDossier() {
   }
 
   if (state.fresh.size) {
-    setTimeout(() => {
-      $$('.attr-row.is-fresh').forEach((row) => row.classList.remove('is-fresh'));
-      state.fresh.clear();
-    }, 1700);
+    host.querySelectorAll('.attr-row.is-fresh').forEach((row) => {
+      row.addEventListener('pointerenter', clearFreshHighlight, { once: true });
+      row.addEventListener('focusin', clearFreshHighlight, { once: true });
+    });
   }
   scheduleNewClueHint();
 }
@@ -3410,12 +3937,45 @@ function syncBoardHeight() {
   board.style.maxHeight = `${Math.max(0, dossier.getBoundingClientRect().height)}px`;
 }
 
+function renderRoomLoading() {
+  const host = $('#room-loading');
+  if (!host) return;
+  const room = state.roomSurface?.room;
+  const phase = state.roomEndless?.phase;
+  if (!state.roomSurface || !room || !state.roomEndless || !['loading', 'ready', 'starting'].includes(phase)) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return;
+  }
+  const match = room.match || {};
+  const ready = Array.isArray(match.ready) ? match.ready.length : 0;
+  const active = Number(match.activeCount) || state.roomEndless.activeCount || ready;
+  host.hidden = false;
+  host.innerHTML = `
+    <div class="room-loading-panel" role="status" aria-live="polite">
+      <div class="room-loading-radar" aria-hidden="true">
+        <span class="room-loading-ring"></span>
+        <span class="room-loading-ring is-inner"></span>
+        <span class="room-loading-sweep"></span>
+      </div>
+      <div class="room-loading-copy">
+        <span class="mp-kicker">${esc(t('room.loadingKicker'))}</span>
+        <h2>${esc(t('room.loadingKb'))}</h2>
+        <p>${esc(t('room.readyCount', { ready, total: active }))}</p>
+        <div class="room-loading-bar"><span style="--p:${active ? Math.round((ready / active) * 100) : 0}%"></span></div>
+      </div>
+      <div class="room-loading-shade" aria-hidden="true"></div>
+    </div>`;
+}
+
 function renderAll() {
+  renderRoomLoading();
   renderHero();
   renderAttempts();
   renderAcquire();
   renderDossier();
   renderChrome();
+  syncRoomAction();
   syncClueScan();
   requestAnimationFrame(syncBoardHeight);
 }
@@ -3550,6 +4110,26 @@ function currentGuessShip() {
 
 function submitGuess() {
   if (state.status !== 'playing') return;
+  if (state.roomEndless && state.roomEndless.phase !== 'playing') return;
+  if (state.roomArbitration) {
+    const arb = state.roomArbitration;
+    const selfId = state.roomSurface?.playerId;
+    if (!selfId || arb.role === 'dealer' || arb.role === 'spectator') return;
+    if (!arb.acceptingGuesses || arb.solved?.has(selfId) || arb.guessed?.has(selfId)) return;
+    const ship = currentGuessShip();
+    if (!ship) {
+      showToast(t('toast.invalid'), '', 'error');
+      return;
+    }
+    if (!state.roomSurface?.send({ t: 'guess', text: displayName(ship) })) return;
+    state.inputValue = '';
+    state.selectedId = null;
+    state.activeSuggestion = -1;
+    state.suggestions = [];
+    hideSuggestions();
+    renderAcquire();
+    return;
+  }
   if (isTimed() && Date.now() < state.lockCooldownUntil) return;
   const ship = currentGuessShip();
   if (!ship) {
@@ -3577,6 +4157,10 @@ function recordDailyPlay() {
 }
 
 function recordDailyResult() {
+  if (state.roomEndless) {
+    finishEndlessRound();
+    return;
+  }
   if (state.roomRace) {
     finishRoomRace();
     return;
@@ -3618,7 +4202,7 @@ function applyGuess(shipId) {
   if (isTimed() && !correct) startLockCooldown();
   if (state.status !== 'playing') {
     recordDailyResult();
-    setTimeout(() => renderDebrief(), 850);
+    if (!state.roomEndless) setTimeout(() => renderDebrief(), 850);
   } else if (window.innerWidth >= 860) {
     setTimeout(() => $('#ship-input')?.focus(), 60);
   }
@@ -3743,6 +4327,7 @@ function renderDebrief() {
     : (oneShot
       ? t('oneShot.body')
       : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) })));
+  const claimDebrief = claimDebriefForStatus();
   const freeStreakStat = '';
   const html = `
     <div class="modal debrief-modal${oneShot ? ' is-one-shot' : ''}" role="dialog" aria-modal="true" aria-labelledby="debrief-title" data-kind="debrief" data-status="${state.status}" data-one-shot="${oneShot}">
@@ -3764,11 +4349,11 @@ function renderDebrief() {
           ${oneShot ? `<div class="one-shot-banner"><span class="one-shot-mark">01</span><span>${esc(t('end.victoryKicker'))} // ${esc(t('oneShot.kicker'))}</span></div>` : ''}
           <div class="debrief-kicker"><span class="dot"></span>${esc(kicker)}</div>
           <h2 id="debrief-title">${esc(title)}</h2>
-          <div class="debrief-payout">
+          <div class="debrief-payout${won ? '' : ' is-void'}">
             <span>${esc(t('end.insurancePayout'))}</span>
             <strong data-debrief-payout data-amount="${payout == null ? '' : payout}" aria-live="polite">${payout == null ? '—' : iskFull(0)}</strong>
           </div>
-          <p class="debrief-body">${esc(state.claimDebriefMemo || body)}</p>
+          <p class="debrief-body">${esc(claimDebrief || body)}</p>
 
           <div class="debrief-answer">
             <span class="icon"><img src="${esc(shipIconPath(ship))}" alt="" onerror="this.remove()"></span>
@@ -4298,6 +4883,8 @@ document.addEventListener('click', (event) => {
       return;
     }
     if (action === 'rooms') { openRooms(); return; }
+    if (action === 'room-action') { handleRoomAction(); return; }
+    if (action === 'leave-room') { leaveRoomAndRestore(); return; }
     if (action === 'free-mode' || action === 'free-refresh') { enterFreeMode(); return; }
     if (action === 'free-input') { openFreeModal(); return; }
     if (action === 'free-share') { void copyFreeShare(); return; }
@@ -4568,7 +5155,7 @@ function parseAppRoute() {
   const params = new URLSearchParams(location.search);
   return {
     mode: params.get('mode') || '',
-    gameplay: routeGameplay(params.get('claim') || 'standard'),
+    gameplay: routeGameplay(params.get('claim') || 'daily'),
     kb: params.get('kb') || '',
     room: params.get('room') || '',
   };
@@ -4598,6 +5185,11 @@ async function resolveSession() {
         name: String(me.name || ''),
         characterId: Number(me.characterId) || null,
       };
+      try {
+        state.profileStats = await api.stats();
+      } catch {
+        state.profileStats = null;
+      }
     }
   } catch {
     // Backend unavailable: practice mode.
@@ -4631,6 +5223,7 @@ function installTarget({ killmail, shipId, killId, run = null, source, free = fa
   state.freeRoundActive = false;
   state.kbValueCompact = false;
   state.lastRevealSize = 0;
+  state.initialFreshDone = false;
   state.targetGameDay = source === 'online'
     ? String(run?.gameDay || state.today || '')
     : String(state.today || '');
@@ -4751,7 +5344,329 @@ function finishRoomRace() {
     elapsedMs: state.timerStarted ? currentElapsed() : state.timerElapsedMs,
   });
   state.roomRace = null;
+  state.roomView = 'result';
   race.surface.show();
+  applyRoomLayout();
+}
+
+function roomEntrySnapshot() {
+  const url = new URL(location.href);
+  const inRoom = url.searchParams.get('mode') === 'multiplayer' || Boolean(url.searchParams.get('room'));
+  if (inRoom) {
+    url.searchParams.delete('mode');
+    url.searchParams.delete('room');
+  }
+  return {
+    href: url.toString(),
+    gameplay: state.gameplay,
+    started: state.guesses.length > 0 || state.timerStarted,
+    timed: isTimed(),
+  };
+}
+
+function restoreRoomEntry() {
+  const entry = state.roomEntry;
+  state.roomEntry = null;
+  let href = entry?.href || new URL('?', location.href).toString();
+  if (entry?.timed && entry.started) {
+    const url = new URL(href);
+    url.searchParams.delete('claim');
+    url.searchParams.delete('rule');
+    href = url.toString();
+  }
+  location.assign(href);
+}
+
+function leaveRoomAndRestore() {
+  const surface = state.roomSurface;
+  if (surface) {
+    surface.send({ t: 'leave' });
+    surface.leaving = true;
+    surface.close();
+  }
+  restoreRoomEntry();
+}
+
+function roomRoundMode(gameplay) {
+  if (gameplay === 'audit') return { mode: 'audit', timed: false };
+  if (gameplay === 'timed') return { mode: 'normal', timed: true };
+  return { mode: 'normal', timed: false };
+}
+
+async function prepareEndlessRound(message) {
+  const target = message?.target;
+  if (!target?.killmail) throw new Error('room-target');
+  const gameplay = ['standard', 'audit', 'timed'].includes(message.gameplay) ? message.gameplay : 'standard';
+  const { mode, timed } = roomRoundMode(gameplay);
+  applyGameplay(gameplay);
+  installTarget({
+    killmail: target.killmail,
+    shipId: target.shipId,
+    killId: target.killId,
+    source: 'online',
+    free: false,
+    cacheable: false,
+  });
+  state.roomCode = state.roomSurface?.code || state.roomCode;
+  state.roomView = 'endless';
+  state.roomArbitration = null;
+  state.roomEndless = {
+    roundId: message.roundId,
+    roundNo: message.roundNo,
+    gameplay,
+    phase: 'loading',
+    target,
+    seed: message.seed,
+    startAt: null,
+    serverOffset: 0,
+    ready: false,
+  };
+  state.status = 'playing';
+  state.appMode = 'online';
+  state.onlineRun = null;
+  state.onlineFinished = false;
+  state.guesses = [];
+  state.revealed = new Set();
+  state.fresh = new Set();
+  state.inputValue = '';
+  state.selectedId = null;
+  state.suggestions = [];
+  state.timerStarted = false;
+  state.timerStartAt = 0;
+  state.timerElapsedMs = 0;
+  state.gaveUp = false;
+  state.timedExpired = false;
+  state.liveLosses = [target.killmail];
+  state.liveFetched = true;
+  state.liveError = false;
+  let built;
+  if (Array.isArray(message.clues) && message.clues.length) {
+    built = {
+      clues: message.clues,
+      sampleKill: message.sampleKill || target.killmail?.killmail_id || null,
+      fittedKills: message.fittedKills || [],
+      fitDelta: message.fitDelta || null,
+    };
+  } else {
+    let fittedAttrs = null;
+    let baselineAttrs = null;
+    if (mode === 'audit') {
+      try {
+        fittedAttrs = await calculateDogmaFit(state.answerShip, target.killmail);
+        baselineAttrs = await calculateDogmaBaseline(state.answerShip);
+      } catch {
+        // Fallback simulation remains available.
+      }
+    }
+    built = buildClues({
+      ship: state.answerShip,
+      catalog: state.catalog,
+      refs: state.refs,
+      stats: null,
+      losses: [target.killmail],
+      dateKey: `room:${state.roomCode}:${message.roundId}`,
+      dataVersion: state.manifest?.clueVersion || '5',
+      targetKillId: target.killId,
+      mode,
+      fittedAttrs,
+      baselineAttrs,
+      moduleFallbacks: state.manifest.moduleFallbacks || {},
+      weaponUpgradeGroups: state.manifest.weaponUpgradeGroups || null,
+      weaponGroups: state.manifest.weaponGroups || null,
+    });
+  }
+  const revealPlan = buildRevealPlan({
+    clues: built.clues,
+    seed: message.seed,
+    mode,
+    timed,
+    config: state.manifest?.reveal,
+  });
+  state.answerData = {
+    ...state.answerShip,
+    description: state.answerShip.descriptions?.[state.locale] || state.answerShip.descriptions?.en || '',
+    bonuses: state.answerShip.bonuses?.[state.locale] || state.answerShip.bonuses?.en || [],
+    bonusEntries: state.answerShip.bonusEntries || [],
+    clues: built.clues,
+    sampleKill: built.sampleKill,
+    fitting: { fittedKills: built.fittedKills },
+    fitDelta: built.fitDelta,
+    revealSeed: message.seed,
+    revealPlan,
+  };
+  state.timed = timed;
+  state.roomEndless.phase = 'loading';
+  applyRoomLayout();
+  renderAll();
+  if (document.fonts?.ready) await document.fonts.ready;
+  return true;
+}
+
+function onEndlessLoaded(message) {
+  if (!state.roomEndless) return;
+  state.roomEndless.phase = 'ready';
+  state.roomEndless.prepared = false;
+  applyRoomLayout();
+  renderAll();
+  syncRoomAction();
+}
+
+function onEndlessStart(message) {
+  if (!state.roomEndless) return;
+  state.roomEndless.phase = 'starting';
+  state.roomEndless.startAt = Number(message.startAt) || Date.now();
+  state.roomEndless.endsAt = message.endsAt || null;
+  state.roomEndless.serverOffset = Number(message.serverNow || Date.now()) - Date.now();
+  const wait = Math.max(0, state.roomEndless.startAt - (Date.now() + state.roomEndless.serverOffset));
+  clearTimeout(state.roomEndless.startTimer);
+  state.roomEndless.startTimer = setTimeout(beginEndlessRound, wait);
+  applyRoomLayout();
+  renderAll();
+}
+
+function beginEndlessRound() {
+  if (!state.roomEndless) return;
+  state.roomEndless.phase = 'playing';
+  state.status = 'playing';
+  state.timerStarted = false;
+  recomputeRevealed();
+  if (isTimed()) {
+    startTimedClock();
+    recomputeRevealed();
+  }
+  applyRoomLayout();
+  renderAll();
+  setTimeout(() => $('#ship-input')?.focus(), 60);
+}
+
+function onEndlessRoundResult(result) {
+  if (!state.roomEndless) return;
+  state.roomEndless.phase = 'finished';
+  state.roomEndless.result = result;
+  state.roomEndless.prepared = false;
+  stopTimedClock();
+  renderAll();
+  syncRoomAction();
+}
+
+function onRoundEvent(message) {
+  if (message.t === 'endlessFinished') {
+    state.roomEndless = state.roomEndless || {};
+    state.roomEndless.finished = [...new Set([...(state.roomEndless.finished || []), message.playerId])];
+    renderAll();
+    syncRoomAction();
+  }
+  if (message.t === 'arbitrationRoundResult' || message.t === 'arbitrationRoundStart') {
+    if (state.roomSurface) state.roomSurface.renderRoom();
+  }
+}
+
+function finishEndlessRound() {
+  const room = state.roomEndless;
+  if (!room || (room.phase !== 'playing' && room.phase !== 'starting')) return;
+  room.phase = 'waiting';
+  state.roomSurface?.send({
+    t: 'raceResult',
+    roundId: room.roundId,
+    status: state.status === 'won' ? 'won' : 'lost',
+    answerId: state.status === 'won' ? state.answerId : null,
+    attempts: state.guesses.length,
+    elapsedMs: state.timerStarted ? currentElapsed() : state.timerElapsedMs,
+  });
+  stopTimedClock();
+  renderAll();
+  syncRoomAction();
+}
+
+function syncRoomAction() {
+  const button = $('#room-action-button');
+  if (!button) return;
+  const surface = state.roomSurface;
+  const room = state.roomEndless;
+  const arbitration = state.roomArbitration;
+  const roomOpen = Boolean(surface && state.roomView);
+  document.querySelectorAll('.daily-reset-cta, .new-target-cta').forEach((element) => {
+    element.hidden = roomOpen;
+    element.style.display = roomOpen ? 'none' : '';
+  });
+  button.hidden = !roomOpen || overlayRoomView();
+  button.textContent = '';
+  if (!roomOpen) return;
+  button.disabled = true;
+  button.dataset.action = 'room-action';
+  if (room) {
+    if (room.phase === 'ready') {
+      button.hidden = false;
+      const prepared = Boolean(state.roomSurface?.room?.match?.prepared?.includes?.(surface.playerId));
+      button.disabled = prepared;
+      button.textContent = prepared ? t('room.preparedState') : t('room.readyForNext');
+      return;
+    }
+    if (room.phase === 'finished') {
+      button.hidden = false;
+      const prepared = Boolean(room.prepared);
+      button.disabled = prepared;
+      button.textContent = prepared ? t('room.preparedState') : t('room.readyForNext');
+      return;
+    }
+    button.hidden = true;
+    return;
+  }
+  if (arbitration) {
+    const selfId = surface.playerId;
+    const prepared = arbitration.prepared?.includes?.(selfId);
+    if (arbitration.phase === 'reveal') {
+      button.hidden = false;
+      button.disabled = Boolean(prepared);
+      button.textContent = prepared ? t('room.preparedState') : t('room.readyForNext');
+      return;
+    }
+    if (arbitration.dealerId === selfId) {
+      button.hidden = false;
+      button.disabled = arbitration.phase !== 'dealer';
+      button.textContent = arbitration.phase === 'dealer'
+        ? t('room.publishSelected')
+        : t('room.phase.publishLocked');
+      return;
+    }
+  }
+  button.hidden = true;
+}
+
+function overlayRoomView() {
+  return ['lobby', 'result'].includes(state.roomView);
+}
+
+function handleRoomAction() {
+  const surface = state.roomSurface;
+  if (!surface) return;
+  if (state.roomEndless?.phase === 'ready') {
+    if (surface.prepareForNext()) {
+      state.roomEndless.prepared = true;
+      syncRoomAction();
+    }
+    return;
+  }
+  if (state.roomEndless?.phase === 'finished') {
+    if (surface.prepareForNext()) {
+      state.roomEndless.prepared = true;
+      syncRoomAction();
+    }
+    return;
+  }
+  if (state.roomArbitration) {
+    const selfId = surface.playerId;
+    if (state.roomArbitration.phase === 'reveal') {
+      surface.prepareForNext();
+      syncRoomAction();
+      return;
+    }
+    if (state.roomArbitration.dealerId === selfId) {
+      if (state.roomArbitration.phase === 'dealer') surface.publishSelected();
+      syncRoomAction();
+      return;
+    }
+  }
 }
 
 function openRooms() {
@@ -4761,7 +5676,12 @@ function openRooms() {
   }
   if (state.roomSurface) {
     state.roomSurface.show();
+    state.roomView = state.roomSurface.view || 'lobby';
+    applyRoomLayout();
     return;
+  }
+  if (!state.roomSurface) {
+    state.roomEntry = roomEntrySnapshot();
   }
   const surface = new RoomSurface({
     api,
@@ -4773,19 +5693,56 @@ function openRooms() {
     roomLimits: state.meta?.limits?.room || {},
     imagesBase: state.manifest?.images?.baseUrl || '',
     int,
-    onRaceTarget: (message) => void startRoomRace(message, surface),
+    onViewChange: (view) => {
+      state.roomView = view;
+      if (view !== 'arbitration') state.roomArbitration = null;
+      if (view !== 'endless') state.roomEndless = view === 'lobby' || view === 'result' ? null : state.roomEndless;
+      applyRoomLayout();
+      if (view === 'arbitration' || view === 'endless') renderAll();
+    },
+    onArbitrationState: (context) => {
+      state.roomArbitration = context;
+      state.roomView = 'arbitration';
+      state.status = 'playing';
+      state.inputValue = '';
+      state.selectedId = null;
+      state.suggestions = [];
+      applyRoomLayout();
+      syncRoomAction();
+      renderAll();
+    },
+    onEndlessPrepare: (message) => prepareEndlessRound(message),
+    onEndlessStart: (message) => onEndlessStart(message),
+    onEndlessLoaded: (message) => onEndlessLoaded(message),
+    onEndlessRoundResult: (result) => onEndlessRoundResult(result),
+    onRoundEvent: (message) => onRoundEvent(message),
+    onKicked: () => {
+      showToast(tl('room.kicked', 'You were removed from the room by the host.'), '', 'error');
+    },
+    onLeave: () => leaveRoomAndRestore(),
+    onRoomUpdate: () => {
+      syncRoomChrome();
+      syncRoomAction();
+    },
     onClose: () => {
       state.roomSurface = null;
+      state.roomView = null;
+      state.roomArbitration = null;
+      state.roomEndless = null;
       state.roomCode = null;
       if (state.roomRace) {
         state.roomRace = null;
         state.guesses = [];
         state.status = 'playing';
       }
+      applyRoomLayout();
+      syncRoomAction();
     },
   });
   state.roomSurface = surface;
-  surface.mount();
+  state.roomView = 'lobby';
+  surface.mount($('#room-view'), $('#room-rail'));
+  applyRoomLayout();
   if (state.roomRequest && state.roomRequest !== 'lobby') {
     surface.joinRoom(String(state.roomRequest).toUpperCase(), '');
   }
@@ -4838,6 +5795,8 @@ async function startRoomRace(message, surface) {
   state.timerElapsedMs = 0;
   state.gaveUp = false;
   state.timedExpired = false;
+  state.roomView = 'race';
+  state.roomArbitration = null;
   try {
     await loadLocaleData(state.locale);
   } catch {
@@ -4845,6 +5804,7 @@ async function startRoomRace(message, surface) {
   }
   recomputeRevealed();
   surface.hide();
+  applyRoomLayout();
   renderAll();
   window.scrollTo(0, 0);
 }
@@ -4881,6 +5841,8 @@ async function boot() {
     {
       const canonical = new URL(location.href);
       canonical.searchParams.delete('rule');
+      canonical.searchParams.delete('share');
+      canonical.searchParams.delete('gameplay');
       if (!canonical.searchParams.get('claim')) {
         if (state.timed) canonical.searchParams.set('claim', 'timed');
         else if (state.mode === 'audit') canonical.searchParams.set('claim', 'audit');
@@ -4936,7 +5898,6 @@ async function boot() {
     }
     if (isFree()) initFreeRound();
     recomputeRevealed();
-    state.fresh = new Set();
     state.inputValue = '';
     state.selectedId = null;
 

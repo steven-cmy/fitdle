@@ -131,7 +131,7 @@ export function clueValue(clue, ctx) {
       return numberValue(value, 'mm', int);
     case 'kbValue':
       return `<span class="big">${esc(isk(value))}</span>`;
-    case 'losses30':
+    case 'losses90':
       return `<span class="big">≈ ${esc(compact(value))}</span>`;
     case 'usageRank':
       return `<span class="big">${esc(t('clue.rankTop', { n: int(value) }))}</span>`;

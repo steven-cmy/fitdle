@@ -4,7 +4,7 @@ import { config } from './config.mjs';
 import { getSessionUser } from './auth.mjs';
 import { db, now } from './db.mjs';
 import { getCustomTarget, getDailyTarget, getRandomTarget, TargetUnavailable } from './targets.mjs';
-import { recordExposure, recordRunFinish } from './stats.mjs';
+import { recordExposure, recordRunFinish, profileStats } from './stats.mjs';
 
 const GAMEPLAYS = new Set(['standard', 'audit', 'timed']);
 const ATTEMPT_LIMIT = 6;
@@ -165,6 +165,12 @@ export function registerRunRoutes(app) {
     } catch (error) {
       errorReply(reply, error);
     }
+  });
+
+  app.get('/api/v1/stats/me', async (request, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    return profileStats(user.name_key, currentDay());
   });
 
   app.post('/api/v1/online/runs/:id/finish', async (request, reply) => {

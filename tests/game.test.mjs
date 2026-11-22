@@ -48,13 +48,14 @@ import {
   victimIsWatched,
   weightedRendezvousOrder,
 } from '../js/game.js';
-import { buildClues, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, humanBucketKey, moduleFitSize, selectAuditFallbacks, STANDARD_DEFENSE_RANGE } from '../js/clues.js';
+import { buildClues, auditSimulationItems, propulsionPriority, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, humanBucketKey, moduleFitSize, selectAuditFallbacks, STANDARD_DEFENSE_RANGE } from '../js/clues.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed, DEFAULT_REVEAL_CONFIG, timedRevealTotal } from '../js/reveal.js';
 import { MESSAGES, resolveLocale } from '../js/i18n.js';
 import { brandLogoHtml, fitdleMark, FITDLE_SYSTEM_LONG, PEND_INSURANCE_ID, SCC_ID } from '../js/brand.js';
 import { avatarHtml, DEFAULT_PORTRAIT_ID, portraitUrl } from '../js/avatar.js';
 import { TRIGLAVIAN_CONVOCATION_ID, TRIGLAVIAN_FACTION_ID, triglavianBrand, triglavianDepartments } from '../js/triglavian-copy.js';
 import { LEGAL_NOTICES } from '../js/legal-copy.js';
+import { claimGroups, claimSeed, pickClaimDebrief, pickClaimGroup, pickClaimMemo } from '../js/claim.js';
 import { DEFAULT_REVEAL, DEFAULT_KB_RECENCY_HALF_LIFE_DAYS, DEFAULT_KB_MAX_SCAN_PAGES, loadBuildConfig, parseDateOnly, parseGameDayStart } from '../scripts/build-env.mjs';
 import { normalizePublicOrigin, renderRuntimeOrigin } from '../scripts/render-runtime-origin.mjs';
 
@@ -902,13 +903,20 @@ test('localized static share pages carry the score for link previews', () => {
 
 test('container image builds the catalog before the kill pool and serves online', () => {
   const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
+  const entrypoint = fs.readFileSync(path.join(ROOT, 'docker', 'entrypoint.sh'), 'utf8');
   const catalogBuild = dockerfile.indexOf('npm run build:catalog');
   const killPool = dockerfile.indexOf('npm run build:killpool');
   assert.ok(catalogBuild >= 0, 'missing catalog build');
   assert.ok(killPool > catalogBuild, 'kill pool must run after catalog build');
   assert.match(dockerfile, /FROM node:24/);
   assert.match(dockerfile, /ENTRYPOINT/);
-  assert.match(fs.readFileSync(path.join(ROOT, 'docker', 'entrypoint.sh'), 'utf8'), /server\/src\/index\.mjs/);
+  assert.match(entrypoint, /server\/src\/index\.mjs/);
+  assert.match(entrypoint, /chown -R "\$PUID:\$PGID"/);
+  assert.match(entrypoint, /setpriv --reuid="\$PUID"/);
+  assert.match(entrypoint, /PGID/);
+  assert.match(dockerfile, /PUID=1000/);
+  assert.match(dockerfile, /PGID=1000/);
+  assert.doesNotMatch(dockerfile, /^USER node$/m);
 });
 
 test('runtime origin rendering validates and replaces static placeholders', async () => {
@@ -937,11 +945,16 @@ test('Docker image, Compose and GitLab image publishing are wired', () => {
   const compose = fs.readFileSync(path.join(ROOT, 'compose.example.yml'), 'utf8');
   const ci = fs.readFileSync(path.join(ROOT, '.gitlab-ci.yml'), 'utf8');
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const envExample = fs.readFileSync(path.join(ROOT, '.env.example'), 'utf8');
   assert.match(dockerfile, /ARG PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__/);
   assert.match(dockerfile, /ENTRYPOINT \["\/app\/docker\/entrypoint\.sh"\]/);
   assert.match(dockerfile, /render-runtime-origin\.mjs/);
   assert.match(dockerfile, /VOLUME \["\/data"\]/);
   assert.match(compose, /env_file:\s*\n\s*- \.env/);
+  assert.match(compose, /PUID: \$\{PUID:-1000\}/);
+  assert.match(compose, /PGID: \$\{PGID:-1000\}/);
+  assert.match(envExample, /^PUID=1000$/m);
+  assert.match(envExample, /^PGID=1000$/m);
   assert.match(compose, /127\.0\.0\.1:8787:8787/);
   assert.match(compose, /fitdle-data:\/data/);
   assert.match(ci, /image:publish:/);
@@ -1046,7 +1059,7 @@ test('boot flavor file covers all locales and tags every egg', () => {
   assert.ok(boot.eggs.every((egg) => ['en', 'ja', 'zh'].includes(egg.lang) && egg.text?.trim()));
 });
 
-test('claim departments are complete and bind their own memos', () => {
+test('claim groups carry department, memos and outcome debriefs', () => {
   const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'claim-departments.json'), 'utf8'));
   assert.deepEqual(Object.keys(data.departments).sort(), ['de', 'en', 'es', 'fr', 'ja', 'ko', 'ru', 'zh']);
   const expectedIds = [
@@ -1057,14 +1070,37 @@ test('claim departments are complete and bind their own memos', () => {
     assert.deepEqual(departments.map((department) => department.id), expectedIds, `${locale} department ids`);
     for (const department of departments) {
       assert.ok(department.name?.trim(), `${locale}/${department.id} missing name`);
-      assert.ok(Array.isArray(department.memos) && department.memos.length >= 2, `${locale}/${department.id} needs memos`);
-      assert.ok(department.memos.every((memo) => typeof memo === 'string' && memo.trim()), `${locale}/${department.id} empty memo`);
-      assert.ok(department.memos.every((memo) => !memo.includes('{name}')), `${locale}/${department.id} leaked placeholder`);
+      assert.ok(Array.isArray(department.memos) && department.memos.length >= 4, `${locale}/${department.id} needs memos`);
+      assert.ok(Array.isArray(department.debriefs?.won) && department.debriefs.won.length >= 2, `${locale}/${department.id} needs won debriefs`);
+      assert.ok(Array.isArray(department.debriefs?.lost) && department.debriefs.lost.length >= 2, `${locale}/${department.id} needs lost debriefs`);
+      const copy = [...department.memos, ...department.debriefs.won, ...department.debriefs.lost];
+      assert.ok(copy.every((text) => typeof text === 'string' && text.trim()), `${locale}/${department.id} empty copy`);
+      assert.ok(copy.every((text) => !text.includes('{name}')), `${locale}/${department.id} leaked placeholder`);
     }
     const srp = departments.find((department) => department.id === 'alliance-srp');
     assert.ok(srp.memos.includes('Can I bring my Drake?'), `${locale} SRP Drake memo`);
     assert.ok(srp.memos.includes('FC wat do?'), `${locale} SRP FC memo`);
   }
+});
+
+test('claim selection keeps hero memo and debrief in the same KB group', () => {
+  const departments = {
+    en: [
+      { id: 'salvage', name: 'Salvage', memos: ['a', 'b'], debriefs: { won: ['w1', 'w2'], lost: ['l1', 'l2'] } },
+      { id: 'hull', name: 'Hull', memos: ['c', 'd'], debriefs: { won: ['w3'], lost: ['l3'] } },
+    ],
+  };
+  const groups = claimGroups(departments, 'en');
+  const seed = claimSeed({ killId: 424242, day: '2026-11-21' });
+  const group = pickClaimGroup(groups, seed);
+  assert.equal(pickClaimGroup(groups, seed), group);
+  assert.ok(group.memos.includes(pickClaimMemo(group, seed)));
+  assert.ok(group.debriefs.won.includes(pickClaimDebrief(group, 'won', seed)));
+  assert.ok(group.debriefs.lost.includes(pickClaimDebrief(group, 'lost', seed)));
+  assert.notEqual(pickClaimDebrief(group, 'won', seed), pickClaimDebrief(group, 'lost', seed));
+  assert.equal(pickClaimGroup(groups, seed, 'hull').id, 'hull');
+  assert.equal(pickClaimDebrief(group, 'playing', seed), '');
+  assert.equal(pickClaimGroup([], seed), null);
 });
 
 test('boot screen shows the full system name and restores eggs', () => {
@@ -1150,7 +1186,7 @@ test('hero wreck scan is a dossier plate with pixelated pre-reveal frames', () =
   assert.match(main, /1\.6 \+ Math\.random\(\) \* 0\.4/);
   assert.match(main, /Number\(ship\.id\) !== Number\(state\.answerId\)/);
   assert.match(main, /ended \? esc\(renderPath\(state\.answerId\)\) : ''/);
-  assert.match(css, /\.radar\s*\{[\s\S]*?aspect-ratio:\s*4 \/ 3/);
+  assert.match(css, /\.radar\s*\{[\s\S]*?aspect-ratio:\s*1 \/ 1/);
   assert.doesNotMatch(css, /\.radar\s*\{[^}]*border-radius:\s*50%/);
   assert.match(css, /\.radar-visual img\s*\{[\s\S]*?object-fit:\s*cover/);
   assert.match(css, /\.radar-visual\.is-resolved img\s*\{[\s\S]*?object-fit:\s*cover/);
@@ -1324,12 +1360,13 @@ test('gear, daily reset and clue-reveal scan are wired', () => {
   assert.match(main, /function playClueScan/);
 });
 
-test('department memos are seeded per killmail and debrief keeps a second one', () => {
+test('department memos and debriefs are seeded from one KB group', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
-  assert.match(main, /function seededClaimIndex/);
-  assert.match(main, /state\.claimDebriefMemo/);
-  assert.match(main, /state\.claimDebriefMemo \|\| body/);
-  assert.match(main, /pickClaimMemo\(chosen\.memos,/);
+  assert.match(main, /function claimDebriefForStatus/);
+  assert.match(main, /pickClaimGroup\(pool, selectionSeed/);
+  assert.match(main, /pickClaimMemo\(chosen, selectionSeed\)/);
+  assert.match(main, /claimDebrief \|\| body/);
+  assert.doesNotMatch(main, /claimDebriefMemo/);
 });
 
 test('Platinum payout uses ESI insurance prices', () => {
@@ -1341,7 +1378,7 @@ test('Platinum payout uses ESI insurance prices', () => {
   assert.doesNotMatch(main, /const payout = targetKillValue/);
 });
 
-test('1.0.1 removes the legacy beacon, iframe bridge and stale assets', () => {
+test('release removes legacy runtime and keeps package versions aligned', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   const game = fs.readFileSync(path.join(ROOT, 'js', 'game.js'), 'utf8');
   const buildEnv = fs.readFileSync(path.join(ROOT, 'scripts', 'build-env.mjs'), 'utf8');
@@ -1349,8 +1386,8 @@ test('1.0.1 removes the legacy beacon, iframe bridge and stale assets', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const serverPkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'package.json'), 'utf8'));
   const changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
-  assert.equal(pkg.version, '1.0.1');
-  assert.equal(serverPkg.version, '1.0.1');
+  assert.equal(pkg.version, serverPkg.version);
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
   assert.match(pkg.engines.node, />=24/);
   assert.equal(main.includes('MP_BRIDGE'), false);
   assert.equal(main.includes('isMpBridge'), false);
@@ -1375,8 +1412,10 @@ test('every locale provides the same message keys', () => {
     assert.ok(MESSAGES[locale]['help.sharedRules'].length > 20);
     assert.ok(!MESSAGES[locale]['help.step4'].includes('UTC'));
   }
-  assert.ok(MESSAGES.en['clue.losses30'].includes('90'));
-  assert.ok(MESSAGES.zh['clue.losses30'].includes('90'));
+  assert.ok(MESSAGES.en['clue.losses90'].includes('Losses'));
+  assert.ok(MESSAGES.zh['clue.losses90'].includes('损失'));
+  assert.ok(MESSAGES.en['cat.economy'].includes('90'));
+  assert.ok(MESSAGES.zh['cat.economy'].includes('90'));
 });
 
 test('all Chinese locale variants resolve to Simplified Chinese', () => {
@@ -1517,7 +1556,10 @@ test('runtime clue builder uses SDE plus live-shaped zKill fixtures', () => {
     catalog,
     refs,
     stats: {
-      rankings: { recent: { all: { metrics: { shipsLost: 123 }, ranks: { shipsLost: 20 } } } },
+      rankings: { recent: { all: {
+        metrics: { shipsLost: 123, shipsDestroyed: 45 },
+        ranks: { shipsDestroyed: 20 },
+      } } },
       dangerRatio: 55,
     },
     losses: makeLosses(),
@@ -1531,7 +1573,10 @@ test('runtime clue builder uses SDE plus live-shaped zKill fixtures', () => {
   assert.equal(built.fittedKills, 1);
   assert.equal(built.sampleKill, 424242);
   const usage = built.clues.find((clue) => clue.k === 'usageRank');
-  assert.ok(usage && usage.v >= 1 && usage.v <= 100);
+  assert.equal(usage?.v, 5);
+  assert.equal(usage?.missing, undefined);
+  assert.equal(built.clues.find((clue) => clue.k === 'losses90')?.v, 123);
+  assert.equal(built.clues.find((clue) => clue.k === 'danger')?.v, 26.8);
   for (const clue of built.clues) {
     const floor = clue.k === 'structureResists' ? 0 : 1;
     assert.ok(clue.w >= floor && clue.w <= 10);
@@ -1551,6 +1596,77 @@ test('runtime clue builder uses SDE plus live-shaped zKill fixtures', () => {
     ship, catalog, refs, stats: null, losses: [], dateKey: '2026-11-14', dataVersion: manifest.dataVersion,
   });
   assert.deepEqual(repeat.clues.map((clue) => `${clue.k}:${clue.v}`), repeatAgain.clues.map((clue) => `${clue.k}:${clue.v}`));
+});
+
+test('zkillboard usage rank falls back to last place and kill value uses the target kill', () => {
+  const ship = catalog.find((entry) => entry.bonuses?.en?.length > 1);
+  const losses = [
+    { ...makeLosses()[0], killmail_id: 1001, zkb: { totalValue: 111 } },
+    { ...makeLosses()[0], killmail_id: 1002, zkb: { totalValue: 222 } },
+  ];
+  const built = buildClues({
+    ship,
+    catalog,
+    refs,
+    stats: {
+      rankings: { recent: { all: {
+        metrics: { shipsLost: 4, shipsDestroyed: 2 },
+        ranks: {},
+      } } },
+    },
+    losses,
+    targetKillId: 1002,
+    dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion,
+  });
+  assert.equal(built.clues.find((clue) => clue.k === 'usageRank')?.v, 100);
+  assert.equal(built.clues.find((clue) => clue.k === 'usageRank')?.missing, undefined);
+  assert.equal(built.clues.find((clue) => clue.k === 'losses90')?.v, 4);
+  assert.equal(built.clues.find((clue) => clue.k === 'danger')?.v, 33.3);
+  assert.equal(built.clues.find((clue) => clue.k === 'kbValue')?.v, 222);
+});
+
+test('audit simulation keeps one propulsion module and marks cloaks', () => {
+  const items = [
+    { flag: 19, item_type_id: 12052, quantity_destroyed: 1 }, // 50MN MWD
+    { flag: 20, item_type_id: 12066, quantity_destroyed: 1 }, // 100MN AB
+    { flag: 27, item_type_id: 11577, quantity_destroyed: 1 }, // cloak
+    { flag: 11, item_type_id: 1405, quantity_destroyed: 1 },
+  ];
+  const kept = auditSimulationItems(items, refs);
+  assert.deepEqual(kept.map((item) => item.item_type_id), [12066, 1405]);
+  const sameSize = auditSimulationItems([
+    { flag: 19, item_type_id: 12052, quantity_destroyed: 1 },
+    { flag: 20, item_type_id: 12058, quantity_destroyed: 1 },
+  ], refs);
+  assert.deepEqual(sameSize.map((item) => item.item_type_id), [12052]);
+  assert.ok(propulsionPriority(refs.modules[12066])[0] > propulsionPriority(refs.modules[12052])[0]);
+
+  const ship = catalog.find((entry) => entry.id === 54732);
+  const built = buildClues({
+    ship,
+    catalog,
+    refs,
+    stats: null,
+    losses: [{
+      killmail_id: 1003,
+      victim: {
+        ship_type_id: 54732,
+        items: [
+          { flag: 27, item_type_id: 54748, quantity_destroyed: 1 },
+          { flag: 11, item_type_id: 54975, quantity_destroyed: 1 },
+          { flag: 28, item_type_id: 11577, quantity_destroyed: 1 },
+        ],
+      },
+    }],
+    dateKey: '2026-11-14',
+    dataVersion: manifest.dataVersion,
+    mode: 'audit',
+  });
+  const tuning = built.clues.find((clue) => clue.k === 'equipment' && clue.v.module === 54975);
+  assert.ok(tuning && tuning.w >= 7.4, `expected Vorton tuning weight >= 7.4, got ${tuning?.w}`);
+  const cloak = built.clues.find((clue) => clue.k === 'equipment' && clue.v.module === 11577);
+  assert.ok(cloak?.tags?.includes('cloak'));
 });
 
 test('audit clues simulate fittings and delay identity reveals', () => {
@@ -2371,8 +2487,14 @@ test('Pend branding, claim copy and official corporation logos are wired', () =>
   assert.equal(MESSAGES.en['brand.parent'], 'PEND INSURANCE');
   assert.equal(MESSAGES.zh['brand.parent'], '彭德保险集团');
   assert.equal(MESSAGES.zh['brand.claimDivision'], '商业安全委员会 理赔评估处');
+  assert.equal(MESSAGES.zh['brand.scc'], '商业安全委员会');
+  assert.equal(`${MESSAGES.zh['brand.parent']} // ${MESSAGES.zh['brand.scc']}`, '彭德保险集团 // 商业安全委员会');
+  assert.equal(MESSAGES.en['brand.scc'], 'SECURE COMMERCE COMMISSION');
   assert.ok(MESSAGES.en['brand.claimDivision'].includes('SECURE COMMERCE COMMISSION'));
   assert.equal(MESSAGES.en['app.subtitle'], 'PEND INSURANCE // CLAIMS ASSESSMENT');
+  for (const locale of manifest.locales) {
+    assert.ok(MESSAGES[locale]['brand.scc'], `${locale} missing brand.scc`);
+  }
   assert.equal(MESSAGES.en['mode.audit'], 'AUDIT');
   assert.equal(MESSAGES.zh['mode.audit'], '审计');
   assert.equal(MESSAGES.zh['mode.helpAuditTitle'], '审计模式');
@@ -2395,6 +2517,10 @@ test('Pend branding, claim copy and official corporation logos are wired', () =>
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   assert.match(FITDLE_SYSTEM_LONG, /F\.I\.T\.D\.L\.E\./);
   assert.match(main, /claimDivision/);
+  assert.match(main, /brandText\('brand\.parent'\)/);
+  assert.match(main, /brandText\('brand\.scc'\)/);
+  assert.match(main, /brandSub\.textContent = .*brandText\('brand\.parent'\).*brandText\('brand\.scc'\)/);
+  assert.doesNotMatch(main, /F\.I\.T\.D\.L\.E\. \/\/ \$\{brandText\('brand\.claimDivision'\)\}/);
   assert.match(main, /fitdleMark\(\)/);
   assert.match(main, /claim-mail-logos/);
   assert.match(main, /PEND_INSURANCE_ID/);

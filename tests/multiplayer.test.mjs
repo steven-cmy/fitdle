@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   RANK_POINTS, rankPoints, raceRoundScores, raceTargetReached, rankPlayers,
   arbitrationRoundScores, unpublishedWeight, score,
+  ROOM_SCORE_PER_KB, endlessRoundScore, allocatePlayerRoundScores,
 } from '../js/mp/rules.js';
 import {
   clueForWire, decodeMessage, encodeMessage, normalizeName, RateLimiter,
@@ -57,6 +58,29 @@ function mockFetch({ failPage = false, failKill = false } = {}) {
     throw new Error(`unexpected URL ${url}`);
   };
 }
+
+test('endless scores use 3000 points and integer arbitration buckets', () => {
+  assert.equal(ROOM_SCORE_PER_KB, 3000);
+  assert.equal(endlessRoundScore({ status: 'won', attempts: 1 }), 3000);
+  assert.equal(endlessRoundScore({ status: 'won', attempts: 2 }), 2500);
+  assert.equal(endlessRoundScore({ status: 'won', attempts: 6 }), 500);
+  assert.equal(endlessRoundScore({ status: 'won', attempts: 7 }), 0);
+  assert.equal(endlessRoundScore({ status: 'lost', attempts: 6 }), 0);
+
+  const clues = [
+    { w: 10 }, { w: 20 }, { w: 70 },
+  ];
+  const players = ['a', 'b'];
+  const allocated = allocatePlayerRoundScores({ clues, players, rounds: 6, x: 3000 });
+  const allScores = Object.values(allocated.scores).flat(2);
+  assert.equal(allScores.reduce((sum, value) => sum + value, 0), 3000);
+  assert.ok(allScores.every((value) => Number.isInteger(value) && value >= 0));
+  assert.deepEqual(allocated.budgets.a, [250, 250, 250, 250, 250, 250]);
+
+  const one = allocatePlayerRoundScores({ clues, players: ['a'], rounds: 6, x: 3000 });
+  assert.equal(one.scores.a[0].reduce((sum, value) => sum + value, 0), 500);
+  assert.equal(one.scores.a[0][0], 50);
+});
 
 test('multiplayer rank points and race scoring follow finish order', () => {
   assert.deepEqual(RANK_POINTS, [10, 8, 6, 4, 2, 1, 1, 1]);
@@ -242,6 +266,32 @@ test('multiplayer messages cover all eight locales', () => {
   assert.notEqual(MESSAGES.de['room.title'], MESSAGES.en['room.title']);
 });
 
+test('room layout and multiplayer two-tone theme are wired', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  const rail = main.indexOf('id="room-rail"');
+  const dock = main.indexOf('class="target-dock"');
+  const hero = main.indexOf('class="hero"');
+  assert.ok(dock > 0 && hero > dock && rail > hero);
+  assert.match(main, /class="console-side"[\s\S]*id="room-rail"[\s\S]*id="dossier-panel"/);
+  assert.match(main, /dataset\.multiplayer = inRoom/);
+  assert.match(main, /dataset\.roomGameplay =/);
+  assert.match(main, /class="hero-subject"/);
+  assert.doesNotMatch(main, /hero-targetline/);
+  assert.match(main, /ended \? answer : t\('hero\.title'\)/);
+  assert.match(main, /titleAnswer \? targetName : t\('gameplay\.arbitration'\)/);
+  assert.match(main, /id="room-loading"/);
+  assert.match(css, /data-room-gameplay="arbitration"/);
+  assert.match(css, /linear-gradient\(to bottom left, var\(--room-bg-primary\), var\(--room-bg-secondary\)\)/);
+  assert.match(css, /linear-gradient\(to bottom left, var\(--solo-bg, #071a2c\), #000\)/);
+  assert.match(css, /\.radar \{\s*aspect-ratio: 1 \/ 1;/);
+  assert.doesNotMatch(css, /aspect-ratio: 4 \/ 3|aspect-ratio: 16 \/ 10/);
+  assert.match(rooms, /searchParams\.delete\('room'\)/);
+  assert.match(main, /is-dealer-published/);
+  assert.match(css, /\.room-player\.is-ready[\s\S]*#ff9f43/);
+});
+
 test('room local IDs are stable and collision-safe', () => {
   const one = 'c4497b11-ba36-4ec2-a531-336a61a7c631';
   const two = 'c4497b11-0000-4000-8000-000000000000';
@@ -342,4 +392,23 @@ test('online shell and service inputs use the current direct room stack', () => 
   assert.match(css, /@font-face/);
   assert.equal(/url\(["']?https?:/i.test(css), false);
   assert.equal(/fonts\.googleapis|fonts\.gstatic/i.test(css), false);
+});
+
+test('room UI is embedded and arbitration reuses the single-player dossier', () => {
+  const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(rooms, /mount\(host/);
+  assert.doesNotMatch(rooms, /document\.body\.append/);
+  assert.match(rooms, /#room-view/);
+  assert.match(rooms, /#room-rail/);
+  assert.match(rooms, /onArbitrationState/);
+  assert.match(rooms, /room-spinner/);
+  assert.match(rooms, /data-room-kick/);
+  assert.match(main, /id="room-view"/);
+  assert.match(main, /id="room-rail"/);
+  assert.match(main, /renderArbitrationDossier/);
+  assert.match(main, /state\.roomArbitration/);
+  assert.match(MESSAGES.en['room.kickConfirm'], /\{name\}/);
+  assert.match(MESSAGES.zh['room.kicked'], /房主/);
+  assert.match(MESSAGES.en['room.arbitration.dealerPublish'], /clue/i);
 });

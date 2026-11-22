@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import WebSocket from 'ws';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 const dbFile = path.join(ROOT, '.cache', `online-test-${process.pid}.sqlite`);
@@ -17,6 +18,7 @@ process.env.ROOM_ARBITRATION_BIG_ROUNDS = '2';
 process.env.ROOM_ARBITRATION_MAX_BIG_ROUNDS = '4';
 process.env.ROOM_TIMED_DURATION_MINUTES = '15';
 process.env.ROOM_TIMED_MAX_DURATION_MINUTES = '30';
+process.env.ROOM_RECONNECT_GRACE_MS = '5000';
 process.env.NODE_ENV = 'test';
 
 const { config } = await import('../src/config.mjs');
@@ -63,6 +65,7 @@ test('meta and health are available without a session', async () => {
   assert.equal(payload.limits.room.arbitrationBigRoundsMax, 4);
   assert.equal(payload.limits.room.timedDurationMinutes, 15);
   assert.equal(payload.limits.room.timedDurationMaxMinutes, 30);
+  assert.equal(payload.limits.room.reconnectGraceMs, 5000);
 });
 
 test('SSO subject extraction and dev character profiles stay optional', async () => {
@@ -201,6 +204,123 @@ test('room join rejects a wrong password', async () => {
     payload: { password: 'wrong' },
   });
   assert.equal(joined.statusCode, 403);
+});
+
+test('profile stats expose only the five login records', async () => {
+  const cookie = await login('Stats Pilot');
+  const response = await app.inject({
+    method: 'GET',
+    url: '/api/v1/stats/me',
+    headers: { cookie },
+  });
+  assert.equal(response.statusCode, 200);
+  const stats = JSON.parse(response.body);
+  assert.deepEqual(Object.keys(stats).sort(), ['dailyWins', 'streaks', 'winStreak']);
+  assert.deepEqual(Object.keys(stats.streaks).sort(), ['audit', 'standard', 'timed']);
+  assert.equal(stats.dailyWins, 0);
+  assert.equal(stats.winStreak, 0);
+});
+
+test('room disconnect grace, reconnect and kick are authoritative', async () => {
+  await app.listen({ port: 0, host: '127.0.0.1' });
+  const port = app.server.address().port;
+  const host = await login('Grace Host');
+  const guest = await login('Grace Guest');
+  const created = JSON.parse((await app.inject({
+    method: 'POST',
+    url: '/api/v1/rooms',
+    headers: { cookie: host, 'content-type': 'application/json' },
+    payload: {},
+  })).body);
+  const joined = JSON.parse((await app.inject({
+    method: 'POST',
+    url: `/api/v1/rooms/${created.code}/join`,
+    headers: { cookie: guest, 'content-type': 'application/json' },
+    payload: {},
+  })).body);
+  const url = (playerId) => `ws://127.0.0.1:${port}/api/v1/rooms/${created.code}/ws?player=${playerId}`;
+  const open = (cookie, playerId) => new Promise((resolve, reject) => {
+    const socket = new WebSocket(url(playerId), { headers: { Cookie: cookie } });
+    socket.once('open', () => resolve(socket));
+    socket.once('error', reject);
+  });
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const room = async () => JSON.parse((await app.inject({
+    method: 'GET',
+    url: `/api/v1/rooms/${created.code}`,
+    headers: { cookie: host },
+  })).body);
+
+  const hostSocket = await open(host, created.playerId);
+  const guestSocket = await open(guest, joined.playerId);
+  await wait(30);
+  guestSocket.close();
+  await wait(30);
+  const during = await room();
+  const guestDuring = during.players.find((player) => player.id === joined.playerId);
+  assert.equal(during.ownerId, created.playerId);
+  assert.equal(guestDuring.connected, false);
+  assert.equal(guestDuring.reconnecting, true);
+
+  const guestReconnect = await open(guest, joined.playerId);
+  await wait(30);
+  assert.equal((await room()).players.find((player) => player.id === joined.playerId).connected, true);
+
+  hostSocket.send(JSON.stringify({ t: 'kick', playerId: joined.playerId }));
+  const kicked = await new Promise((resolve) => {
+    guestReconnect.once('message', (raw) => resolve(JSON.parse(String(raw))));
+  });
+  assert.equal(kicked.t, 'kicked');
+  await wait(20);
+  assert.equal((await room()).players.some((player) => player.id === joined.playerId), false);
+
+  guestSocket.close();
+  guestReconnect.close();
+  hostSocket.close();
+  await wait(50);
+});
+
+test('room owner transfer waits for the reconnect grace', async () => {
+  const host = await login('Transfer Host');
+  const guest = await login('Transfer Guest');
+  const created = JSON.parse((await app.inject({
+    method: 'POST',
+    url: '/api/v1/rooms',
+    headers: { cookie: host, 'content-type': 'application/json' },
+    payload: {},
+  })).body);
+  const joined = JSON.parse((await app.inject({
+    method: 'POST',
+    url: `/api/v1/rooms/${created.code}/join`,
+    headers: { cookie: guest, 'content-type': 'application/json' },
+    payload: {},
+  })).body);
+  const port = app.server.address().port;
+  const open = (cookie, playerId) => new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${created.code}/ws?player=${playerId}`, {
+      headers: { Cookie: cookie },
+    });
+    socket.once('open', () => resolve(socket));
+    socket.once('error', reject);
+  });
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const hostSocket = await open(host, created.playerId);
+  const guestSocket = await open(guest, joined.playerId);
+  await wait(30);
+  hostSocket.close();
+  await wait(30);
+  let room = JSON.parse((await app.inject({
+    method: 'GET', url: `/api/v1/rooms/${created.code}`, headers: { cookie: guest },
+  })).body);
+  assert.equal(room.ownerId, created.playerId);
+  assert.equal(room.players.find((player) => player.id === created.playerId).reconnecting, true);
+  await wait(5150);
+  room = JSON.parse((await app.inject({
+    method: 'GET', url: `/api/v1/rooms/${created.code}`, headers: { cookie: guest },
+  })).body);
+  assert.equal(room.ownerId, joined.playerId);
+  assert.equal(room.players.some((player) => player.id === created.playerId), false);
+  guestSocket.close();
 });
 
 test.after(async () => {

@@ -3,8 +3,18 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { config } from './config.mjs';
 
-fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
-export const db = new DatabaseSync(config.databasePath);
+let db;
+try {
+  fs.mkdirSync(path.dirname(config.databasePath), { recursive: true });
+  db = new DatabaseSync(config.databasePath);
+} catch (error) {
+  throw new Error(
+    `Cannot open SQLite database at ${config.databasePath}. `
+    + 'Ensure DATABASE_PATH points to a writable directory (containers should use /data). '
+    + error.message,
+  );
+}
+export { db };
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA busy_timeout = 5000;');
 

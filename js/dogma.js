@@ -38,14 +38,30 @@ async function loadEngine() {
   if (!enginePromise) {
     enginePromise = (async () => {
       const module = await import(new URL('../vendor/dogma-engine/esf_dogma_engine.js', import.meta.url).toString());
-      await module.default();
-      const [response, skillsResponse] = await Promise.all([
-        fetch(new URL('../vendor/dogma-engine/sde.dat', import.meta.url), { cache: 'force-cache' }),
-        fetch(new URL('../vendor/dogma-engine/skills.json', import.meta.url), { cache: 'force-cache' }),
-      ]);
-      if (!response.ok) throw new Error(`dogma SDE unavailable (${response.status})`);
-      module.load_sde(new Uint8Array(await response.arrayBuffer()));
-      const skills = skillsResponse.ok ? await skillsResponse.json() : [];
+      const nodeRuntime = typeof process !== 'undefined' && Boolean(process.versions?.node);
+      let sdeBytes;
+      let skills = [];
+      if (nodeRuntime) {
+        const fs = await import('node:fs/promises');
+        const wasm = await fs.readFile(new URL('../vendor/dogma-engine/esf_dogma_engine_bg.wasm', import.meta.url));
+        module.initSync({ module: wasm });
+        const [sde, skillSource] = await Promise.all([
+          fs.readFile(new URL('../vendor/dogma-engine/sde.dat', import.meta.url)),
+          fs.readFile(new URL('../vendor/dogma-engine/skills.json', import.meta.url), 'utf8'),
+        ]);
+        sdeBytes = new Uint8Array(sde);
+        skills = JSON.parse(skillSource);
+      } else {
+        await module.default();
+        const [response, skillsResponse] = await Promise.all([
+          fetch(new URL('../vendor/dogma-engine/sde.dat', import.meta.url), { cache: 'force-cache' }),
+          fetch(new URL('../vendor/dogma-engine/skills.json', import.meta.url), { cache: 'force-cache' }),
+        ]);
+        if (!response.ok) throw new Error(`dogma SDE unavailable (${response.status})`);
+        sdeBytes = new Uint8Array(await response.arrayBuffer());
+        skills = skillsResponse.ok ? await skillsResponse.json() : [];
+      }
+      module.load_sde(sdeBytes);
       return { module, skills };
     })().catch((error) => {
       enginePromise = null;

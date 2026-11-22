@@ -41,6 +41,7 @@ export const api = {
     api.base = API_BASE;
   },
   me: () => request('/api/v1/auth/me', { timeoutMs: 4000 }),
+  stats: () => request('/api/v1/stats/me', { timeoutMs: 4000 }),
   meta: () => request('/api/v1/meta', { timeoutMs: 4000 }),
   loginUrl(returnTo = location.pathname + location.search + location.hash) {
     return url(`/api/v1/auth/eve/start?return=${encodeURIComponent(returnTo)}`);

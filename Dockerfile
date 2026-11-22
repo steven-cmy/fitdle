@@ -39,7 +39,9 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=8787 \
     STATIC_DIR=dist \
-    DATABASE_PATH=/data/fitdle.sqlite
+    DATABASE_PATH=/data/fitdle.sqlite \
+    PUID=1000 \
+    PGID=1000
 
 COPY package.json ./
 COPY --from=build /app/dist ./dist
@@ -53,7 +55,8 @@ RUN chmod +x /app/docker/entrypoint.sh \
   && mkdir -p /data \
   && chown -R node:node /app /data
 
-USER node
+# The entrypoint starts as root only to make the database volume writable,
+# then drops to the unprivileged node user before starting the service.
 VOLUME ["/data"]
 EXPOSE 8787
 

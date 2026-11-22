@@ -100,6 +100,7 @@ export const config = {
   roomArbitrationMaxBigRounds,
   roomTimedDurationMinutes,
   roomTimedMaxDurationMinutes,
+  roomReconnectGraceMs: boundedIntEnv('ROOM_RECONNECT_GRACE_MS', 60000, 5000, 300000),
   roomTtlMs: 2 * 60 * 60 * 1000,
   sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
 };

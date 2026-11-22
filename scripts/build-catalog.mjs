@@ -13,6 +13,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadBuildConfig, loadBuildEnv } from './build-env.mjs';
 import { fetchLatestRelease, sdeBase } from './sde-api.mjs';
+import { getZkillVersion } from './zkill-version.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const ENV = loadBuildEnv(ROOT);
@@ -266,6 +267,42 @@ const races = sde.races || {};
 const factions = sde.factions || {};
 const metaGroups = sde.metaGroups || {};
 
+const WEAPON_UPGRADE_GROUP_FAMILIES = [
+  [/^gyrostabilizer$/i, 'projectile'],
+  [/^heat sink$/i, 'energy'],
+  [/^magnetic field stabilizer$/i, 'hybrid'],
+  [/^ballistic control system$/i, 'missile'],
+  [/^drone damage modules$/i, 'drone'],
+  [/^drone tracking modules$/i, 'drone'],
+  [/^tracking enhancer$/i, 'turret'],
+  [/^drone tracking enhancer$/i, 'drone'],
+  [/^missile guidance enhancer$/i, 'missile'],
+  [/^entropic radiation sink$/i, 'disintegrator'],
+  [/^vorton projector upgrade$/i, 'vorton'],
+];
+const WEAPON_GROUP_FAMILIES = [
+  [/projectile turret|autocannon|artillery/i, 'projectile'],
+  [/energy turret|laser|beam|pulse/i, 'energy'],
+  [/hybrid turret|blaster|railgun/i, 'hybrid'],
+  [/missile launcher|rocket|torpedo|launcher/i, 'missile'],
+  [/vorton projector/i, 'vorton'],
+  [/disintegrator/i, 'disintegrator'],
+];
+function familyFromGroupName(name, patterns) {
+  const text = String(name || '').trim();
+  for (const [pattern, family] of patterns) if (pattern.test(text)) return family;
+  return '';
+}
+const weaponUpgradeGroups = {};
+const weaponGroups = {};
+for (const [id, group] of Object.entries(groupNames)) {
+  const name = localized(group?.names, 'en');
+  const upgrade = familyFromGroupName(name, WEAPON_UPGRADE_GROUP_FAMILIES);
+  if (upgrade) weaponUpgradeGroups[id] = upgrade;
+  const weapon = familyFromGroupName(name, WEAPON_GROUP_FAMILIES);
+  if (weapon) weaponGroups[id] = weapon;
+}
+
 function makeRefs(locale) {
   const groups = {};
   for (const id of usedGroupIDs) {
@@ -376,6 +413,7 @@ const dataVersion = crypto.createHash('sha1').update(versionSeed).digest('hex').
 const publicOrigin = String(ENV.PUBLIC_ORIGIN || '').replace(/\/+$/, '');
 const apiOrigin = String(ENV.API_ORIGIN || publicOrigin).replace(/\/+$/, '');
 const manifestApiBase = publicOrigin && apiOrigin !== publicOrigin ? apiOrigin : '';
+const zkillVersion = await getZkillVersion();
 
 const manifest = {
   format: 'fitdle-runtime-v2',
@@ -411,6 +449,12 @@ const manifest = {
       const parsed = new Date(raw);
       return Number.isNaN(parsed.getTime()) ? (raw.slice(0, 10) || null) : parsed.toISOString().slice(0, 10);
     })(),
+    version: zkillVersion.version || null,
+    versionCapturedAt: zkillVersion.capturedAt || null,
+    versionSource: zkillVersion.source,
+    versionCached: zkillVersion.cached === true,
+    source: killPoolSource.source || `${ZKB_BASE}/api/losses/`,
+    capturedAt: killPoolSource.serverDate || killPoolSource.generatedAt || null,
   },
   images: {
     baseUrl: IMAGE_BASE,
@@ -442,6 +486,8 @@ const manifest = {
   },
   killPoolGeneratedAt: killPoolSource.generatedAt || null,
   moduleFallbacks,
+  weaponUpgradeGroups,
+  weaponGroups,
   downtimeUtcHour: Math.floor(BUILD_CONFIG.gameDayStartMinutes / 60),
   counts: {
     catalog: catalog.length,

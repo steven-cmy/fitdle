@@ -42,6 +42,8 @@ curl -fsS http://127.0.0.1:8787/api/v1/health
 
 镜像启动时会读取运行时 `PUBLIC_ORIGIN`，把静态 HTML 中的分享页 canonical/OG 地址替换为当前域名。因此同一个镜像可用于不同域名；域名变更后需要重新创建容器，而不是只 restart。
 
+Unraid：在环境变量中设置 `PUID=99`、`PGID=100`，挂载 `/mnt/user/appdata/fitdle:/data`。1.0.2+ 镜像会自动修正目录权限；1.0.1 需要对 appdata 目录执行一次 `chown -R 1000:1000`。
+
 如果 GitLab Registry 要求认证：
 
 ```bash
@@ -68,6 +70,9 @@ services:
       - .env
     ports:
       - "127.0.0.1:8787:8787"
+    environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
     volumes:
       - fitdle-data:/data
     restart: unless-stopped
@@ -79,6 +84,8 @@ volumes:
 - `.env` 不打进镜像，也不提交。
 - `env_file` 将配置注入容器；不要把 `.env` 复制进镜像。
 - 默认 `DATABASE_PATH=/data/fitdle.sqlite`。如果 `.env` 覆盖它，必须仍指向 `/data` 下的路径，否则数据不会持久化。
+- `PUID` / `PGID` 控制容器内服务进程的 UID/GID；入口脚本会先把 `/data` 和 `dist` 的权限交给这两个 ID，再降权启动。默认 `1000:1000`，Unraid 常用 `99:100`。
+- PUID/PGID 需要 1.0.2 或更新镜像；1.0.1 镜像需先手工执行 `chown -R 1000:1000 /mnt/user/appdata/fitdle`。
 - Compose 只绑定 `127.0.0.1:8787`，公网入口由反向代理提供。
 
 ## 4. 必需配置
@@ -99,12 +106,15 @@ SESSION_SECRET=...
 | `DATABASE_PATH` | 否 | 默认 `/data/fitdle.sqlite` |
 | `PORT` | 否 | 默认 `8787` |
 | `HOST` | 否 | 默认 `0.0.0.0` |
+| `PUID` | 否 | 容器运行 UID，默认 `1000`；Unraid 常用 `99` |
+| `PGID` | 否 | 容器运行 GID，默认 `1000`；Unraid 常用 `100` |
 | `FITDLE_DEV_AUTH` | 否 | 生产必须为 `0` |
 | `ROOM_MAX_PLAYERS` | 否 | 默认 `8`，范围 `2..32` |
 | `ROOM_ARBITRATION_BIG_ROUNDS` | 否 | 默认 `1` |
 | `ROOM_ARBITRATION_MAX_BIG_ROUNDS` | 否 | 默认 `5` |
 | `ROOM_TIMED_DURATION_MINUTES` | 否 | 默认 `10` |
 | `ROOM_TIMED_MAX_DURATION_MINUTES` | 否 | 默认 `60` |
+| `ROOM_RECONNECT_GRACE_MS` | 否 | 掉线宽限，默认 `60000`，范围 `5000..300000` |
 
 生成 `SESSION_SECRET`：
 
@@ -360,6 +370,7 @@ npm run build
 | WebSocket 连接失败 | 反代 `/ws` 是否设置 `Upgrade`/`Connection`，`proxy_read_timeout` 是否足够 |
 | 分享卡片指向旧域名 | 修改 `PUBLIC_ORIGIN` 后重新创建容器；仅 restart 不会重新渲染 HTML |
 | 数据重启丢失 | `DATABASE_PATH` 是否在 `/data` 下，Compose 是否挂载 `fitdle-data:/data` |
+| `unable to open database file` | 确认 `/data` 或 `DATABASE_PATH` 父目录可写；镜像启动时会以 root 修复该目录权限后降权为 `node`。只读挂载或指向不存在/不可写路径会导致启动失败 |
 | 镜像拉取 401 | 执行 `docker login registry.gitlab.com` |
 | 页面只显示练习模式 | 容器未配置 SSO 凭据或服务端未启动；检查 `.env` 与 `/api/v1/meta` |
 

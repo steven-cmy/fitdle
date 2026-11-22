@@ -14,6 +14,7 @@ const ERROR_CODES = new Set([
   'target',
   'room-error',
   'chat-rate-limit',
+  'kicked',
 ]);
 
 export function shortPilotId(id, peers = []) {
@@ -41,7 +42,7 @@ export function sortLocalPlayers(players = [], ownerId = '') {
  * puzzle; race targets are handed back to the main app.
  */
 export class RoomSurface {
-  constructor({ api, t, refs, catalog, locale, maxPlayers = 8, roomLimits = {}, imagesBase = '', int, onRaceTarget, onClose }) {
+  constructor({ api, t, refs, catalog, locale, maxPlayers = 8, roomLimits = {}, imagesBase = '', int, onRaceTarget, onClose, onViewChange, onArbitrationState, onKicked, onEndlessPrepare, onEndlessStart, onEndlessLoaded, onEndlessRoundResult, onRoundEvent, onLeave, onRoomUpdate }) {
     this.api = api;
     this.t = t;
     this.refs = refs;
@@ -58,12 +59,33 @@ export class RoomSurface {
     this.int = int || ((value) => String(value));
     this.onRaceTarget = onRaceTarget;
     this.onClose = onClose;
+    this.onViewChange = onViewChange;
+    this.onArbitrationState = onArbitrationState;
+    this.onKicked = onKicked;
+    this.onEndlessPrepare = onEndlessPrepare;
+    this.onEndlessStart = onEndlessStart;
+    this.onEndlessLoaded = onEndlessLoaded;
+    this.onEndlessRoundResult = onEndlessRoundResult;
+    this.onRoundEvent = onRoundEvent;
+    this.onLeave = onLeave;
+    this.onRoomUpdate = onRoomUpdate;
     this.root = null;
+    this.rail = null;
+    this.view = null;
+    this.reconnectGraceMs = Number(roomLimits.reconnectGraceMs) || 60000;
+    this.reconnectStartedAt = 0;
     this.ws = null;
     this.code = '';
     this.playerId = '';
     this.room = null;
     this.dealerClues = null;
+    this.dealerScores = null;
+    this.dealerTarget = null;
+    this.decoyShipIds = [];
+    this.arbitrationReveal = null;
+    this.autoIndices = new Set();
+    this.endless = null;
+    this.endlessResult = null;
     this.error = '';
     this.feed = [];
     this.selected = new Set();
@@ -77,16 +99,42 @@ export class RoomSurface {
     this.matchResult = null;
     this.connected = false;
     this.leaving = false;
+    this.kicked = false;
     this.reconnectAttempts = 0;
   }
 
-  mount() {
-    this.root = document.createElement('div');
-    this.root.id = 'room-surface';
-    this.root.className = 'room-overlay';
-    this.root.innerHTML = '<div class="room-surface" id="room-panel"></div>';
-    document.body.append(this.root);
+  mount(host = null, railHost = null) {
+    this.root = host || this.root || document.querySelector('#room-view');
+    this.rail = railHost || this.rail || document.querySelector('#room-rail');
+    if (!this.root) return;
+    let panel = this.root.querySelector('#room-panel');
+    if (!panel) {
+      this.root.innerHTML = '<div class="room-surface" id="room-panel"></div>';
+      panel = this.root.querySelector('#room-panel');
+    }
+    if (this.rail && !this.rail.querySelector('#room-panel-rail')) {
+      this.rail.innerHTML = '<div class="room-surface room-rail-surface" id="room-panel-rail"></div>';
+    }
     this.renderLobby();
+  }
+
+  attach(host, railHost) {
+    const nextRoot = host || document.querySelector('#room-view');
+    const nextRail = railHost || document.querySelector('#room-rail');
+    if (!nextRoot) return;
+    if (this.root !== nextRoot) {
+      this.root = nextRoot;
+      this.mount(nextRoot, nextRail);
+    }
+    if (this.rail !== nextRail) {
+      this.rail = nextRail;
+      if (nextRail && !nextRail.querySelector('#room-panel-rail')) {
+        nextRail.innerHTML = '<div class="room-surface room-rail-surface" id="room-panel-rail"></div>';
+      }
+    }
+    if (this.room) this.renderRoom();
+    else this.renderLobby();
+    this.syncView();
   }
 
   close() {
@@ -95,19 +143,28 @@ export class RoomSurface {
     clearTimeout(this.pendingChatTimer);
     this.pendingChat = null;
     clearInterval(this.roomClockTimer);
-    this.root?.remove();
-    this.root = null;
+    if (this.root) {
+      this.root.innerHTML = '';
+      this.root.hidden = true;
+    }
+    if (this.rail) {
+      this.rail.innerHTML = '';
+      this.rail.hidden = true;
+    }
+    this.view = null;
     this.onClose?.();
   }
 
   hide() {
     if (this.root) this.root.hidden = true;
+    if (this.rail) this.rail.hidden = true;
   }
 
   show() {
     if (!this.root) this.mount();
-    this.root.hidden = false;
+    if (this.root) this.root.hidden = false;
     this.renderRoom();
+    this.syncView();
   }
 
   updateLocale(locale, refs) {
@@ -116,6 +173,257 @@ export class RoomSurface {
     if (!this.root) return;
     if (this.room) this.renderRoom();
     else this.renderLobby();
+    this.syncView();
+  }
+
+  setView(view) {
+    if (this.view === view) return;
+    this.view = view;
+    this.onViewChange?.(view);
+  }
+
+  syncView() {
+    if (!this.root) return;
+    if (!this.room) {
+      this.root.hidden = false;
+      if (this.rail) this.rail.hidden = true;
+      this.setView('lobby');
+      return;
+    }
+    const match = this.room.match;
+    if (match?.rule === 'endless') {
+      this.root.hidden = true;
+      if (this.rail) this.rail.hidden = false;
+      this.renderRail();
+      this.setView('endless');
+      return;
+    }
+    if (match?.rule === 'arbitration' && this.room.phase === 'playing') {
+      this.root.hidden = true;
+      if (this.rail) this.rail.hidden = false;
+      this.renderRail();
+      this.onArbitrationState?.(this.arbitrationContext());
+      this.setView('arbitration');
+      return;
+    }
+    if (match?.rule === 'race' && this.room.phase === 'playing') {
+      this.root.hidden = true;
+      if (this.rail) this.rail.hidden = true;
+      this.setView('race');
+      return;
+    }
+    this.root.hidden = false;
+    if (this.rail) this.rail.hidden = true;
+    this.setView(this.matchResult || this.room.phase === 'between_matches' ? 'result' : 'lobby');
+  }
+
+  arbitrationContext() {
+    const room = this.room;
+    const match = room?.match;
+    const self = this.self();
+    return {
+      room,
+      roomCode: room?.code || '',
+      matchId: match?.id || '',
+      dealerId: match?.dealerId || '',
+      round: match?.round || 1,
+      totalRounds: match?.totalRounds || 6,
+      bigRound: room?.bigRound || null,
+      published: new Set(match?.published || []),
+      publishedClues: match?.publishedClues || [],
+      dealerClues: this.dealerClues || [],
+      guessed: new Set(match?.guessed || []),
+      solved: new Set(match?.solved || []),
+      acceptingGuesses: Boolean(match?.acceptingGuesses),
+      phase: match?.phase || 'dealer',
+      prepared: match?.prepared || [],
+      players: room?.players || [],
+      role: match?.dealerId === this.playerId ? 'dealer' : self?.spectator ? 'spectator' : 'player',
+      clueCount: Number(match?.clueCount) || (this.dealerClues?.length || 0),
+      clueMeta: match?.clueMeta || [],
+      dealerTarget: this.dealerTarget,
+      decoyShipIds: match?.decoyShipIds || this.decoyShipIds,
+      revealResult: match?.revealResult || this.arbitrationReveal || null,
+    };
+  }
+
+  activePanel() {
+    if (this.rail && !this.rail.hidden) return this.rail.querySelector('#room-panel-rail');
+    return this.root?.querySelector('#room-panel');
+  }
+
+  renderRail() {
+    const panel = this.rail?.querySelector('#room-panel-rail');
+    if (!panel || !this.room) return;
+    const match = this.room.match;
+    const isDealer = match?.dealerId === this.playerId;
+    panel.innerHTML = `
+      <div class="room-rail-head">
+        <span class="mp-kicker">${esc(this.t('room.roomKicker', { code: this.room.code }))}</span>
+        <strong>${esc(this.gameplayLabel(this.room.gameplay) || this.t('room.noGameplay'))}</strong>
+        ${match ? `<span class="room-note">${esc(match.rule === 'endless'
+          ? this.t('room.endlessRound', { round: match.roundNo || 1 })
+          : this.t('room.round', { round: match.round || 1, total: match.totalRounds || 6 }))}</span>` : ''}
+        <span class="room-capacity">${this.int(this.room.players.filter((player) => player.connected).length)} / ${this.maxRoomPlayers()}</span>
+      </div>
+      ${this.error ? `<p class="room-error">${esc(this.errorText())}</p>` : ''}
+      ${match?.rule === 'endless' && match.phase ? `<p class="room-note">${esc(this.t(`room.endlessPhase.${match.phase}`, { ready: match.ready?.length || 0, total: match.activeCount || 0 }))}</p>` : ''}
+      ${match?.rule === 'arbitration' && match.phase === 'reveal' ? `<p class="room-note">${esc(this.t('room.phase.reveal'))}</p>` : ''}
+      ${this.renderLocal()}
+      <div class="room-rail-actions">
+        ${match?.rule === 'arbitration' && isDealer && match.phase === 'dealer' ? `<button class="button primary" type="button" data-room-publish>${esc(this.t('room.publishSelected'))}</button>` : ''}
+        ${this.owner() && this.room.phase === 'playing' ? `<button class="button danger hold-button" type="button" data-room-end>${esc(this.t('room.endMatch'))}</button>` : ''}
+        <button class="button danger${this.room.phase === 'playing' ? ' hold-button' : ''}" type="button" data-room-leave>${esc(this.t('room.leave'))}</button>
+      </div>
+    `;
+    this.bindRail(panel);
+  }
+
+  bindRail(panel) {
+    panel.querySelector('[data-room-publish]')?.addEventListener('click', () => this.publishSelected());
+    this.bindHoldButtons(panel);
+    this.bindChat(panel);
+  }
+
+  bindHoldButtons(panel) {
+    const bind = (selector, action) => {
+      panel.querySelectorAll(selector).forEach((button) => {
+        if (button.dataset.holdBound) return;
+        button.dataset.holdBound = '1';
+        this.bindHoldButton(button, action);
+      });
+    };
+    bind('[data-room-kick]', (button) => this.kickPlayer(button.dataset.roomKick));
+    bind('[data-room-end]', () => this.endGame());
+    const leaveButtons = panel.querySelectorAll('[data-room-leave]');
+    leaveButtons.forEach((button) => {
+      if (button.dataset.holdBound) return;
+      button.dataset.holdBound = '1';
+      if (this.room?.phase === 'playing') this.bindHoldButton(button, () => this.leaveRoom());
+      else button.addEventListener('click', () => this.leaveRoom());
+    });
+  }
+
+  bindHoldButton(button, action) {
+    let timer = null;
+    let interval = null;
+    let startedAt = 0;
+    let holding = false;
+    const duration = 900;
+    const reset = () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+      timer = null;
+      interval = null;
+      holding = false;
+      button.classList.remove('is-holding');
+      button.style.setProperty('--hold', '0%');
+    };
+    const start = () => {
+      if (holding || button.disabled) return;
+      holding = true;
+      startedAt = performance.now();
+      button.classList.add('is-holding');
+      button.style.setProperty('--hold', '0%');
+      interval = setInterval(() => {
+        const progress = Math.min(100, ((performance.now() - startedAt) / duration) * 100);
+        button.style.setProperty('--hold', `${progress}%`);
+      }, 30);
+      timer = setTimeout(() => {
+        reset();
+        action(button);
+      }, duration);
+    };
+    button.addEventListener('pointerdown', (event) => {
+      if (event.button != null && event.button !== 0) return;
+      event.preventDefault();
+      start();
+    });
+    button.addEventListener('pointerup', reset);
+    button.addEventListener('pointercancel', reset);
+    button.addEventListener('pointerleave', reset);
+    button.addEventListener('keydown', (event) => {
+      if ((event.key === ' ' || event.key === 'Enter') && !event.repeat) {
+        event.preventDefault();
+        start();
+      }
+    });
+    button.addEventListener('keyup', (event) => {
+      if (event.key === ' ' || event.key === 'Enter') reset();
+    });
+    button.addEventListener('blur', reset);
+  }
+
+  bindChat(panel) {
+    const chat = panel.querySelector('[data-room-chat]');
+    chat?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const input = event.target.querySelector('[data-room-chat-input]');
+      const text = String(input?.value || '').trim().slice(0, 120);
+      if (text) this.sendChat(text, panel);
+    });
+    const chatInput = panel.querySelector('[data-room-chat-input]');
+    chatInput?.addEventListener('input', () => {
+      this.chatDraft = chatInput.value;
+      this.adjustChatInput(chatInput);
+    });
+    chatInput?.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+        const start = chatInput.selectionStart ?? chatInput.value.length;
+        const end = chatInput.selectionEnd ?? start;
+        chatInput.setRangeText('\n', start, end, 'end');
+        this.chatDraft = chatInput.value;
+        this.adjustChatInput(chatInput);
+        return;
+      }
+      event.preventDefault();
+      chat?.requestSubmit();
+    });
+    chatInput?.addEventListener('focus', () => { this.chatFocused = true; });
+    chatInput?.addEventListener('blur', () => { this.chatFocused = false; });
+    if (chatInput) {
+      this.adjustChatInput(chatInput);
+      if (this.chatFocused) {
+        chatInput.focus();
+        chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
+      }
+    }
+    this.setupChatLog(panel);
+    this.setupRoomClock(panel);
+  }
+
+  kickPlayer(playerId) {
+    if (!this.owner() || !playerId || playerId === this.playerId) return;
+    const player = this.room?.players?.find((item) => item.id === playerId);
+    if (!player) return;
+    this.send({ t: 'kick', playerId });
+  }
+
+  prepareForNext() {
+    const match = this.room?.match;
+    if (!match) return false;
+    return this.send({ t: 'prepare', roundId: match.roundId });
+  }
+
+  publishSelected() {
+    const indices = [...this.selected];
+    if (!indices.length && !this.autoIndices?.size) return false;
+    const sent = this.send({ t: 'publish', indices });
+    if (sent) this.selected.clear();
+    return sent;
+  }
+
+  endGame() {
+    if (!this.owner()) return false;
+    return this.send({ t: 'end' });
+  }
+
+  leaveRoom() {
+    this.send({ t: 'leave' });
+    this.close();
+    this.onLeave?.();
   }
 
   connect() {
@@ -126,21 +434,31 @@ export class RoomSurface {
     ws.addEventListener('open', () => {
       this.connected = true;
       this.reconnectAttempts = 0;
+      this.reconnectStartedAt = 0;
       this.error = '';
       this.renderRoom();
+      this.syncView();
     });
     ws.addEventListener('close', () => {
       this.connected = false;
-      if (!this.leaving && this.code && this.playerId && this.reconnectAttempts < 5) {
-        this.reconnectAttempts += 1;
-        this.error = 'reconnecting';
-        this.renderRoom();
-        setTimeout(() => {
-          if (!this.leaving && this.root) this.connect();
-        }, 1800 * this.reconnectAttempts);
-      } else {
-        this.renderRoom();
+      if (!this.leaving && !this.kicked && this.code && this.playerId) {
+        const now = Date.now();
+        if (!this.reconnectStartedAt) this.reconnectStartedAt = now;
+        const withinGrace = now - this.reconnectStartedAt < this.reconnectGraceMs;
+        if (withinGrace) {
+          this.reconnectAttempts += 1;
+          this.error = 'reconnecting';
+          this.renderRoom();
+          this.syncView();
+          const delay = Math.min(10000, 800 * this.reconnectAttempts);
+          setTimeout(() => {
+            if (!this.leaving && !this.kicked && this.root) this.connect();
+          }, delay);
+          return;
+        }
       }
+      this.renderRoom();
+      this.syncView();
     });
     ws.addEventListener('message', (event) => {
       let message;
@@ -174,17 +492,105 @@ export class RoomSurface {
     }
     if (message.t === 'dealerClues') {
       this.dealerClues = message.clues || [];
+      this.dealerScores = message.scores || null;
+      this.dealerTarget = message.dealerTarget || null;
+      this.arbitrationReveal = null;
+      this.decoyShipIds = message.decoyShipIds || this.decoyShipIds || [];
+      this.autoIndices = new Set(message.autoIndices || []);
       this.room ||= {};
       this.renderRoom();
+      this.syncView();
+      return;
+    }
+    if (message.t === 'start') {
+      this.arbitrationReveal = null;
+      this.dealerTarget = null;
+      this.dealerClues = null;
+      this.dealerScores = null;
+      this.decoyShipIds = message.decoyShipIds || [];
+      this.selected.clear();
+      if (message.rule === 'arbitration') this.room ||= {};
+      this.renderRoom();
+      this.syncView();
+      return;
+    }
+    if (message.t === 'endlessPrepare') {
+      this.endless = message;
+      this.endlessResult = null;
+      this.room ||= {};
+      Promise.resolve(this.onEndlessPrepare?.(message)).then(() => {
+        this.send({ t: 'ready', roundId: message.roundId });
+      }).catch(() => {
+        this.error = 'round-load-failed';
+        this.renderRoom();
+        this.syncView();
+      });
+      this.renderRoom();
+      this.syncView();
+      return;
+    }
+    if (message.t === 'endlessStart') {
+      this.onEndlessStart?.(message);
+      this.renderRoom();
+      this.syncView();
+      return;
+    }
+    if (message.t === 'endlessLoaded') {
+      this.endless = { ...(this.endless || {}), phase: 'ready', ...message };
+      this.onEndlessLoaded?.(message);
+      this.renderRoom();
+      this.syncView();
+      return;
+    }
+    if (message.t === 'endlessRoundResult') {
+      this.endlessResult = message.result;
+      this.onEndlessRoundResult?.(message.result);
+      this.renderRoom();
+      this.syncView();
+      return;
+    }
+    if (message.t === 'endlessFinished' || message.t === 'arbitrationRoundResult' || message.t === 'arbitrationRoundStart') {
+      if (message.t === 'endlessFinished' && message.status === 'won') {
+        this.pushFeed({ key: 'room.feed.solved', vars: { name: this.playerName(message.playerId) } });
+      }
+      this.onRoundEvent?.(message);
+      this.renderRoom();
+      this.syncView();
       return;
     }
     if (message.t === 'target') {
+      this.setView('race');
       this.onRaceTarget?.(message);
       return;
     }
-    if (message.t === 'clue') {
-      this.pushFeed({ key: 'room.feed.intel' });
+    if (message.t === 'kicked') {
+      this.kicked = true;
+      this.leaving = true;
+      this.error = 'kicked';
+      this.ws?.close();
+      this.onKicked?.();
       this.renderRoom();
+      this.renderRail();
+      return;
+    }
+    if (message.t === 'clue') {
+      this.renderRoom();
+      return;
+    }
+    if (message.t === 'arbitrationClueBatch') {
+      this.pushFeed({ key: 'room.feed.intelBatch', vars: { count: Number(message.count) || 0 } });
+      this.renderRoom();
+      return;
+    }
+    if (message.t === 'arbitrationTurn' || message.t === 'arbitrationRoundStart') {
+      this.renderRoom();
+      this.syncView();
+      return;
+    }
+    if (message.t === 'arbitrationReveal') {
+      this.arbitrationReveal = message.result || null;
+      this.renderRoom();
+      this.syncView();
       return;
     }
     if (message.t === 'solved') {
@@ -198,7 +604,7 @@ export class RoomSurface {
       return;
     }
     if (message.t === 'chat') {
-      this.pushFeed({ kind: 'chat', name: this.playerName(message.from), text: String(message.text || '') });
+      this.pushFeed({ kind: 'chat', name: this.playerName(message.from), color: this.playerColor(message.from), text: String(message.text || '') });
       this.renderRoom();
       return;
     }
@@ -213,7 +619,14 @@ export class RoomSurface {
     if (message.t === 'matchResult') {
       this.matchResult = message.result;
       this.dealerClues = null;
+      this.dealerScores = null;
+      this.dealerTarget = null;
+      this.decoyShipIds = [];
+      this.arbitrationReveal = null;
+      this.autoIndices = new Set();
+      this.endless = null;
       this.selected.clear();
+      this.matchResult = message.result;
       this.renderRoom();
       return;
     }
@@ -235,6 +648,11 @@ export class RoomSurface {
   playerName(id) {
     const player = this.room?.players?.find((item) => item.id === id);
     return player?.name || `#${shortPilotId(id)}`;
+  }
+
+  playerColor(id) {
+    const player = this.room?.players?.find((item) => item.id === id);
+    return player?.color || '#8fd3ff';
   }
 
   localId(id) {
@@ -266,6 +684,7 @@ export class RoomSurface {
   errorText() {
     if (!this.error) return '';
     if (this.error === 'reconnecting') return this.t('room.error.reconnecting');
+    if (this.error === 'kicked') return this.t('room.kicked');
     const key = `room.error.${this.error}`;
     const text = this.t(key);
     if (text !== key) return text;
@@ -278,7 +697,7 @@ export class RoomSurface {
     }
     return this.feed.map((entry) => {
       if (entry.kind === 'chat') {
-        return `<p class="room-chat-line"><strong>${esc(entry.name)}</strong><span>${esc(entry.text)}</span></p>`;
+        return `<p class="room-chat-line"><strong style="--pilot-color:${esc(entry.color || '#8fd3ff')}">${esc(entry.name)}</strong><span>${esc(entry.text)}</span></p>`;
       }
       return `<p class="room-chat-line is-system">${esc(this.t(entry.key, entry.vars || {}))}</p>`;
     }).join('');
@@ -308,7 +727,7 @@ export class RoomSurface {
     const { text } = this.pendingChat;
     clearTimeout(this.pendingChatTimer);
     this.pendingChat = null;
-    const panel = this.root?.querySelector('#room-panel');
+    const panel = this.activePanel();
     const notice = panel?.querySelector('[data-chat-notice]');
     if (notice) notice.hidden = true;
     panel?.querySelector('[data-chat-send]')?.classList.remove('is-error', 'is-shaking');
@@ -323,7 +742,7 @@ export class RoomSurface {
 
   onChatError(id, code) {
     if (this.pendingChat && this.pendingChat.id !== id) return;
-    const panel = this.root?.querySelector('#room-panel');
+    const panel = this.activePanel();
     this.chatFailed(panel, code);
   }
 
@@ -465,6 +884,7 @@ export class RoomSurface {
       const data = new FormData(event.target);
       this.joinRoom(String(data.get('code') || '').trim().toUpperCase(), String(data.get('password') || ''));
     });
+    this.syncView();
   }
 
   async createRoom(password) {
@@ -495,6 +915,11 @@ export class RoomSurface {
     this.error = '';
     this.connect();
     this.renderRoom();
+    const url = new URL(location.href);
+    if (url.searchParams.has('room')) {
+      url.searchParams.delete('room');
+      history.replaceState(null, '', url.toString());
+    }
   }
 
   async copyRoomLink(button = null) {
@@ -513,6 +938,17 @@ export class RoomSurface {
     } catch {
       // Clipboard may be unavailable; the URL is still in the room header.
     }
+  }
+
+  renderRoomManual() {
+    const endless = !this.room.gameplay || ['standard', 'audit', 'timed'].includes(this.room.gameplay);
+    return `
+      <section class="room-list room-manual">
+        <h3>${esc(this.t('room.manualTitle'))}</h3>
+        ${endless
+          ? `<p>${esc(this.t('room.manualEndless'))}</p><p>${esc(this.t('room.manualScore'))}</p>`
+          : `<p>${esc(this.t('room.arbitrationRule'))}</p><p>${esc(this.t('room.manualArbitrationScore'))}</p>`}
+      </section>`;
   }
 
   renderLocal() {
@@ -536,16 +972,22 @@ export class RoomSurface {
             if (player.id === this.playerId) roles.push(this.t('room.you'));
             if (player.id === dealerId) roles.push(this.t('room.dealerTag'));
             if (player.spectator) roles.push(this.t('room.spectator'));
-            if (!player.connected) roles.push(this.t('room.offline'));
+            if (!player.connected) roles.push(this.t('room.reconnecting'));
+            const ready = room.match?.ready?.includes?.(player.id)
+              || room.match?.prepared?.includes?.(player.id)
+              || room.match?.finished?.includes?.(player.id);
             return `
-              <li class="room-player${player.id === dealerId ? ' is-dealer' : ''}${player.id === this.playerId ? ' is-self' : ''}">
+              <li class="room-player${player.id === dealerId ? ' is-dealer' : ''}${player.id === this.playerId ? ' is-self' : ''}${player.connected ? '' : ' is-reconnecting'}${player.id === room.ownerId ? ' is-host' : ''}${ready ? ' is-ready' : ''}" style="--pilot-color:${esc(player.color || '#8fd3ff')}">
                 <span class="room-presence${player.connected ? ' is-online' : ''}" aria-hidden="true"></span>
                 ${avatarHtml(player.name, player.characterId, 32, 'room-avatar', this.imagesBase)}
                 <span class="room-pilot">
-                  <strong>${esc(player.name)}</strong>
+                  <strong>${player.id === room.ownerId ? `<span class="room-host-badge" title="${esc(this.t('room.host'))}" aria-label="${esc(this.t('room.host'))}">★</span>` : ''}${esc(player.name)}</strong>
                   <small>#${esc(this.localId(player.id))}${roles.length ? ` · ${esc(roles.join(' · '))}` : ''}</small>
                 </span>
+                ${ready ? `<span class="room-ready-dot" role="status" title="${esc(this.t('room.readyHighlight'))}" aria-label="${esc(this.t('room.readyHighlight'))}"></span>` : ''}
+                ${player.connected ? '' : `<span class="room-spinner" role="status" aria-label="${esc(this.t('room.reconnecting'))}"></span>`}
                 <span class="room-score">${this.int(player.score || 0)}</span>
+                ${this.owner() && player.id !== this.playerId ? `<button type="button" class="room-kick hold-button" data-room-kick="${esc(player.id)}" title="${esc(this.t('room.holdToKick'))}" aria-label="${esc(`${this.t('room.kick')}: ${player.name}`)}">${esc(this.t('room.kick'))}</button>` : ''}
               </li>
             `;
           }).join('')}
@@ -568,9 +1010,6 @@ export class RoomSurface {
               ${icon('arrowRight')}${esc(this.t('room.send'))}
             </button>
           </form>
-        </div>
-        <div class="room-actions">
-          ${this.owner() && room.phase === 'playing' ? `<button class="button danger" type="button" data-room-end>${icon('close')} ${esc(this.t('room.endMatch'))}</button>` : ''}
         </div>
       </section>
     `;
@@ -623,13 +1062,14 @@ export class RoomSurface {
         </div>
         <div class="room-actions room-head-actions">
           <button type="button" class="button primary room-share" data-room-copy>${icon('share')} ${esc(this.t('room.share'))}</button>
-          <button type="button" class="button danger room-leave" data-room-leave>${icon('close')} ${esc(this.t('room.leave'))}</button>
+          <button type="button" class="button danger room-leave${this.room.phase === 'playing' ? ' hold-button' : ''}" data-room-leave>${icon('close')} ${esc(this.t('room.leave'))}</button>
         </div>
       </header>
       ${this.error ? `<p class="room-error">${esc(this.errorText())}</p>` : ''}
       ${room.phase === 'lobby' || room.phase === 'between_matches' ? `<section class="room-matchbar">${this.renderSettings(canStart)}</section>` : ''}
       <div class="room-grid">
         <section class="arbitration-board">
+          ${this.renderRoomManual()}
           ${!settlement && room.phase === 'lobby' ? `<div class="room-briefing">
             <h3>${esc(this.t('room.rules'))}</h3>
             <p>${esc(this.t('room.rulesBody'))}</p>
@@ -663,19 +1103,8 @@ export class RoomSurface {
       </div>
     `;
     panel.querySelector('[data-room-copy]')?.addEventListener('click', (event) => this.copyRoomLink(event.currentTarget));
-    panel.querySelector('[data-room-leave]')?.addEventListener('click', () => {
-      this.send({ t: 'leave' });
-      this.close();
-    });
     panel.querySelector('[data-room-reset]')?.addEventListener('click', () => this.send({ t: 'reset' }));
-    panel.querySelector('[data-room-end]')?.addEventListener('click', () => this.send({ t: 'end' }));
-    panel.querySelector('[data-room-publish]')?.addEventListener('click', () => {
-      const indices = [...this.selected];
-      if (indices.length) {
-        this.send({ t: 'publish', indices });
-        this.selected.clear();
-      }
-    });
+    panel.querySelector('[data-room-publish]')?.addEventListener('click', () => this.publishSelected());
     panel.querySelectorAll('[data-publish-index]').forEach((checkbox) => {
       checkbox.addEventListener('change', () => {
         const index = Number(checkbox.dataset.publishIndex);
@@ -766,7 +1195,9 @@ export class RoomSurface {
     }
     this.setupChatLog(panel);
     this.setupRoomClock(panel);
-    if (isDealer) this.attachPublishCheckboxes(panel, published);
+    this.bindHoldButtons(panel);
+    this.syncView();
+    this.onRoomUpdate?.();
   }
 
   attachPublishCheckboxes(panel, published) {

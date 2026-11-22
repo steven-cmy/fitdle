@@ -60,6 +60,7 @@ export async function buildApp() {
           arbitrationBigRoundsMax: config.roomArbitrationMaxBigRounds,
           timedDurationMinutes: config.roomTimedDurationMinutes,
           timedDurationMaxMinutes: config.roomTimedMaxDurationMinutes,
+          reconnectGraceMs: config.roomReconnectGraceMs,
         },
       },
     };

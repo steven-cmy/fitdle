@@ -52,16 +52,70 @@ const WEAPON_UPGRADE_FAMILIES = new Map([
   [205, 'energy'],      // Heat Sink
   [302, 'hybrid'],      // Magnetic Field Stabilizer
   [367, 'missile'],     // Ballistic Control System
-  [645, 'drone'],       // Drone Damage Amplifier
+  [645, 'drone'],       // Drone Damage Modules
+  [646, 'drone'],       // Drone Tracking Modules
   [1988, 'disintegrator'], // Entropic Radiation Sink
   [211, 'turret'],      // Tracking Enhancer
   [1292, 'drone'],      // Omnidirectional Tracking Enhancer
   [1395, 'missile'],    // Missile Guidance Enhancer
+  [4067, 'vorton'],     // Vorton Projector Upgrade
 ]);
+const WEAPON_GROUPS = new Map([
+  [4060, 'vorton'],     // Vorton Projector
+]);
+const WEAPON_UPGRADE_FALLBACK = WEAPON_UPGRADE_FAMILIES;
 
-function weaponFamilyOf(module) {
+function propulsionSizeRank(name) {
+  const text = String(name || '');
+  const numeric = text.match(/\b(\d+(?:\.\d+)?)\s*MN\b/i);
+  if (numeric) return Number(numeric[1]);
+  if (/\b(capital|extra large|x-large|xl)\b/i.test(text)) return 10000;
+  if (/\blarge\b/i.test(text)) return 500;
+  if (/\bmedium\b/i.test(text)) return 50;
+  if (/\bsmall\b/i.test(text)) return 5;
+  if (/\bmicro\b/i.test(text)) return 1;
+  return 0;
+}
+
+export function propulsionPriority(module) {
+  const name = String(module?.name || '');
+  const kind = /microwarpdrive/i.test(name) ? 2 : /afterburner/i.test(name) ? 1 : 0;
+  return [propulsionSizeRank(name), kind, Number(module?.metaLevel || 0)];
+}
+
+/**
+ * Killmail items are not enough to know which propulsion module was active.
+ * Audit simulation keeps the largest propulsion module, preferring a
+ * Microwarpdrive over an Afterburner of the same size. Cloaks are simulated
+ * online but inactive, so they do not add a speed penalty.
+ */
+export function auditSimulationItems(items, refs) {
+  const source = Array.isArray(items) ? items : [];
+  const fitted = (item) => Number(item?.flag) >= 11 && Number(item?.flag) <= 34;
+  const propulsion = source
+    .filter((item) => fitted(item) && Number(refs?.modules?.[item.item_type_id]?.groupID) === 46)
+    .sort((a, b) => {
+      const left = propulsionPriority(refs?.modules?.[a.item_type_id]);
+      const right = propulsionPriority(refs?.modules?.[b.item_type_id]);
+      return right[0] - left[0] || right[1] - left[1] || right[2] - left[2] || Number(a.flag) - Number(b.flag);
+    });
+  const keepPropulsion = propulsion[0]?.item_type_id;
+  return source.filter((item) => {
+    const module = refs?.modules?.[item.item_type_id];
+    if (Number(module?.groupID) === 330) return false;
+    if (fitted(item) && Number(module?.groupID) === 46) {
+      return keepPropulsion == null || item.item_type_id === keepPropulsion;
+    }
+    return true;
+  });
+}
+
+function weaponFamilyOf(module, weaponGroups = null) {
+  const mapped = weaponGroups?.[module?.groupID] || WEAPON_GROUPS.get(Number(module?.groupID));
+  if (mapped) return mapped;
   const name = String(module?.name || '');
   if (/disintegrator/i.test(name)) return 'disintegrator';
+  if (/vorton/i.test(name)) return 'vorton';
   if (/missile|rocket|torpedo|launcher/i.test(name)) return 'missile';
   if (/autocannon|artillery/i.test(name)) return 'projectile';
   if (/blaster|railgun/i.test(name)) return 'hybrid';
@@ -772,8 +826,8 @@ function weightFor(clue, ship, catalog, fitDelta = null) {
     if (rank <= 50) return round(4 + 6 * ((50 - rank) / 49), 1);
     return round(4 + 4 * ((rank - 50) / 50), 1);
   }
-  // zKillboard's "recent" bucket is a 90-day window; losses30 is a legacy key.
-  const economyWeights = { losses30: 7.5, danger: 6.8, avgValue: 8.2 };
+  // zKillboard's "recent" bucket is the 90-day economy window.
+  const economyWeights = { losses90: 7.5, danger: 6.8, avgValue: 8.2 };
   if (economyWeights[clue.k] != null) return economyWeights[clue.k];
   const matches = humanBucketMatches(clue, catalog);
   let weight = (Number(clue.prior) || 1) + 1.8 * Math.log2(catalog.length / matches);
@@ -830,6 +884,8 @@ export function buildClues({
   fittedAttrs = null,
   baselineAttrs = null,
   moduleFallbacks = {},
+  weaponUpgradeGroups = null,
+  weaponGroups = null,
 }) {
   const { equipment, fittedKills } = parseFittings(losses, refs);
   const auditFallbacks = mode === 'audit' ? selectAuditFallbacks(equipment, refs, moduleFallbacks) : new Map();
@@ -858,7 +914,7 @@ export function buildClues({
   const weaponCounts = new Map();
   for (const item of equipment) {
     if (item.slot !== 'high') continue;
-    const family = weaponFamilyOf(refs.modules?.[item.module]);
+    const family = weaponFamilyOf(refs.modules?.[item.module], weaponGroups);
     if (family) weaponCounts.set(family, (weaponCounts.get(family) || 0) + 1);
   }
   const turretCount = (weaponCounts.get('energy') || 0)
@@ -890,6 +946,7 @@ export function buildClues({
     if (item.slot === 'cargo' && (PLEX_TYPES.has(Number(item.module)) || /plex|pilot'?s license/i.test(module?.name || ''))) {
       tags.push('plex');
     }
+    if (mode === 'audit' && Number(module?.groupID) === 330) tags.push('cloak');
     let weight = restriction === 'unique' ? 10 : restriction === 'limited' ? 8.2 : common ? 1.2 : 3.0;
     if (!restriction) {
       weight += item.slot === 'rig' ? 0.3 : item.slot === 'subsystem' ? 0.45 : 0;
@@ -916,7 +973,8 @@ export function buildClues({
     if (isMiningSpecial) weight = Math.max(weight, 10.8);
     // Low-slot weapon upgrades narrow the weapon family (and therefore hull).
     if (item.slot === 'low') {
-      const upgrade = WEAPON_UPGRADE_FAMILIES.get(Number(module?.groupID));
+      const upgrade = weaponUpgradeGroups?.[module?.groupID]
+        || WEAPON_UPGRADE_FALLBACK.get(Number(module?.groupID));
       if (upgrade) {
         const count = upgrade === 'turret'
           ? turretCount
@@ -1002,16 +1060,20 @@ export function buildClues({
     : null;
 
   const recent = stats?.rankings?.recent?.all;
-  const losses30 = Number(recent?.metrics?.shipsLost || 0);
-  const rank = Number(recent?.ranks?.shipsLost || 0);
-  const danger = Number(stats?.dangerRatio || 0);
+  const recentMetrics = recent?.metrics || {};
+  const losses90 = Number(recentMetrics.shipsLost || 0);
+  const destroyed90 = Number(recentMetrics.shipsDestroyed || 0);
+  const recentRank = Number(recent?.ranks?.shipsDestroyed);
+  const rawRank = recentRank > 0 ? recentRank : catalog.length;
+  const danger = destroyed90 + losses90 > 0
+    ? round((destroyed90 / (destroyed90 + losses90)) * 100, 1)
+    : 0;
   if (stats) {
-    clues.push({ k: 'losses30', c: 'economy', v: losses30, prior: 2.9 });
+    clues.push({ k: 'losses90', c: 'economy', v: losses90, prior: 2.9 });
     clues.push({
       k: 'usageRank', c: 'economy',
-      v: rank > 0 ? clamp(Math.round((rank / Math.max(1, catalog.length)) * 100), 1, 100) : 0,
+      v: clamp(Math.round((rawRank / Math.max(1, catalog.length)) * 100), 1, 100),
       prior: 2.2,
-      ...(rank > 0 ? {} : { missing: true }),
     });
     clues.push({
       k: 'danger', c: 'economy', v: danger, prior: 2.1,
@@ -1020,7 +1082,10 @@ export function buildClues({
   }
   // Daily mode deliberately does not request live zKill stats. Only the real
   // killmail value is shown; do not render an empty "data missing" category.
-  const killValue = Number(losses?.[0]?.zkb?.totalValue || 0);
+  const targetKill = targetKillId
+    ? losses.find((kill) => Number(kill.killmail_id) === Number(targetKillId))
+    : null;
+  const killValue = Number((targetKill || losses?.[0])?.zkb?.totalValue || 0);
   if (killValue > 0 || stats) {
     clues.push({
       k: 'kbValue', c: 'economy', v: killValue, prior: 2.6,

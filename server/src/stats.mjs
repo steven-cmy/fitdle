@@ -1,4 +1,5 @@
 import { db, now } from './db.mjs';
+import { shiftDateKey } from '../../js/game.js';
 
 function ensureStat(targetKillId, gameplay, mode) {
   db.prepare(`INSERT INTO target_stats(target_kill_id, gameplay, mode, exposures, runs, wins, losses, attempts_sum, duration_sum, rounds_sum, guesses, correct, updated_at)
@@ -47,4 +48,45 @@ export function recordRoomMatch({ id, roomCode, rule, targetKillId, targetShipId
     VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .run(id, roomCode, rule, Number(targetKillId) || null, Number(targetShipId) || null,
       JSON.stringify(result || {}), now());
+}
+
+/**
+ * The only login-profile record: daily wins, consecutive winning game days,
+ * and the current winning streak in each non-arbitration gameplay.
+ */
+export function profileStats(nameKey, gameDay) {
+  const key = String(nameKey || '');
+  const dailyWins = Number(db.prepare(`SELECT COUNT(*) AS count FROM online_runs
+    WHERE name_key = ? AND kind = 'daily' AND status = 'won'`).get(key)?.count || 0);
+  const winDays = db.prepare(`SELECT DISTINCT game_day FROM online_runs
+    WHERE name_key = ? AND status = 'won' ORDER BY game_day DESC`).all(key)
+    .map((row) => String(row.game_day))
+    .filter(Boolean);
+  const today = String(gameDay || '');
+  const yesterday = today ? shiftDateKey(today, -1) : '';
+  let winStreak = 0;
+  if (winDays.length) {
+    const latest = winDays[0];
+    if (!today || latest === today || latest === yesterday) {
+      let expected = latest;
+      for (const day of winDays) {
+        if (day !== expected) break;
+        winStreak += 1;
+        expected = shiftDateKey(expected, -1);
+      }
+    }
+  }
+  const streaks = {};
+  for (const gameplay of ['standard', 'audit', 'timed']) {
+    const rows = db.prepare(`SELECT status FROM online_runs
+      WHERE name_key = ? AND gameplay = ? AND status != 'playing'
+      ORDER BY finished_at DESC, started_at DESC`).all(key, gameplay);
+    let streak = 0;
+    for (const row of rows) {
+      if (row.status !== 'won') break;
+      streak += 1;
+    }
+    streaks[gameplay] = streak;
+  }
+  return { dailyWins, winStreak, streaks };
 }

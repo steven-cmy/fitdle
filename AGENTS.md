@@ -109,13 +109,19 @@ instructions live in [README.md](README.md).
 - Authored file: `assets/claim-departments.json`; `build-dist` copies it.
 - 8 locales, each with the same 9 department IDs: `salvage`, `hull`, `intake`,
   `fitting`, `wreck`, `cargo`, `arbitration`, `compliance`, `alliance-srp`.
-- Each department owns its own memo pool; the Hero cold-humor line must come from
-  the current department. Never use one global memo pool.
-- A new target picks a department and one memo; locale changes preserve the
-  department ID and choose from that locale's pool for the same department.
+- Each group owns `memos` and `debriefs.won` / `debriefs.lost`; the Hero cold-humor
+  line and the outcome debrief must both come from the current department group.
+  Never use one global memo or debrief pool.
+- A new target picks one group by KB seed and one memo; locale changes preserve
+  the department ID and choose from that locale's group.
+- The debrief body uses the group's outcome pool and falls back to the generic
+  `end.victoryBody` / `end.defeatBody` only when group data is unavailable.
 - `alliance-srp` must retain the exact English lines `Can I bring my Drake?` and
   `FC wat do?` in every locale.
-- Missing/failed department data falls back to `claim.fromValue` and no memo.
+- Missing/failed department data falls back to `claim.fromValue`, no memo, and
+  the generic debrief body.
+- Topbar `.brand-sub` is `${brand.parent} // ${brand.scc}`; it no longer includes
+  the `F.I.T.D.L.E.` prefix or the claims-assessment suffix.
 
 ### Triglavian font mode
 
@@ -140,7 +146,8 @@ instructions live in [README.md](README.md).
 ### Online service and multiplayer
 
 - `index.html` is the only app entry. `js/main.js` boots the puzzle; `js/api.js`
-  talks to the same-origin service; `js/rooms.js` renders the room overlay.
+  talks to the same-origin service; `js/rooms.js` embeds the room view into the
+  main shell and hands Arbitration to the single-player hero/dossier.
 - `server/` is Node 24 + Fastify + `@fastify/websocket` + `@fastify/cookie` +
   `@fastify/static` + `jose` + built-in `node:sqlite`. It serves `dist/`, `/api`
   and `/ws`; a split deployment sets `API_ORIGIN` and derives CORS/callback.
@@ -180,6 +187,12 @@ instructions live in [README.md](README.md).
 - `ROOM_ARBITRATION_BIG_ROUNDS` / `ROOM_ARBITRATION_MAX_BIG_ROUNDS` define the Arbitration default and
   host limit for big rounds. `ROOM_TIMED_DURATION_MINUTES` /
   `ROOM_TIMED_MAX_DURATION_MINUTES` do the same for Timed room duration.
+- `ROOM_RECONNECT_GRACE_MS` (default 60000, range 5000..300000) keeps a
+  disconnected player in the room and the current owner in place until the grace
+  ends. Reconnecting restores the same player; only after the grace may the
+  player be removed, the owner transferred, or a disconnected Arbitration dealer
+  end the match. Explicit leave and host kick are immediate. The Local list shows
+  a spinner and `room.reconnecting` while a player is inside the grace.
 - Chat is ephemeral, sanitized, length-limited and rate-limited; it is not
   persisted. Chat sends carry a client id, and the server acknowledges success or
   returns a localized rate/validation error. The client keeps the draft until an
@@ -204,6 +217,7 @@ instructions live in [README.md](README.md).
 - `js/reveal.js` — immutable per-answer reveal plan, weighted category queues,
   Standard equipment/cargo budgets, Audit quotas/transfer, Timed release quota,
   and guess matching.
+- `js/claim.js` — pure KB-seeded claim group, memo and outcome debrief selection.
 - `js/i18n.js` — 8 locales, manual copy; all zh variants → `zh`.
 - `js/legal-copy.js` — clean 8-locale full copyright/fan-work notices shared by
   footer and manual.
@@ -226,8 +240,9 @@ instructions live in [README.md](README.md).
    and stores zKill's server `Date` as `serverDate`.
 3. `build:weights` fetches zKill `stats/shipTypeID/{id}/kills/` for all SDE hulls
    and stores recent/all ship-loss counts in `.cache/ship-weights.json`.
-   zKill's `rankings.recent` bucket is a 90-day window; the internal `losses30`
-   clue key is legacy, and the UI must label it as 90 days.
+   zKill's `rankings.recent` bucket is the 90-day window. Economy clues use
+   `losses90`, recent kill rank (`shipsDestroyed`), and a recent
+   kill/(kill+loss) danger index. The block title, not each row, says 90 days.
 4. `build` reads normalized SDE + weights + killpool and writes `data/` and
    `dist/`. It also emits a compact `data/module-fallback.json` from
    `typeDogma` for the six attributes used by the audit fallback simulator, so
@@ -320,7 +335,9 @@ instructions live in [README.md](README.md).
 - Reveal growth must be monotonic: later rounds only append; a previously shown
   clue never disappears.
 - All fitted modules are simulated as online and active, never overheated; cargo,
-  fuel and spare fighter-bay modules stay offline.
+  fuel and spare fighter-bay modules stay offline. Audit simulation keeps only
+  one propulsion module (larger size first, then Microwarpdrive over
+  Afterburner) and simulates cloaking devices online but inactive.
 - Audit static weights start from base stats (so fitted values do not inflate
   weight), then a clue whose fitted value differs from the **all-V no-modules
   baseline** is multiplied by 0.7. Skill-only changes do not reduce weight; only
@@ -673,14 +690,14 @@ refreshes, then the final `build`.
 
 ## Tests
 
-`npm test` currently covers 129 client/SDE cases, including downtime boundaries,
+`npm test` currently covers 134 client/SDE cases, including downtime boundaries,
 target/KB selection, victim-only equipment, cargo, slot layout, weighted/fitted
 clues, audit reveal cadence, share URLs/static pages, all locales, Chinese
 variants, SDE API download/staging, container build order, online source/build
 checks, avatars, chat sanitization, and no hard-coded deployment domains.
 `npm run test:server` adds the online service tests (EVE SSO session, meta, auth
-gates, character ids, room settings, room creation/join/password, and the
-room-seat limit).
+gates, character ids, room settings, room creation/join/password, seat limits, endless/prepare flow,
+reconnect grace, kick and owner transfer).
 
 Add tests for any new selection/reveal/share rule. Build before tests when the
 test reads `dist/`.
@@ -693,6 +710,11 @@ test reads `dist/`.
 - The published image is origin-neutral: Docker build uses
   `__FITDLE_PUBLIC_ORIGIN__`; the container entrypoint validates runtime
   `PUBLIC_ORIGIN` and renders it into static HTML before starting the service.
+- The container entrypoint starts as root only to create/chown the
+  `DATABASE_PATH` parent, `/data`, and `dist` to `PUID:PGID` (default
+  `1000:1000`), then drops to those IDs with `setpriv`. Bind-mounted and named
+  volumes must be writable; read-only mounts fail fast. Unraid commonly uses
+  `PUID=99`, `PGID=100`.
 - The one-shot builder image and its CI jobs were removed in the 1.0.0 cleanup.
   Do not restore `Dockerfile.oneshot`, `docker/BUILDER_VERSION`,
   `publish:builder` or the old Kaniko builder pipeline. The application is an

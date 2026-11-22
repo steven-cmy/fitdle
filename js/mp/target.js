@@ -160,12 +160,18 @@ export async function pickDealerRound({
   usedKillIds = new Set(),
   usedShipIds = new Set(),
   fetchImpl = fetch,
+  mode = 'normal',
+  simulate = null,
+  moduleFallbacks = {},
+  weaponUpgradeGroups = null,
+  weaponGroups = null,
 } = {}) {
   const target = await pickRaceTarget({
-    manifest, mode: 'standard', usedKillIds, usedShipIds, fetchImpl,
+    manifest, mode: mode === 'audit' ? 'audit' : 'standard', usedKillIds, usedShipIds, fetchImpl,
   });
   const ship = (catalog || []).find((entry) => Number(entry.id) === Number(target.shipId));
   if (!ship) throw new KbUnavailableError('target hull missing from catalog');
+  const simulated = simulate ? await simulate(ship, target) : {};
   const built = buildClues({
     ship,
     catalog,
@@ -175,7 +181,12 @@ export async function pickDealerRound({
     dateKey: `mp:${target.killId}`,
     dataVersion: manifest?.clueVersion || 'mp',
     targetKillId: target.killId,
-    mode: 'normal',
+    mode,
+    fittedAttrs: simulated.fittedAttrs || null,
+    baselineAttrs: simulated.baselineAttrs || null,
+    moduleFallbacks,
+    weaponUpgradeGroups: weaponUpgradeGroups || manifest?.weaponUpgradeGroups || null,
+    weaponGroups: weaponGroups || manifest?.weaponGroups || null,
   });
   const clues = built.clues.map((clue, index) => {
     const entry = ship.bonusEntries?.[clue.v];
