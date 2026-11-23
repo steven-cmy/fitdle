@@ -32,7 +32,7 @@ export function weightPips(weight, t = (key) => key) {
   const numeric = Number(weight) || 0;
   const lit = numeric <= 0 ? 0 : Math.max(1, Math.min(5, Math.ceil(numeric / 2)));
   const shown = String(Number(numeric.toFixed(2)));
-  return `<span class="weight${numeric <= 0 ? ' is-zero' : ''}" title="${esc(t('dossier.signal'))} ${esc(shown)}/10" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
+  return `<span class="weight${numeric <= 0 ? ' is-zero' : ''}" data-tip="${esc(t('dossier.signal'))} ${esc(shown)}/10" tabindex="0" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 
 export function clueLabel(clue, t = (key) => key) {
@@ -157,7 +157,7 @@ function renderModuleLine(clue, ctx) {
     <span class="module-icon">${icon(SLOT_ICON[slot] || 'target')}</span>
     <span class="module-line-body">
       <span class="module-line-name">${esc(moduleName(clue, refs, locale))}</span>
-      ${tags.map((tag) => `<span class="badge-hull badge-${esc(tag)}" title="${esc(t(`dossier.${tag}`))}">${esc(t(`dossier.${tag}`))}</span>`).join('')}
+      ${tags.map((tag) => `<span class="badge-hull badge-${esc(tag)}" data-tip="${esc(t(`dossier.${tag}`))}" tabindex="0" aria-label="${esc(t(`dossier.${tag}`))}">${esc(t(`dossier.${tag}`))}</span>`).join('')}
     </span>
     <span class="module-count">×${esc(int(clue.v?.count))}</span>
   </span>`;

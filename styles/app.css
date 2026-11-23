@@ -47,6 +47,35 @@
   font-style: normal;
   font-display: swap;
 }
+/* Faction display faces. Kept local; see assets/fonts/OFL-*.txt. */
+@font-face {
+  font-family: "Cinzel";
+  src: url("../assets/fonts/cinzel-amarr-latin.woff2") format("woff2");
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Iceberg";
+  src: url("../assets/fonts/iceberg-caldari-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Afacad Flux";
+  src: url("../assets/fonts/afacad-flux-gallente-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Space Mono";
+  src: url("../assets/fonts/space-mono-minmatar-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   --bg: #04070b;
@@ -67,6 +96,7 @@
   --amber: #f2a63b;
   --amber-soft: rgba(242, 166, 59, 0.12);
   --amber-deep: #7a4a11;
+  --manual-heading: #f2a63b;
   --green: #9bd45a;
   --green-soft: rgba(155, 212, 90, 0.13);
   --red: #e86b63;
@@ -77,6 +107,10 @@
   --font-eve-new-display: "Eve Sans Neue Condensed", "Eve Sans Neue", var(--font-sans-fallback);
   --font-eve-old: "EveSans", var(--font-sans-fallback);
   --font-triglavian: "Triglavian", var(--font-sans-fallback);
+  --font-amarr: "Cinzel", var(--font-eve-new);
+  --font-caldari: "Iceberg", var(--font-eve-new);
+  --font-gallente: "Afacad Flux", var(--font-eve-new);
+  --font-minmatar: "Space Mono", var(--font-eve-new);
   --font-ui: var(--font-eve-new);
   --font-base: var(--font-ui);
   --font-display: var(--font-ui);
@@ -129,6 +163,7 @@ html[data-theme="triglavian"] {
   --amber: #ffc078;
   --amber-soft: rgba(255, 192, 120, 0.14);
   --amber-deep: #8a3b12;
+  --manual-heading: #ffc078;
   --green: #d7ff9a;
   --green-soft: rgba(215, 255, 154, 0.12);
   --red: #ff5a52;
@@ -988,6 +1023,32 @@ select {
   text-transform: uppercase;
   text-shadow: 0 0 60px rgba(99, 231, 255, 0.12);
 }
+/* Faction display faces: only the four empire factions, by factionID. */
+.hero h1[data-faction="amarr"],
+.zkb-item-link[data-faction="amarr"] {
+  font-family: var(--font-amarr);
+  font-weight: 400;
+}
+.hero h1[data-faction="caldari"],
+.zkb-item-link[data-faction="caldari"] {
+  font-family: var(--font-caldari);
+  font-weight: 400;
+}
+.hero h1[data-faction="gallente"],
+.zkb-item-link[data-faction="gallente"] {
+  font-family: var(--font-gallente);
+  font-weight: 400;
+}
+.hero h1[data-faction="minmatar"],
+.zkb-item-link[data-faction="minmatar"] {
+  font-family: var(--font-minmatar);
+  font-weight: 400;
+}
+html[data-theme="triglavian"] .hero h1[data-faction],
+html[data-theme="triglavian"] .zkb-item-link[data-faction] {
+  font-family: var(--font-ui);
+  font-weight: 700;
+}
 .hero h1 .accent {
   display: block;
   margin-top: 0.16em;
@@ -1474,6 +1535,7 @@ html[data-game-mode="audit"] {
   --cyan-soft: rgba(255, 138, 112, 0.12);
   --amber: #ff9b5e;
   --amber-soft: rgba(255, 155, 94, 0.12);
+  --manual-heading: #ff9b5e;
 }
 @media (max-width: 600px) {
   .mode-bar {
@@ -3975,7 +4037,7 @@ html[data-game-mode="audit"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--amber);
+  color: var(--manual-heading);
   font: 600 0.75rem/1 var(--font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -6120,4 +6182,17 @@ html[data-multiplayer="1"] .attr-row.is-dealer-published {
 }
 .console-side #room-rail {
   margin: 0;
+}
+
+.room-manual.manual-section {
+  max-height: 52vh;
+  overflow: auto;
+}
+.room-manual.manual-section h3 {
+  margin-bottom: 10px;
+}
+.room-manual.manual-section > p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }

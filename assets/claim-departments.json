@@ -8,16 +8,20 @@
           "Recovery hold is full. The claimant's hull is now a navigational hazard with paperwork.",
           "We towed the wreck in. The claimant says it was a different wreck. The tow cable disagrees.",
           "The crane operator signed for the wreck. The crane operator denies owning a pen.",
-          "The salvage auction listed the hull as \"mostly present\". Bidding started at one form."
+          "The salvage auction listed the hull as \"mostly present\". Bidding started at one form.",
+          "The salvage team labeled the wreck \"recoverable\". The wreck has retained counsel.",
+          "Recovery has found the missing hull section. It was filed under \"miscellaneous\"."
         ],
         "debriefs": {
           "won": [
             "Settlement approved. The crane operator has been reassigned to a smaller crane.",
-            "The claim clears. Salvage has invoiced the claimant for the tow, the paperwork, and the tow of the paperwork."
+            "The claim clears. Salvage has invoiced the claimant for the tow, the paperwork, and the tow of the paperwork.",
+            "Approved. The wreck has been recovered, catalogued, and asked to stop appearing in other claims."
           ],
           "lost": [
             "The file is escalated. Salvage has moved the wreck to a secure lot with better locks and worse lighting.",
-            "No approval today. The recovery hold now contains the claim, the wreck, and a second opinion."
+            "No approval today. The recovery hold now contains the claim, the wreck, and a second opinion.",
+            "No approval. Recovery is still looking for the part of the claim that was not salvage."
           ]
         }
       },
@@ -28,16 +32,20 @@
           "The hull serial is legible. The claimant's handwriting is not.",
           "Paint, silhouette, and serial number agree. The claimant still wants a second opinion.",
           "The serial number matches the registry. The registry is under investigation for impersonating a registry.",
-          "The claimant provided a photograph of the hull. The photograph is of a different photograph."
+          "The claimant provided a photograph of the hull. The photograph is of a different photograph.",
+          "The hull serial matches the hull. The hull has requested a different serial.",
+          "The claimant supplied the original registry page. The page predates the registry."
         ],
         "debriefs": {
           "won": [
             "Approved. The hull serial number has agreed to stop changing.",
-            "Claim settled. The paint code and the hull now tell the same story, mostly."
+            "Claim settled. The paint code and the hull now tell the same story, mostly.",
+            "Approved. The hull has been verified as itself, subject to itself."
           ],
           "lost": [
             "Escalated. The hull is being compared against every hull it has ever resembled.",
-            "No settlement. The registry has requested a second registry."
+            "No settlement. The registry has requested a second registry.",
+            "No settlement. The registry has requested the hull stop resembling other hulls."
           ]
         }
       },
@@ -48,16 +56,20 @@
           "The loss report arrived before the loss. We are checking the queue order.",
           "The form is complete. The claimant left the ship field blank for privacy.",
           "The intake queue has two positions: \"now\" and \"also now\".",
-          "The loss report was filed under \"confidential\". The ship field was filled with \"confidential\"."
+          "The loss report was filed under \"confidential\". The ship field was filled with \"confidential\".",
+          "The loss report has arrived twice. Intake is treating the second as a sequel.",
+          "The claimant selected \"prefer not to say\" for the ship. The form accepted this as a hull class."
         ],
         "debriefs": {
           "won": [
             "Claim processed. The queue has been informed that it is a queue.",
-            "Approved. The form was complete enough to be considered incomplete in a productive way."
+            "Approved. The form was complete enough to be considered incomplete in a productive way.",
+            "Approved. The claim was received before it was filed, which intake considers early."
           ],
           "lost": [
             "Escalated. Intake has opened a new queue for claims about the first queue.",
-            "No approval. The file is waiting for a clerk who is waiting for the file."
+            "No approval. The file is waiting for a clerk who is waiting for the file.",
+            "No approval. The queue has requested a shorter queue."
           ]
         }
       },
@@ -68,16 +80,20 @@
           "The fitting record is complete. The wreck has filed an objection.",
           "Every slot has a module. The claimant insists the ship was stock.",
           "The fitting record shows six modules. The wreck shows six modules and one apology.",
-          "The claimant says the ship was stock. The stock market disagrees."
+          "The claimant says the ship was stock. The market disagrees.",
+          "The fitting record lists a module the wreck denies owning. The module has retained counsel.",
+          "The ship was stock, according to the claimant, the market, and a third party who was not consulted."
         ],
         "debriefs": {
           "won": [
             "Settlement released. The modules have been returned to the fitting record, where they feel safe.",
-            "Approved. The claim now fits the wreck, with minor adjustments and one missing bolt."
+            "Approved. The claim now fits the wreck, with minor adjustments and one missing bolt.",
+            "Settlement released. The modules have been returned to the record and asked not to comment."
           ],
           "lost": [
             "Escalated. The fitting audit has requested a fitting audit.",
-            "No settlement. The modules are present; their explanation is not."
+            "No settlement. The modules are present; their explanation is not.",
+            "No settlement. The fitting audit has found the fit, but not the reason for it."
           ]
         }
       },
@@ -88,16 +104,20 @@
           "The wreck is registered under three names and one complaint.",
           "Fragment 04 is missing. The claimant has offered a replacement fragment.",
           "The wreck has been assigned a new fragment number. The old fragment number has appealed.",
-          "The registry photo shows the wreck from an angle the wreck denies."
+          "The registry photo shows the wreck from an angle the wreck denies.",
+          "The wreck registry has assigned the wreck a new name. The wreck prefers the old one.",
+          "Fragment 04 has been found again, this time inside fragment 05."
         ],
         "debriefs": {
           "won": [
             "Approved. The wreck has been registered as itself, pending review by itself.",
-            "Claim settled. Fragment 04 has been located and has requested anonymity."
+            "Claim settled. Fragment 04 has been located and has requested anonymity.",
+            "Approved. Fragment 04 has been located, questioned, and released."
           ],
           "lost": [
             "Escalated. The wreck is registered under a name that is also a complaint.",
-            "No approval. The registry is waiting for the wreck to sign for the wreck."
+            "No approval. The registry is waiting for the wreck to sign for the wreck.",
+            "No approval. The registry is waiting for the wreck to confirm it is the wreck."
           ]
         }
       },
@@ -108,16 +128,20 @@
           "The cargo manifest lists one container. The hold contains a philosophical silence.",
           "The container count is correct. The containers are not.",
           "Customs inspected the hold and found a form. The form was not declared.",
-          "The cargo manifest is accurate by weight, volume, and confidence."
+          "The cargo manifest is accurate by weight, volume, and confidence.",
+          "The cargo hold contains one container and a second opinion.",
+          "The manifest lists the container as empty. The container has declined to comment."
         ],
         "debriefs": {
           "won": [
             "Settlement released. The container count has been reconciled with the containers, this time.",
-            "Approved. The philosophical silence has been valued and taxed."
+            "Approved. The philosophical silence has been valued and taxed.",
+            "Approved. The container has been opened, valued, and asked to leave."
           ],
           "lost": [
             "Escalated. Cargo has opened the container and found a smaller container.",
-            "No settlement. The cargo is correct; the cargo hold is a different question."
+            "No settlement. The cargo is correct; the cargo hold is a different question.",
+            "No settlement. The hold is full; the manifest is fuller."
           ]
         }
       },
@@ -128,16 +152,20 @@
           "Both parties agree on the hull. They disagree on which hull.",
           "The appeal is denied. The appeal of the appeal is under review.",
           "The mediator has declared both parties correct and adjourned for lunch.",
-          "The appeal has been appealed. The second appeal has requested an appeal."
+          "The appeal has been appealed. The second appeal has requested an appeal.",
+          "The hearing has been postponed because the hearing could not agree on a time.",
+          "Both parties have accepted the settlement. Both parties have also appealed it."
         ],
         "debriefs": {
           "won": [
             "Approved. Both parties have agreed to accept the settlement, separately.",
-            "Settlement released. The arbitration board has ruled that the ruling stands, for now."
+            "Settlement released. The arbitration board has ruled that the ruling stands, for now.",
+            "Approved. Arbitration has ruled that the ruling is the ruling."
           ],
           "lost": [
             "Escalated. The appeal is now older than the claim.",
-            "No approval. Arbitration has scheduled a hearing about scheduling hearings."
+            "No approval. Arbitration has scheduled a hearing about scheduling hearings.",
+            "No approval. The appeal has requested an extension of the appeal."
           ]
         }
       },
@@ -148,16 +176,20 @@
           "The stamp is valid. The ink is not approved.",
           "Form SCC-9 is missing. Form SCC-9 is also the form that reports missing forms.",
           "The form was filed in triplicate. All three copies deny being the original.",
-          "The compliance desk has approved the approval. The approval is pending approval."
+          "The compliance desk has approved the approval. The approval is pending approval.",
+          "The SCC stamp is present. The authority to use the stamp is missing.",
+          "The compliance desk has approved its own approval, pending approval."
         ],
         "debriefs": {
           "won": [
             "Approved. The stamp has been stamped and the ink has been forgiven.",
-            "Settlement released. SCC-9 has been filed under \"missing, but correctly\"."
+            "Settlement released. SCC-9 has been filed under \"missing, but correctly\".",
+            "Approved. The missing form has been filed as missing."
           ],
           "lost": [
             "Escalated. Compliance has requested the form that authorizes the missing form.",
-            "No settlement. The ink is still not approved."
+            "No settlement. The ink is still not approved.",
+            "No settlement. The ink is still awaiting a signature it does not need."
           ]
         }
       },
@@ -167,17 +199,21 @@
         "memos": [
           "Can I bring my Drake?",
           "FC wat do?",
-          "The SRP application includes a loss mail and a strongly worded poem.",
-          "Doctrine says the Drake is fine. The Drake says otherwise."
+          "The SRP application includes a loss report and a strongly worded poem.",
+          "Doctrine says the Drake is fine. The Drake says otherwise.",
+          "The SRP application includes a loss report, a doctrine fit, and a second Drake.",
+          "The FC has approved the reimbursement. The FC is not sure what the reimbursement is for."
         ],
         "debriefs": {
           "won": [
             "Approved. The SRP payout has been approved by someone who was not there.",
-            "Settlement released. The loss mail has been forwarded to everyone and no one."
+            "Settlement released. The loss report has been forwarded to everyone and no one.",
+            "Approved. SRP has replaced the ship with a form."
           ],
           "lost": [
             "Escalated. SRP has denied the claim and requested a Drake.",
-            "No approval. The FC is still asking what to do."
+            "No approval. Still asking the FC what to do.",
+            "No approval. The loss report has been forwarded to the FC, who has forwarded it back."
           ]
         }
       }
@@ -187,19 +223,23 @@
         "id": "salvage",
         "name": "航道打捞司",
         "memos": [
-          "打捞舱已经满了。申请人的舰体现在是一处有完整文书的海航障碍物。",
+          "打捞舱已经满了。申请人的舰体现在是一处附带完整文书的航行障碍物。",
           "我们把残骸拖回来了。申请人说这不是他的残骸。拖缆不同意。",
           "吊车操作员签收了残骸。吊车操作员否认自己有一支笔。",
-          "打捞拍卖把舰体描述为“基本还在”。起拍价是一份表格。"
+          "打捞拍卖把舰体描述为“基本还在”。起拍价是一份表格。",
+          "打捞队把残骸标记为“可回收”。残骸已经请了律师。",
+          "缺失的那段舰体找到了。它被归档在“其他”下面。"
         ],
         "debriefs": {
           "won": [
             "理赔通过。吊车操作员已被调去操作更小的吊车。",
-            "理赔结清。打捞处已向申请人开具拖运、文书以及文书拖运的费用。"
+            "理赔结清。打捞处已向申请人开具拖运、文书以及文书拖运的费用。",
+            "通过。残骸已打捞、登记，并被要求不要再出现在别的理赔案里。"
           ],
           "lost": [
-            "案卷升级。打捞处已把残骸移到一把锁更好、灯更差的仓库。",
-            "今日未通过。回收舱里现在有申请、残骸，以及第二意见。"
+            "案卷升级。打捞处已把残骸移到一处锁更好、灯更差的仓库。",
+            "今日未通过。回收舱里现在有申请、残骸，以及第二意见。",
+            "未通过。打捞处还在找理赔案里没能捞上来的那部分。"
           ]
         }
       },
@@ -210,16 +250,20 @@
           "舰体序列号清晰可读。申请人的字迹不可读。",
           "涂装、轮廓和序列号都一致。申请人仍要求第二个意见。",
           "序列号与登记册一致。登记册目前因冒充登记册接受调查。",
-          "申请人提供了一张舰体照片。照片里拍的是另一张照片。"
+          "申请人提供了一张舰体照片。照片里拍的是另一张照片。",
+          "舰体序列号与舰体一致。舰体申请换一个序列号。",
+          "申请人提交了登记册原件页。该页比登记册本身更早。"
         ],
         "debriefs": {
           "won": [
             "通过。舰体序列号已同意不再变化。",
-            "理赔结清。涂装编号和舰体现在讲的是同一个故事，大致上。"
+            "理赔结清。涂装编号和舰体现在讲的是同一个故事，大致上。",
+            "通过。舰体已被确认是它自己，但仍需它自己复核。"
           ],
           "lost": [
             "升级。正在把舰体与它曾经像过的所有舰体逐一比对。",
-            "未结清。登记册要求再提供一本登记册。"
+            "未结清。登记册要求再提供一本登记册。",
+            "未结清。登记册要求舰体不要再长得像别的舰体。"
           ]
         }
       },
@@ -230,16 +274,20 @@
           "损失报告比损失先到。我们正在核对排队顺序。",
           "表格完整。申请人以隐私为由把舰船一栏留空。",
           "受理队列有两个位置：“现在”和“也是现在”。",
-          "损失报告被归入“机密”。舰船一栏填的是“机密”。"
+          "损失报告被归入“机密”。舰船一栏填的是“机密”。",
+          "损失报告到了两次。受理处把第二份当作续集。",
+          "申请人在舰船一栏选了“不愿透露”。表格把这当成了舰体类别。"
         ],
         "debriefs": {
           "won": [
             "案卷已处理。队列已被告知它是一个队列。",
-            "通过。表格完整到可以被认为是以有成效的方式不完整。"
+            "通过。表格完整到可以被认为是以有成效的方式不完整。",
+            "通过。理赔在提交之前就已被受理，受理处认为这算提前。"
           ],
           "lost": [
             "升级。受理处为第一个队列开了一个新队列。",
-            "未通过。案卷在等一位职员，而那位职员在等案卷。"
+            "未通过。案卷在等一位职员，而那位职员在等案卷。",
+            "未通过。队列要求换一条更短的队列。"
           ]
         }
       },
@@ -250,16 +298,20 @@
           "装配记录完整。残骸对此提出异议。",
           "每个槽位都有装备。申请人坚持说这是原厂状态。",
           "装配记录显示六个模块。残骸显示六个模块和一句道歉。",
-          "申请人说舰船是原厂状态。市场不同意。"
+          "申请人说舰船是原厂状态。市场不同意。",
+          "装配记录列出了一个残骸否认拥有的模块。模块已经请了律师。",
+          "申请人、市场，以及一位没被咨询的第三方，都认为这艘船是原厂状态。"
         ],
         "debriefs": {
           "won": [
             "理赔放款。模块已送回装配记录，它们在那里感到安全。",
-            "通过。理赔现在与残骸基本吻合，少了一颗螺栓。"
+            "通过。理赔现在与残骸基本吻合，少了一颗螺栓。",
+            "理赔款已放行。模块已被送回装配记录，并被要求不要发表意见。"
           ],
           "lost": [
             "升级。装配审计处要求进行一次装配审计。",
-            "未结清。模块都在；解释不在。"
+            "未结清。模块都在；解释不在。",
+            "未结清。装配审计找到了装配，但没找到理由。"
           ]
         }
       },
@@ -270,16 +322,20 @@
           "这份残骸登记在三个名字和一份投诉之下。",
           "四号碎片缺失。申请人提出用一块替代碎片补上。",
           "残骸被分配了新的碎片编号。旧编号已提出申诉。",
-          "登记照展示了残骸的一个角度，残骸否认该角度存在。"
+          "登记照展示了残骸的一个角度，残骸否认该角度存在。",
+          "残骸登记处给残骸分配了新名字。残骸更喜欢旧的。",
+          "四号碎片又找到了，这次是在五号碎片里面。"
         ],
         "debriefs": {
           "won": [
             "通过。残骸已登记为它自己，等待它自己复核。",
-            "理赔结清。四号碎片已找到，并申请匿名。"
+            "理赔结清。四号碎片已找到，并申请匿名。",
+            "通过。四号碎片已被找到、询问并释放。"
           ],
           "lost": [
             "升级。残骸登记在一个名字下，而那个名字也是一份投诉。",
-            "未通过。登记处正等残骸签收残骸。"
+            "未通过。登记处正等残骸签收残骸。",
+            "未通过。登记处正在等残骸确认自己就是残骸。"
           ]
         }
       },
@@ -290,16 +346,20 @@
           "货舱清单写着一件集装箱。货舱里只有一段意味深长的沉默。",
           "集装箱数量正确。集装箱不正确。",
           "海关检查货舱，发现一份表格。表格未申报。",
-          "货舱清单在重量、体积和信心上都准确。"
+          "货舱清单在重量、体积和信心上都准确。",
+          "货舱里有一个集装箱，以及第二意见。",
+          "清单申报集装箱是空的。集装箱拒绝置评。"
         ],
         "debriefs": {
           "won": [
             "理赔放款。集装箱数量已与集装箱重新核对，这次对上了。",
-            "通过。那段意味深长的沉默已被估值并征税。"
+            "通过。那段意味深长的沉默已被估值并征税。",
+            "通过。集装箱已被打开、估值，并被请了出去。"
           ],
           "lost": [
             "升级。货舱科打开集装箱，发现里面还有一个更小的集装箱。",
-            "未结清。货物没问题；货舱是另一个问题。"
+            "未结清。货物没问题；货舱是另一个问题。",
+            "未结清。货舱是满的；清单更满。"
           ]
         }
       },
@@ -310,16 +370,20 @@
           "双方都同意舰体。他们只是不同意是哪一艘。",
           "申诉被驳回。对驳回的申诉正在复核。",
           "调解员宣布双方都对，然后休庭吃午饭。",
-          "申诉被申诉了。第二次申诉要求再申诉。"
+          "申诉被申诉了。第二次申诉要求再申诉。",
+          "听证会延期了，因为听证会无法就时间达成一致。",
+          "双方都接受了和解。双方也都对和解提起了申诉。"
         ],
         "debriefs": {
           "won": [
             "通过。双方分别同意接受和解。",
-            "理赔放款。仲裁委员会裁定原裁定有效，暂时。"
+            "理赔放款。仲裁委员会裁定原裁定有效，暂时。",
+            "通过。仲裁委员会裁定该裁定就是裁定。"
           ],
           "lost": [
             "升级。申诉现在比理赔还老。",
-            "未通过。仲裁委员会已安排一场关于如何安排听证的听证。"
+            "未通过。仲裁委员会已安排一场关于如何安排听证的听证。",
+            "未通过。申诉方要求延长申诉。"
           ]
         }
       },
@@ -330,16 +394,20 @@
           "印章有效。印泥未获批准。",
           "缺少 SCC-9 表格。SCC-9 表格本身正是用来申报缺少表格的表格。",
           "表格一式三份提交。三份都否认自己是原件。",
-          "合规科已批准该批准。该批准尚待批准。"
+          "合规科已批准该批准。该批准尚待批准。",
+          "SCC 印章在。使用印章的授权不在。",
+          "合规科批准了自己的批准，该批准仍待批准。"
         ],
         "debriefs": {
           "won": [
             "通过。印章已盖章，印泥已获宽恕。",
-            "理赔放款。SCC-9 已按“缺失，但填写正确”归档。"
+            "理赔放款。SCC-9 已按“缺失，但填写正确”归档。",
+            "通过。缺失的表格已按“缺失”归档。"
           ],
           "lost": [
             "升级。合规科要求提供授权缺失表格的那份表格。",
-            "未结清。印泥仍未获批准。"
+            "未结清。印泥仍未获批准。",
+            "未结清。印泥还在等一个它并不需要的签名。"
           ]
         }
       },
@@ -349,17 +417,21 @@
         "memos": [
           "Can I bring my Drake?",
           "FC wat do?",
-          "SRP 申请附了一封损失邮件和一首措辞强烈的诗。",
-          "理论上 Drake 没问题。Drake 说不是。"
+          "SRP 申请附了一份损失报告和一首措辞强烈的诗。",
+          "制式配置认为幼龙没问题。幼龙说不是。",
+          "SRP 申请附了一份损失报告、一套制式装配，以及第二艘幼龙。",
+          "FC 已批准补损。FC 不确定补的是什么。"
         ],
         "debriefs": {
           "won": [
             "通过。SRP 赔付已由一位不在场的人批准。",
-            "理赔放款。损失邮件已转发给所有人，也转发给没有人。"
+            "理赔放款。损失报告已转发给所有人，也转发给没有人。",
+            "通过。SRP 用一张表格替代了那艘船。"
           ],
           "lost": [
-            "升级。SRP 驳回了申请，并索要一艘 Drake。",
-            "未通过。FC 仍在问该怎么办。"
+            "升级。SRP 驳回了申请，并索要一艘幼龙。",
+            "未通过。仍在问FC该怎么办。",
+            "未通过。损失报告被转给了 FC，FC 又把它转了回来。"
           ]
         }
       }
@@ -372,16 +444,20 @@
           "Die Bergungsluke ist voll. Der Rumpf des Antragstellers ist jetzt ein Navigationshindernis mit Aktenzeichen.",
           "Wir haben das Wrack abgeschleppt. Der Antragsteller sagt, es sei ein anderes Wrack. Das Abschleppseil widerspricht.",
           "Der Kranführer hat das Wrack abgezeichnet. Der Kranführer bestreitet, einen Stift zu besitzen.",
-          "Die Bergungsauktion beschrieb den Rumpf als „größtenteils vorhanden“. Das Startgebot war ein Formular."
+          "Die Bergungsauktion beschrieb den Rumpf als „größtenteils vorhanden“. Das Startgebot war ein Formular.",
+          "Das Bergungsteam hat das Wrack als „bergbar“ eingestuft. Das Wrack hat einen Anwalt genommen.",
+          "Der fehlende Rumpfabschnitt wurde gefunden. Er war unter „Sonstiges“ abgelegt."
         ],
         "debriefs": {
           "won": [
             "Abrechnung freigegeben. Der Kranführer wurde einem kleineren Kran zugewiesen.",
-            "Anspruch beglichen. Die Bergung hat dem Antragsteller Abschleppen, Papierkram und das Abschleppen des Papierkrams berechnet."
+            "Anspruch beglichen. Die Bergung hat dem Antragsteller Abschleppen, Papierkram und das Abschleppen des Papierkrams berechnet.",
+            "Genehmigt. Das Wrack wurde geborgen, erfasst und gebeten, nicht in weiteren Schadensfällen aufzutauchen."
           ],
           "lost": [
             "Akte eskaliert. Die Bergung hat das Wrack auf ein Gelände mit besseren Schlössern und schlechterer Beleuchtung gebracht.",
-            "Heute keine Freigabe. Die Bergungsluke enthält jetzt den Antrag, das Wrack und eine zweite Meinung."
+            "Heute keine Freigabe. Die Bergungsluke enthält jetzt den Antrag, das Wrack und eine zweite Meinung.",
+            "Keine Freigabe. Die Bergung sucht noch den Teil des Antrags, der nicht geborgen werden konnte."
           ]
         }
       },
@@ -392,16 +468,20 @@
           "Die Rumpfseriennummer ist lesbar. Die Handschrift des Antragstellers nicht.",
           "Lack, Silhouette und Seriennummer stimmen überein. Der Antragsteller möchte trotzdem eine zweite Meinung.",
           "Die Seriennummer stimmt mit dem Register überein. Das Register wird derzeit wegen Identitätsdiebstahls an einem Register untersucht.",
-          "Der Antragsteller reichte ein Foto des Rumpfes ein. Das Foto zeigt ein anderes Foto."
+          "Der Antragsteller reichte ein Foto des Rumpfes ein. Das Foto zeigt ein anderes Foto.",
+          "Die Rumpfseriennummer passt zum Rumpf. Der Rumpf wünscht eine andere Seriennummer.",
+          "Der Antragsteller hat die Originalseite des Registers vorgelegt. Die Seite ist älter als das Register."
         ],
         "debriefs": {
           "won": [
             "Genehmigt. Die Seriennummer des Rumpfes hat zugestimmt, sich nicht mehr zu ändern.",
-            "Anspruch beglichen. Lackcode und Rumpf erzählen jetzt dieselbe Geschichte, ungefähr."
+            "Anspruch beglichen. Lackcode und Rumpf erzählen jetzt dieselbe Geschichte, ungefähr.",
+            "Genehmigt. Der Rumpf wurde als er selbst bestätigt, vorbehaltlich seiner selbst."
           ],
           "lost": [
             "Eskaliert. Der Rumpf wird mit jedem Rumpf verglichen, dem er je geähnelt hat.",
-            "Keine Einigung. Das Register hat ein zweites Register angefordert."
+            "Keine Einigung. Das Register hat ein zweites Register angefordert.",
+            "Kein Vergleich. Das Register bittet den Rumpf, anderen Rümpfen nicht mehr zu ähneln."
           ]
         }
       },
@@ -412,16 +492,20 @@
           "Die Verlustmeldung kam vor dem Verlust an. Wir prüfen die Reihenfolge in der Warteschlange.",
           "Das Formular ist vollständig. Der Antragsteller ließ das Schiffsfeld aus Datenschutzgründen leer.",
           "Die Eingangsschlange hat zwei Positionen: „jetzt“ und „auch jetzt“.",
-          "Die Schadensmeldung wurde unter „vertraulich“ abgelegt. Im Feld für das Schiff stand „vertraulich“."
+          "Die Schadensmeldung wurde unter „vertraulich“ abgelegt. Im Feld für das Schiff stand „vertraulich“.",
+          "Der Verlustbericht ist zweimal eingegangen. Die Annahme behandelt den zweiten als Fortsetzung.",
+          "Der Antragsteller hat beim Schiff „keine Angabe“ gewählt. Das Formular hat das als Schiffsklasse akzeptiert."
         ],
         "debriefs": {
           "won": [
             "Akte bearbeitet. Die Warteschlange wurde darüber informiert, dass sie eine Warteschlange ist.",
-            "Genehmigt. Das Formular war vollständig genug, um auf produktive Weise unvollständig zu sein."
+            "Genehmigt. Das Formular war vollständig genug, um auf produktive Weise unvollständig zu sein.",
+            "Genehmigt. Der Antrag ging vor der Einreichung ein; die Annahme wertet das als früh."
           ],
           "lost": [
             "Eskaliert. Die Aufnahme hat eine neue Warteschlange für Beschwerden über die erste Warteschlange eröffnet.",
-            "Keine Freigabe. Die Akte wartet auf einen Sachbearbeiter, der auf die Akte wartet."
+            "Keine Freigabe. Die Akte wartet auf einen Sachbearbeiter, der auf die Akte wartet.",
+            "Keine Freigabe. Die Warteschlange bittet um eine kürzere Warteschlange."
           ]
         }
       },
@@ -432,16 +516,20 @@
           "Der Fitting-Datensatz ist vollständig. Das Wrack hat Einspruch erhoben.",
           "Jeder Slot hat ein Modul. Der Antragsteller besteht darauf, dass das Schiff serienmäßig war.",
           "Der Fitting-Datensatz zeigt sechs Module. Das Wrack zeigt sechs Module und eine Entschuldigung.",
-          "Der Antragsteller sagt, das Schiff sei serienmäßig. Der Markt widerspricht."
+          "Der Antragsteller sagt, das Schiff sei serienmäßig. Der Markt widerspricht.",
+          "Der Fitting-Eintrag nennt ein Modul, dessen Besitz das Wrack bestreitet. Das Modul hat einen Anwalt genommen.",
+          "Das Schiff war serienmäßig – laut Antragsteller, Markt und einer dritten Partei, die nicht gefragt wurde."
         ],
         "debriefs": {
           "won": [
             "Abrechnung freigegeben. Die Module wurden in den Fitting-Datensatz zurückgebracht, wo sie sich sicher fühlen.",
-            "Genehmigt. Der Anspruch passt jetzt zum Wrack, mit kleinen Anpassungen und einer fehlenden Schraube."
+            "Genehmigt. Der Anspruch passt jetzt zum Wrack, mit kleinen Anpassungen und einer fehlenden Schraube.",
+            "Abrechnung freigegeben. Die Module wurden in den Eintrag zurückgebracht und gebeten, sich nicht zu äußern."
           ],
           "lost": [
             "Eskaliert. Die Fitting-Prüfung hat eine Fitting-Prüfung angefordert.",
-            "Keine Einigung. Die Module sind da; ihre Erklärung nicht."
+            "Keine Einigung. Die Module sind da; ihre Erklärung nicht.",
+            "Kein Vergleich. Die Fitting-Prüfung hat das Fitting gefunden, aber nicht den Grund dafür."
           ]
         }
       },
@@ -452,16 +540,20 @@
           "Das Wrack ist unter drei Namen und einer Beschwerde registriert.",
           "Fragment 04 fehlt. Der Antragsteller hat ein Ersatzfragment angeboten.",
           "Dem Wrack wurde eine neue Fragmentnummer zugewiesen. Die alte Nummer hat Einspruch eingelegt.",
-          "Das Registerfoto zeigt das Wrack aus einem Winkel, den das Wrack bestreitet."
+          "Das Registerfoto zeigt das Wrack aus einem Winkel, den das Wrack bestreitet.",
+          "Das Wrackregister hat dem Wrack einen neuen Namen gegeben. Das Wrack bevorzugt den alten.",
+          "Fragment 04 wurde erneut gefunden, diesmal in Fragment 05."
         ],
         "debriefs": {
           "won": [
             "Genehmigt. Das Wrack wurde als es selbst registriert, vorbehaltlich der Prüfung durch es selbst.",
-            "Anspruch beglichen. Fragment 04 wurde gefunden und bittet um Anonymität."
+            "Anspruch beglichen. Fragment 04 wurde gefunden und bittet um Anonymität.",
+            "Genehmigt. Fragment 04 wurde gefunden, befragt und freigelassen."
           ],
           "lost": [
             "Eskaliert. Das Wrack ist unter einem Namen registriert, der auch eine Beschwerde ist.",
-            "Keine Freigabe. Das Register wartet darauf, dass das Wrack das Wrack abzeichnet."
+            "Keine Freigabe. Das Register wartet darauf, dass das Wrack das Wrack abzeichnet.",
+            "Keine Freigabe. Das Register wartet darauf, dass das Wrack bestätigt, das Wrack zu sein."
           ]
         }
       },
@@ -472,16 +564,20 @@
           "Das Frachtmanifest nennt einen Container. Der Frachtraum enthält ein philosophisches Schweigen.",
           "Die Containerzahl stimmt. Die Container nicht.",
           "Der Zoll prüfte den Frachtraum und fand ein Formular. Das Formular war nicht angemeldet.",
-          "Das Frachtmanifest stimmt nach Gewicht, Volumen und Zuversicht."
+          "Das Frachtmanifest stimmt nach Gewicht, Volumen und Zuversicht.",
+          "Der Frachtraum enthält einen Container und eine zweite Meinung.",
+          "Das Manifest führt den Container als leer. Der Container möchte sich nicht äußern."
         ],
         "debriefs": {
           "won": [
             "Abrechnung freigegeben. Die Containerzahl wurde mit den Containern abgeglichen, diesmal.",
-            "Genehmigt. Das philosophische Schweigen wurde bewertet und besteuert."
+            "Genehmigt. Das philosophische Schweigen wurde bewertet und besteuert.",
+            "Genehmigt. Der Container wurde geöffnet, bewertet und gebeten zu gehen."
           ],
           "lost": [
             "Eskaliert. Die Fracht hat den Container geöffnet und einen kleineren Container gefunden.",
-            "Keine Einigung. Die Fracht stimmt; der Frachtraum ist eine andere Frage."
+            "Keine Einigung. Die Fracht stimmt; der Frachtraum ist eine andere Frage.",
+            "Kein Vergleich. Der Frachtraum ist voll; das Manifest ist voller."
           ]
         }
       },
@@ -492,16 +588,20 @@
           "Beide Parteien sind sich über den Rumpf einig. Nur nicht darüber, welchen.",
           "Der Einspruch wird abgelehnt. Der Einspruch gegen den Einspruch wird geprüft.",
           "Der Schlichter erklärte beide Parteien für richtig und vertagte sich zum Mittagessen.",
-          "Der Einspruch wurde eingelegt. Der zweite Einspruch hat einen Einspruch beantragt."
+          "Der Einspruch wurde eingelegt. Der zweite Einspruch hat einen Einspruch beantragt.",
+          "Die Anhörung wurde verschoben, weil die Anhörung sich nicht auf einen Termin einigen konnte.",
+          "Beide Parteien haben den Vergleich akzeptiert. Beide Parteien haben ihn auch angefochten."
         ],
         "debriefs": {
           "won": [
             "Genehmigt. Beide Parteien haben getrennt zugestimmt, den Vergleich anzunehmen.",
-            "Abrechnung freigegeben. Die Schiedsstelle hat entschieden, dass die Entscheidung vorerst gilt."
+            "Abrechnung freigegeben. Die Schiedsstelle hat entschieden, dass die Entscheidung vorerst gilt.",
+            "Genehmigt. Die Arbitration hat entschieden, dass die Entscheidung die Entscheidung ist."
           ],
           "lost": [
             "Eskaliert. Der Einspruch ist jetzt älter als der Anspruch.",
-            "Keine Freigabe. Die Schiedsstelle hat eine Anhörung über die Anhörungsplanung angesetzt."
+            "Keine Freigabe. Die Schiedsstelle hat eine Anhörung über die Anhörungsplanung angesetzt.",
+            "Keine Freigabe. Der Einspruch hat eine Verlängerung des Einspruchs beantragt."
           ]
         }
       },
@@ -512,16 +612,20 @@
           "Der Stempel ist gültig. Die Tinte ist nicht zugelassen.",
           "Formular SCC-9 fehlt. Formular SCC-9 ist auch das Formular, mit dem fehlende Formulare gemeldet werden.",
           "Das Formular wurde dreifach eingereicht. Alle drei Kopien bestreiten, das Original zu sein.",
-          "Die Compliance-Stelle hat die Genehmigung genehmigt. Die Genehmigung wartet auf Genehmigung."
+          "Die Compliance-Stelle hat die Genehmigung genehmigt. Die Genehmigung wartet auf Genehmigung.",
+          "Der SCC-Stempel ist vorhanden. Die Befugnis, ihn zu verwenden, fehlt.",
+          "Die Compliance-Stelle hat ihre eigene Genehmigung genehmigt, vorbehaltlich der Genehmigung."
         ],
         "debriefs": {
           "won": [
             "Genehmigt. Der Stempel wurde gestempelt und die Tinte begnadigt.",
-            "Abrechnung freigegeben. SCC-9 wurde unter „fehlt, aber korrekt“ abgelegt."
+            "Abrechnung freigegeben. SCC-9 wurde unter „fehlt, aber korrekt“ abgelegt.",
+            "Genehmigt. Das fehlende Formular wurde als fehlend abgelegt."
           ],
           "lost": [
             "Eskaliert. Die Compliance-Stelle hat das Formular angefordert, das das fehlende Formular genehmigt.",
-            "Keine Einigung. Die Tinte ist weiterhin nicht zugelassen."
+            "Keine Einigung. Die Tinte ist weiterhin nicht zugelassen.",
+            "Kein Vergleich. Die Tinte wartet noch auf eine Unterschrift, die sie nicht braucht."
           ]
         }
       },
@@ -531,17 +635,21 @@
         "memos": [
           "Can I bring my Drake?",
           "FC wat do?",
-          "Der SRP-Antrag enthält eine Verlustmail und ein nachdrückliches Gedicht.",
-          "Die Doktrin sagt, der Drake sei in Ordnung. Der Drake sagt etwas anderes."
+          "Der SRP-Antrag enthält einen Verlustbericht und ein nachdrückliches Gedicht.",
+          "Die Doktrin sagt, der Drake sei in Ordnung. Der Drake sagt etwas anderes.",
+          "Der SRP-Antrag enthält einen Verlustbericht, ein Doktrin-Fitting und einen zweiten Drake.",
+          "Der FC hat die Erstattung genehmigt. Der FC ist nicht sicher, wofür die Erstattung ist."
         ],
         "debriefs": {
           "won": [
             "Genehmigt. Die SRP-Auszahlung wurde von jemandem genehmigt, der nicht dabei war.",
-            "Abrechnung freigegeben. Die Verlustmail wurde an alle und an niemanden weitergeleitet."
+            "Abrechnung freigegeben. Der Verlustbericht wurde an alle und an niemanden weitergeleitet.",
+            "Genehmigt. SRP hat das Schiff durch ein Formular ersetzt."
           ],
           "lost": [
             "Eskaliert. SRP hat den Antrag abgelehnt und einen Drake angefordert.",
-            "Keine Freigabe. Der FC fragt immer noch, was zu tun ist."
+            "Keine Freigabe. Man fragt den FC immer noch, was zu tun ist.",
+            "Keine Freigabe. Der Verlustbericht wurde an den FC weitergeleitet, der ihn zurückgeleitet hat."
           ]
         }
       }
@@ -554,16 +662,20 @@
           "La bodega de recuperación está llena. El casco del solicitante es ahora un peligro para la navegación con expediente.",
           "Remolcamos el pecio. El solicitante dice que era otro pecio. El cable de remolque no está de acuerdo.",
           "El operador de la grúa firmó por el pecio. El operador de la grúa niega tener un bolígrafo.",
-          "La subasta de salvamento describió el casco como «en su mayor parte presente». La puja inicial fue un formulario."
+          "La subasta de salvamento describió el casco como «en su mayor parte presente». La puja inicial fue un formulario.",
+          "El equipo de salvamento ha clasificado el pecio como «recuperable». El pecio ha contratado un abogado.",
+          "Se ha encontrado la sección del casco que faltaba. Estaba archivada en «varios»."
         ],
         "debriefs": {
           "won": [
             "Liquidación aprobada. El operador de la grúa ha sido reasignado a una grúa más pequeña.",
-            "Siniestro liquidado. Salvamento ha facturado al solicitante el remolque, el papeleo y el remolque del papeleo."
+            "Siniestro liquidado. Salvamento ha facturado al solicitante el remolque, el papeleo y el remolque del papeleo.",
+            "Aprobado. El pecio ha sido recuperado, catalogado y se le ha pedido que deje de aparecer en otros siniestros."
           ],
           "lost": [
             "Expediente escalado. Salvamento ha trasladado el pecio a un depósito con mejores cerraduras y peor iluminación.",
-            "Sin aprobación hoy. La bodega de recuperación contiene ahora la solicitud, el pecio y una segunda opinión."
+            "Sin aprobación hoy. La bodega de recuperación contiene ahora la solicitud, el pecio y una segunda opinión.",
+            "Sin aprobación. Salvamento sigue buscando la parte del informe que no se pudo recuperar."
           ]
         }
       },
@@ -574,16 +686,20 @@
           "El número de serie del casco es legible. La letra del solicitante no.",
           "Pintura, silueta y número de serie coinciden. El solicitante sigue queriendo una segunda opinión.",
           "El número de serie coincide con el registro. El registro está siendo investigado por hacerse pasar por un registro.",
-          "El solicitante aportó una foto del casco. La foto es de otra foto."
+          "El solicitante aportó una foto del casco. La foto es de otra foto.",
+          "El número de serie del casco coincide con el casco. El casco solicita otro número.",
+          "El solicitante ha presentado la página original del registro. La página es anterior al registro."
         ],
         "debriefs": {
           "won": [
             "Aprobado. El número de serie del casco ha aceptado dejar de cambiar.",
-            "Siniestro liquidado. El código de pintura y el casco cuentan ahora la misma historia, más o menos."
+            "Siniestro liquidado. El código de pintura y el casco cuentan ahora la misma historia, más o menos.",
+            "Aprobado. El casco ha sido verificado como él mismo, a reserva de él mismo."
           ],
           "lost": [
             "Escalado. El casco se compara con todos los cascos a los que se ha parecido alguna vez.",
-            "Sin liquidación. El registro ha solicitado un segundo registro."
+            "Sin liquidación. El registro ha solicitado un segundo registro.",
+            "Sin liquidación. El registro pide al casco que deje de parecerse a otros cascos."
           ]
         }
       },
@@ -594,16 +710,20 @@
           "El informe de pérdida llegó antes que la pérdida. Estamos revisando el orden de la cola.",
           "El formulario está completo. El solicitante dejó el campo de la nave en blanco por privacidad.",
           "La cola de entrada tiene dos posiciones: «ahora» y «también ahora».",
-          "El informe de pérdida se archivó como «confidencial». El campo de la nave decía «confidencial»."
+          "El informe de pérdida se archivó como «confidencial». El campo de la nave decía «confidencial».",
+          "El informe de pérdida ha llegado dos veces. Admisión trata el segundo como una secuela.",
+          "El solicitante eligió «prefiero no decirlo» para la nave. El formulario lo aceptó como clase de casco."
         ],
         "debriefs": {
           "won": [
             "Expediente procesado. Se ha informado a la cola de que es una cola.",
-            "Aprobado. El formulario estaba lo bastante completo para considerarse incompleto de forma productiva."
+            "Aprobado. El formulario estaba lo bastante completo para considerarse incompleto de forma productiva.",
+            "Aprobado. El informe llegó antes de presentarse; Admisión lo considera temprano."
           ],
           "lost": [
             "Escalado. Entrada ha abierto una nueva cola para las reclamaciones sobre la primera cola.",
-            "Sin aprobación. El expediente espera a un funcionario que espera al expediente."
+            "Sin aprobación. El expediente espera a un funcionario que espera al expediente.",
+            "Sin aprobación. La cola ha pedido una cola más corta."
           ]
         }
       },
@@ -614,16 +734,20 @@
           "El registro de ajustes está completo. El pecio ha presentado una objeción.",
           "Cada ranura tiene un módulo. El solicitante insiste en que la nave estaba de serie.",
           "El registro de ajustes muestra seis módulos. El pecio muestra seis módulos y una disculpa.",
-          "El solicitante dice que la nave estaba de serie. El mercado no está de acuerdo."
+          "El solicitante dice que la nave estaba de serie. El mercado no está de acuerdo.",
+          "El registro de ajuste incluye un módulo cuya propiedad niega el pecio. El módulo ha contratado un abogado.",
+          "La nave estaba de serie, según el solicitante, el mercado y un tercero al que no se consultó."
         ],
         "debriefs": {
           "won": [
             "Liquidación liberada. Los módulos han vuelto al registro de ajustes, donde se sienten seguros.",
-            "Aprobado. La reclamación encaja ahora con el pecio, con pequeños ajustes y un tornillo menos."
+            "Aprobado. La reclamación encaja ahora con el pecio, con pequeños ajustes y un tornillo menos.",
+            "Liquidación liberada. Los módulos han vuelto al registro y se les ha pedido que no comenten."
           ],
           "lost": [
             "Escalado. La auditoría de ajustes ha solicitado una auditoría de ajustes.",
-            "Sin liquidación. Los módulos están; su explicación no."
+            "Sin liquidación. Los módulos están; su explicación no.",
+            "Sin liquidación. La auditoría ha encontrado el ajuste, pero no la razón."
           ]
         }
       },
@@ -634,16 +758,20 @@
           "El pecio está registrado con tres nombres y una queja.",
           "Falta el fragmento 04. El solicitante ha ofrecido un fragmento de repuesto.",
           "Al pecio se le ha asignado un nuevo número de fragmento. El número anterior ha apelado.",
-          "La foto del registro muestra el pecio desde un ángulo que el pecio niega."
+          "La foto del registro muestra el pecio desde un ángulo que el pecio niega.",
+          "El registro de pecios ha dado un nombre nuevo al pecio. El pecio prefiere el anterior.",
+          "El fragmento 04 ha vuelto a aparecer, esta vez dentro del fragmento 05."
         ],
         "debriefs": {
           "won": [
             "Aprobado. El pecio ha sido registrado como sí mismo, pendiente de revisión por sí mismo.",
-            "Siniestro liquidado. El fragmento 04 ha sido localizado y solicita anonimato."
+            "Siniestro liquidado. El fragmento 04 ha sido localizado y solicita anonimato.",
+            "Aprobado. El fragmento 04 ha sido localizado, interrogado y puesto en libertad."
           ],
           "lost": [
             "Escalado. El pecio está registrado con un nombre que también es una queja.",
-            "Sin aprobación. El registro espera que el pecio firme por el pecio."
+            "Sin aprobación. El registro espera que el pecio firme por el pecio.",
+            "Sin aprobación. El registro espera que el pecio confirme que es el pecio."
           ]
         }
       },
@@ -654,16 +782,20 @@
           "El manifiesto de carga indica un contenedor. La bodega contiene un silencio filosófico.",
           "El número de contenedores es correcto. Los contenedores no.",
           "Aduanas inspeccionó la bodega y encontró un formulario. El formulario no estaba declarado.",
-          "El manifiesto de carga es exacto en peso, volumen y confianza."
+          "El manifiesto de carga es exacto en peso, volumen y confianza.",
+          "La bodega contiene un contenedor y una segunda opinión.",
+          "El manifiesto declara el contenedor vacío. El contenedor ha declinado comentar."
         ],
         "debriefs": {
           "won": [
             "Liquidación liberada. El número de contenedores se ha conciliado con los contenedores, esta vez.",
-            "Aprobado. El silencio filosófico ha sido valorado y gravado."
+            "Aprobado. El silencio filosófico ha sido valorado y gravado.",
+            "Aprobado. El contenedor ha sido abierto, valorado y invitado a marcharse."
           ],
           "lost": [
             "Escalado. Carga ha abierto el contenedor y ha encontrado un contenedor más pequeño.",
-            "Sin liquidación. La carga es correcta; la bodega es otra cuestión."
+            "Sin liquidación. La carga es correcta; la bodega es otra cuestión.",
+            "Sin liquidación. La bodega está llena; el manifiesto está más lleno."
           ]
         }
       },
@@ -674,16 +806,20 @@
           "Ambas partes están de acuerdo con el casco. No con cuál casco.",
           "La apelación se rechaza. La apelación de la apelación está en revisión.",
           "El mediador declaró correctas a ambas partes y se aplazó para comer.",
-          "La apelación ha sido apelada. La segunda apelación ha solicitado una apelación."
+          "La apelación ha sido apelada. La segunda apelación ha solicitado una apelación.",
+          "La audiencia se ha aplazado porque la audiencia no logró acordar una hora.",
+          "Ambas partes han aceptado el acuerdo. Ambas partes también lo han recurrido."
         ],
         "debriefs": {
           "won": [
             "Aprobado. Ambas partes han aceptado el acuerdo, por separado.",
-            "Liquidación liberada. La junta ha dictaminado que el dictamen se mantiene, por ahora."
+            "Liquidación liberada. La junta ha dictaminado que el dictamen se mantiene, por ahora.",
+            "Aprobado. Arbitraje ha dictaminado que el dictamen es el dictamen."
           ],
           "lost": [
             "Escalado. La apelación es ahora más antigua que la reclamación.",
-            "Sin aprobación. Arbitraje ha programado una audiencia sobre cómo programar audiencias."
+            "Sin aprobación. Arbitraje ha programado una audiencia sobre cómo programar audiencias.",
+            "Sin aprobación. El recurso ha solicitado una prórroga del recurso."
           ]
         }
       },
@@ -694,16 +830,20 @@
           "El sello es válido. La tinta no está aprobada.",
           "Falta el formulario SCC-9. El formulario SCC-9 también sirve para denunciar formularios que faltan.",
           "El formulario se presentó por triplicado. Las tres copias niegan ser el original.",
-          "La oficina de cumplimiento ha aprobado la aprobación. La aprobación está pendiente de aprobación."
+          "La oficina de cumplimiento ha aprobado la aprobación. La aprobación está pendiente de aprobación.",
+          "El sello del SCC está presente. Falta la autorización para usarlo.",
+          "La oficina de cumplimiento ha aprobado su propia aprobación, pendiente de aprobación."
         ],
         "debriefs": {
           "won": [
             "Aprobado. El sello ha sido sellado y la tinta ha sido perdonada.",
-            "Liquidación liberada. El SCC-9 se ha archivado como «falta, pero correctamente»."
+            "Liquidación liberada. El SCC-9 se ha archivado como «falta, pero correctamente».",
+            "Aprobado. El formulario ausente se ha archivado como ausente."
           ],
           "lost": [
             "Escalado. Cumplimiento ha solicitado el formulario que autoriza el formulario que falta.",
-            "Sin liquidación. La tinta sigue sin aprobación."
+            "Sin liquidación. La tinta sigue sin aprobación.",
+            "Sin liquidación. La tinta sigue esperando una firma que no necesita."
           ]
         }
       },
@@ -713,17 +853,21 @@
         "memos": [
           "Can I bring my Drake?",
           "FC wat do?",
-          "La solicitud de SRP incluye un correo de pérdida y un poema contundente.",
-          "La doctrina dice que el Drake está bien. El Drake dice lo contrario."
+          "La solicitud de SRP incluye un informe de pérdida y un poema contundente.",
+          "La doctrina dice que el Drake está bien. El Drake dice lo contrario.",
+          "La solicitud de SRP incluye un informe de pérdida, un ajuste de doctrina y un segundo Drake.",
+          "El FC ha aprobado el reembolso. El FC no está seguro de para qué es."
         ],
         "debriefs": {
           "won": [
             "Aprobado. El pago de SRP ha sido aprobado por alguien que no estaba allí.",
-            "Liquidación liberada. El correo de pérdida se ha reenviado a todos y a nadie."
+            "Liquidación liberada. El informe de pérdida se ha reenviado a todos y a nadie.",
+            "Aprobado. SRP ha sustituido la nave por un formulario."
           ],
           "lost": [
             "Escalado. SRP ha denegado la solicitud y ha pedido un Drake.",
-            "Sin aprobación. El FC sigue preguntando qué hacer."
+            "Sin aprobación. Seguimos preguntando al FC qué hacer.",
+            "Sin aprobación. El informe de pérdida se ha reenviado al FC, que lo ha devuelto."
           ]
         }
       }
@@ -736,16 +880,20 @@
           "La soute de récupération est pleine. La coque du demandeur est désormais un danger pour la navigation, avec dossier.",
           "Nous avons remorqué l’épave. Le demandeur dit que c’était une autre épave. Le câble de remorquage n’est pas d’accord.",
           "Le grutier a signé pour l’épave. Le grutier nie avoir un stylo.",
-          "La vente de sauvetage a décrit la coque comme « globalement présente ». La mise à prix était un formulaire."
+          "La vente de sauvetage a décrit la coque comme « globalement présente ». La mise à prix était un formulaire.",
+          "L’équipe de récupération a classé l’épave comme « récupérable ». L’épave a pris un avocat.",
+          "La section de coque manquante a été retrouvée. Elle était classée dans « divers »."
         ],
         "debriefs": {
           "won": [
             "Règlement approuvé. Le grutier a été réaffecté à une grue plus petite.",
-            "Sinistre réglé. Le sauvetage a facturé au demandeur le remorquage, la paperasse et le remorquage de la paperasse."
+            "Sinistre réglé. Le sauvetage a facturé au demandeur le remorquage, la paperasse et le remorquage de la paperasse.",
+            "Approuvé. L’épave a été récupérée, inventoriée et priée de cesser d’apparaître dans d’autres sinistres."
           ],
           "lost": [
             "Dossier escaladé. Le sauvetage a déplacé l’épave dans un dépôt avec de meilleures serrures et un pire éclairage.",
-            "Pas d’approbation aujourd’hui. La soute de récupération contient désormais la demande, l’épave et un second avis."
+            "Pas d’approbation aujourd’hui. La soute de récupération contient désormais la demande, l’épave et un second avis.",
+            "Pas d’approbation. La récupération cherche encore la partie du dossier qui n’a pas été récupérée."
           ]
         }
       },
@@ -756,16 +904,20 @@
           "Le numéro de série de la coque est lisible. L’écriture du demandeur ne l’est pas.",
           "Peinture, silhouette et numéro de série concordent. Le demandeur veut quand même un second avis.",
           "Le numéro de série correspond au registre. Le registre fait l’objet d’une enquête pour usurpation d’identité de registre.",
-          "Le demandeur a fourni une photo de la coque. La photo est celle d’une autre photo."
+          "Le demandeur a fourni une photo de la coque. La photo est celle d’une autre photo.",
+          "Le numéro de série de la coque correspond à la coque. La coque demande un autre numéro.",
+          "Le demandeur a fourni la page originale du registre. La page est antérieure au registre."
         ],
         "debriefs": {
           "won": [
             "Approuvé. Le numéro de série de la coque a accepté d’arrêter de changer.",
-            "Sinistre réglé. Le code peinture et la coque racontent maintenant la même histoire, à peu près."
+            "Sinistre réglé. Le code peinture et la coque racontent maintenant la même histoire, à peu près.",
+            "Approuvé. La coque a été vérifiée comme elle-même, sous réserve d’elle-même."
           ],
           "lost": [
             "Escaladé. La coque est comparée à toutes les coques auxquelles elle a ressemblé un jour.",
-            "Pas de règlement. Le registre a demandé un second registre."
+            "Pas de règlement. Le registre a demandé un second registre.",
+            "Pas de règlement. Le registre demande à la coque de cesser de ressembler à d’autres coques."
           ]
         }
       },
@@ -776,16 +928,20 @@
           "Le rapport de perte est arrivé avant la perte. Nous vérifions l’ordre de la file.",
           "Le formulaire est complet. Le demandeur a laissé le champ du vaisseau vide pour raisons de confidentialité.",
           "La file d’entrée a deux positions : « maintenant » et « aussi maintenant ».",
-          "Le rapport de perte a été classé « confidentiel ». Le champ du vaisseau indiquait « confidentiel »."
+          "Le rapport de perte a été classé « confidentiel ». Le champ du vaisseau indiquait « confidentiel ».",
+          "Le rapport de perte est arrivé deux fois. L’accueil traite le second comme une suite.",
+          "Le demandeur a coché « préfère ne pas répondre » pour le vaisseau. Le formulaire l’a accepté comme classe de coque."
         ],
         "debriefs": {
           "won": [
             "Dossier traité. La file a été informée qu’elle était une file.",
-            "Approuvé. Le formulaire était assez complet pour être considéré comme incomplet de façon productive."
+            "Approuvé. Le formulaire était assez complet pour être considéré comme incomplet de façon productive.",
+            "Approuvé. Le dossier est arrivé avant d’être déposé ; l’accueil considère cela comme précoce."
           ],
           "lost": [
             "Escaladé. L’accueil a ouvert une nouvelle file pour les réclamations concernant la première file.",
-            "Pas d’approbation. Le dossier attend un agent qui attend le dossier."
+            "Pas d’approbation. Le dossier attend un agent qui attend le dossier.",
+            "Pas d’approbation. La file d’attente demande une file plus courte."
           ]
         }
       },
@@ -796,16 +952,20 @@
           "Le dossier de fitting est complet. L’épave a déposé une objection.",
           "Chaque emplacement a un module. Le demandeur insiste : le vaisseau était d’origine.",
           "Le dossier de fitting indique six modules. L’épave indique six modules et une excuse.",
-          "Le demandeur affirme que le vaisseau était d’origine. Le marché n’est pas d’accord."
+          "Le demandeur affirme que le vaisseau était d’origine. Le marché n’est pas d’accord.",
+          "Le registre de fitting mentionne un module dont l’épave nie la possession. Le module a pris un avocat.",
+          "Le vaisseau était d’origine, selon le demandeur, le marché et un tiers qu’on n’a pas consulté."
         ],
         "debriefs": {
           "won": [
             "Règlement libéré. Les modules sont retournés au dossier de fitting, où ils se sentent en sécurité.",
-            "Approuvé. La demande correspond maintenant à l’épave, à quelques ajustements et un boulon près."
+            "Approuvé. La demande correspond maintenant à l’épave, à quelques ajustements et un boulon près.",
+            "Règlement libéré. Les modules sont retournés au registre et priés de ne pas commenter."
           ],
           "lost": [
             "Escaladé. L’audit de fitting a demandé un audit de fitting.",
-            "Pas de règlement. Les modules sont là ; leur explication non."
+            "Pas de règlement. Les modules sont là ; leur explication non.",
+            "Pas de règlement. L’audit a trouvé le fitting, mais pas la raison."
           ]
         }
       },
@@ -816,16 +976,20 @@
           "L’épave est enregistrée sous trois noms et une plainte.",
           "Le fragment 04 manque. Le demandeur a proposé un fragment de remplacement.",
           "Un nouveau numéro de fragment a été attribué à l’épave. L’ancien numéro a fait appel.",
-          "La photo du registre montre l’épave sous un angle que l’épave conteste."
+          "La photo du registre montre l’épave sous un angle que l’épave conteste.",
+          "Le registre des épaves a donné un nouveau nom à l’épave. L’épave préfère l’ancien.",
+          "Le fragment 04 a été retrouvé, cette fois dans le fragment 05."
         ],
         "debriefs": {
           "won": [
             "Approuvé. L’épave a été enregistrée comme elle-même, sous réserve de son propre examen.",
-            "Sinistre réglé. Le fragment 04 a été retrouvé et demande l’anonymat."
+            "Sinistre réglé. Le fragment 04 a été retrouvé et demande l’anonymat.",
+            "Approuvé. Le fragment 04 a été localisé, interrogé et relâché."
           ],
           "lost": [
             "Escaladé. L’épave est enregistrée sous un nom qui est aussi une plainte.",
-            "Pas d’approbation. Le registre attend que l’épave signe pour l’épave."
+            "Pas d’approbation. Le registre attend que l’épave signe pour l’épave.",
+            "Pas d’approbation. Le registre attend que l’épave confirme qu’elle est l’épave."
           ]
         }
       },
@@ -836,16 +1000,20 @@
           "Le manifeste de cargaison mentionne un conteneur. La soute contient un silence philosophique.",
           "Le nombre de conteneurs est correct. Les conteneurs ne le sont pas.",
           "Les douanes ont inspecté la soute et trouvé un formulaire. Le formulaire n’était pas déclaré.",
-          "Le manifeste de cargaison est exact en poids, volume et confiance."
+          "Le manifeste de cargaison est exact en poids, volume et confiance.",
+          "La soute contient un conteneur et un deuxième avis.",
+          "Le manifeste déclare le conteneur vide. Le conteneur a refusé de commenter."
         ],
         "debriefs": {
           "won": [
             "Règlement libéré. Le nombre de conteneurs a été rapproché des conteneurs, cette fois.",
-            "Approuvé. Le silence philosophique a été évalué et taxé."
+            "Approuvé. Le silence philosophique a été évalué et taxé.",
+            "Approuvé. Le conteneur a été ouvert, évalué et prié de partir."
           ],
           "lost": [
             "Escaladé. La cargaison a ouvert le conteneur et trouvé un conteneur plus petit.",
-            "Pas de règlement. La cargaison est correcte ; la soute est une autre question."
+            "Pas de règlement. La cargaison est correcte ; la soute est une autre question.",
+            "Pas de règlement. La soute est pleine ; le manifeste est plus plein."
           ]
         }
       },
@@ -856,16 +1024,20 @@
           "Les deux parties sont d’accord sur la coque. Pas sur laquelle.",
           "L’appel est rejeté. L’appel de l’appel est en cours d’examen.",
           "Le médiateur a déclaré les deux parties correctes et a suspendu pour le déjeuner.",
-          "L’appel a été frappé d’appel. Le second appel a demandé un appel."
+          "L’appel a été frappé d’appel. Le second appel a demandé un appel.",
+          "L’audience a été reportée parce que l’audience n’a pas réussi à fixer une heure.",
+          "Les deux parties ont accepté le règlement. Les deux parties l’ont aussi contesté."
         ],
         "debriefs": {
           "won": [
             "Approuvé. Les deux parties ont accepté le règlement, séparément.",
-            "Règlement libéré. La commission a statué que la décision restait valable, pour l’instant."
+            "Règlement libéré. La commission a statué que la décision restait valable, pour l’instant.",
+            "Approuvé. L’arbitrage a statué que la décision était la décision."
           ],
           "lost": [
             "Escaladé. L’appel est désormais plus ancien que la demande.",
-            "Pas d’approbation. L’arbitrage a programmé une audience sur la programmation des audiences."
+            "Pas d’approbation. L’arbitrage a programmé une audience sur la programmation des audiences.",
+            "Pas d’approbation. L’appel a demandé une prolongation de l’appel."
           ]
         }
       },
@@ -876,16 +1048,20 @@
           "Le tampon est valide. L’encre n’est pas homologuée.",
           "Le formulaire SCC-9 manque. Le formulaire SCC-9 sert aussi à signaler les formulaires manquants.",
           "Le formulaire a été déposé en trois exemplaires. Les trois copies nient être l’original.",
-          "Le bureau de conformité a approuvé l’approbation. L’approbation est en attente d’approbation."
+          "Le bureau de conformité a approuvé l’approbation. L’approbation est en attente d’approbation.",
+          "Le tampon du SCC est présent. L’autorisation de l’utiliser manque.",
+          "Le bureau de conformité a approuvé sa propre approbation, en attente d’approbation."
         ],
         "debriefs": {
           "won": [
             "Approuvé. Le tampon a été tamponné et l’encre a été pardonnée.",
-            "Règlement libéré. Le SCC-9 a été classé « manquant, mais correctement »."
+            "Règlement libéré. Le SCC-9 a été classé « manquant, mais correctement ».",
+            "Approuvé. Le formulaire manquant a été classé comme manquant."
           ],
           "lost": [
             "Escaladé. La conformité a demandé le formulaire qui autorise le formulaire manquant.",
-            "Pas de règlement. L’encre n’est toujours pas approuvée."
+            "Pas de règlement. L’encre n’est toujours pas approuvée.",
+            "Pas de règlement. L’encre attend encore une signature dont elle n’a pas besoin."
           ]
         }
       },
@@ -895,17 +1071,21 @@
         "memos": [
           "Can I bring my Drake?",
           "FC wat do?",
-          "La demande SRP comprend un courriel de perte et un poème bien senti.",
-          "La doctrine dit que le Drake va bien. Le Drake dit le contraire."
+          "La demande SRP comprend un rapport de perte et un poème bien senti.",
+          "La doctrine dit que le Drake va bien. Le Drake dit le contraire.",
+          "La demande SRP comprend un rapport de perte, un fitting de doctrine et un deuxième Drake.",
+          "Le FC a approuvé le remboursement. Le FC ne sait pas exactement de quoi il s’agit."
         ],
         "debriefs": {
           "won": [
             "Approuvé. Le paiement SRP a été approuvé par quelqu’un qui n’était pas là.",
-            "Règlement libéré. Le courriel de perte a été transféré à tout le monde et à personne."
+            "Règlement libéré. Le rapport de perte a été transféré à tout le monde et à personne.",
+            "Approuvé. Le SRP a remplacé le vaisseau par un formulaire."
           ],
           "lost": [
             "Escaladé. Le SRP a refusé la demande et réclamé un Drake.",
-            "Pas d’approbation. Le FC demande toujours quoi faire."
+            "Pas d’approbation. On demande toujours au FC quoi faire.",
+            "Pas d’approbation. Le rapport de perte a été transmis au FC, qui l’a renvoyé."
           ]
         }
       }
@@ -918,16 +1098,20 @@
           "回収ハッチは満杯です。申請者の船体は現在、書類付きの航行障害物です。",
           "残骸を曳航しました。申請者は別の残骸だと言います。曳航索は同意しません。",
           "クレーン作業員が残骸の受領書に署名した。作業員はペンを持っていないと主張している。",
-          "救難オークションは船体を「ほぼ存在」と記載した。開始価格は書類一枚だった。"
+          "救難オークションは船体を「ほぼ存在」と記載した。開始価格は書類一枚だった。",
+          "回収班は残骸を「回収可能」と分類した。残骸は弁護士を雇った。",
+          "行方不明だった船体部分が見つかった。「その他」に保管されていた。"
         ],
         "debriefs": {
           "won": [
             "支払承認。クレーン作業員はより小さなクレーンへ異動になった。",
-            "請求確定。救難部は申請者に曳航費、書類費、そして書類の曳航費を請求した。"
+            "請求確定。救難部は申請者に曳航費、書類費、そして書類の曳航費を請求した。",
+            "承認。残骸は回収・目録登録され、他のクレームに登場しないよう求められた。"
           ],
           "lost": [
             "案件は上申。救難部は残骸を、鍵は良いが照明の悪い保管庫へ移した。",
-            "本日は不承認。回収庫には申請書、残骸、そして第二意見が入っている。"
+            "本日は不承認。回収庫には申請書、残骸、そして第二意見が入っている。",
+            "不承認。回収班は、回収できなかったクレーム部分をまだ探している。"
           ]
         }
       },
@@ -938,16 +1122,20 @@
           "船体シリアルは判読できます。申請者の筆跡は判読できません。",
           "塗装、シルエット、シリアルは一致しています。申請者はそれでも第二意見を求めています。",
           "船体シリアルは登記簿と一致した。登記簿は登記簿の偽装容疑で調査中である。",
-          "申請者は船体の写真を提出した。その写真は別の写真の写真だった。"
+          "申請者は船体の写真を提出した。その写真は別の写真の写真だった。",
+          "船体のシリアルは船体と一致している。船体は別のシリアルを希望している。",
+          "申請者は登録簿の原本ページを提出した。そのページは登録簿より古い。"
         ],
         "debriefs": {
           "won": [
             "承認。船体シリアルは今後変化しないことに同意した。",
-            "請求確定。塗装コードと船体は、おおむね同じ話をしている。"
+            "請求確定。塗装コードと船体は、おおむね同じ話をしている。",
+            "承認。船体は船体自身として確認された。ただし船体自身の再確認待ち。"
           ],
           "lost": [
             "上申。船体はこれまで似ていたすべての船体と比較されている。",
-            "未確定。登記簿は第二の登記簿を要求した。"
+            "未確定。登記簿は第二の登記簿を要求した。",
+            "未解決。登録簿は、船体が他の船体に似るのをやめるよう求めている。"
           ]
         }
       },
@@ -958,16 +1146,20 @@
           "損失報告が損失より先に到着しました。順番を確認しています。",
           "書類は完備されています。申請者はプライバシーを理由に船名欄を空欄にしました。",
           "受付待ち行列には「今」と「これも今」の二つの位置がある。",
-          "損失報告は「機密」で分類された。船舶欄には「機密」と書かれていた。"
+          "損失報告は「機密」で分類された。船舶欄には「機密」と書かれていた。",
+          "損失レポートが二度届いた。受付は二通目を続編として扱っている。",
+          "申請者は船名欄で「回答しない」を選んだ。様式はそれを船体クラスとして受理した。"
         ],
         "debriefs": {
           "won": [
             "案件処理完了。待ち行列には、それが待ち行列であると通知された。",
-            "承認。書類は、生産的な意味で不完全と見なせるほど完全だった。"
+            "承認。書類は、生産的な意味で不完全と見なせるほど完全だった。",
+            "承認。クレームは提出前に受理された。受付はこれを早いと評価している。"
           ],
           "lost": [
             "上申。受付は最初の待ち行列に関する苦情用の新しい待ち行列を開いた。",
-            "不承認。案件は書類を待つ担当者を待っている。"
+            "不承認。案件は書類を待つ担当者を待っている。",
+            "不承認。待ち行列は、より短い待ち行列を希望している。"
           ]
         }
       },
@@ -978,16 +1170,20 @@
           "フィッティング記録は完備されています。残骸が異議を申し立てました。",
           "全スロットにモジュールがあります。申請者は純正状態だったと主張しています。",
           "フィッティング記録には六つのモジュールがある。残骸には六つのモジュールと謝罪がある。",
-          "申請者は船が純正だったと言う。市場は同意しない。"
+          "申請者は船が純正だったと言う。市場は同意しない。",
+          "フィッティング記録には、残骸が所有を否定するモジュールがある。モジュールは弁護士を雇った。",
+          "申請者、市場、そして意見を聞かれていない第三者は、船が純正だと述べている。"
         ],
         "debriefs": {
           "won": [
             "支払解放。モジュールはフィッティング記録へ戻され、そこで安心している。",
-            "承認。請求はボルト一本を除いて残骸とほぼ一致した。"
+            "承認。請求はボルト一本を除いて残骸とほぼ一致した。",
+            "支払解放。モジュールは記録に戻され、コメントを控えるよう求められた。"
           ],
           "lost": [
             "上申。フィッティング監査はフィッティング監査を要求した。",
-            "未確定。モジュールはある。説明はない。"
+            "未確定。モジュールはある。説明はない。",
+            "未解決。フィッティング監査はフィッティングを見つけたが、理由は見つけていない。"
           ]
         }
       },
@@ -998,16 +1194,20 @@
           "この残骸は三つの名前と一件の苦情で登録されています。",
           "断片04がありません。申請者は代替断片を提供すると申し出ました。",
           "残骸に新しい断片番号が割り当てられた。旧番号は異議を申し立てた。",
-          "登記写真は残骸がある角度から写しているが、残骸はその角度を否定している。"
+          "登記写真は残骸がある角度から写しているが、残骸はその角度を否定している。",
+          "残骸登録簿は残骸に新しい名前を与えた。残骸は古い名前を好んでいる。",
+          "フラグメント04が再び見つかった。今度はフラグメント05の中から。"
         ],
         "debriefs": {
           "won": [
             "承認。残骸はそれ自身として登記され、それ自身による確認待ちである。",
-            "請求確定。断片04は発見され、匿名を希望している。"
+            "請求確定。断片04は発見され、匿名を希望している。",
+            "承認。フラグメント04は発見され、尋問され、解放された。"
           ],
           "lost": [
             "上申。残骸は苦情でもある名前で登記されている。",
-            "不承認。登記所は残骸が残骸の受領書に署名するのを待っている。"
+            "不承認。登記所は残骸が残骸の受領書に署名するのを待っている。",
+            "不承認。登録簿は、残骸が残骸であることを残骸自身に確認してもらうのを待っている。"
           ]
         }
       },
@@ -1018,16 +1218,20 @@
           "貨物目録にはコンテナ一つとあります。船倉には哲学的な沈黙があります。",
           "コンテナ数は正しい。コンテナは正しくない。",
           "税関が貨物室を検査し、書類を発見した。書類は申告されていなかった。",
-          "貨物目録は重量、容積、自信において正確である。"
+          "貨物目録は重量、容積、自信において正確である。",
+          "貨物室にはコンテナ一つと、第二の意見が入っている。",
+          "マニフェストはコンテナを空と記載している。コンテナはコメントを控えた。"
         ],
         "debriefs": {
           "won": [
             "支払解放。今回はコンテナ数とコンテナが一致した。",
-            "承認。あの哲学的な沈黙は評価され、課税された。"
+            "承認。あの哲学的な沈黙は評価され、課税された。",
+            "承認。コンテナは開封・評価され、退出を求められた。"
           ],
           "lost": [
             "上申。貨物課はコンテナを開け、その中から小さなコンテナを見つけた。",
-            "未確定。貨物は正しい。貨物室は別の話だ。"
+            "未確定。貨物は正しい。貨物室は別の話だ。",
+            "未解決。貨物室はいっぱいだ。マニフェストはもっと満杯だ。"
           ]
         }
       },
@@ -1038,16 +1242,20 @@
           "双方は船体について合意しています。どの船体かは別です。",
           "異議申し立ては却下されました。却下に対する異議申し立てを審査中です。",
           "調停員は双方が正しいと宣言し、昼食のために休廷した。",
-          "異議申し立てが異議申し立てされた。第二の異議は異議を要求した。"
+          "異議申し立てが異議申し立てされた。第二の異議は異議を要求した。",
+          "審理は、審理が時刻で合意できなかったため延期された。",
+          "双方が和解を受け入れた。双方はそれを不服申し立てした。"
         ],
         "debriefs": {
           "won": [
             "承認。双方は別々に和解を受け入れることに同意した。",
-            "支払解放。仲裁委員会は、当面は裁定が有効だと裁定した。"
+            "支払解放。仲裁委員会は、当面は裁定が有効だと裁定した。",
+            "承認。仲裁は、裁定は裁定であると裁定した。"
           ],
           "lost": [
             "上申。異議は請求より古くなった。",
-            "不承認。仲裁は審理の日程調整に関する審理を設定した。"
+            "不承認。仲裁は審理の日程調整に関する審理を設定した。",
+            "不承認。不服申し立てが、不服申し立ての延長を求めた。"
           ]
         }
       },
@@ -1058,16 +1266,20 @@
           "印章は有効です。インクは未承認です。",
           "SCC-9用紙がありません。SCC-9用紙は、用紙不足を届け出るための用紙でもあります。",
           "書類は三部提出された。三部とも原本ではないと主張している。",
-          "コンプライアンス窓口は承認を承認した。承認は承認待ちである。"
+          "コンプライアンス窓口は承認を承認した。承認は承認待ちである。",
+          "SCCの印章はある。それを使う権限がない。",
+          "コンプライアンス窓口は自らの承認を承認した。承認待ちである。"
         ],
         "debriefs": {
           "won": [
             "承認。印章は押印され、インクは許された。",
-            "支払解放。SCC-9は「欠落、ただし正しく」で保管された。"
+            "支払解放。SCC-9は「欠落、ただし正しく」で保管された。",
+            "承認。欠落していた様式は、欠落として保管された。"
           ],
           "lost": [
             "上申。コンプライアンスは欠落書類を許可する書類を要求した。",
-            "未確定。インクはまだ未承認である。"
+            "未確定。インクはまだ未承認である。",
+            "未解決。インクは、必要のない署名をまだ待っている。"
           ]
         }
       },
@@ -1077,17 +1289,21 @@
         "memos": [
           "Can I bring my Drake?",
           "FC wat do?",
-          "SRP申請には損失メールと、力強い詩が添えられている。",
-          "ドクトリンはDrakeは問題ないと言う。Drakeはそうではないと言う。"
+          "SRP申請には損失レポートと、力強い詩が添えられている。",
+          "ドクトリンはドレイクは問題ないと言う。ドレイクはそうではないと言う。",
+          "SRP申請には損失レポート、ドクトリン・フィット、二隻目のドレイクが添えられている。",
+          "FCは補償を承認した。FCは何の補償か確信していない。"
         ],
         "debriefs": {
           "won": [
             "承認。SRP支払はその場にいなかった人物によって承認された。",
-            "支払解放。損失メールは全員に、そして誰にも転送された。"
+            "支払解放。損失レポートは全員に、そして誰にも転送された。",
+            "承認。SRPは船を様式と交換した。"
           ],
           "lost": [
-            "上申。SRPは申請を却下し、Drakeを要求した。",
-            "不承認。FCはまだどうすればいいか尋ねている。"
+            "上申。SRPは申請を却下し、ドレイクを要求した。",
+            "不承認。FCにどうすればいいか聞いているところだ。",
+            "不承認。損失レポートはFCに転送され、FCはそれを送り返した。"
           ]
         }
       }
@@ -1100,16 +1316,20 @@
           "회수창이 가득 찼습니다. 신청자의 선체는 이제 서류가 붙은 항행 장애물입니다.",
           "잔해를 예인했습니다. 신청자는 다른 잔해라고 합니다. 예인 케이블은 동의하지 않습니다.",
           "크레인 기사가 잔해 인수증에 서명했습니다. 크레인 기사는 펜이 없다고 주장합니다.",
-          "구조 경매는 선체를 \"대부분 존재함\"으로 표기했습니다. 시작가는 서류 한 장이었습니다."
+          "구조 경매는 선체를 \"대부분 존재함\"으로 표기했습니다. 시작가는 서류 한 장이었습니다.",
+          "인양팀이 잔해를 \"회수 가능\"으로 분류했습니다. 잔해는 변호사를 선임했습니다.",
+          "사라졌던 선체 부분을 찾았습니다. \"기타\" 항목에 보관되어 있었습니다."
         ],
         "debriefs": {
           "won": [
             "지급 승인. 크레인 기사는 더 작은 크레인으로 재배치되었습니다.",
-            "청구 정산. 구조국은 신청자에게 예인비, 서류비, 그리고 서류 예인비를 청구했습니다."
+            "청구 정산. 구조국은 신청자에게 예인비, 서류비, 그리고 서류 예인비를 청구했습니다.",
+            "승인. 잔해는 회수·목록화되었고, 다른 청구에 등장하지 말라는 요청을 받았습니다."
           ],
           "lost": [
             "사건 상신. 구조국은 잔해를 자물쇠는 더 좋고 조명은 더 나쁜 보관소로 옮겼습니다.",
-            "오늘은 미승인. 회수창에는 신청서, 잔해, 그리고 제2의 의견이 들어 있습니다."
+            "오늘은 미승인. 회수창에는 신청서, 잔해, 그리고 제2의 의견이 들어 있습니다.",
+            "미승인. 인양팀은 회수하지 못한 청구 부분을 아직 찾고 있습니다."
           ]
         }
       },
@@ -1120,16 +1340,20 @@
           "선체 일련번호는 읽을 수 있습니다. 신청자의 필체는 읽을 수 없습니다.",
           "도장, 실루엣, 일련번호가 일치합니다. 신청자는 그래도 재검토를 요구합니다.",
           "선체 일련번호가 등록부와 일치합니다. 등록부는 등록부 사칭 혐의로 조사 중입니다.",
-          "신청자가 선체 사진을 제출했습니다. 그 사진은 다른 사진의 사진입니다."
+          "신청자가 선체 사진을 제출했습니다. 그 사진은 다른 사진의 사진입니다.",
+          "선체 일련번호가 선체와 일치합니다. 선체는 다른 번호를 원합니다.",
+          "신청자가 등록부 원본 페이지를 제출했습니다. 그 페이지는 등록부보다 오래되었습니다."
         ],
         "debriefs": {
           "won": [
             "승인. 선체 일련번호가 더 이상 변하지 않기로 동의했습니다.",
-            "청구 정산. 도장 코드와 선체가 이제 대체로 같은 이야기를 합니다."
+            "청구 정산. 도장 코드와 선체가 이제 대체로 같은 이야기를 합니다.",
+            "승인. 선체는 선체 자신으로 확인되었습니다. 선체 자신의 재확인을 조건으로."
           ],
           "lost": [
             "상신. 선체를 지금까지 닮았던 모든 선체와 비교하고 있습니다.",
-            "미정산. 등록부가 두 번째 등록부를 요청했습니다."
+            "미정산. 등록부가 두 번째 등록부를 요청했습니다.",
+            "미결. 등록부는 선체가 다른 선체와 닮지 않기를 요청했습니다."
           ]
         }
       },
@@ -1140,16 +1364,20 @@
           "손실 보고서가 손실보다 먼저 도착했습니다. 대기 순서를 확인 중입니다.",
           "서식은 완비되었습니다. 신청자는 개인정보를 이유로 선박란을 비워 두었습니다.",
           "접수 대기열에는 \"지금\"과 \"역시 지금\"이라는 두 위치가 있습니다.",
-          "손실 보고서는 \"기밀\"로 분류되었습니다. 선박란에는 \"기밀\"이라고 적혀 있었습니다."
+          "손실 보고서는 \"기밀\"로 분류되었습니다. 선박란에는 \"기밀\"이라고 적혀 있었습니다.",
+          "손실 보고서가 두 번 도착했습니다. 접수처는 두 번째를 속편으로 처리합니다.",
+          "신청자가 선박란에 \"답변하지 않음\"을 선택했습니다. 서식은 이를 선체 등급으로 받아들였습니다."
         ],
         "debriefs": {
           "won": [
             "사건 처리 완료. 대기열은 자신이 대기열이라는 통지를 받았습니다.",
-            "승인. 서류는 생산적인 방식으로 불완전하다고 볼 수 있을 만큼 완전했습니다."
+            "승인. 서류는 생산적인 방식으로 불완전하다고 볼 수 있을 만큼 완전했습니다.",
+            "승인. 청구는 제출되기 전에 접수되었습니다. 접수처는 이를 이르다고 평가합니다."
           ],
           "lost": [
             "상신. 접수처는 첫 번째 대기열에 대한 민원용 새 대기열을 열었습니다.",
-            "미승인. 사건은 사건을 기다리는 직원을 기다리고 있습니다."
+            "미승인. 사건은 사건을 기다리는 직원을 기다리고 있습니다.",
+            "미승인. 대기열이 더 짧은 대기열을 요청했습니다."
           ]
         }
       },
@@ -1160,16 +1388,20 @@
           "피팅 기록은 완비되었습니다. 잔해가 이의를 제기했습니다.",
           "모든 슬롯에 모듈이 있습니다. 신청자는 순정 상태였다고 주장합니다.",
           "피팅 기록에는 모듈 여섯 개가 있습니다. 잔해에는 모듈 여섯 개와 사과 하나가 있습니다.",
-          "신청자는 선박이 순정 상태였다고 합니다. 시장은 동의하지 않습니다."
+          "신청자는 선박이 순정 상태였다고 합니다. 시장은 동의하지 않습니다.",
+          "피팅 기록에 잔해가 소유를 부인하는 모듈이 있습니다. 모듈은 변호사를 선임했습니다.",
+          "신청자, 시장, 그리고 의견을 묻지 않은 제3자는 선박이 순정 상태였다고 말합니다."
         ],
         "debriefs": {
           "won": [
             "지급 해제. 모듈은 피팅 기록으로 돌아갔고, 그곳에서 안전함을 느낍니다.",
-            "승인. 청구는 볼트 하나를 빼고 잔해와 거의 일치합니다."
+            "승인. 청구는 볼트 하나를 빼고 잔해와 거의 일치합니다.",
+            "지급 해제. 모듈은 기록으로 돌아갔고, 논평을 삼가 달라는 요청을 받았습니다."
           ],
           "lost": [
             "상신. 피팅 감사국이 피팅 감사를 요청했습니다.",
-            "미정산. 모듈은 있습니다. 설명은 없습니다."
+            "미정산. 모듈은 있습니다. 설명은 없습니다.",
+            "미결. 피팅 감사는 피팅을 찾았지만 이유는 찾지 못했습니다."
           ]
         }
       },
@@ -1180,16 +1412,20 @@
           "이 잔해는 세 개의 이름과 한 건의 불만으로 등록되어 있습니다.",
           "파편 04가 없습니다. 신청자가 대체 파편을 제공하겠다고 했습니다.",
           "잔해에 새 파편 번호가 부여되었습니다. 이전 번호는 이의를 제기했습니다.",
-          "등록 사진은 잔해가 부인하는 각도에서 잔해를 보여 줍니다."
+          "등록 사진은 잔해가 부인하는 각도에서 잔해를 보여 줍니다.",
+          "잔해 등록부가 잔해에 새 이름을 부여했습니다. 잔해는 예전 이름을 선호합니다.",
+          "파편 04가 다시 발견되었습니다. 이번에는 파편 05 안에서."
         ],
         "debriefs": {
           "won": [
             "승인. 잔해는 자기 자신으로 등록되었으며, 자기 자신의 검토를 기다립니다.",
-            "청구 정산. 파편 04가 발견되었고 익명을 요청했습니다."
+            "청구 정산. 파편 04가 발견되었고 익명을 요청했습니다.",
+            "승인. 파편 04는 발견되고 심문된 뒤 석방되었습니다."
           ],
           "lost": [
             "상신. 잔해는 불만이기도 한 이름으로 등록되어 있습니다.",
-            "미승인. 등록소는 잔해가 잔해 인수증에 서명하기를 기다립니다."
+            "미승인. 등록소는 잔해가 잔해 인수증에 서명하기를 기다립니다.",
+            "미승인. 등록부는 잔해가 잔해임을 스스로 확인해 주기를 기다리고 있습니다."
           ]
         }
       },
@@ -1200,16 +1436,20 @@
           "화물 목록에는 컨테이너 하나가 적혀 있습니다. 화물칸에는 철학적인 침묵이 있습니다.",
           "컨테이너 수는 맞습니다. 컨테이너가 맞지 않습니다.",
           "세관이 화물칸을 검사하고 서류를 발견했습니다. 서류는 신고되지 않았습니다.",
-          "화물 목록은 무게, 부피, 확신 면에서 정확합니다."
+          "화물 목록은 무게, 부피, 확신 면에서 정확합니다.",
+          "화물칸에는 컨테이너 하나와 두 번째 의견이 들어 있습니다.",
+          "매니페스트는 컨테이너를 비어 있다고 기재했습니다. 컨테이너는 논평을 거부했습니다."
         ],
         "debriefs": {
           "won": [
             "지급 해제. 이번에는 컨테이너 수와 컨테이너가 일치했습니다.",
-            "승인. 그 철학적인 침묵은 평가되고 과세되었습니다."
+            "승인. 그 철학적인 침묵은 평가되고 과세되었습니다.",
+            "승인. 컨테이너는 개봉·평가되었고 퇴장을 요청받았습니다."
           ],
           "lost": [
             "상신. 화물과가 컨테이너를 열었더니 더 작은 컨테이너가 나왔습니다.",
-            "미정산. 화물은 맞습니다. 화물칸은 다른 문제입니다."
+            "미정산. 화물은 맞습니다. 화물칸은 다른 문제입니다.",
+            "미결. 화물칸은 가득 찼고, 매니페스트는 더 가득 찼습니다."
           ]
         }
       },
@@ -1220,16 +1460,20 @@
           "양측은 선체에 동의합니다. 어느 선체인지는 동의하지 않습니다.",
           "이의 신청은 기각되었습니다. 기각에 대한 이의 신청을 심사 중입니다.",
           "조정자는 양측이 모두 옳다고 선언하고 점심을 위해 휴정했습니다.",
-          "이의 신청이 이의 신청되었습니다. 두 번째 이의는 이의를 요청했습니다."
+          "이의 신청이 이의 신청되었습니다. 두 번째 이의는 이의를 요청했습니다.",
+          "심리가 시간에 합의하지 못해 연기되었습니다.",
+          "양측이 합의를 수락했습니다. 양측이 합의에 이의를 제기했습니다."
         ],
         "debriefs": {
           "won": [
             "승인. 양측은 각자 합의를 수용하기로 했습니다.",
-            "지급 해제. 중재 위원회는 당분간 결정이 유효하다고 결정했습니다."
+            "지급 해제. 중재 위원회는 당분간 결정이 유효하다고 결정했습니다.",
+            "승인. 중재는 판정이 판정이라고 판정했습니다."
           ],
           "lost": [
             "상신. 이의 신청은 이제 청구보다 오래되었습니다.",
-            "미승인. 중재는 청문 일정에 관한 청문을 잡았습니다."
+            "미승인. 중재는 청문 일정에 관한 청문을 잡았습니다.",
+            "미승인. 이의 제기가 이의 제기의 연장을 요청했습니다."
           ]
         }
       },
@@ -1240,16 +1484,20 @@
           "도장은 유효합니다. 잉크는 승인되지 않았습니다.",
           "SCC-9 서식이 없습니다. SCC-9 서식은 누락된 서식을 신고하는 서식이기도 합니다.",
           "서류는 삼부 제출되었습니다. 세 부 모두 원본이 아니라고 주장합니다.",
-          "컴플라이언스 데스크가 승인을 승인했습니다. 승인은 승인 대기 중입니다."
+          "컴플라이언스 데스크가 승인을 승인했습니다. 승인은 승인 대기 중입니다.",
+          "SCC 도장은 있습니다. 도장을 사용할 권한이 없습니다.",
+          "컴플라이언스 데스크가 자체 승인을 승인했습니다. 승인 대기 중입니다."
         ],
         "debriefs": {
           "won": [
             "승인. 도장은 날인되었고 잉크는 용서받았습니다.",
-            "지급 해제. SCC-9는 \"누락, 그러나 올바름\"으로 보관되었습니다."
+            "지급 해제. SCC-9는 \"누락, 그러나 올바름\"으로 보관되었습니다.",
+            "승인. 누락된 서식은 누락으로 보관되었습니다."
           ],
           "lost": [
             "상신. 컴플라이언스는 누락 서류를 승인하는 서류를 요청했습니다.",
-            "미정산. 잉크는 여전히 미승인입니다."
+            "미정산. 잉크는 여전히 미승인입니다.",
+            "미결. 잉크는 필요하지 않은 서명을 아직 기다리고 있습니다."
           ]
         }
       },
@@ -1259,17 +1507,21 @@
         "memos": [
           "Can I bring my Drake?",
           "FC wat do?",
-          "SRP 신청서에는 손실 메일과 강한 어조의 시가 첨부되어 있습니다.",
-          "교리는 Drake가 괜찮다고 합니다. Drake는 아니라고 합니다."
+          "SRP 신청서에는 손실 보고서와 강한 어조의 시가 첨부되어 있습니다.",
+          "교리는 드레이크가 괜찮다고 합니다. 드레이크는 아니라고 합니다.",
+          "SRP 신청서에는 손실 보고서, 교리 피팅, 두 번째 드레이크가 첨부되어 있습니다.",
+          "FC가 보상을 승인했습니다. FC는 무엇에 대한 보상인지 확신하지 못합니다."
         ],
         "debriefs": {
           "won": [
             "승인. SRP 지급은 그 자리에 없던 사람에 의해 승인되었습니다.",
-            "지급 해제. 손실 메일은 모두에게, 그리고 아무에게도 전달되었습니다."
+            "지급 해제. 손실 보고서는 모두에게, 그리고 아무에게도 전달되었습니다.",
+            "승인. SRP는 선박을 서식으로 대체했습니다."
           ],
           "lost": [
-            "상신. SRP는 신청을 거부하고 Drake를 요구했습니다.",
-            "미승인. FC는 여전히 어떻게 해야 하는지 묻고 있습니다."
+            "상신. SRP는 신청을 거부하고 드레이크를 요구했습니다.",
+            "미승인. 아직 FC에게 어떻게 해야 하는지 묻고 있습니다.",
+            "미승인. 손실 보고서는 FC에게 전달되었고, FC는 그것을 다시 돌려보냈습니다."
           ]
         }
       }
@@ -1282,16 +1534,20 @@
           "Трюм подъёма заполнен. Корпус заявителя теперь навигационная опасность с документами.",
           "Мы отбуксировали обломки. Заявитель говорит, что это другие обломки. Буксировочный трос не согласен.",
           "Крановщик расписался за обломки. Крановщик отрицает наличие ручки.",
-          "Спасательный аукцион описал корпус как «в основном присутствует». Стартовая цена — один бланк."
+          "Спасательный аукцион описал корпус как «в основном присутствует». Стартовая цена — один бланк.",
+          "Спасательная команда отнесла обломки к категории «извлекаемые». Обломки наняли юриста.",
+          "Недостающая часть корпуса найдена. Она хранилась в разделе «прочее»."
         ],
         "debriefs": {
           "won": [
             "Выплата одобрена. Крановщика перевели на кран поменьше.",
-            "Претензия урегулирована. Спасатели выставили заявителю счёт за буксировку, бумаги и буксировку бумаг."
+            "Претензия урегулирована. Спасатели выставили заявителю счёт за буксировку, бумаги и буксировку бумаг.",
+            "Одобрено. Обломки извлечены, внесены в каталог и попрошены не появляться в других требованиях."
           ],
           "lost": [
             "Дело передано выше. Спасатели перевезли обломки на склад с лучшими замками и худшим освещением.",
-            "Сегодня без одобрения. В трюме подъёма теперь заявка, обломки и второе мнение."
+            "Сегодня без одобрения. В трюме подъёма теперь заявка, обломки и второе мнение.",
+            "Без одобрения. Спасатели всё ещё ищут ту часть требования, которую не удалось извлечь."
           ]
         }
       },
@@ -1302,16 +1558,20 @@
           "Серийный номер корпуса читается. Почерк заявителя — нет.",
           "Краска, силуэт и серийный номер совпадают. Заявитель всё равно хочет второе мнение.",
           "Серийный номер совпадает с реестром. Реестр проверяют на выдачу себя за реестр.",
-          "Заявитель прислал фотографию корпуса. На фотографии — другая фотография."
+          "Заявитель прислал фотографию корпуса. На фотографии — другая фотография.",
+          "Серийный номер корпуса совпадает с корпусом. Корпус требует другой номер.",
+          "Заявитель предоставил оригинальную страницу реестра. Страница старше реестра."
         ],
         "debriefs": {
           "won": [
             "Одобрено. Серийный номер корпуса согласился больше не меняться.",
-            "Претензия урегулирована. Код краски и корпус теперь рассказывают одну и ту же историю, примерно."
+            "Претензия урегулирована. Код краски и корпус теперь рассказывают одну и ту же историю, примерно.",
+            "Одобрено. Корпус подтверждён как сам корпус, при условии повторного подтверждения корпусом."
           ],
           "lost": [
             "Передано выше. Корпус сравнивают со всеми корпусами, на которые он когда-либо был похож.",
-            "Без урегулирования. Реестр запросил второй реестр."
+            "Без урегулирования. Реестр запросил второй реестр.",
+            "Без урегулирования. Реестр просит корпус перестать быть похожим на другие корпуса."
           ]
         }
       },
@@ -1322,16 +1582,20 @@
           "Отчёт об убытке прибыл раньше убытка. Проверяем порядок очереди.",
           "Форма заполнена полностью. Заявитель оставил поле корабля пустым из соображений приватности.",
           "В очереди приёма две позиции: «сейчас» и «тоже сейчас».",
-          "Отчёт об убытке отнесли к «конфиденциально». В графе корабля было написано «конфиденциально»."
+          "Отчёт об убытке отнесли к «конфиденциально». В графе корабля было написано «конфиденциально».",
+          "Отчёт о потере поступил дважды. Приёмная считает второй продолжением.",
+          "Заявитель выбрал «предпочитаю не отвечать» в поле корабля. Форма приняла это за класс корпуса."
         ],
         "debriefs": {
           "won": [
             "Дело обработано. Очередь уведомили, что она очередь.",
-            "Одобрено. Бланк был достаточно заполнен, чтобы считаться продуктивно незаполненным."
+            "Одобрено. Бланк был достаточно заполнен, чтобы считаться продуктивно незаполненным.",
+            "Одобрено. Требование поступило до подачи; приёмная считает это ранним."
           ],
           "lost": [
             "Передано выше. Приём открыл новую очередь для жалоб на первую очередь.",
-            "Без одобрения. Дело ждёт клерка, который ждёт дело."
+            "Без одобрения. Дело ждёт клерка, который ждёт дело.",
+            "Без одобрения. Очередь попросила очередь покороче."
           ]
         }
       },
@@ -1342,16 +1606,20 @@
           "Запись оснастки полная. Обломки подали возражение.",
           "В каждом слоте есть модуль. Заявитель настаивает, что корабль был заводским.",
           "В записи оснастки шесть модулей. На обломках шесть модулей и одно извинение.",
-          "Заявитель говорит, что корабль был заводским. Рынок не согласен."
+          "Заявитель говорит, что корабль был заводским. Рынок не согласен.",
+          "В записи фитинга указан модуль, принадлежность которого обломки отрицают. Модуль нанял юриста.",
+          "Корабль был заводским, по словам заявителя, рынка и третьей стороны, которую не спросили."
         ],
         "debriefs": {
           "won": [
             "Выплата освобождена. Модули вернулись в запись оснастки, где чувствуют себя в безопасности.",
-            "Одобрено. Претензия теперь соответствует обломкам, кроме одного болта."
+            "Одобрено. Претензия теперь соответствует обломкам, кроме одного болта.",
+            "Выплата освобождена. Модули возвращены в запись и попрошены не комментировать."
           ],
           "lost": [
             "Передано выше. Аудит оснастки запросил аудит оснастки.",
-            "Без урегулирования. Модули есть; объяснения нет."
+            "Без урегулирования. Модули есть; объяснения нет.",
+            "Без урегулирования. Аудит нашёл фитинг, но не причину."
           ]
         }
       },
@@ -1362,16 +1630,20 @@
           "Эти обломки зарегистрированы под тремя именами и одной жалобой.",
           "Фрагмент 04 отсутствует. Заявитель предложил запасной фрагмент.",
           "Обломкам присвоили новый номер фрагмента. Старый номер подал апелляцию.",
-          "Фото реестра показывает обломки под углом, который обломки отрицают."
+          "Фото реестра показывает обломки под углом, который обломки отрицают.",
+          "Реестр обломков дал обломкам новое имя. Обломки предпочитают старое.",
+          "Фрагмент 04 снова найден. На этот раз внутри фрагмента 05."
         ],
         "debriefs": {
           "won": [
             "Одобрено. Обломки зарегистрированы как сами себя, ожидая собственной проверки.",
-            "Претензия урегулирована. Фрагмент 04 найден и просит анонимности."
+            "Претензия урегулирована. Фрагмент 04 найден и просит анонимности.",
+            "Одобрено. Фрагмент 04 найден, допрошен и отпущен."
           ],
           "lost": [
             "Передано выше. Обломки зарегистрированы под именем, которое также является жалобой.",
-            "Без одобрения. Реестр ждёт, когда обломки распишутся за обломки."
+            "Без одобрения. Реестр ждёт, когда обломки распишутся за обломки.",
+            "Без одобрения. Реестр ждёт, когда обломки подтвердят, что они обломки."
           ]
         }
       },
@@ -1382,16 +1654,20 @@
           "В грузовом манифесте один контейнер. В трюме философское молчание.",
           "Количество контейнеров верное. Контейнеры — нет.",
           "Таможня осмотрела трюм и нашла бланк. Бланк не был задекларирован.",
-          "Грузовой манифест точен по весу, объёму и уверенности."
+          "Грузовой манифест точен по весу, объёму и уверенности.",
+          "В трюме находится один контейнер и второе мнение.",
+          "Манифест указывает, что контейнер пуст. Контейнер отказался от комментариев."
         ],
         "debriefs": {
           "won": [
             "Выплата освобождена. Количество контейнеров сверили с контейнерами, на этот раз.",
-            "Одобрено. Философское молчание оценили и обложили налогом."
+            "Одобрено. Философское молчание оценили и обложили налогом.",
+            "Одобрено. Контейнер вскрыт, оценён и попрошен удалиться."
           ],
           "lost": [
             "Передано выше. Грузовой отдел открыл контейнер и нашёл контейнер поменьше.",
-            "Без урегулирования. Груз верен; трюм — другой вопрос."
+            "Без урегулирования. Груз верен; трюм — другой вопрос.",
+            "Без урегулирования. Трюм полон; манифест ещё полнее."
           ]
         }
       },
@@ -1402,16 +1678,20 @@
           "Обе стороны согласны насчёт корпуса. Но не насчёт того, какого.",
           "Апелляция отклонена. Апелляция на отклонение рассматривается.",
           "Посредник объявил обе стороны правыми и объявил перерыв на обед.",
-          "Апелляцию обжаловали. Вторая апелляция запросила апелляцию."
+          "Апелляцию обжаловали. Вторая апелляция запросила апелляцию.",
+          "Слушание отложено, потому что слушание не смогло договориться о времени.",
+          "Обе стороны приняли урегулирование. Обе стороны также его обжаловали."
         ],
         "debriefs": {
           "won": [
             "Одобрено. Обе стороны согласились принять урегулирование, по отдельности.",
-            "Выплата освобождена. Комиссия постановила, что постановление действует, пока что."
+            "Выплата освобождена. Комиссия постановила, что постановление действует, пока что.",
+            "Одобрено. Арбитраж постановил, что решение является решением."
           ],
           "lost": [
             "Передано выше. Апелляция теперь старше претензии.",
-            "Без одобрения. Арбитраж назначил слушание о планировании слушаний."
+            "Без одобрения. Арбитраж назначил слушание о планировании слушаний.",
+            "Без одобрения. Апелляция запросила продление апелляции."
           ]
         }
       },
@@ -1422,16 +1702,20 @@
           "Печать действительна. Чернила не одобрены.",
           "Форма SCC-9 отсутствует. Форма SCC-9 также служит для сообщений об отсутствующих формах.",
           "Бланк подан в трёх экземплярах. Все три копии отрицают, что они оригинал.",
-          "Отдел соответствия одобрил одобрение. Одобрение ожидает одобрения."
+          "Отдел соответствия одобрил одобрение. Одобрение ожидает одобрения.",
+          "Печать SCC есть. Полномочий на её использование нет.",
+          "Отдел соответствия одобрил собственное одобрение, ожидая одобрения."
         ],
         "debriefs": {
           "won": [
             "Одобрено. Печать поставили, а чернила простили.",
-            "Выплата освобождена. SCC-9 подшит как «отсутствует, но правильно»."
+            "Выплата освобождена. SCC-9 подшит как «отсутствует, но правильно».",
+            "Одобрено. Отсутствующая форма подшита как отсутствующая."
           ],
           "lost": [
             "Передано выше. Соответствие запросило бланк, разрешающий отсутствующий бланк.",
-            "Без урегулирования. Чернила по-прежнему не одобрены."
+            "Без урегулирования. Чернила по-прежнему не одобрены.",
+            "Без урегулирования. Чернила всё ещё ждут подпись, которая им не нужна."
           ]
         }
       },
@@ -1441,17 +1725,21 @@
         "memos": [
           "Can I bring my Drake?",
           "FC wat do?",
-          "Заявка SRP включает письмо о потере и решительное стихотворение.",
-          "Доктрина говорит, что Drake в порядке. Drake говорит обратное."
+          "Заявка SRP включает отчёт о потере и решительное стихотворение.",
+          "Доктрина говорит, что Drake в порядке. Drake говорит обратное.",
+          "Заявка SRP включает отчёт о потере, доктринный фитинг и второго Drake.",
+          "FC одобрил компенсацию. FC не уверен, за что компенсация."
         ],
         "debriefs": {
           "won": [
             "Одобрено. Выплату SRP одобрил тот, кого там не было.",
-            "Выплата освобождена. Письмо о потере переслали всем и никому."
+            "Выплата освобождена. Отчёт о потере переслали всем и никому.",
+            "Одобрено. SRP заменил корабль формой."
           ],
           "lost": [
             "Передано выше. SRP отклонил заявку и потребовал Drake.",
-            "Без одобрения. FC всё ещё спрашивает, что делать."
+            "Без одобрения. Всё ещё спрашивают у FC, что делать.",
+            "Без одобрения. Отчёт о потере переслали FC, и FC вернул его обратно."
           ]
         }
       }

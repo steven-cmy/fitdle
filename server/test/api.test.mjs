@@ -25,6 +25,8 @@ const { config } = await import('../src/config.mjs');
 const { characterIdFromSubject } = await import('../src/auth.mjs');
 const { normalizeRoomSettings, nextBigRoundStep } = await import('../src/rooms.mjs');
 const { buildApp } = await import('../src/index.mjs');
+const { db } = await import('../src/db.mjs');
+const { profileStats } = await import('../src/stats.mjs');
 const app = await buildApp();
 await app.ready();
 
@@ -219,6 +221,28 @@ test('profile stats expose only the five login records', async () => {
   assert.deepEqual(Object.keys(stats.streaks).sort(), ['audit', 'standard', 'timed']);
   assert.equal(stats.dailyWins, 0);
   assert.equal(stats.winStreak, 0);
+});
+
+test('profile stats count daily wins, daily streaks and per-mode streaks', () => {
+  const nameKey = `profile-rules-${process.pid}`;
+  const insert = (id, kind, gameplay, gameDay, status, finishedAt) => {
+    db.prepare(`INSERT INTO online_runs(id, name_key, kind, gameplay, game_day, target_kill_id, target_ship_id, target_json, status, attempts, elapsed_ms, guesses_json, started_at, finished_at)
+      VALUES (?, ?, ?, ?, ?, 1, 1, '{}', ?, 1, 0, '[]', ?, ?)`)
+      .run(id, nameKey, kind, gameplay, gameDay, status, finishedAt - 1, finishedAt);
+  };
+  insert('profile-daily', 'daily', 'daily', '2026-11-21', 'won', 100);
+  insert('profile-std-day1', 'random', 'standard', '2026-11-21', 'won', 200);
+  insert('profile-std-day2-loss', 'random', 'standard', '2026-11-22', 'lost', 300);
+  insert('profile-audit-day2', 'random', 'audit', '2026-11-22', 'won', 400);
+  insert('profile-playing', 'random', 'timed', '2026-11-22', 'playing', 500);
+
+  const stats = profileStats(nameKey, '2026-11-22');
+  assert.equal(stats.dailyWins, 1);
+  assert.equal(stats.winStreak, 2);
+  assert.equal(stats.streaks.standard, 0);
+  assert.equal(stats.streaks.audit, 1);
+  assert.equal(stats.streaks.timed, 0);
+  db.prepare('DELETE FROM online_runs WHERE name_key = ?').run(nameKey);
 });
 
 test('room disconnect grace, reconnect and kick are authoritative', async () => {

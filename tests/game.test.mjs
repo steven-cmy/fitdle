@@ -1056,7 +1056,7 @@ test('boot flavor file covers all locales and tags every egg', () => {
     assert.ok(lines.every((line) => typeof line === 'string' && line.trim()));
   }
   assert.ok(Array.isArray(boot.eggs) && boot.eggs.length >= 18);
-  assert.ok(boot.eggs.every((egg) => ['en', 'ja', 'zh'].includes(egg.lang) && egg.text?.trim()));
+  assert.ok(boot.eggs.every((egg) => ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'].includes(egg.lang) && egg.text?.trim()));
 });
 
 test('claim groups carry department, memos and outcome debriefs', () => {
@@ -1070,16 +1070,29 @@ test('claim groups carry department, memos and outcome debriefs', () => {
     assert.deepEqual(departments.map((department) => department.id), expectedIds, `${locale} department ids`);
     for (const department of departments) {
       assert.ok(department.name?.trim(), `${locale}/${department.id} missing name`);
-      assert.ok(Array.isArray(department.memos) && department.memos.length >= 4, `${locale}/${department.id} needs memos`);
-      assert.ok(Array.isArray(department.debriefs?.won) && department.debriefs.won.length >= 2, `${locale}/${department.id} needs won debriefs`);
-      assert.ok(Array.isArray(department.debriefs?.lost) && department.debriefs.lost.length >= 2, `${locale}/${department.id} needs lost debriefs`);
+      assert.ok(Array.isArray(department.memos) && department.memos.length >= 6, `${locale}/${department.id} needs memos`);
+      assert.ok(Array.isArray(department.debriefs?.won) && department.debriefs.won.length >= 3, `${locale}/${department.id} needs won debriefs`);
+      assert.ok(Array.isArray(department.debriefs?.lost) && department.debriefs.lost.length >= 3, `${locale}/${department.id} needs lost debriefs`);
       const copy = [...department.memos, ...department.debriefs.won, ...department.debriefs.lost];
       assert.ok(copy.every((text) => typeof text === 'string' && text.trim()), `${locale}/${department.id} empty copy`);
       assert.ok(copy.every((text) => !text.includes('{name}')), `${locale}/${department.id} leaked placeholder`);
+      assert.doesNotMatch(copy.join('\n'), /stock market|loss mail|损失邮件|FC 仍在问/i, `${locale}/${department.id} legacy copy`);
     }
     const srp = departments.find((department) => department.id === 'alliance-srp');
     assert.ok(srp.memos.includes('Can I bring my Drake?'), `${locale} SRP Drake memo`);
     assert.ok(srp.memos.includes('FC wat do?'), `${locale} SRP FC memo`);
+    if (locale === 'en') {
+      assert.ok(srp.debriefs.lost.includes('No approval. Still asking the FC what to do.'));
+    }
+    if (locale === 'zh') {
+      assert.ok(srp.debriefs.lost.includes('未通过。仍在问FC该怎么办。'));
+      assert.ok(srp.memos.some((text) => text.includes('制式配置认为幼龙没问题')));
+      assert.doesNotMatch(JSON.stringify(srp.debriefs), /幼龙级|Drake级/);
+      assert.equal((JSON.stringify(srp).match(/Drake/g) || []).length, 1, 'Chinese Drake only in the fixed meme');
+    }
+    if (locale === 'ja' || locale === 'ko') {
+      assert.equal((JSON.stringify(srp).match(/Drake/g) || []).length, 1, `${locale} Drake only in the fixed meme`);
+    }
   }
 });
 
@@ -1182,7 +1195,7 @@ test('hero wreck scan is a dossier plate with pixelated pre-reveal frames', () =
   assert.match(main, /scan-corner/);
   assert.match(main, /size=32/);
   assert.match(main, /setInterval\(\(\) => \{[\s\S]*?4000\)/);
-  assert.match(main, /ticks % 5 === 0/);
+  assert.match(main, /ticks % 2 === 0/);
   assert.match(main, /1\.6 \+ Math\.random\(\) \* 0\.4/);
   assert.match(main, /Number\(ship\.id\) !== Number\(state\.answerId\)/);
   assert.match(main, /ended \? esc\(renderPath\(state\.answerId\)\) : ''/);
@@ -1302,8 +1315,17 @@ test('kill value starts unabridged and toggles compact', () => {
 
 test('manual is pure instructions and copyright with all modes', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
   assert.match(main, /help\.multiplayerBody/);
-  assert.match(main, /help\.arbitrationBody/);
+  assert.match(main, /help\.multiplayerFlowTitle/);
+  assert.match(main, /help\.multiplayerStandardTitle/);
+  assert.match(main, /help\.multiplayerAuditTitle/);
+  assert.match(main, /help\.multiplayerTimedTitle/);
+  assert.match(main, /help\.multiplayerArbitrationTitle/);
+  assert.match(main, /help\.multiplayerReadyTitle/);
+  assert.match(main, /manual-section[\s\S]*manual-mode-block/);
+  assert.match(rooms, /room-manual manual-section/);
+  assert.match(rooms, /manual-mode-block/);
   assert.match(main, /mode\.helpNormal/);
   assert.match(main, /mode\.helpAudit/);
   assert.match(main, /mode\.helpTimed/);
@@ -1311,8 +1333,21 @@ test('manual is pure instructions and copyright with all modes', () => {
   assert.doesNotMatch(main, /data-action="reset-hold"/);
   assert.doesNotMatch(main, /function resetAllProgress/);
   for (const lang of Object.keys(MESSAGES)) {
-    assert.ok(MESSAGES[lang]['help.multiplayerBody']);
-    assert.ok(MESSAGES[lang]['help.arbitrationBody']);
+    for (const key of [
+      'help.multiplayerBody',
+      'help.multiplayerFlowTitle',
+      'help.multiplayerFlow',
+      'help.multiplayerStandardTitle',
+      'help.multiplayerStandard',
+      'help.multiplayerAuditTitle',
+      'help.multiplayerAudit',
+      'help.multiplayerTimedTitle',
+      'help.multiplayerTimed',
+      'help.multiplayerArbitrationTitle',
+      'help.multiplayerArbitration',
+      'help.multiplayerReadyTitle',
+      'help.multiplayerReady',
+    ]) assert.ok(MESSAGES[lang][key], `${lang} missing ${key}`);
   }
 });
 
@@ -1328,15 +1363,18 @@ test('pilot menu and display menu replace manual utilities', () => {
   assert.match(css, /\.modal-close\s*\{[\s\S]*?color:\s*var\(--photon-danger\)/);
 });
 
-test('debrief shows a full ISK payout with a count-up animation', () => {
+test('debrief payout is zero on failure and counts up on success', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   const css = fs.readFileSync(path.join(ROOT, 'styles', 'photon.css'), 'utf8');
   assert.match(main, /data-debrief-payout/);
   assert.match(main, /function animateDebriefPayout/);
+  assert.match(main, /function debriefPayoutAmount/);
+  assert.match(main, /state\.status !== 'won'\) return 0/);
   assert.match(main, /end\.insurancePayout/);
   assert.match(main, /iskFull/);
   assert.match(main, /platinumPayout/);
   assert.match(css, /\.debrief-payout/);
+  assert.doesNotMatch(css, /\.debrief-payout\.is-void strong\s*\{[\s\S]*?line-through/);
   for (const lang of Object.keys(MESSAGES)) {
     assert.ok(MESSAGES[lang]['end.insurancePayout']);
   }
@@ -2547,6 +2585,144 @@ test('legacy mode names are absent from authored UI copy', () => {
     const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
     assert.doesNotMatch(text, /abyss|Abyss|ABYSS|pvp|PvP|PVP|深渊|试炼场/, `${file} still contains a legacy mode name`);
   }
+});
+
+test('web branding assets and boot easter eggs are complete', () => {
+  const iconSizes = {
+    'favicon-16.png': [16, 16],
+    'favicon-32.png': [32, 32],
+    'apple-touch-icon.png': [180, 180],
+    'icon-192.png': [192, 192],
+    'icon-512.png': [512, 512],
+    'icon-maskable-512.png': [512, 512],
+  };
+  for (const [name, [width, height]] of Object.entries(iconSizes)) {
+    const file = path.join(ROOT, 'assets', 'brand', name);
+    const png = fs.readFileSync(file);
+    assert.equal(png.toString('ascii', 1, 4), 'PNG');
+    assert.equal(png.readUInt32BE(16), width, `${name} width`);
+    assert.equal(png.readUInt32BE(20), height, `${name} height`);
+  }
+  const ico = fs.readFileSync(path.join(ROOT, 'assets', 'brand', 'favicon.ico'));
+  assert.equal(ico.readUInt16LE(2), 1, 'favicon.ico type');
+  assert.ok(ico.readUInt16LE(4) >= 2, 'favicon.ico contains multiple sizes');
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'brand', 'site.webmanifest'), 'utf8'));
+  assert.equal(manifest.start_url, './');
+  assert.equal(manifest.scope, './');
+  assert.equal(manifest.icons.length, 3);
+  assert.ok(manifest.icons.some((entry) => entry.purpose === 'maskable'));
+
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  for (const href of [
+    'assets/brand/favicon.svg',
+    'assets/brand/favicon-32.png',
+    'assets/brand/favicon-16.png',
+    'assets/brand/apple-touch-icon.png',
+    'assets/brand/site.webmanifest',
+  ]) assert.ok(html.includes(href), `missing ${href}`);
+  assert.equal(fs.existsSync(path.join(ROOT, 'assets', 'brand', 'options')), false);
+
+  const flavor = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'boot-flavor.json'), 'utf8'));
+  const expected = {
+    en: 'My Raven was equipped with the following:',
+    de: 'Meine Raven verfügte über folgende Ausstattung:',
+    es: 'Mi Raven estaba equipada con lo siguiente:',
+    fr: 'Mon Raven était équipé comme suit :',
+    ja: 'マイレイブンに搭載されていた装備は以下のとおり。',
+    ko: '레이븐의 장비는 아래와 같습니다:',
+    ru: 'На моем корабле Raven было установлено следующее оборудование:',
+    zh: '我的乌鸦级装配如下：',
+  };
+  for (const [lang, text] of Object.entries(expected)) {
+    assert.ok(flavor.eggs.some((egg) => egg.lang === lang && egg.text === text), `${lang} boot egg`);
+  }
+});
+
+test('markers use Photon popups instead of native title tooltips', () => {
+  for (const file of ['js/main.js', 'js/rooms.js', 'js/mp/clue-view.js']) {
+    const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.doesNotMatch(text, / title="/, `${file} contains a native title tooltip`);
+  }
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
+  const clueView = fs.readFileSync(path.join(ROOT, 'js', 'mp', 'clue-view.js'), 'utf8');
+  assert.match(main, /data-tip="\$\{esc\(t\('dossier\.signal'\)\)\}/);
+  assert.match(main, /data-tip="\$\{esc\(badge\.hint\)\}"/);
+  assert.match(rooms, /data-tip="\$\{esc\(this\.t\('room\.host'\)\)\}"/);
+  assert.match(rooms, /data-tip="\$\{esc\(this\.t\('room\.holdToKick'\)\)\}"/);
+  assert.match(clueView, /data-tip="\$\{esc\(t\('dossier\.signal'\)\)\}/);
+});
+
+test('online finish refreshes the pilot profile record', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /async function refreshProfileStats\(\)/);
+  assert.match(main, /await api\.finish\([\s\S]*?await refreshProfileStats\(\)/);
+  assert.match(main, /state\.profileStats = await api\.stats\(\)/);
+  assert.match(main, /pilot-menu-record/);
+});
+
+test('locale changes preserve the current KB and speed radar frames', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  assert.match(main, /function loadLocaleData\(locale, \{ keepLive = false, keepAnswer = false \} = \{\}\)/);
+  assert.match(main, /await loadLocaleData\(nextLocale, \{ keepLive: true, keepAnswer: true \}\)/);
+  assert.match(main, /if \(keepAnswer && state\.answerData\) \{/);
+  assert.match(main, /function localizeAnswerData\(\)/);
+  assert.match(main, /bonusEntries: ship\.bonusEntries \|\| state\.answerData\.bonusEntries/);
+  const localizeStart = main.indexOf('function localizeAnswerData()');
+  const localizeEnd = main.indexOf('async function loadLocaleData', localizeStart);
+  const localizeBody = main.slice(localizeStart, localizeEnd);
+  assert.doesNotMatch(localizeBody, /clues:/);
+  assert.doesNotMatch(localizeBody, /revealPlan:/);
+  assert.doesNotMatch(localizeBody, /revealSeed:/);
+  const restoreStart = main.indexOf('function restoreLocaleTarget(snapshot)');
+  const restoreEnd = main.indexOf('function restoreLocaleKb(snapshot)', restoreStart);
+  assert.doesNotMatch(main.slice(restoreStart, restoreEnd), /buildAnswerData\(\)/);
+  assert.match(main, /function localeTargetSnapshot\(\)/);
+  assert.match(main, /function localeTargetChanged\(snapshot\)/);
+  assert.match(main, /function restoreLocaleTarget\(snapshot\)/);
+  assert.match(main, /function restoreLocaleKbValue\(snapshot\)/);
+  assert.match(main, /restoreLocaleKbValue\(targetSnapshot\)/);
+  assert.match(main, /restoreLocaleKb\(targetSnapshot\)/);
+  assert.match(main, /if \(ticks % 2 === 0\) cycle\(\)/);
+  assert.match(main, /\}, 2400\);/);
+  assert.match(css, /--manual-heading: #f2a63b/);
+  assert.match(css, /--manual-heading: #ff9b5e/);
+  assert.match(css, /\.manual-section h3\s*\{[^}]*color:\s*var\(--manual-heading\)/);
+  assert.doesNotMatch(css, /\.manual-section h3\s*\{[^}]*color:\s*var\(--amber\)/);
+});
+
+test('faction display fonts are local and wired to hero and settlement links', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  for (const file of [
+    'cinzel-amarr-latin.woff2',
+    'iceberg-caldari-latin.woff2',
+    'afacad-flux-gallente-latin.woff2',
+    'space-mono-minmatar-latin.woff2',
+  ]) {
+    const font = path.join(ROOT, 'assets', 'fonts', file);
+    assert.ok(fs.existsSync(font), `missing ${file}`);
+    assert.ok(fs.statSync(font).size > 1000, `empty ${file}`);
+    assert.ok(css.includes(`assets/fonts/${file}`), `${file} not in CSS`);
+  }
+  assert.match(main, /500003: 'amarr'/);
+  assert.match(main, /500001: 'caldari'/);
+  assert.match(main, /500004: 'gallente'/);
+  assert.match(main, /500002: 'minmatar'/);
+  assert.match(main, /function heroTitleFaction\(ship\)/);
+  assert.match(main, /function zkillShipLink\(text, id, faction = ''\)/);
+  assert.match(main, /data-faction="\$\{esc\(faction\)\}"/);
+  assert.match(main, /zkillShipLink\(displayName\(state\.answerShip\), state\.answerId\)/);
+  assert.match(main, /zkillShipLink\(displayName\(ship\), ship\.id, heroTitleFaction\(ship\)\)/);
+  assert.match(main, /zkillShipLink\(displayName\(ship\), state\.answerId\)/);
+  assert.match(css, /--font-amarr: "Cinzel"/);
+  assert.match(css, /--font-caldari: "Iceberg"/);
+  assert.match(css, /--font-gallente: "Afacad Flux"/);
+  assert.match(css, /--font-minmatar: "Space Mono"/);
+  assert.match(css, /\.hero h1\[data-faction="amarr"\],[\s\S]*?\.zkb-item-link\[data-faction="amarr"\]/);
+  assert.match(css, /font-family: var\(--font-amarr\)/);
 });
 
 test('frontend source has no hard-coded deployment domains or local image caches', () => {

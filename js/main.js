@@ -971,10 +971,11 @@ function zkillItemLink(text, id) {
   return `<a class="zkb-item-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
 }
 
-function zkillShipLink(text, id) {
+function zkillShipLink(text, id, faction = '') {
   const base = (state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
   if (!base || !Number(id) || !zkillLinksEnabled()) return esc(text);
-  return `<a class="zkb-item-link" href="${esc(`${base}/ship/${Number(id)}/`)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
+  const attr = faction ? ` data-faction="${esc(faction)}"` : '';
+  return `<a class="zkb-item-link"${attr} href="${esc(`${base}/ship/${Number(id)}/`)}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
 }
 
 function zkillEntityLink(kind, id, text) {
@@ -1034,6 +1035,17 @@ function factionName(ship) {
   return state.refs?.factions?.[ship?.factionID] || raceName(ship);
 }
 
+const HERO_FACTION_FONTS = Object.freeze({
+  500003: 'amarr',
+  500001: 'caldari',
+  500004: 'gallente',
+  500002: 'minmatar',
+});
+
+function heroTitleFaction(ship) {
+  return HERO_FACTION_FONTS[Number(ship?.factionID)] || '';
+}
+
 function imageBase() {
   return (state.manifest?.images?.baseUrl || '').replace(/\/$/, '');
 }
@@ -1055,7 +1067,7 @@ function weightPips(weight) {
   const lit = numeric <= 0 ? 0 : Math.max(1, Math.min(5, Math.ceil(numeric / 2)));
   const zero = numeric <= 0 && state.status === 'playing';
   const shown = String(Number(numeric.toFixed(2)));
-  return `<span class="weight${zero ? ' is-zero' : ''}" title="${esc(t('dossier.signal'))} ${esc(shown)}/10" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
+  return `<span class="weight${zero ? ' is-zero' : ''}" data-tip="${esc(t('dossier.signal'))} ${esc(shown)}/10" tabindex="0" aria-label="${esc(t('dossier.signal'))} ${esc(shown)}/10">${Array.from({ length: 5 }, (_, i) => `<i class="${i < lit ? 'on' : ''}"></i>`).join('')}</span>`;
 }
 
 function categoryLabel(category) {
@@ -1180,6 +1192,11 @@ function platinumPayout(shipId) {
   const level = (row?.levels || []).find((entry) => String(entry?.name || '').toLowerCase() === 'platinum');
   const value = Number(level?.payout);
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
+}
+
+function debriefPayoutAmount() {
+  if (state.status !== 'won') return 0;
+  return platinumPayout(state.answerShip?.id);
 }
 
 async function fetchInternetTime() {
@@ -2001,13 +2018,24 @@ function buildAnswerData() {
   };
 }
 
-async function loadLocaleData(locale) {
+function localizeAnswerData() {
+  if (!state.answerData || !state.answerShip) return;
+  const ship = state.answerShip;
+  state.answerData = {
+    ...state.answerData,
+    description: ship.descriptions?.[state.locale] || ship.descriptions?.en || '',
+    bonuses: ship.bonuses?.[state.locale] || ship.bonuses?.en || [],
+    bonusEntries: ship.bonusEntries || state.answerData.bonusEntries,
+  };
+}
+
+async function loadLocaleData(locale, { keepLive = false, keepAnswer = false } = {}) {
   const refs = await fetchJson(`data/refs/${locale}.json`);
   state.refs = refs;
   state.index = buildSearchIndex(state.catalog, refs.groups, {
     races: refs.races, factions: refs.factions, locale: state.locale, aliases: state.searchAliases,
   });
-  await fetchAnswerLive();
+  if (!keepLive) await fetchAnswerLive();
   await fetchCargoTypeNames();
   if (usesSimulatedFit() && state.liveLosses[0]) {
     try {
@@ -2025,8 +2053,95 @@ async function loadLocaleData(locale) {
     }
   }
   if (usesSimulatedFit() && !state.dogmaAttrs) await fetchModuleDetails();
-  buildAnswerData();
+  if (keepAnswer && state.answerData) {
+    localizeAnswerData();
+  } else {
+    buildAnswerData();
+  }
   if (!state.answerData) throw new Error('answer data unavailable');
+}
+
+function localeTargetSnapshot() {
+  return {
+    answerId: state.answerId,
+    answerKillId: state.answerKillId,
+    freeKillId: state.freeKillId,
+    freeKillToken: state.freeKillToken,
+    answerKillmail: state.answerKillmail,
+    freeKillmail: state.freeKillmail,
+    liveLosses: state.liveLosses,
+    liveStats: state.liveStats,
+    liveFetched: state.liveFetched,
+    liveError: state.liveError,
+    date: state.date,
+    targetSource: state.targetSource,
+    targetGameDay: state.targetGameDay,
+    dailyKillmail: state.dailyKillmail,
+    dailySeed: state.dailySeed,
+    onlineRun: state.onlineRun,
+    answerData: state.answerData,
+    revealed: state.revealed,
+    fresh: state.fresh,
+    visibleCount: state.visibleCount,
+    timedClueCount: state.timedClueCount,
+    kbValue: (() => {
+      const clue = state.answerData?.clues?.find((item) => item.k === 'kbValue');
+      return clue ? Number(clue.v) : null;
+    })(),
+    kb: new URL(location.href).searchParams.get('kb'),
+  };
+}
+
+function localeTargetChanged(snapshot) {
+  return Number(snapshot.answerId) !== Number(state.answerId)
+    || Number(snapshot.answerKillId) !== Number(state.answerKillId)
+    || Number(snapshot.freeKillId || 0) !== Number(state.freeKillId || 0)
+    || String(snapshot.freeKillToken || '') !== String(state.freeKillToken || '')
+    || String(snapshot.date || '') !== String(state.date || '')
+    || Number(snapshot.liveLosses?.[0]?.killmail_id || 0) !== Number(state.liveLosses?.[0]?.killmail_id || 0);
+}
+
+function restoreLocaleTarget(snapshot) {
+  Object.assign(state, {
+    answerId: snapshot.answerId,
+    answerKillId: snapshot.answerKillId,
+    freeKillId: snapshot.freeKillId,
+    freeKillToken: snapshot.freeKillToken,
+    answerKillmail: snapshot.answerKillmail,
+    freeKillmail: snapshot.freeKillmail,
+    liveLosses: snapshot.liveLosses,
+    liveStats: snapshot.liveStats,
+    liveFetched: snapshot.liveFetched,
+    liveError: snapshot.liveError,
+    date: snapshot.date,
+    targetSource: snapshot.targetSource,
+    targetGameDay: snapshot.targetGameDay,
+    dailyKillmail: snapshot.dailyKillmail,
+    dailySeed: snapshot.dailySeed,
+    onlineRun: snapshot.onlineRun,
+    answerData: snapshot.answerData,
+    revealed: snapshot.revealed,
+    fresh: snapshot.fresh,
+    visibleCount: snapshot.visibleCount,
+    timedClueCount: snapshot.timedClueCount,
+  });
+  state.answerShip = state.catalogMap.get(state.answerId) || state.answerShip;
+  localizeAnswerData();
+}
+
+function restoreLocaleKb(snapshot) {
+  if (!snapshot?.kb) return;
+  const url = new URL(location.href);
+  if (url.searchParams.get('kb') === snapshot.kb) return;
+  url.searchParams.set('kb', snapshot.kb);
+  history.replaceState(null, '', url);
+}
+
+function restoreLocaleKbValue(snapshot) {
+  if (snapshot?.kbValue == null) return;
+  const clue = state.answerData?.clues?.find((item) => item.k === 'kbValue');
+  if (!clue) return;
+  if (Number(clue.v) !== Number(snapshot.kbValue)) clue.v = snapshot.kbValue;
 }
 
 function readStoredState() {
@@ -2309,7 +2424,7 @@ function footerVersionHtml() {
     zkill.versionCapturedAt || zkill.capturedAt || '',
     zkill.snapshot ? `loss snapshot ${zkill.snapshot}` : '',
   ].filter(Boolean).join(' · ');
-  return `<span class="footer-meta footer-version">v${esc(manifest.version || '0.1.0')} · <span title="${esc(sdeTitle)}">SDE ${esc(sdeLabel)}</span> · <span title="${esc(zkillTitle)}">ZKILL ${esc(zkillLabel)}</span></span>`;
+  return `<span class="footer-meta footer-version">v${esc(manifest.version || '0.1.0')} · <span data-tip="${esc(sdeTitle)}" tabindex="0">SDE ${esc(sdeLabel)}</span> · <span data-tip="${esc(zkillTitle)}" tabindex="0">ZKILL ${esc(zkillLabel)}</span></span>`;
 }
 
 function renderShell() {
@@ -2346,7 +2461,7 @@ function renderShell() {
                <button class="pilot-identity" type="button" data-action="pilot-menu" aria-haspopup="menu" aria-expanded="false" aria-controls="pilot-menu">
                  ${avatarHtml(state.auth.name, state.auth.characterId, 64, 'pilot-avatar', state.manifest?.images?.baseUrl)}
                  <span class="pilot-copy">
-                   <span class="pilot-name" title="${esc(state.auth.name)}">${esc(state.auth.name)}</span>
+                   <span class="pilot-name">${esc(state.auth.name)}</span>
                    <span class="pilot-role">${esc(t('claim.assessor'))}</span>
                  </span>
                  ${icon('chevron')}
@@ -2475,7 +2590,7 @@ function renderShell() {
           <div class="footer-copyright">${copyrightHtml()}</div>
         </div>
         <div class="footer-links">
-          <a class="repo-link" href="${esc(state.manifest.links?.repo || '#')}" target="_blank" rel="noopener noreferrer" title="${esc(state.manifest.links?.repo || '')}">${esc(t('footer.source'))}</a>
+          <a class="repo-link" href="${esc(state.manifest.links?.repo || '#')}" target="_blank" rel="noopener noreferrer" data-tip="${esc(state.manifest.links?.repo || '')}">${esc(t('footer.source'))}</a>
           <a class="zkill-link" href="${esc(state.manifest.zkillboard.baseUrl)}" target="_blank" rel="noopener noreferrer">zKillboard</a>
           <a href="${esc(state.manifest.links?.eveDocs || '#')}" target="_blank" rel="noopener noreferrer">EVE SDE</a>
           ${footerVersionHtml()}
@@ -2605,6 +2720,7 @@ function renderHero() {
   const heroDate = `${state.appMode === 'online' ? t('online.label') : t('practice.label')} // ${t(`gameplay.${state.gameplay}`)}`;
   const claimStatus = !ended ? t('claim.pending') : state.status === 'won' ? t('claim.confirmed') : t('claim.escalated');
   const subject = ended ? claimStatus : t('hero.target');
+  const titleFaction = ended ? heroTitleFaction(state.answerShip) : '';
   hero.innerHTML = `
     <div class="hero-copy">
       <div class="claim-mail-head">
@@ -2642,7 +2758,7 @@ function renderHero() {
         </dl>
       </div>
       <div class="hero-kicker"><span class="ping"></span>${esc(brandText('hero.kicker'))}<span class="hero-date">${esc(heroDate)}</span></div>
-      <h1 id="hero-title">${esc(ended ? answer : t('hero.title'))}</h1>
+      <h1 id="hero-title"${titleFaction ? ` data-faction="${titleFaction}"` : ''}>${esc(ended ? answer : t('hero.title'))}</h1>
       <div class="hero-subject">${esc(subject)}</div>
       ${state.claimMemo ? `<p class="claim-memo">${esc(state.claimMemo)}</p>` : ''}
       <p class="hero-body">${esc(t('hero.body'))}</p>
@@ -2732,7 +2848,7 @@ function startArbitrationRadar(host, decoyIds) {
   state.arbRadarTimer = setInterval(() => {
     active = (active + 1) % frames.length;
     frames.forEach((frame, index) => frame.classList.toggle('is-active', index === active));
-  }, 4200);
+  }, 2400);
 }
 
 function renderArbitrationHero(hero) {
@@ -2755,10 +2871,11 @@ function renderArbitrationHero(hero) {
         ? t('room.spectator')
         : t('room.guess');
   const titleAnswer = targetName && (role === 'dealer' || revealed);
+  const titleFaction = titleAnswer ? heroTitleFaction(targetShip) : '';
   hero.innerHTML = `
     <div class="hero-copy">
       <div class="hero-kicker"><span class="ping"></span>${esc(t('gameplay.arbitration'))}<span class="hero-date">${esc(arb.roomCode || '')}</span></div>
-      <h1 id="hero-title">${esc(titleAnswer ? targetName : t('gameplay.arbitration'))}</h1>
+      <h1 id="hero-title"${titleFaction ? ` data-faction="${titleFaction}"` : ''}>${esc(titleAnswer ? targetName : t('gameplay.arbitration'))}</h1>
       <div class="hero-subject">${esc(titleAnswer ? (revealed ? t('room.roundAnswer') : t('room.dealerAnswer')) : `${arb.roomCode || ''} // ${arb.room?.code || ''}`)}</div>
       <p class="hero-body">${esc(revealed ? t('room.revealAnswer') : role === 'dealer' ? t('room.fullIntel') : t('room.publishedIntel'))}</p>
       <div class="hero-stats">
@@ -2916,12 +3033,11 @@ function startRadarMosaic() {
     move(frames[active]);
   };
   move(frames[0]);
-  // Deliberately slow: each hull stays for five frames (about twenty seconds)
-  // and the crops drift only once per frame.
+  // Each hull holds for two ticks; the drift still advances every tick.
   let ticks = 0;
   state.radarMosaicTimer = setInterval(() => {
     ticks++;
-    if (ticks % 5 === 0) cycle();
+    if (ticks % 2 === 0) cycle();
     else move(frames[active]);
   }, 4000);
 }
@@ -3277,7 +3393,7 @@ function moduleBadge(tag, clue) {
       || `Type #${clue.calcModule}`;
     badge.hint = `${t('dossier.auditHint')} ${t('dossier.auditCalc', { name: calcName })}`;
   }
-  return `<span class="badge-hull ${badge.cls}" title="${esc(badge.hint)}" data-tip="${esc(badge.hint)}" tabindex="0" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
+  return `<span class="badge-hull ${badge.cls}" data-tip="${esc(badge.hint)}" tabindex="0" aria-label="${esc(`${badge.label}: ${badge.hint}`)}">${icon(badge.icon)} ${esc(badge.label)}</span>`;
 }
 
 function bonusAmountText(entry) {
@@ -3354,9 +3470,9 @@ function renderClueRow(clue, index, revealed) {
   const massToggle = clue.k === 'mass' && revealed;
   const kbValueToggle = clue.k === 'kbValue' && revealed;
   const toggleAttrs = massToggle
-    ? ` data-mass-toggle="true" role="button" tabindex="0" title="${esc(t('clue.massToggle'))}"`
+    ? ` data-mass-toggle="true" role="button" tabindex="0" data-tip="${esc(t('clue.massToggle'))}"`
     : kbValueToggle
-      ? ` data-kb-value-toggle="true" role="button" tabindex="0" title="${esc(t('clue.kbValueToggle'))}" aria-label="${esc(t('clue.kbValueToggle'))}"`
+      ? ` data-kb-value-toggle="true" role="button" tabindex="0" data-tip="${esc(t('clue.kbValueToggle'))}" aria-label="${esc(t('clue.kbValueToggle'))}"`
       : '';
   return `<div class="attr-row cat-${category}${clue.k === 'equipment' || clue.k === 'cargo' ? ' equipment-row' : ''}${clue.k === 'bonus' ? ' bonus-row' : ''}${zeroWeight ? ' is-zero-weight' : ''} ${revealed ? 'is-revealed' : 'is-hidden'}${fresh ? ' is-fresh' : ''}" data-clue-index="${index}" data-clue-kind="${esc(clue.k)}" data-category="${category}"${toggleAttrs}>
     <span class="attr-label">${esc(label)}</span>
@@ -3677,7 +3793,7 @@ function renderArbitrationDossier() {
     const tip = t('room.clueWeight', { weight });
     const meta = row.querySelector('.attr-meta');
     if (meta) {
-      meta.innerHTML = `<span class="room-clue-score" tabindex="0" title="${esc(tip)}" data-tip="${esc(tip)}" aria-label="${esc(`${scoreText} — ${tip}`)}">${esc(scoreText)}</span>`;
+      meta.innerHTML = `<span class="room-clue-score" tabindex="0" data-tip="${esc(tip)}" aria-label="${esc(`${scoreText} — ${tip}`)}">${esc(scoreText)}</span>`;
     }
     const autoSelected = Boolean(clue.auto) && !published.has(index) && isDealer;
     row.classList.toggle('is-auto-selected', autoSelected);
@@ -4219,7 +4335,7 @@ function zkillKillUrl(killId) {
 function updateDebriefPayout() {
   const el = document.querySelector('[data-debrief-payout]');
   if (!el) return;
-  const payout = platinumPayout(state.answerShip?.id);
+  const payout = debriefPayoutAmount();
   el.dataset.amount = payout == null ? '' : String(payout);
   animateDebriefPayout();
 }
@@ -4296,7 +4412,7 @@ function renderDebrief() {
   const url = shareLink();
   const stats = state.stats || DEFAULT_STATS;
   const sampleKill = state.answerData.sampleKill;
-  const payout = platinumPayout(state.answerShip?.id);
+  const payout = debriefPayoutAmount();
   const description = (state.answerData.description || '').split(/\n{2,}/).filter(Boolean);
   const bonuses = state.answerData.bonuses || [];
   const bonusEntries = state.answerData.bonusEntries || [];
@@ -4342,7 +4458,7 @@ function renderDebrief() {
           ${won ? `<div class="debrief-cross" aria-hidden="true"></div>` : ''}
           <div class="debrief-visual-caption">
             <span>${esc(t('dossier.answer'))}</span>
-            <strong>${zkillShipLink(displayName(ship), ship.id)}</strong>
+            <strong>${zkillShipLink(displayName(ship), ship.id, heroTitleFaction(ship))}</strong>
           </div>
         </div>
         <div class="debrief-main">
@@ -4478,6 +4594,21 @@ async function submitFreeKill() {
   location.assign(freeKillUrl(killId));
 }
 
+function multiplayerManualBlocks() {
+  return [
+    ['help.multiplayerFlowTitle', 'help.multiplayerFlow'],
+    ['help.multiplayerStandardTitle', 'help.multiplayerStandard'],
+    ['help.multiplayerAuditTitle', 'help.multiplayerAudit'],
+    ['help.multiplayerTimedTitle', 'help.multiplayerTimed'],
+    ['help.multiplayerArbitrationTitle', 'help.multiplayerArbitration'],
+    ['help.multiplayerReadyTitle', 'help.multiplayerReady'],
+  ].map(([title, body]) => `
+    <div class="manual-mode-block">
+      <h4>${esc(t(title))}</h4>
+      <p>${esc(t(body))}</p>
+    </div>`).join('');
+}
+
 function renderManual() {
   const html = `
     <div class="modal manual" role="dialog" aria-modal="true" aria-labelledby="manual-title" data-kind="manual">
@@ -4503,14 +4634,8 @@ function renderManual() {
           </div>
           <div class="manual-section">
             <h3>${icon('radar')} ${esc(t('mode.multiplayer'))}</h3>
-            <div class="manual-mode-block">
-              <h4>${esc(t('mode.multiplayer'))}</h4>
-              <p>${esc(t('help.multiplayerBody'))}</p>
-            </div>
-            <div class="manual-mode-block">
-              <h4>${esc(t('gameplay.arbitration'))}</h4>
-              <p>${esc(t('help.arbitrationBody'))}</p>
-            </div>
+            <p>${esc(t('help.multiplayerBody'))}</p>
+            ${multiplayerManualBlocks()}
           </div>
         </div>
         <div class="manual-column">
@@ -4638,12 +4763,19 @@ function playToday() {
 async function changeLocale(nextLocale) {
   if (!isLocale(nextLocale) || nextLocale === state.locale || state.localeLoading) return;
   const previous = state.locale;
+  const targetSnapshot = localeTargetSnapshot();
   state.localeLoading = true;
   renderChrome();
   try {
     state.locale = nextLocale;
     state.i18n = createI18n(nextLocale);
-    await loadLocaleData(nextLocale);
+    await loadLocaleData(nextLocale, { keepLive: true, keepAnswer: true });
+    if (localeTargetChanged(targetSnapshot)) {
+      restoreLocaleTarget(targetSnapshot);
+      debugLog('locale target restored');
+    }
+    restoreLocaleKbValue(targetSnapshot);
+    restoreLocaleKb(targetSnapshot);
     pickClaimDepartment(true);
     state.index = buildSearchIndex(state.catalog, state.refs.groups, {
       races: state.refs.races, factions: state.refs.factions, locale: state.locale, aliases: state.searchAliases,
@@ -4673,7 +4805,10 @@ async function changeLocale(nextLocale) {
     state.i18n = createI18n(previous);
     state.localeLoading = false;
     try {
-      await loadLocaleData(previous);
+      await loadLocaleData(previous, { keepLive: true, keepAnswer: true });
+      if (localeTargetChanged(targetSnapshot)) restoreLocaleTarget(targetSnapshot);
+      restoreLocaleKbValue(targetSnapshot);
+      restoreLocaleKb(targetSnapshot);
     } catch {
       // keep the current screen
     }
@@ -5314,6 +5449,17 @@ async function prepareAppTarget(route) {
   }
 }
 
+async function refreshProfileStats() {
+  if (state.appMode !== 'online' || !state.auth.loggedIn) return;
+  try {
+    state.profileStats = await api.stats();
+    const record = document.querySelector('#pilot-menu .pilot-menu-record');
+    if (record) record.outerHTML = pilotStatsHtml();
+  } catch (error) {
+    debugLog('profile stats', error);
+  }
+}
+
 async function finishOnlineRun() {
   if (state.appMode !== 'online' || !state.onlineRun?.runId || state.onlineFinished) return;
   if (state.status === 'playing') return;
@@ -5327,6 +5473,7 @@ async function finishOnlineRun() {
       answerId: state.status === 'won' ? state.answerId : null,
       guesses: state.guesses,
     });
+    await refreshProfileStats();
   } catch (error) {
     debugLog('online finish', error);
     showToast(t('online.recordFailed'), '', 'warn', 5000);

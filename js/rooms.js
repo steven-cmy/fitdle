@@ -940,14 +940,27 @@ export class RoomSurface {
     }
   }
 
+  renderManualBlocks() {
+    return [
+      ['help.multiplayerFlowTitle', 'help.multiplayerFlow'],
+      ['help.multiplayerStandardTitle', 'help.multiplayerStandard'],
+      ['help.multiplayerAuditTitle', 'help.multiplayerAudit'],
+      ['help.multiplayerTimedTitle', 'help.multiplayerTimed'],
+      ['help.multiplayerArbitrationTitle', 'help.multiplayerArbitration'],
+      ['help.multiplayerReadyTitle', 'help.multiplayerReady'],
+    ].map(([title, body]) => `
+      <div class="manual-mode-block">
+        <h4>${esc(this.t(title))}</h4>
+        <p>${esc(this.t(body))}</p>
+      </div>`).join('');
+  }
+
   renderRoomManual() {
-    const endless = !this.room.gameplay || ['standard', 'audit', 'timed'].includes(this.room.gameplay);
     return `
-      <section class="room-list room-manual">
-        <h3>${esc(this.t('room.manualTitle'))}</h3>
-        ${endless
-          ? `<p>${esc(this.t('room.manualEndless'))}</p><p>${esc(this.t('room.manualScore'))}</p>`
-          : `<p>${esc(this.t('room.arbitrationRule'))}</p><p>${esc(this.t('room.manualArbitrationScore'))}</p>`}
+      <section class="room-list room-manual manual-section">
+        <h3>${icon('radar')} ${esc(this.t('room.manualTitle'))}</h3>
+        <p>${esc(this.t('help.multiplayerBody'))}</p>
+        ${this.renderManualBlocks()}
       </section>`;
   }
 
@@ -981,13 +994,13 @@ export class RoomSurface {
                 <span class="room-presence${player.connected ? ' is-online' : ''}" aria-hidden="true"></span>
                 ${avatarHtml(player.name, player.characterId, 32, 'room-avatar', this.imagesBase)}
                 <span class="room-pilot">
-                  <strong>${player.id === room.ownerId ? `<span class="room-host-badge" title="${esc(this.t('room.host'))}" aria-label="${esc(this.t('room.host'))}">★</span>` : ''}${esc(player.name)}</strong>
+                  <strong>${player.id === room.ownerId ? `<span class="room-host-badge" data-tip="${esc(this.t('room.host'))}" tabindex="0" aria-label="${esc(this.t('room.host'))}">★</span>` : ''}${esc(player.name)}</strong>
                   <small>#${esc(this.localId(player.id))}${roles.length ? ` · ${esc(roles.join(' · '))}` : ''}</small>
                 </span>
-                ${ready ? `<span class="room-ready-dot" role="status" title="${esc(this.t('room.readyHighlight'))}" aria-label="${esc(this.t('room.readyHighlight'))}"></span>` : ''}
+                ${ready ? `<span class="room-ready-dot" role="status" data-tip="${esc(this.t('room.readyHighlight'))}" tabindex="0" aria-label="${esc(this.t('room.readyHighlight'))}"></span>` : ''}
                 ${player.connected ? '' : `<span class="room-spinner" role="status" aria-label="${esc(this.t('room.reconnecting'))}"></span>`}
                 <span class="room-score">${this.int(player.score || 0)}</span>
-                ${this.owner() && player.id !== this.playerId ? `<button type="button" class="room-kick hold-button" data-room-kick="${esc(player.id)}" title="${esc(this.t('room.holdToKick'))}" aria-label="${esc(`${this.t('room.kick')}: ${player.name}`)}">${esc(this.t('room.kick'))}</button>` : ''}
+                ${this.owner() && player.id !== this.playerId ? `<button type="button" class="room-kick hold-button" data-room-kick="${esc(player.id)}" data-tip="${esc(this.t('room.holdToKick'))}" aria-label="${esc(`${this.t('room.kick')}: ${player.name}`)}">${esc(this.t('room.kick'))}</button>` : ''}
               </li>
             `;
           }).join('')}

@@ -1739,8 +1739,6 @@ a:focus-visible {
 }
 .debrief-payout.is-void strong {
   color: var(--red);
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
 }
 
 .manual > .manual-legal {

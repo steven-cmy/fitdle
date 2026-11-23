@@ -5,6 +5,7 @@
 
 export const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
 import { ONLINE_MESSAGES } from './online/messages.js';
+import { MULTIPLAYER_MANUAL_MESSAGES } from './online/manual-messages.js';
 import { BRAND_MESSAGES } from './brand-copy.js';
 
 export const LOCALE_META = {
@@ -3492,6 +3493,9 @@ const EXTRA_MESSAGES = {
 for (const [lang, values] of Object.entries(EXTRA_MESSAGES)) {
   if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values);
 }
+for (const [lang, values] of Object.entries(MULTIPLAYER_MANUAL_MESSAGES)) {
+  if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values);
+}
 
 
 const ROOM_EXTRA_MESSAGES = {
@@ -3765,18 +3769,6 @@ const ROOM_MANUAL_MESSAGES = {
   }
 };
 for (const [lang, values] of Object.entries(ROOM_MANUAL_MESSAGES)) { if (MESSAGES[lang]) Object.assign(MESSAGES[lang], values); }
-
-const MANUAL_SCORE_SAFE = {
-  "en": "Each KB has a fixed total score. A clean solve keeps the full score; each wrong guess reduces it.",
-  "de": "Jedes KB hat eine feste Gesamtpunktzahl. Ein sauberer Treffer behält die volle Punktzahl; jeder Fehlversuch reduziert sie.",
-  "es": "Cada KB tiene una puntuación total fija. Un acierto limpio conserva la puntuación completa; cada fallo la reduce.",
-  "fr": "Chaque KB a un score total fixe. Une réussite sans erreur conserve le score complet ; chaque erreur le réduit.",
-  "ja": "各KBには固定の合計点があります。一発正解なら満点、誤答ごとに減点されます。",
-  "ko": "각 KB에는 고정 총점이 있습니다. 한 번에 맞히면 만점, 오답마다 감점됩니다.",
-  "ru": "У каждого KB фиксированный общий счёт. Чистое попадание сохраняет полный счёт; каждая ошибка его уменьшает.",
-  "zh": "每份 KB 有固定总分：一次猜中保留满分，每次猜错都会扣分。"
-};
-for (const [lang, value] of Object.entries(MANUAL_SCORE_SAFE)) { if (MESSAGES[lang]) MESSAGES[lang]['room.manualScore'] = value; }
 
 const ROOM_TURN_MESSAGES = {
   "en": {
