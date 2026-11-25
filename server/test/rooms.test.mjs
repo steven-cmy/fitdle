@@ -572,7 +572,10 @@ test('repeated wrong passwords are limited', async () => {
   await closeAll([], code);
 });
 
-test('seated players rejoin without the password and empty ones are not counted', async () => {
+test('seated players rejoin without the password and empty ones are not counted', async (t) => {
+  // Nobody connects here and password hashing is slow on CI: keep the seats meanwhile.
+  config.roomReconnectGraceMs = 60000;
+  t.after(() => { config.roomReconnectGraceMs = GRACE; });
   const host = await Pilot.create('Keeper');
   const guest = await Pilot.create('Sitter');
   const { code } = (await host.post('/api/v1/rooms', { password: 'secret' })).body;
