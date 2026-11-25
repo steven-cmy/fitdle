@@ -35,7 +35,6 @@ async function fetchZkill(manifest, path, { fetchImpl = fetch, timeoutMs = TIMEO
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const response = await fetchImpl(`${base}${path}`, {
-        cache: 'no-store',
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(timeoutMs),
       });

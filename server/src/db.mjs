@@ -66,11 +66,15 @@ CREATE TABLE IF NOT EXISTS online_runs (
   answer_id INTEGER,
   guesses_json TEXT NOT NULL DEFAULT '[]',
   started_at INTEGER NOT NULL,
-  finished_at INTEGER
+  finished_at INTEGER,
+  begun_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS runs_user_day ON online_runs(name_key, game_day, gameplay);
 CREATE UNIQUE INDEX IF NOT EXISTS runs_daily_unique
   ON online_runs(name_key, game_day, gameplay) WHERE kind = 'daily';
+CREATE INDEX IF NOT EXISTS runs_result ON online_runs(name_key, gameplay, status, finished_at);
+CREATE INDEX IF NOT EXISTS runs_open ON online_runs(status, started_at) WHERE status = 'playing';
+CREATE INDEX IF NOT EXISTS runs_kill ON online_runs(target_kill_id);
 CREATE TABLE IF NOT EXISTS target_exposures (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source TEXT NOT NULL,
@@ -124,6 +128,11 @@ CREATE TABLE IF NOT EXISTS arbitration_rounds (
   created_at INTEGER NOT NULL
 );
 `);
+
+// Added in 1.0.45; databases of earlier releases get it here.
+if (!db.prepare('PRAGMA table_info(online_runs)').all().some((column) => column.name === 'begun_at')) {
+  db.exec('ALTER TABLE online_runs ADD COLUMN begun_at INTEGER');
+}
 
 const statements = new Map();
 

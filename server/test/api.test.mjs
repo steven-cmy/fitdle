@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import zlib from 'node:zlib';
 import WebSocket from 'ws';
 
@@ -21,6 +22,9 @@ process.env.ROOM_TIMED_DURATION_MINUTES = '15';
 process.env.ROOM_TIMED_MAX_DURATION_MINUTES = '30';
 process.env.ROOM_RECONNECT_GRACE_MS = '5000';
 process.env.TARGET_SPARES = '0';
+process.env.API_CONTACT = 'ops@example.test';
+process.env.API_CONTACT_PUBLIC = '0';
+process.env.ZKILL_MIN_INTERVAL_MS = '0';
 process.env.NODE_ENV = 'test';
 
 const { config } = await import('../src/config.mjs');
@@ -28,8 +32,9 @@ const { characterIdFromSubject } = await import('../src/auth.mjs');
 const {
   ROOMS, evictExpiredRooms, flushRooms, normalizeRoomSettings, nextBigRoundStep,
 } = await import('../src/rooms.mjs');
-const { TtlCache } = await import('../src/ttl-cache.mjs');
-const { getRandomTarget } = await import('../src/targets.mjs');
+const { zkill } = await import('../src/zkill.mjs');
+const { clearHulls, getRandomTarget } = await import('../src/targets.mjs');
+const { expireRuns = () => {} } = await import('../src/runs.mjs');
 const { buildApp } = await import('../src/index.mjs');
 const { db } = await import('../src/db.mjs');
 const { profileStats } = await import('../src/stats.mjs');
@@ -59,6 +64,18 @@ async function login(name, characterId = null) {
   assert.equal(response.statusCode, 200, response.body);
   return cookieFrom(response);
 }
+
+test('the API contact stays on the server unless it is published', async () => {
+  const meta = async () => JSON.parse((await app.inject({ method: 'GET', url: '/api/v1/meta' })).body);
+  assert.match(config.userAgent, /\(ops@example\.test; \+https:/);
+  assert.equal('contact' in await meta(), false);
+  for (const url of ['/', '/data/manifest.json', '/api/v1/health', '/api/v1/auth/me']) {
+    assert.equal((await app.inject({ method: 'GET', url })).body.includes('ops@example.test'), false, url);
+  }
+  config.publicContact = 'ops@example.test';
+  assert.equal((await meta()).contact, 'ops@example.test');
+  config.publicContact = '';
+});
 
 test('meta and health are available without a session', async () => {
   const health = await app.inject({ method: 'GET', url: '/api/v1/health' });
@@ -353,29 +370,6 @@ test('room owner transfer waits for the reconnect grace', async () => {
   guestSocket.close();
 });
 
-test('upstream cache is bounded, expires entries and shares pending loads', async () => {
-  let time = 0;
-  let calls = 0;
-  const cache = new TtlCache({ ttlMs: 100, max: 2, clock: () => time });
-  const load = (key) => cache.load(key, async () => {
-    calls += 1;
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    return `${key}:${calls}`;
-  });
-  assert.deepEqual(await Promise.all([load('a'), load('a')]), ['a:1', 'a:1']);
-  assert.equal(await load('a'), 'a:1');
-  await load('b');
-  await load('c');
-  assert.equal(cache.size, 2);
-  assert.equal(cache.get('a'), undefined);
-  time = 100;
-  assert.equal(cache.get('b'), undefined);
-  cache.prune();
-  assert.equal(cache.size, 0);
-  await assert.rejects(cache.load('x', async () => { throw new Error('down'); }), /down/);
-  assert.equal(await cache.load('x', async () => 'up'), 'up');
-});
-
 test('room snapshots are coalesced and expired empty rooms are dropped', async () => {
   const cookie = await login('Eviction Pilot');
   const create = async () => JSON.parse((await app.inject({
@@ -404,6 +398,7 @@ test('room snapshots are coalesced and expired empty rooms are dropped', async (
 /** Replace zKill with synthetic loss pages and record every requested path. */
 async function withLossPages(makePage, run) {
   const realFetch = globalThis.fetch;
+  zkill.reset();
   const requests = [];
   globalThis.fetch = async (url) => {
     const { pathname } = new URL(String(url));
@@ -443,8 +438,10 @@ test('random targets come from the loss page without per-kill requests', async (
       }
       assert.equal(seen.size, 5, 'a cached sample never repeats a killmail');
       assert.equal(requests.length, 1, 'five targets share one page request');
+      for (let i = 0; i < 15; i += 1) seen.add((await getRandomTarget('standard')).killId);
+      assert.equal(seen.size, 20, 'the whole page is used before anything repeats');
       await getRandomTarget('standard');
-      assert.equal(requests.length, 2, 'an exhausted sample is drawn again');
+      assert.equal(requests.length, 1, 'drawing again never requests the page within its lifetime');
       assert.ok(requests.every((pathname) => pathname.startsWith('/api/losses/')));
     });
   } finally {
@@ -496,6 +493,25 @@ test('a failed pick does not start background requests', async () => {
   }
 });
 
+test('running out of fitted losses does not repeat the remaining empty ones', async () => {
+  const pool = config.manifest.normalShipPool;
+  config.manifest.normalShipPool = [900030];
+  try {
+    // Two fitted and ten empty losses.
+    await withLossPages((ship) => lossPage(ship, [true, true, ...Array(10).fill(false)]), async () => {
+      const seen = new Set();
+      for (let i = 0; i < 4; i += 1) await getRandomTarget('standard', { allowEmpty: false });
+      for (let i = 0; i < 10; i += 1) {
+        const { killId } = await getRandomTarget('standard');
+        assert.equal(seen.has(killId), false, 'no repeat before the page is used up');
+        seen.add(killId);
+      }
+    });
+  } finally {
+    config.manifest.normalShipPool = pool;
+  }
+});
+
 test('the empty-hull setting reaches random target selection', async () => {
   const cookie = await login('Empty Hull Pilot');
   const start = async (body) => JSON.parse((await app.inject({
@@ -529,6 +545,429 @@ test('the empty-hull setting reaches random target selection', async () => {
   } finally {
     config.manifest.normalShipPool = pool;
   }
+});
+
+const REAL_SHIP = 587;
+const OTHER_SHIPS = [588, 589, 590, 591, 592, 593, 594];
+
+/** A single-hull pool with one fitted loss page per run. */
+async function withSoloPool(run, flags = Array(40).fill(true)) {
+  const saved = [config.manifest.normalShipPool, config.manifest.auditKillShipPool];
+  config.manifest.normalShipPool = [REAL_SHIP];
+  config.manifest.auditKillShipPool = [REAL_SHIP];
+  clearHulls();
+  try {
+    return await withLossPages((ship) => lossPage(ship, flags), run);
+  } finally {
+    [config.manifest.normalShipPool, config.manifest.auditKillShipPool] = saved;
+    clearHulls();
+  }
+}
+
+/** Calls the online API as one pilot. */
+async function soloPilot(name) {
+  const cookie = await login(name);
+  const call = async (method, url, payload) => {
+    const response = await app.inject({
+      method, url, headers: { cookie, ...(payload ? { 'content-type': 'application/json' } : {}) }, payload,
+    });
+    return { status: response.statusCode, body: JSON.parse(response.body || 'null') };
+  };
+  return {
+    start: async (gameplay, extra = {}) => (await call('POST', '/api/v1/online/start', { gameplay, allowEmpty: true, ...extra })).body,
+    custom: (gameplay, kb) => call('POST', '/api/v1/online/custom', { gameplay, kb: String(kb) }),
+    daily: () => call('GET', '/api/v1/online/daily'),
+    run: (id) => call('GET', `/api/v1/online/runs/${id}`),
+    guess: (id, shipId, extra = {}) => call('POST', `/api/v1/online/runs/${id}/guess`, { shipId, ...extra }),
+    finish: (id, payload) => call('POST', `/api/v1/online/runs/${id}/finish`, payload),
+    begin: (id, extra = {}) => call('POST', `/api/v1/online/runs/${id}/begin`, extra),
+    abandon: (id) => call('POST', `/api/v1/online/runs/${id}/abandon`, {}),
+    stats: async () => (await call('GET', '/api/v1/stats/me')).body,
+  };
+}
+
+test('the service counts, checks and judges solo guesses', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Guess Pilot');
+    const run = await pilot.start('standard');
+    assert.equal((await pilot.guess(run.runId, 1)).status, 400, 'unknown ship');
+    assert.equal((await pilot.guess(run.runId, 'cni')).status, 400);
+    const first = await pilot.guess(run.runId, OTHER_SHIPS[0]);
+    assert.equal(first.status, 200);
+    assert.equal(first.body.attempts, 1);
+    const again = await pilot.guess(run.runId, OTHER_SHIPS[0]);
+    assert.deepEqual([again.status, again.body.attempts], [200, 1], 'a repeated submission is not counted twice');
+    const won = await pilot.guess(run.runId, REAL_SHIP);
+    assert.equal(won.body.status, 'won');
+    assert.deepEqual(won.body.guesses, [OTHER_SHIPS[0], REAL_SHIP]);
+    assert.equal((await pilot.guess(run.runId, REAL_SHIP)).status, 200, 'a retried last guess stays a success');
+    const late = await pilot.guess(run.runId, OTHER_SHIPS[1]);
+    assert.deepEqual([late.status, late.body.error, late.body.run?.status], [409, 'run-already-finished', 'won']);
+    assert.equal((await pilot.stats()).streaks.standard, 1);
+
+    const next = await pilot.start('standard');
+    for (const ship of OTHER_SHIPS.slice(0, 6)) await pilot.guess(next.runId, ship);
+    assert.equal((await pilot.run(next.runId)).body.status, 'lost', 'six misses lose');
+    assert.equal((await pilot.guess(next.runId, REAL_SHIP)).status, 409);
+    assert.equal((await pilot.stats()).streaks.standard, 0);
+  });
+});
+
+test('a result cannot be claimed without the guesses', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Claim Pilot');
+    const run = await pilot.start('standard');
+    const claim = await pilot.finish(run.runId, {
+      status: 'won', attempts: 1, elapsedMs: 0, answerId: REAL_SHIP, guesses: [OTHER_SHIPS[0]],
+    });
+    assert.equal(claim.status, 400);
+    assert.equal((await pilot.run(run.runId)).body.status, 'playing');
+    assert.equal((await pilot.finish(run.runId, { status: 'lost' })).status, 400, 'standard has no giving up');
+    assert.equal((await pilot.stats()).streaks.standard, 0);
+
+    const timed = await pilot.start('timed');
+    await pilot.guess(timed.runId, OTHER_SHIPS[0], { elapsedMs: 5 });
+    const lost = await pilot.finish(timed.runId, { status: 'lost', elapsedMs: 9e9 });
+    assert.equal(lost.body.status, 'lost');
+    assert.ok(lost.body.elapsedMs < 10_000, 'time cannot exceed the time since the start');
+    assert.equal((await pilot.finish(timed.runId, { status: 'lost' })).status, 200, 'a retried give-up stays a success');
+  });
+});
+
+test('an unfinished started run is resumed; only abandoning it is a loss', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Resume Pilot');
+    const run = await pilot.start('standard');
+    await pilot.guess(run.runId, REAL_SHIP);
+    const second = await pilot.start('standard');
+    assert.notEqual(second.runId, run.runId);
+    assert.equal((await pilot.start('standard')).runId, second.runId, 'a reload keeps the target');
+    assert.equal((await pilot.abandon(second.runId)).status, 200);
+    assert.equal((await pilot.run(second.runId)).status, 404, 'an unguessed run leaves no record');
+    assert.equal((await pilot.stats()).streaks.standard, 1);
+
+    const third = await pilot.start('standard');
+    assert.notEqual(third.runId, second.runId);
+    await pilot.guess(third.runId, OTHER_SHIPS[0]);
+    await pilot.start('audit');
+    const resumed = await pilot.start('standard');
+    assert.deepEqual([resumed.runId, resumed.guesses], [third.runId, [OTHER_SHIPS[0]]]);
+    assert.equal((await pilot.abandon(third.runId)).body.status, 'lost');
+    assert.equal((await pilot.stats()).streaks.standard, 0);
+    assert.equal((await pilot.abandon(third.runId)).status, 200, 'abandoning twice is harmless');
+    assert.notEqual((await pilot.start('standard')).runId, third.runId);
+
+    const stranger = await soloPilot('Solo Stranger Pilot');
+    const open = await pilot.start('standard');
+    assert.equal((await stranger.abandon(open.runId)).status, 404);
+    assert.equal((await stranger.guess(open.runId, REAL_SHIP)).status, 404);
+  });
+});
+
+test('starting the clock starts a timed run', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Clock Pilot');
+    const won = await pilot.start('timed');
+    await pilot.guess(won.runId, REAL_SHIP);
+    assert.equal((await pilot.stats()).streaks.timed, 1);
+
+    const run = await pilot.start('timed');
+    assert.equal(run.begun, false);
+    db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 3 * 86400e3, run.runId);
+    const begun = await pilot.begin(run.runId, { elapsedMs: 5000 });
+    assert.deepEqual([begun.status, begun.body.begun, begun.body.attempts], [200, true, 0]);
+    assert.ok(Math.abs(Date.now() - 5000 - begun.body.startedAt) < 1500, 'the clock started when the player pressed start');
+    const again = await pilot.begin(run.runId, { elapsedMs: 0 });
+    assert.deepEqual([again.status, again.body.startedAt], [200, begun.body.startedAt], 'pressed once');
+    expireRuns();
+    const resumed = await pilot.start('timed', { allowEmpty: false });
+    assert.deepEqual([resumed.runId, resumed.begun], [run.runId, true], 'a reload continues it');
+    assert.equal((await pilot.abandon(run.runId)).body.status, 'lost');
+    assert.equal((await pilot.stats()).streaks.timed, 0);
+    assert.equal((await pilot.begin(run.runId)).status, 409);
+
+    const left = await pilot.start('timed');
+    await pilot.begin(left.runId);
+    db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 25 * 3600e3, left.runId);
+    expireRuns();
+    assert.equal((await pilot.run(left.runId)).body.status, 'lost', 'unfinished for a day');
+
+    const fresh = await pilot.start('timed');
+    await pilot.abandon(fresh.runId);
+    assert.equal((await pilot.run(fresh.runId)).status, 404, 'before the clock a target can be changed freely');
+    const standard = await pilot.start('standard');
+    assert.equal((await pilot.begin(standard.runId)).status, 400);
+    const stranger = await soloPilot('Solo Clock Stranger');
+    assert.equal((await stranger.begin(standard.runId)).status, 404);
+  });
+});
+
+test('a database of an older release gains the begun column', () => {
+  const file = path.join(ROOT, '.cache', `online-old-${process.pid}.sqlite`);
+  for (const suffix of ['', '-wal', '-shm']) fs.rmSync(`${file}${suffix}`, { force: true });
+  const columns = db.prepare('PRAGMA table_info(online_runs)').all().filter((column) => column.name !== 'begun_at')
+    .map((column) => `${column.name} ${column.type}`).join(', ');
+  const script = [
+    "const { DatabaseSync } = await import('node:sqlite');",
+    `const old = new DatabaseSync(${JSON.stringify(file)}); old.exec(${JSON.stringify(`CREATE TABLE online_runs (${columns}); INSERT INTO online_runs(id, kind) VALUES ('keep', 'random')`)}); old.close();`,
+    "for (let i = 0; i < 2; i += 1) { const { db } = await import('./server/src/db.mjs?' + i); if (i) console.log(JSON.stringify(db.prepare('SELECT id, begun_at FROM online_runs').all())); db.close(); }",
+  ].join('\n');
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: ROOT, env: { ...process.env, DATABASE_PATH: file }, encoding: 'utf8',
+  });
+  assert.deepEqual(JSON.parse(run.stdout || 'null'), [{ id: 'keep', begun_at: null }], run.stderr);
+  for (const suffix of ['', '-wal', '-shm']) fs.rmSync(`${file}${suffix}`, { force: true });
+});
+
+test('an empty unguessed target is replaced when empty hulls are off', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Empty Pilot');
+    const run = await pilot.start('standard');
+    db.prepare('UPDATE online_runs SET target_json = ? WHERE id = ?').run(JSON.stringify({
+      killId: run.target.killId, shipId: REAL_SHIP, killmail: { ...run.target.killmail, victim: { ship_type_id: REAL_SHIP, items: [cargoItem] } },
+    }), run.runId);
+    assert.equal((await pilot.start('standard')).runId, run.runId);
+    assert.notEqual((await pilot.start('standard', { allowEmpty: false })).runId, run.runId);
+  });
+});
+
+test('a run left unfinished for a day after its first guess is lost', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Expired Pilot');
+    const run = await pilot.start('standard');
+    // The day is counted from the first guess, not from handing out the target.
+    db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 3 * 86400e3, run.runId);
+    assert.equal((await pilot.guess(run.runId, OTHER_SHIPS[0])).body.status, 'playing');
+    expireRuns();
+    assert.equal((await pilot.run(run.runId)).body.status, 'playing');
+    db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 25 * 3600e3, run.runId);
+    expireRuns();
+    assert.equal((await pilot.run(run.runId)).body.status, 'lost');
+    const other = await pilot.start('standard');
+    await pilot.guess(other.runId, OTHER_SHIPS[0]);
+    db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 25 * 3600e3, other.runId);
+    assert.equal((await pilot.guess(other.runId, REAL_SHIP)).status, 409);
+    assert.notEqual((await pilot.start('standard')).runId, other.runId);
+  });
+});
+
+test('custom killmails are playable and resumable but never counted', async () => {
+  await withSoloPool(async () => {
+    const pages = globalThis.fetch;
+    globalThis.fetch = async (url) => (/killID/.test(String(url))
+      ? new Response(JSON.stringify([{ ...lossPage(REAL_SHIP, [true])[0], killmail_id: 777001 }]))
+      : pages(url));
+    try {
+      const pilot = await soloPilot('Solo Custom Pilot');
+      const statRows = () => db.prepare('SELECT COUNT(*) AS n FROM target_stats WHERE target_kill_id = 777001').get().n;
+      const run = (await pilot.custom('standard', 777001)).body;
+      await pilot.guess(run.runId, OTHER_SHIPS[0]);
+      const resumed = (await pilot.custom('standard', 777001)).body;
+      assert.deepEqual([resumed.runId, resumed.guesses], [run.runId, [OTHER_SHIPS[0]]]);
+      assert.equal((await pilot.guess(run.runId, REAL_SHIP)).body.status, 'won');
+      const random = await pilot.start('standard');
+      await pilot.guess(random.runId, REAL_SHIP);
+      const replay = (await pilot.custom('standard', 777001)).body;
+      assert.notEqual(replay.runId, run.runId);
+      for (const ship of OTHER_SHIPS.slice(0, 6)) await pilot.guess(replay.runId, ship);
+      const stats = await pilot.stats();
+      assert.equal(stats.streaks.standard, 1, 'neither the win nor the loss of a custom killmail counts');
+      assert.equal(stats.winStreak, 1);
+      assert.equal(statRows(), 0);
+      // A custom win alone is no winning day either.
+      const other = await soloPilot('Solo Custom Only Pilot');
+      const only = (await other.custom('standard', 777001)).body;
+      await other.guess(only.runId, REAL_SHIP);
+      assert.equal((await other.stats()).winStreak, 0);
+    } finally {
+      globalThis.fetch = pages;
+    }
+  });
+});
+
+test('attackers never reach the cache, the database or a player', async () => {
+  const makePage = (ship) => lossPage(ship, Array(5).fill(true)).map((kill) => ({ ...kill, attackers: [{ character_id: 90000077 }] }));
+  const saved = config.manifest.normalShipPool;
+  config.manifest.normalShipPool = [REAL_SHIP];
+  clearHulls();
+  try {
+    await withLossPages(makePage, async () => {
+      const pilot = await soloPilot('Solo Slim Pilot');
+      const run = await pilot.start('standard');
+      assert.ok(run.target.killmail.victim.items.length);
+      assert.equal(JSON.stringify(run).includes('attackers'), false);
+      const stored = db.prepare('SELECT target_json FROM online_runs WHERE id = ?').get(run.runId).target_json;
+      assert.equal(stored.includes('90000077'), false);
+      const entry = [...zkill.entries.values()][0];
+      assert.equal(zlib.gunzipSync(entry.body).toString().includes('attackers'), false);
+    });
+  } finally {
+    config.manifest.normalShipPool = saved;
+    clearHulls();
+  }
+});
+
+test('only files of the current release are cached for long', async () => {
+  const cache = async (url) => (await app.inject({ method: 'GET', url })).headers['cache-control'];
+  const version = /\/main\.js\?v=([\w.-]+)/.exec(fs.readFileSync(path.join(config.staticDir, 'index.html'), 'utf8'))[1];
+  assert.match(await cache(`/js/main.js?v=${version}`), /max-age=31536000, immutable/);
+  assert.match(await cache(`/styles/app.css?v=${version}`), /immutable/);
+  for (const url of ['/', '/js/main.js', '/js/main.js?v=0.0.1-aaaa', `/data/manifest.json?v=${version}`, `/js/none.js?v=${version}`]) {
+    assert.equal(/immutable/.test(await cache(url) || ''), false, url);
+  }
+});
+
+test('a killmail this service knows opens although zKillboard finds nothing', async () => {
+  await withSoloPool(async (requests) => {
+    const pilot = await soloPilot('Solo Stored Pilot');
+    const run = await pilot.start('standard');
+    const before = requests.length;
+    const other = await soloPilot('Solo Stored Friend');
+    const custom = await other.custom('audit', run.target.killId);
+    assert.deepEqual([custom.status, custom.body.kind, custom.body.target?.killId], [200, 'custom', run.target.killId]);
+    assert.equal(requests.length, before);
+    assert.equal((await other.custom('audit', 123456789)).status, 503);
+  });
+});
+
+test('opening Daily in two pages at once yields one run', async () => {
+  const day = JSON.parse((await app.inject({ method: 'GET', url: '/api/v1/meta' })).body).gameDay;
+  db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
+  const pool = config.manifest.normalShipPool;
+  config.manifest.normalShipPool = [REAL_SHIP];
+  const kills = lossPage(REAL_SHIP, Array(3).fill(true)).map((kill) => ({ ...kill, killmail_time: '2025-06-01T00:00:00Z' }));
+  try {
+    await withLossPages(() => kills, async () => {
+      const pilot = await soloPilot('Solo Daily Pilot');
+      const answers = await Promise.all([pilot.daily(), pilot.daily()]);
+      assert.deepEqual(answers.map((item) => item.status), [200, 200]);
+      assert.equal(answers[0].body.runId, answers[1].body.runId);
+      await pilot.guess(answers[0].body.runId, OTHER_SHIPS[0]);
+      const back = (await pilot.daily()).body;
+      assert.deepEqual([back.guesses, back.attempts], [[OTHER_SHIPS[0]], 1]);
+      assert.equal((await pilot.abandon(back.runId)).status, 400, 'Daily has no other target');
+    });
+  } finally {
+    config.manifest.normalShipPool = pool;
+    db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
+  }
+});
+
+test('logs carry paths without query strings', async () => {
+  const lines = [];
+  const logged = await buildApp({ logStream: { write: (line) => lines.push(line) } });
+  await logged.inject({ method: 'GET', url: '/api/v1/auth/eve/callback?code=SECRETCODE&state=SECRETSTATE' });
+  await logged.inject({ method: 'GET', url: '/api/v1/rooms/ABCD2345/ws?player=SECRETPLAYER' });
+  await logged.inject({ method: 'POST', url: '/api/v1/online/start?x=SECRETQUERY', headers: { 'content-type': 'application/json' }, payload: '{bad' });
+  await logged.close();
+  const text = lines.join('');
+  assert.match(text, /\/api\/v1\/auth\/eve\/callback/);
+  assert.equal(/SECRET|ops@example/.test(text), false);
+});
+
+test('security headers are present on pages, assets and API answers', async () => {
+  for (const url of ['/', '/api/v1/meta', '/data/manifest.json', '/api/v1/none']) {
+    const { headers } = await app.inject({ method: 'GET', url });
+    assert.equal(headers['x-content-type-options'], 'nosniff', url);
+    assert.equal(headers['referrer-policy'], 'strict-origin-when-cross-origin', url);
+    assert.equal(headers['x-frame-options'], 'SAMEORIGIN', url);
+    assert.equal(headers['content-security-policy'], undefined, url);
+  }
+});
+
+test('the SSO state belongs to the browser that started the login', async () => {
+  const saved = { ...config.eve };
+  Object.assign(config.eve, { clientId: 'client', clientSecret: 'secret' });
+  const realFetch = globalThis.fetch;
+  let tokenRequests = 0;
+  let metadataFails = true;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('.well-known')) {
+      if (metadataFails) return new Response('down', { status: 503 });
+      return new Response(JSON.stringify({
+        authorization_endpoint: 'https://login.eveonline.com/v2/oauth/authorize',
+        token_endpoint: 'https://login.eveonline.com/v2/oauth/token',
+        jwks_uri: 'https://login.eveonline.com/oauth/jwks',
+      }));
+    }
+    tokenRequests += 1;
+    return new Response('no', { status: 400 });
+  };
+  const start = (cookie) => app.inject({ method: 'GET', url: '/api/v1/auth/eve/start', headers: cookie ? { cookie } : {} });
+  const callback = (state, cookie) => app.inject({
+    method: 'GET', url: `/api/v1/auth/eve/callback?code=c&state=${state}`, headers: cookie ? { cookie } : {},
+  });
+  try {
+    const down = await start();
+    assert.equal(down.statusCode, 302);
+    assert.match(down.headers.location, /\/\?auth_error=sso$/, 'a failing SSO leads back to the page');
+    metadataFails = false;
+
+    const first = await start();
+    const state = new URL(first.headers.location).searchParams.get('state');
+    const raw = String([].concat(first.headers['set-cookie'])[0]);
+    assert.match(raw, /HttpOnly/i);
+    assert.match(raw, /SameSite=Lax/i);
+    const cookie = raw.split(';')[0];
+    assert.match((await callback(state)).headers.location, /auth_error=state/, 'another browser');
+    assert.equal(tokenRequests, 0);
+
+    // Two tabs of the same browser may log in side by side.
+    const second = await start(cookie);
+    const both = String([].concat(second.headers['set-cookie'])[0]).split(';')[0];
+    const secondState = new URL(second.headers.location).searchParams.get('state');
+    assert.match((await callback(secondState, both)).headers.location, /auth_error=sso/, 'reached the token request');
+    assert.equal(tokenRequests, 1);
+    assert.match((await callback(secondState, both)).headers.location, /auth_error=state/, 'used once');
+    const third = await start(cookie);
+    const thirdCookie = String([].concat(third.headers['set-cookie'])[0]).split(';')[0];
+    assert.match(decodeURIComponent(thirdCookie), new RegExp(state), 'the other tab stays valid');
+  } finally {
+    globalThis.fetch = realFetch;
+    Object.assign(config.eve, saved);
+  }
+});
+
+test('starting runs and creating rooms is limited per player', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Flood Pilot');
+    const answers = [];
+    for (let i = 0; i < 32; i += 1) answers.push(await pilot.start('standard'));
+    assert.ok(answers.slice(0, 30).every((item) => item.runId));
+    assert.equal(answers[31].error, 'rate-limited');
+    assert.ok((await (await soloPilot('Calm Pilot')).start('standard')).runId);
+  });
+  const cookie = await login('Room Flood Pilot');
+  const create = async () => {
+    const response = await app.inject({
+      method: 'POST', url: '/api/v1/rooms', headers: { cookie, 'content-type': 'application/json' }, payload: {},
+    });
+    const code = JSON.parse(response.body).code;
+    const room = ROOMS.get(code);
+    if (room) for (const player of room.players.values()) clearTimeout(player.reconnectTimer);
+    ROOMS.delete(code);
+    return response.statusCode;
+  };
+  const statuses = [];
+  for (let i = 0; i < 12; i += 1) statuses.push(await create());
+  assert.ok(statuses.slice(0, 10).every((status) => status === 200));
+  assert.equal(statuses.at(-1), 429);
+});
+
+test('development login needs a loopback origin in production', () => {
+  const read = (env) => {
+    const run = spawnSync(process.execPath, ['--input-type=module', '-e',
+      "const { config } = await import('./server/src/config.mjs'); console.log(JSON.stringify([config.devAuth, config.warnings.length]));"], {
+      cwd: ROOT,
+      env: { ...process.env, SESSION_SECRET: 'x', FITDLE_DEV_AUTH: '1', ...env },
+      encoding: 'utf8',
+    });
+    return JSON.parse(run.stdout);
+  };
+  assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://fitdle.test' }), [false, 1]);
+  assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'http://127.0.0.1:8787' }), [true, 0]);
+  assert.deepEqual(read({ NODE_ENV: '', PUBLIC_ORIGIN: 'https://fitdle.test' }), [true, 0]);
+  assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'http://127.0.0.1:8787', SESSION_SECRET: ' ' }), [true, 1]);
 });
 
 test('static assets are served precompressed with identical content', async () => {

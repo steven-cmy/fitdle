@@ -4,6 +4,10 @@ import { config, ssoConfigured } from './config.mjs';
 import { getUser, now, statement, upsertUser } from './db.mjs';
 
 export const SESSION_COOKIE = 'fitdle_session';
+// Binds a login to the browser that started it; several tabs may log in at once.
+const STATE_COOKIE = 'fitdle_sso';
+const STATE_TTL_MS = 10 * 60 * 1000;
+const MAX_STATES = 5;
 const METADATA_TTL_MS = 5 * 60 * 1000;
 let metadataCache = null;
 let jwksCache = null;
@@ -80,7 +84,7 @@ async function exchangeCode(metadata, code, verifier) {
 async function verifyAccessToken(token) {
   const jwks = await getJwks();
   const { payload } = await jwtVerify(token, jwks, {
-    issuer: ['https://login.eveonline.com', 'logineveonline.com'],
+    issuer: ['https://login.eveonline.com', 'login.eveonline.com'],
     clockTolerance: 30,
   });
   const audiences = Array.isArray(payload?.aud) ? payload.aud : [payload?.aud].filter(Boolean);
@@ -122,6 +126,24 @@ export function getSessionUser(request) {
   return getUser(session.name_key);
 }
 
+function browserStates(request) {
+  return String(request.cookies?.[STATE_COOKIE] || '').split('.').filter((value) => /^[\w-]{16,64}$/.test(value));
+}
+
+function setBrowserStates(reply, states) {
+  reply.setCookie(STATE_COOKIE, states.slice(-MAX_STATES).join('.'), {
+    path: '/api/v1/auth/eve',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: config.cookieSecure,
+    maxAge: Math.floor(STATE_TTL_MS / 1000),
+  });
+}
+
+function loginFailed(reply, reason) {
+  return reply.redirect(`${config.publicOrigin}/?auth_error=${reason}`);
+}
+
 export function registerAuthRoutes(app) {
   app.get('/api/v1/auth/me', async (request) => {
     const user = getSessionUser(request);
@@ -145,14 +167,20 @@ export function registerAuthRoutes(app) {
       reply.code(503).send({ error: 'sso-not-configured' });
       return;
     }
+    let metadata;
+    try {
+      metadata = await getMetadata();
+    } catch {
+      return loginFailed(reply, 'sso');
+    }
     const state = randomToken(24);
     const verifier = randomToken(32);
     const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
     const t = now();
     statement('DELETE FROM oauth_states WHERE expires_at <= ?').run(t);
     statement('INSERT INTO oauth_states(state, verifier, return_to, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
-      .run(state, verifier, safeReturn(request.query?.return), t, t + 10 * 60 * 1000);
-    const metadata = await getMetadata();
+      .run(state, verifier, safeReturn(request.query?.return), t, t + STATE_TTL_MS);
+    setBrowserStates(reply, [...browserStates(request), state]);
     const url = new URL(metadata.authorization_endpoint);
     url.searchParams.set('response_type', 'code');
     url.searchParams.set('client_id', config.eve.clientId);
@@ -172,10 +200,10 @@ export function registerAuthRoutes(app) {
     const state = String(request.query?.state || '');
     const code = String(request.query?.code || '');
     const row = statement('SELECT * FROM oauth_states WHERE state = ? AND expires_at > ?').get(state, now());
+    const states = browserStates(request);
+    if (!row || !code || !states.includes(state)) return loginFailed(reply, 'state');
     statement('DELETE FROM oauth_states WHERE state = ?').run(state);
-    if (!row || !code) {
-      return reply.redirect('/?auth_error=state');
-    }
+    setBrowserStates(reply, states.filter((value) => value !== state));
     try {
       const metadata = await getMetadata();
       const token = await exchangeCode(metadata, code, row.verifier);
@@ -186,7 +214,7 @@ export function registerAuthRoutes(app) {
       const redirect = config.publicOrigin ? `${config.publicOrigin}${target}` : target;
       return reply.redirect(redirect);
     } catch {
-      return reply.redirect('/?auth_error=sso');
+      return loginFailed(reply, 'sso');
     }
   });
 

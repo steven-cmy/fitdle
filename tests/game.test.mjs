@@ -59,6 +59,8 @@ import { LEGAL_NOTICES } from '../js/legal-copy.js';
 import { claimGroups, claimSeed, pickClaimDebrief, pickClaimGroup, pickClaimMemo } from '../js/claim.js';
 import { DEFAULT_REVEAL, DEFAULT_KB_RECENCY_HALF_LIFE_DAYS, DEFAULT_KB_MAX_SCAN_PAGES, loadBuildConfig, parseDateOnly, parseGameDayStart } from '../scripts/build-env.mjs';
 import { normalizePublicOrigin, renderRuntimeOrigin } from '../scripts/render-runtime-origin.mjs';
+import { versionHtml, versionImports } from '../scripts/version-assets.mjs';
+import { buildUserAgent, parseContact, publicSite } from '../js/user-agent.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'manifest.json'), 'utf8'));
@@ -690,6 +692,10 @@ test('watchlist and claim assets are shipped to dist', () => {
   assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'assets', 'watchlist.json')), true);
   assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'assets', 'boot-flavor.json')), true);
   assert.equal(fs.existsSync(path.join(ROOT, 'dist', 'assets', 'claim-departments.json')), true);
+  for (const locale of manifest.locales) {
+    const { departments } = JSON.parse(fs.readFileSync(path.join(ROOT, 'dist', 'assets', 'claim-departments', `${locale}.json`), 'utf8'));
+    assert.deepEqual(Object.keys(departments), [locale]);
+  }
 });
 
 test('watchlist matches victim character, corporation, or alliance IDs', () => {
@@ -881,14 +887,14 @@ test('localized static share pages carry the score for link previews', () => {
     const html = fs.readFileSync(sharePage, 'utf8');
     assert.match(html, /FITDLE — 3\/6 — Claim approved/);
     assert.match(html, /Hull identity verified in 3 review passes/);
-    assert.match(html, /og:image" content="[^"]+\/assets\/share\/og-3-en\.png\?v=3"/);
+    assert.match(html, /og:image" content="[^"]+\/assets\/share\/og-3-en\.png\?v=5"/);
     assert.match(html, /twitter:card" content="summary_large_image"/);
     assert.match(html, /location\.replace/);
     assert.ok(fs.existsSync(zhPage));
     const zh = fs.readFileSync(zhPage, 'utf8');
     assert.match(zh, /3\/6 — 理赔通过/);
-    assert.match(zh, /经过 3 次复核，舰体身份已确认/);
-    assert.match(zh, /og:image" content="[^"]+\/assets\/share\/og-3-zh\.png\?v=3"/);
+    assert.match(zh, /经过 3 次复核，船体身份已确认/);
+    assert.match(zh, /og:image" content="[^"]+\/assets\/share\/og-3-zh\.png\?v=5"/);
     assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-3-zh.png')));
     assert.ok(fs.existsSync(path.join(ROOT, 'assets', 'share', 'og-lost-de.png')));
     const timed = fs.readFileSync(path.join(ROOT, 'dist', 'share', 'timed', 'en.html'), 'utf8');
@@ -900,6 +906,19 @@ test('localized static share pages carry the score for link previews', () => {
     assert.equal(freeShare.includes("searchParams.set('lang'"), false);
     assert.match(timed, /share\.timedTitle|Timed signal run/);
   }
+});
+
+test('every share card exists as a 1200x630 PNG', () => {
+  const names = ['og.png'];
+  for (const locale of ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh']) {
+    for (const key of ['1', '2', '3', '4', '5', '6', 'lost']) names.push(`og-${key}-${locale}.png`);
+  }
+  for (const name of names) {
+    const png = fs.readFileSync(path.join(ROOT, 'assets', 'share', name));
+    assert.equal(png.toString('latin1', 1, 4), 'PNG', name);
+    assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [1200, 630], name);
+  }
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, 'assets', 'share')).sort(), names.sort());
 });
 
 test('container image builds the catalog before the kill pool and serves online', () => {
@@ -1021,10 +1040,10 @@ test('reset countdown copy and source-specific error screens are localized', () 
   assert.equal(MESSAGES.zh['end.next'], '下一份案卷');
   for (const lang of Object.keys(MESSAGES)) {
     for (const key of [
-      'error.timeCode', 'error.timeTitle', 'error.timeBody',
-      'error.zkillCode', 'error.zkillTitle', 'error.zkillBody',
-      'error.esiCode', 'error.esiTitle', 'error.esiBody',
-      'error.noTargetCode', 'error.noTargetTitle', 'error.noTargetBody',
+      'error.timeTitle', 'error.timeBody',
+      'error.zkillTitle', 'error.zkillBody',
+      'error.esiTitle', 'error.esiBody',
+      'error.noTargetCode', 'error.noTargetBody',
       'error.dailyLore', 'error.timeLore', 'error.zkillLore',
       'error.esiLore', 'error.noTargetLore', 'error.unknownHullLore',
       'error.genericLore', 'error.genericCode',
@@ -1066,17 +1085,22 @@ test('claim groups carry department, memos and outcome debriefs', () => {
   const expectedIds = [
     'salvage', 'hull', 'intake', 'fitting', 'wreck',
     'cargo', 'arbitration', 'compliance', 'alliance-srp',
+    'clone', 'concord', 'courier',
   ];
+  // Invented or non-EVE wording that must not come back.
+  const banned = /SCC-9|航道|航路|항로|吊车|crane|Kranführer|grúa|grutier|クレーン|크레인|крановщик|印泥|模块|舰体|\bpecio|クレーム|클레임|фитинг/i;
   for (const [locale, departments] of Object.entries(data.departments)) {
     assert.deepEqual(departments.map((department) => department.id), expectedIds, `${locale} department ids`);
     for (const department of departments) {
       assert.ok(department.name?.trim(), `${locale}/${department.id} missing name`);
-      assert.ok(Array.isArray(department.memos) && department.memos.length >= 6, `${locale}/${department.id} needs memos`);
-      assert.ok(Array.isArray(department.debriefs?.won) && department.debriefs.won.length >= 3, `${locale}/${department.id} needs won debriefs`);
-      assert.ok(Array.isArray(department.debriefs?.lost) && department.debriefs.lost.length >= 3, `${locale}/${department.id} needs lost debriefs`);
+      assert.ok(Array.isArray(department.memos) && department.memos.length === 12, `${locale}/${department.id} needs memos`);
+      assert.ok(Array.isArray(department.debriefs?.won) && department.debriefs.won.length === 6, `${locale}/${department.id} needs won debriefs`);
+      assert.ok(Array.isArray(department.debriefs?.lost) && department.debriefs.lost.length === 6, `${locale}/${department.id} needs lost debriefs`);
       const copy = [...department.memos, ...department.debriefs.won, ...department.debriefs.lost];
       assert.ok(copy.every((text) => typeof text === 'string' && text.trim()), `${locale}/${department.id} empty copy`);
       assert.ok(copy.every((text) => !text.includes('{name}')), `${locale}/${department.id} leaked placeholder`);
+      assert.equal(new Set(copy).size, copy.length, `${locale}/${department.id} repeats itself`);
+      assert.doesNotMatch([department.name, ...copy].join('\n'), banned, `${locale}/${department.id} invented wording`);
       assert.doesNotMatch(copy.join('\n'), /stock market|loss mail|损失邮件|FC 仍在问/i, `${locale}/${department.id} legacy copy`);
     }
     const srp = departments.find((department) => department.id === 'alliance-srp');
@@ -1449,7 +1473,6 @@ test('every locale provides the same message keys', () => {
       assert.ok(LEGAL_NOTICES[locale].includes(term), `${locale} legal missing ${term}`);
     }
     assert.ok(MESSAGES[locale]['help.sharedRules'].length > 20);
-    assert.ok(!MESSAGES[locale]['help.step4'].includes('UTC'));
   }
   assert.ok(MESSAGES.en['clue.losses90'].includes('Losses'));
   assert.ok(MESSAGES.zh['clue.losses90'].includes('损失'));
@@ -1508,7 +1531,7 @@ test('API caching and builder cache policies are wired', () => {
 
 test('unknown hull killmail shows a localized back-navigation error', () => {
   for (const locale of manifest.locales) {
-    for (const key of ['error.unknownHullCode', 'error.unknownHullTitle', 'error.unknownHullBody', 'error.back']) {
+    for (const key of ['error.unknownHullTitle', 'error.unknownHullBody', 'error.back']) {
       assert.ok(MESSAGES[locale][key], `${locale} missing ${key}`);
     }
   }
@@ -2536,19 +2559,22 @@ test('Standard cargo queue consumes its own weight budget', () => {
 
 test('Pend branding, claim copy and official corporation logos are wired', () => {
   assert.equal(MESSAGES.en['brand.parent'], 'PEND INSURANCE');
-  assert.equal(MESSAGES.zh['brand.parent'], '彭德保险集团');
-  assert.equal(MESSAGES.zh['brand.claimDivision'], '商业安全委员会 理赔评估处');
+  assert.equal(MESSAGES.zh['brand.parent'], '彭德保险');
+  assert.equal(MESSAGES.zh['brand.claimDivision'], '理赔评估处');
   assert.equal(MESSAGES.zh['brand.scc'], '商业安全委员会');
-  assert.equal(`${MESSAGES.zh['brand.parent']} // ${MESSAGES.zh['brand.scc']}`, '彭德保险集团 // 商业安全委员会');
+  assert.equal(`${MESSAGES.zh['brand.parent']} // ${MESSAGES.zh['brand.scc']}`, '彭德保险 // 商业安全委员会');
   assert.equal(MESSAGES.en['brand.scc'], 'SECURE COMMERCE COMMISSION');
-  assert.ok(MESSAGES.en['brand.claimDivision'].includes('SECURE COMMERCE COMMISSION'));
+  // Official corporation names (SDE npcCorporations 1000113 and 1000132).
+  assert.deepEqual(['ja', 'ko', 'de', 'ru'].map((l) => MESSAGES[l]['brand.parent']), ['ペンド保険会社', '펜드 보험사', 'PEND INSURANCE', 'PEND INSURANCE']);
+  assert.deepEqual(['de', 'es', 'fr', 'ja', 'ko', 'ru'].map((l) => MESSAGES[l]['brand.scc']), [
+    'SECURE COMMERCE COMMISSION', 'COMISIÓN DE COMERCIO SEGURO', 'SECURE COMMERCE COMMISSION', '通商保護委員会', '안전무역위원회', 'SECURE COMMERCE COMMISSION',
+  ]);
   assert.equal(MESSAGES.en['app.subtitle'], 'PEND INSURANCE // CLAIMS ASSESSMENT');
   for (const locale of manifest.locales) {
     assert.ok(MESSAGES[locale]['brand.scc'], `${locale} missing brand.scc`);
   }
   assert.equal(MESSAGES.en['mode.audit'], 'AUDIT');
   assert.equal(MESSAGES.zh['mode.audit'], '审计');
-  assert.equal(MESSAGES.zh['mode.helpAuditTitle'], '审计模式');
   assert.equal(MESSAGES.en['gameplay.arbitration'], 'ARBITRATION');
   assert.equal(MESSAGES.zh['gameplay.arbitration'], '仲裁复核');
   for (const locale of manifest.locales) {
@@ -2586,16 +2612,44 @@ test('new URLs use claim instead of gameplay', () => {
   assert.match(main, /searchParams\.set\('claim'/);
 });
 
+test('interface copy keeps to official EVE wording', () => {
+  // Wordings that differ from the official term of that language.
+  const unofficial = {
+    zh: /舰体|货仓|公司|角色加成|模块|(?<!铁骑)舰载机|传感器强度|击杀邮件|发牌员|彭德保险集团/,
+    de: /Konzern|Hochslot|Lowslot|Fitting|Hülle|Dealer/i,
+    es: /\bpecio|armadura|\brig\b|powergrid|[Kk]illmail/i,
+    fr: /fitting|châssis|killmail|escaladé/i,
+    ja: /クレーム|企業|同盟|オフィサー|キルメール|ロールボーナス|フィッティング/,
+    ko: /클레임|화물칸|오피서|킬메일/,
+    ru: /фитинг|\bслот|капаситор|ки[л]+мейл/i,
+  };
+  for (const [locale, pattern] of Object.entries(unofficial)) {
+    for (const [key, text] of Object.entries(MESSAGES[locale])) assert.doesNotMatch(text, pattern, `${locale} ${key}`);
+  }
+  for (const locale of manifest.locales) {
+    for (const [key, text] of Object.entries(MESSAGES.en)) {
+      const vars = (value) => (value.match(/\{\w+\}/g) || []).sort();
+      assert.deepEqual(vars(MESSAGES[locale][key]), vars(text), `${locale} ${key} placeholders`);
+    }
+  }
+  for (const locale of manifest.locales) {
+    assert.equal(triglavianDepartments(locale).every((department) => department.memos.length >= 2), true, locale);
+    if (locale !== 'en') assert.notEqual(triglavianBrand(locale).helpIntro, triglavianBrand('en').helpIntro, locale);
+  }
+});
+
 test('legacy mode names are absent from authored UI copy', () => {
   const files = [
     'index.html',
     'js/main.js',
     'js/i18n.js',
-    'js/online/messages.js',
+    'js/messages/en.js',
+    'js/messages/zh.js',
     'README.md',
   ];
   for (const file of files) {
-    const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    // The module badge names the official Abyssal meta group, not a mode.
+    const text = fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/^ {2}'dossier\.audit(?:Hint)?': .*$/gm, '');
     assert.doesNotMatch(text, /abyss|Abyss|ABYSS|pvp|PvP|PVP|深渊|试炼场/, `${file} still contains a legacy mode name`);
   }
 });
@@ -2670,7 +2724,7 @@ test('markers use Photon popups instead of native title tooltips', () => {
 test('online finish refreshes the pilot profile record', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   assert.match(main, /async function refreshProfileStats\(\)/);
-  assert.match(main, /await api\.finish\([\s\S]*?await refreshProfileStats\(\)/);
+  assert.match(main, /if \(run\.completed\) void refreshProfileStats\(\)/);
   assert.match(main, /state\.profileStats = await api\.stats\(\)/);
   assert.match(main, /pilot-menu-record/);
 });
@@ -2821,4 +2875,57 @@ test('runtime image ships what the server needs without recursive chown layers',
   assert.ok(entrypoint.indexOf('render-runtime-origin.mjs') < entrypoint.indexOf('exec setpriv'));
   assert.equal(readme.includes('location /ws {'), false);
   assert.ok(readme.includes('location ~ ^/api/v1/rooms/[^/]+/ws$ {'));
+});
+
+test('dist references every script and stylesheet with one shared version', () => {
+  assert.equal(
+    versionImports("import { a } from './a.js';\nimport './b.js';\nconst c = import('../x/c.js');\nconst t = 'from ./no.js';", '9'),
+    "import { a } from './a.js?v=9';\nimport './b.js?v=9';\nconst c = import('../x/c.js?v=9');\nconst t = 'from ./no.js';",
+  );
+  assert.equal(versionHtml('<link rel="stylesheet" href="styles/a.css">', '9'), '<link rel="stylesheet" href="styles/a.css?v=9">');
+  const dist = path.join(ROOT, 'dist');
+  const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+  const version = /js\/main\.js\?v=([\w.-]+)"/.exec(html)?.[1];
+  assert.ok(version, 'versioned entry');
+  assert.equal([...html.matchAll(/href="styles\/[^"]+\.css\?v=([\w.-]+)"/g)].length, 3);
+  assert.doesNotMatch(html, /href="styles\/[^"?]+\.css"|src="js\/[^"?]+\.js"/);
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? walk(full) : full.endsWith('.js') ? [full] : [];
+  });
+  let imports = 0;
+  for (const file of walk(path.join(dist, 'js'))) {
+    const source = fs.readFileSync(file, 'utf8');
+    for (const [, specifier] of source.matchAll(/^(?:import|export)[^;]*?from '(\.{1,2}\/[^']+)';/gms)) {
+      const [target, query] = specifier.split('?');
+      imports += 1;
+      assert.equal(query, `v=${version}`, `${path.basename(file)} -> ${specifier}`);
+      assert.ok(fs.existsSync(path.resolve(path.dirname(file), target)), specifier);
+    }
+  }
+  assert.ok(imports > 25, `${imports} imports checked`);
+});
+
+test('API contact is optional, validated and never shipped with the repository', () => {
+  assert.equal(buildUserAgent({ version: '1.2.3', repo: 'https://x.test/r' }), 'FITDLE/1.2.3 (+https://x.test/r)');
+  assert.equal(buildUserAgent({ version: '1.2.3', repo: 'https://x.test/r', contact: 'ops@example.test' }), 'FITDLE/1.2.3 (ops@example.test; +https://x.test/r)');
+  assert.equal(buildUserAgent(), 'FITDLE/dev');
+  assert.equal(
+    buildUserAgent({ version: '1', site: 'https://play.example.com', repo: 'https://x.test/r' }),
+    'FITDLE/1 (+https://play.example.com; +https://x.test/r)',
+  );
+  const site = (url) => publicSite(new URL(url));
+  assert.equal(site('https://play.example.com/?claim=daily&kb=secret#x'), 'https://play.example.com');
+  assert.equal(site('http://play.example.com:8443/'), 'http://play.example.com:8443');
+  for (const url of ['http://127.0.0.1:4173/', 'http://localhost:8787/', 'http://10.0.0.5/', 'http://[::1]:8787/', 'http://tower/', 'http://tower.local/', 'http://nas.lan/', 'file:///x/index.html']) {
+    assert.equal(site(url), '', url);
+  }
+  assert.equal(publicSite(undefined), '');
+  assert.ok(fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8').includes('site: publicSite(location)'));
+  assert.equal(parseContact('  ops@example.test '), 'ops@example.test');
+  assert.equal(parseContact(undefined), '');
+  for (const bad of ['a\r\nX-Evil: 1', 'a) b', '邮箱', 'x'.repeat(101), 'a;b']) assert.throws(() => parseContact(bad), /API_CONTACT/);
+  const example = fs.readFileSync(path.join(ROOT, '.env.example'), 'utf8');
+  assert.match(example, /^API_CONTACT=$/m);
+  assert.match(example, /^API_CONTACT_PUBLIC=0$/m);
 });

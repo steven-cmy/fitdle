@@ -32,6 +32,8 @@ instructions live in [README.md](README.md).
 - UI follows the EVE Photon UI direction: dark compact panels, fine borders, clear
   hierarchy. Do not add effects or decorative design that was not explicitly
   requested. Remove decorative effects rather than adding new ones.
+- Interface strings live in `js/messages/<locale>.js`, one flat file per language with
+  identical keys. Terms and their sources are listed in `docs/i18n-glossary.md`.
 - Localization priority: official EVE localization/announcements, then community
   wording, then own translation. Never translate EVE Online terms/names/official
   strings; keep the official term or English source. Record ambiguous terms in
@@ -107,8 +109,15 @@ instructions live in [README.md](README.md).
 ### Claim departments
 
 - Authored file: `assets/claim-departments.json`; `build-dist` copies it.
-- 8 locales, each with the same 9 department IDs: `salvage`, `hull`, `intake`,
-  `fitting`, `wreck`, `cargo`, `arbitration`, `compliance`, `alliance-srp`.
+- 8 locales, each with the same 12 department IDs: `salvage`, `hull`, `intake`,
+  `fitting`, `wreck`, `cargo`, `arbitration`, `compliance`, `alliance-srp`,
+  `clone`, `concord`, `courier`. Departments are the project's own fiction inside
+  Pend Insurance; the SCC only records transactions and CONCORD is never Pend.
+- Every group has 12 memos and 6 won / 6 lost debriefs per locale. Use real EVE things
+  and rules (insurance covers hulls only, twelve weeks, nothing for CONCORD losses);
+  no invented forms or institutions, no real players, corporations or alliances.
+  Jokes are written per language; local memes are not translated.
+- `build-dist` writes `assets/claim-departments/<locale>.json`; browsers load that one.
 - Each group owns `memos` and `debriefs.won` / `debriefs.lost`; the Hero cold-humor
   line and the outcome debrief must both come from the current department group.
   Never use one global memo or debrief pool.
@@ -164,7 +173,30 @@ instructions live in [README.md](README.md).
   Standard/Audit/Timed, random or explicit KB, no scoring. Daily is online-only.
 - Online Daily is pinned once per game day and cached in SQLite. Online
   Standard/Audit/Timed get a server-issued random target per run. A current KB
-  entered from a share link becomes an online custom run when logged in.
+  entered from a share link becomes an online custom run when logged in; custom
+  runs can be played and resumed but never enter streaks, win days or target stats.
+- The service records solo guesses: `POST /online/runs/:id/guess {shipId}` counts,
+  deduplicates and judges them; `finish` only accepts a Timed loss. A run counts
+  from its first guess, a Timed run from starting the clock (`begin`). `start` returns the player's open run of that gameplay, so a
+  reload, a closed page or another device continues it. `abandon` (NEW TARGET, after
+  a confirmation) loses a started run and forgets an unstarted one; a started run
+  unfinished for 24 hours is lost. NEW TARGET is disabled while a random Timed target
+  waits for its clock: it shows no clue yet. Explicit `kb` targets can be left.
+- `js/run-sync.js` delivers solo guesses in order, keeps unsent ones in
+  `fitdle:v1:pending-runs` and retries; resending is harmless.
+- Room guesses go through `raceGuess {roundId, shipId}`; the server counts, judges
+  and keeps the Timed cooldown, and answers the player with `raceGuesses`.
+  `raceResult` only reports a Timed loss. Leaving for good (or the grace ending)
+  during a running round is a loss of that round; being kicked is not.
+- Clients submit full hull names or ship ids. `js/ship-query.js` resolves
+  abbreviations and partial names and asks when several hulls fit; the server never
+  accepts abbreviations.
+- The room state API answers players of the room only. Scores reset only between
+  matches. Seated players rejoin without the password; empty passwords are no guess.
+- Requests are limited per player (`server/src/limits.mjs`). Logs carry paths without
+  query strings, and the SSO state is bound to the browser by a short-lived cookie.
+- `FITDLE_DEV_AUTH` is ignored in production unless `PUBLIC_ORIGIN` is loopback.
+- zKillboard killmails lose `attackers` on arrival (`js/killmail.js`); nothing uses it.
 - `multiplayer` is a separate room surface behind login. A room has no default
   gameplay/rule; the owner selects Standard/Fitting Audit/Timed (same-file race) or
   Arbitration and settings before a match and again between
@@ -199,6 +231,19 @@ instructions live in [README.md](README.md).
   acknowledgement.
 - The service owns WebSocket delivery. There is no PeerJS/WebRTC/TURN, no host
   tab dependency, and no iframe race. Session cookie auth is used for WS.
+- Room connections: the server pings every 25 s and drops a socket after missed
+  answers; the client sends an application `ping` every 25 s, reconnects at once
+  after a drop and then backs off. A newer connection of the same player closes
+  the older one (4001). Closed sockets are logged without names, chat or targets.
+- Asynchronous target loads go through `loadMatch`; check `current()` before
+  touching the room. Only one load runs per room, and ending the match cancels it.
+- The owner is always a player in the room (`ensureOwner`). Players who never
+  connect leave after the reconnect grace. Arbitration progress after a leave,
+  timeout or dealer return goes through `checkArbitrationProgress`.
+- Room messages and wrong room passwords are limited per player.
+- `js/rooms.js` panels are skeletons of regions; update regions, never replace a
+  panel. The chat input, open selects and running holds must survive updates.
+- A round result is kept until the server confirms it and is resent on reconnect.
 - Room chat is presented as the Subspace Communication Beacon. Use the exact
   English name/source string and localized equivalents in `js/i18n.js`.
 - When the room socket is not connected, show the localized
@@ -218,7 +263,7 @@ instructions live in [README.md](README.md).
   Standard equipment/cargo budgets, Audit quotas/transfer, Timed release quota,
   and guess matching.
 - `js/claim.js` — pure KB-seeded claim group, memo and outcome debrief selection.
-- `js/i18n.js` — 8 locales, manual copy; all zh variants → `zh`.
+- `js/i18n.js` — locale detection and formatting; copy is in `js/messages/`; all zh variants → `zh`.
 - `js/legal-copy.js` — clean 8-locale full copyright/fan-work notices shared by
   footer and manual.
 - `js/dogma.js` / `vendor/dogma-engine` — audit all-V simulation.
@@ -302,12 +347,13 @@ instructions live in [README.md](README.md).
   in the browser and online runs send `allowEmpty` to `/online/start`. Daily,
   rooms and explicit `kb` targets are shared or chosen, so they ignore it.
 - Service random targets use the complete killmail from the loss page (no
-  `killID` request) and keep five random killmails per hull for 10 minutes; the
+  `killID` request) and keep five ready killmails per hull. The compressed page
+  stays cached for its upstream lifetime and is never requested again before; the
   browser uses the killmail the service sent.
 - `TARGET_SPARES` (default 2, 0..8) random targets per pool and empty-hull choice
   are prepared after that pool's first use. They follow the same selection rules,
   are handed out once and expire after an hour.
-- Every ship page is cached locally for 10 minutes, keyed by ship ID and page.
+- Every ship page is reused for the hour zKillboard allows, keyed by ship and page.
   Failures are not cached. A page 100 scan is the absolute API limit.
 - `FITDLE_KB_SELECTION_START_DATE` is a global lower bound for all modes.
   Explicit `?kb=` links bypass it.
@@ -491,9 +537,21 @@ instructions live in [README.md](README.md).
   ship-level zKill statistics (90-day losses, usage rank, danger index) when the
   stats request succeeds. No placeholder "data missing" rows are rendered.
 - zKill killID responses are cached for 1 hour, keyed by kill ID.
-- Ship loss pages are cached per ship/page for 10 minutes. Ship-level zKill stats
-  use the same 10-minute bucket. killID responses are cached for 1 hour. Free
-  random ship pages use the same 10-minute window.
+- Ship loss pages, killID responses and ship-level zKill stats are reused for
+  1 hour (zKillboard sends `max-age=3600`). The browser relies on its HTTP cache
+  for large pages; never use `cache: 'no-store'` for zKillboard or ESI.
+- `server/src/zkill.mjs` is the only zKillboard client of the service: User-Agent,
+  shared compressed cache, one request per path, two concurrent and spaced
+  requests (`ZKILL_MIN_INTERVAL_MS`, default 250), and one global pause for
+  `Retry-After`. Only timeouts, 5xx and 429 are retried, once. Arbitration uses it
+  through `zkillFetch`.
+- `API_CONTACT` is runtime-only configuration: never commit a value, log it or put
+  it into the image or manifest. It reaches browsers (and ESI) only with
+  `API_CONTACT_PUBLIC=1`, through `/api/v1/meta`. Browser ESI requests identify the
+  deployment by its own public origin (`publicSite`), never a configured domain.
+- ESI requests go through `esiFetch`: `user_agent` and `compatibility_date` query
+  parameters, `Accept-Language: en`, HTTP caching, and a pause when an error or
+  rate limit is close or hit. Do not use `/latest/` routes.
 - The local zKill cache keeps up to 64 entries so a capped page scan does not
   evict its own pages immediately.
 - Failed zKill requests retry up to three times; 429/5xx honor `Retry-After` when
@@ -520,10 +578,8 @@ instructions live in [README.md](README.md).
 
 ## Stats and reset
 
-- Stats live in `fitdle:v1:stats`, independent of `dataVersion` and builds.
-- Daily plays and kills are per gameplay mode: Standard, Audit, Timed.
-- A play is counted on the first guess, or on starting a Timed run.
-- Free runs never affect stats.
+- The profile record comes from the service; practice has no record.
+- A run is counted from the first guess, or on starting a Timed run. Free and custom runs never affect stats.
 - Streak is measured in consecutive successful days. Any gameplay win counts
   that day once; a missed day or a day with no win resets it.
 - Personal progress reset is intentionally unavailable in the current UI; there
@@ -603,7 +659,7 @@ refreshes, then the final `build`.
 - `?rule=audit`/`?rule=timed` remain for generated static share pages and are
   canonicalized to `claim`.
 - `?kb=<opaque-token>` opens Free mode; only the current `k...` token format is
-  accepted. `?n=<nonce>` is the temporary random-free nonce.
+  accepted.
 - `?mode=online` / `?mode=multiplayer` and `?room=<code>` are current app routes.
   Old `?mode=audit`, `?mode=timed`, `?timer`, `?timed`, `?lang`, `?free`, `?d`,
   `?killmail` and `?kill` are not read or migrated.
@@ -611,16 +667,19 @@ refreshes, then the final `build`.
 - Standard, Audit and Timed are peer gameplay modes. Timed is not combined
   with Audit; its target source follows the selected Daily or Free mode.
 - Puzzle state: `fitdle:v1:state:<date>:<mode>` (Timed uses `<mode>:timed`).
-- Stats: `fitdle:v1:stats`; free-mode streaks: `fitdle:v1:free-streak`;
-  free-mode one-time nonce: `fitdle:v1:free-intent` (sessionStorage); language:
+- Online run boards: `fitdle:v1:state:online-<runId>:<mode>` (finished ones are pruned);
+  language:
   `fitdle:v1:lang`; font: `fitdle:v1:font`; font size: `fitdle:v1:font-size`;
   ESI type-name cache: `fitdle:v1:typeNames:<locale>`; zKill response cache:
-  `fitdle:v1:zkill:*`; entity-name cache: `fitdle:v1:entity-names`; empty-hull
+  `fitdle:v1:zkill:*`; unsent online guesses: `fitdle:v1:pending-runs`; entity-name cache: `fitdle:v1:entity-names`; empty-hull
   setting: `fitdle:v1:allowEmptyKb`.
 - Storage is origin-local; changing domain changes stats and saved language.
 
 ## Sharing
 
+- Online Standard, Audit and Timed (including custom killmails) are not shared: their
+  debrief has no share button or box. Online Daily, practice killmails and room
+  invites are shared.
 - Non-free share URL: `share/{1..6|lost}/{lang}.html` with optional `rule=audit`/`rule=timed`
   (no `kb`, `d`, `mode`, `timer` or `lang` query; the path locale controls preview
   language and is stored locally). Daily shares must not carry a reversible kill token.
@@ -634,10 +693,13 @@ refreshes, then the final `build`.
 - Static pages are generated per locale by `build-dist`; metadata is localized and
   contains only score/attempts, never the answer. The page stores its path locale
   locally before redirecting.
-- OG images: `assets/share/og-{1..6|lost}-{locale}.png`, 1200×630, localized
-  headline/tagline/score, no target or killmail data. `1` uses a cyan
-  one-shot/burst card; `lost` uses an amber broken-radar card.
-- Regenerate with `python scripts/generate-share-images.py` (Pillow).
+- OG images: `assets/share/og-{1..6|lost}-{locale}.png`, 1200×630, drawn as a
+  closed Pend claim file: sender, status, a department line, score, review passes and a
+  status stamp. All words come from `js/messages` and `assets/claim-departments.json`;
+  the wreck is an invented outline, never a hull or killmail. `1` has a double stamp;
+  `lost` is amber and its fragment 04 is missing.
+- Regenerate with `uv run scripts/generate-share-images.py` (Windows fonts; uv provides
+  Pillow). Raise the `?v=` in `build-dist`, `index.html` and the test when they change.
 - `og:image` is score- and locale-specific, absolute using `PUBLIC_ORIGIN` or CI
   `CI_PAGES_URL`; never commit a local domain.
 - Cargo/type names not in SDE refs are fetched from the SDE record API
@@ -703,7 +765,7 @@ refreshes, then the final `build`.
 
 ## Tests
 
-`npm test` currently covers 134 client/SDE cases, including downtime boundaries,
+`npm test` covers the client/SDE cases, including downtime boundaries,
 target/KB selection, victim-only equipment, cargo, slot layout, weighted/fitted
 clues, audit reveal cadence, share URLs/static pages, all locales, Chinese
 variants, SDE API download/staging, container build order, online source/build
@@ -728,6 +790,9 @@ test reads `dist/`.
   `1000:1000`), then drops to those IDs with `setpriv`. Bind-mounted and named
   volumes must be writable; read-only mounts fail fast. Unraid commonly uses
   `PUID=99`, `PGID=100`.
+- `build-dist` adds one `?v=<version>-<hash>` to all script and stylesheet
+  references, because CDNs may cache `.js`/`.css` while HTML stays fresh. The service
+  caches those for long only when `v` is the version it serves.
 - The one-shot builder image and its CI jobs were removed in the 1.0.0 cleanup.
   Do not restore `Dockerfile.oneshot`, `docker/BUILDER_VERSION`,
   `publish:builder` or the old Kaniko builder pipeline. The application is an

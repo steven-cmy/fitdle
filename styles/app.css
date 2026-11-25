@@ -5793,14 +5793,19 @@ html[data-timed="1"] #dossier-orb strong {
 html[data-multiplayer="1"] {
   --room-primary: #b98cff;
   --room-bg-primary: #241238;
-  --room-secondary: #000;
+  /* Foreground accent; only the page background falls back to black. */
+  --room-secondary: var(--room-primary);
   --room-bg-secondary: #000;
   --cyan: var(--room-primary);
   --cyan-soft: rgba(185, 140, 255, 0.14);
   --amber: var(--room-secondary);
-  --amber-soft: rgba(0, 0, 0, 0.12);
+  --amber-soft: rgba(185, 140, 255, 0.12);
   --photon-accent: var(--room-primary);
   --photon-accent-dim: #6b4ca8;
+}
+html[data-multiplayer="1"][data-room-gameplay="standard"] {
+  --room-secondary: #6fc6e4;
+  --amber-soft: rgba(111, 198, 228, 0.12);
 }
 html[data-multiplayer="1"][data-room-gameplay="audit"] {
   --room-secondary: #ff6b6b;

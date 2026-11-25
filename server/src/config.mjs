@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { buildUserAgent, parseContact } from '../../js/user-agent.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 try {
@@ -56,6 +57,17 @@ const publicOrigin = originEnv('PUBLIC_ORIGIN');
 const apiOrigin = originEnv('API_ORIGIN') || publicOrigin;
 const redirectUri = apiOrigin ? `${apiOrigin}/api/v1/auth/eve/callback` : '';
 const allowedOrigins = publicOrigin && apiOrigin && publicOrigin !== apiOrigin ? [publicOrigin] : [];
+const production = process.env.NODE_ENV === 'production';
+const loopback = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(publicOrigin ? new URL(publicOrigin).hostname : '');
+const devAuth = boolEnv('FITDLE_DEV_AUTH', false);
+const warnings = [];
+if (production && devAuth && !loopback) {
+  warnings.push('FITDLE_DEV_AUTH is ignored: it would let anyone sign in as any pilot');
+}
+if (production && !String(process.env.SESSION_SECRET || '').trim()) {
+  warnings.push('SESSION_SECRET is not set: Daily targets can be predicted from the public default');
+}
+const apiContact = parseContact(process.env.API_CONTACT);
 const roomArbitrationBigRounds = boundedIntEnv('ROOM_ARBITRATION_BIG_ROUNDS', 1, 1, 32);
 const roomArbitrationMaxBigRounds = boundedIntEnv('ROOM_ARBITRATION_MAX_BIG_ROUNDS', 5, 1, 32);
 const roomTimedDurationMinutes = boundedIntEnv('ROOM_TIMED_DURATION_MINUTES', 10, 1, 60);
@@ -78,7 +90,8 @@ export const config = {
   apiOrigin,
   sessionSecret: process.env.SESSION_SECRET || '',
   cookieSecure: apiOrigin.startsWith('https://'),
-  devAuth: boolEnv('FITDLE_DEV_AUTH', false),
+  devAuth: devAuth && (!production || loopback),
+  warnings,
   gameDayStartMinutes: intEnv(
     'FITDLE_GAME_DAY_START_UTC',
     Number.isInteger(manifest.gameDayStartMinutes) ? manifest.gameDayStartMinutes : 11 * 60,
@@ -91,7 +104,13 @@ export const config = {
     metadataUrl: process.env.EVE_SSO_METADATA_URL || 'https://login.eveonline.com/.well-known/oauth-authorization-server',
     scope: 'publicData',
   },
-  userAgent: `FITDLE/${readJson(path.join(ROOT, 'package.json'), {}).version || 'dev'} (+https://gitlab.com/cmy/fitdle)`,
+  userAgent: buildUserAgent({
+    version: readJson(path.join(ROOT, 'package.json'), {}).version,
+    repo: 'https://gitlab.com/cmy/fitdle',
+    contact: apiContact,
+  }),
+  // Shared with every visitor, so it needs its own explicit opt-in.
+  publicContact: boolEnv('API_CONTACT_PUBLIC', false) ? apiContact : '',
   manifest,
   catalogShips: Array.isArray(catalog.ships) ? catalog.ships : [],
   allowedOrigins,
@@ -100,8 +119,10 @@ export const config = {
   roomArbitrationMaxBigRounds,
   roomTimedDurationMinutes,
   roomTimedMaxDurationMinutes,
+  zkillMinIntervalMs: boundedIntEnv('ZKILL_MIN_INTERVAL_MS', 250, 0, 5000),
   targetSpares: boundedIntEnv('TARGET_SPARES', 2, 0, 8),
   roomReconnectGraceMs: boundedIntEnv('ROOM_RECONNECT_GRACE_MS', 60000, 5000, 300000),
+  roomHeartbeatMs: 25 * 1000,
   roomTtlMs: 2 * 60 * 60 * 1000,
   sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
 };

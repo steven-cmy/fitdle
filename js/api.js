@@ -29,6 +29,7 @@ async function request(path, { method = 'GET', body = null, timeoutMs = 20000 } 
     const error = new Error(payload?.error || `http-${response.status}`);
     error.status = response.status;
     error.code = payload?.error || '';
+    error.payload = payload;
     throw error;
   }
   return payload;
@@ -50,6 +51,9 @@ export const api = {
   daily: () => request('/api/v1/online/daily', { timeoutMs: 60000 }),
   start: (gameplay, allowEmpty = true) => request('/api/v1/online/start', { method: 'POST', body: { gameplay, allowEmpty }, timeoutMs: 60000 }),
   custom: (gameplay, kb) => request('/api/v1/online/custom', { method: 'POST', body: { gameplay, kb }, timeoutMs: 60000 }),
+  guess: (runId, shipId, elapsedMs = 0) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}/guess`, { method: 'POST', body: { shipId, elapsedMs }, timeoutMs: 10000 }),
+  begin: (runId, elapsedMs = 0) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}/begin`, { method: 'POST', body: { elapsedMs }, timeoutMs: 10000 }),
+  abandon: (runId) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}/abandon`, { method: 'POST', body: {}, timeoutMs: 10000 }),
   finish: (runId, payload) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}/finish`, { method: 'POST', body: payload }),
   run: (runId) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}`),
   createRoom: (body) => request('/api/v1/rooms', { method: 'POST', body }),

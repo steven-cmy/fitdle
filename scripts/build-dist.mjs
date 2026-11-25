@@ -10,6 +10,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { loadBuildEnv } from './build-env.mjs';
 import { precompress } from './precompress.mjs';
+import { versionAssets } from './version-assets.mjs';
 import { LOCALES, MESSAGES } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -34,6 +35,15 @@ for (const file of ['assets/watchlist.json', 'assets/boot-flavor.json', 'assets/
   if (!fs.existsSync(source)) continue;
   await fsp.mkdir(path.dirname(path.join(DIST, file)), { recursive: true });
   await fsp.copyFile(source, path.join(DIST, file));
+}
+{
+  // The browser loads its own language only.
+  const { departments } = JSON.parse(await fsp.readFile(path.join(ROOT, 'assets', 'claim-departments.json'), 'utf8'));
+  const dir = path.join(DIST, 'assets', 'claim-departments');
+  await fsp.mkdir(dir, { recursive: true });
+  for (const [locale, groups] of Object.entries(departments)) {
+    await fsp.writeFile(path.join(dir, `${locale}.json`), JSON.stringify({ departments: { [locale]: groups } }));
+  }
 }
 
 // Localized static score pages give Discord/other crawlers real Open Graph
@@ -79,7 +89,7 @@ const indexHtml = (await fsp.readFile(path.join(ROOT, 'index.html'), 'utf8'))
   .replaceAll('__IMAGE_BASE__', IMAGE_BASE);
 await fsp.writeFile(path.join(DIST, 'index.html'), indexHtml);
 
-const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png?v=3`;
+const shareImage = (key, locale) => `${SITE_URL}/assets/share/og-${key}-${locale}.png?v=5`;
 const OG_LOCALES = {
   en: 'en_US', de: 'de_DE', es: 'es_ES', fr: 'fr_FR',
   ja: 'ja_JP', ko: 'ko_KR', ru: 'ru_RU', zh: 'zh_CN',
@@ -154,7 +164,7 @@ for (const key of ['free', 'timed']) {
       title: message(locale, `share.${key}Title`),
       description: message(locale, `share.${key}Description`),
       depth: 2,
-      image: `${SITE_URL}/assets/share/og.png?v=3`,
+      image: `${SITE_URL}/assets/share/og.png?v=5`,
     }));
   }
 }
@@ -190,6 +200,9 @@ for (const locale of LOCALES) {
     }));
   }
 }
+
+const release = JSON.parse(await fsp.readFile(path.join(ROOT, 'package.json'), 'utf8')).version;
+console.log(`Asset version: ${await versionAssets(DIST, release)}`);
 
 if (process.env.FITDLE_SKIP_PRECOMPRESS !== '1') {
   const totals = await precompress(DIST);

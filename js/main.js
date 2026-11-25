@@ -5,7 +5,6 @@ import {
   claimCaseNumber,
   ycDateLabel,
   freeKillIdFromToken,
-  emptyStats,
   formatMass,
   freeKillToken,
   gameDateKey,
@@ -14,7 +13,6 @@ import {
   loadState,
   modeFromLocation,
   msUntilNextDowntime,
-  parseKillId,
   normalizeText,
   chooseClosestKill,
   pickWeightedKillByRecency,
@@ -27,6 +25,9 @@ import {
 import { claimGroups, claimSeed, pickClaimDebrief, pickClaimGroup, pickClaimMemo } from './claim.js';
 import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
 import { buildClues, auditSimulationItems, getEquipment, selectAuditFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
+import { retryAfterMs } from './retry-after.js';
+import { slimKillmails } from './killmail.js';
+import { buildUserAgent, publicSite } from './user-agent.js';
 import { calculateDogmaBaseline, calculateDogmaFit, preloadDogma } from './dogma.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
@@ -36,6 +37,8 @@ import { brandLogoHtml, fitdleMark, FITDLE_SYSTEM_LONG, PEND_INSURANCE_ID, SCC_I
 import { legalNotice } from './legal-copy.js';
 import { TRIGLAVIAN_CONVOCATION_ID, TRIGLAVIAN_FACTION_ID, triglavianBrand, triglavianDepartments } from './triglavian-copy.js';
 import { RoomSurface } from './rooms.js';
+import { RunSync, mergeGuesses } from './run-sync.js';
+import { resolveShipQuery } from './ship-query.js';
 
 const CATEGORIES = ['traits', 'hull', 'nav', 'defense', 'targeting', 'fitting', 'equipment', 'cargo', 'economy'];
 const CATEGORY_ALIASES = { identity: 'hull', slots: 'fitting' };
@@ -99,10 +102,10 @@ const state = {
   profileStats: null,
   onlineRun: null,
   onlineFinished: false,
+  newTargetBusy: false,
   roomRequest: null,
   roomCode: null,
   roomSurface: null,
-  roomRace: null,
   roomView: null,
   roomArbitration: null,
   arbSeenMatchId: '',
@@ -136,13 +139,6 @@ const state = {
   freeKillId: null,
   freeKillToken: null,
   freeKillmail: null,
-  freeRequested: false,
-  freeFromRefresh: false,
-  freeRoundActive: false,
-  freeStreaks: { standard: 0, audit: 0, timed: 0 },
-  freeStreakMode: 'standard',
-  freeStreakBefore: 0,
-  freeStreakEvent: null,
   answerShip: null,
   answerData: null,
   claimDepartments: null,
@@ -171,6 +167,8 @@ const state = {
   localeLoading: false,
   newTargetAvailable: false,
   composing: false,
+  suggestionChosen: false,
+  arbSignature: '',
   allowEmptyKb: true,
   fontSize: 'normal',
   timed: false,
@@ -251,7 +249,6 @@ function debugLog(context, error = null, details = {}) {
     : console.warn;
   write('[FITDLE]', payload);
 }
-const DEFAULT_STATS = emptyStats();
 
 function $(selector, root = document) {
   return root.querySelector(selector);
@@ -394,12 +391,16 @@ function renderBootLogos() {
 
 async function loadClaimDepartments() {
   try {
-    const data = await fetchJson('assets/claim-departments.json');
-    state.claimDepartments = data.departments && typeof data.departments === 'object'
-      ? data.departments
-      : null;
+    const { locale } = state;
+    if (state.claimDepartments?.[locale]) return;
+    // One small file per language; the complete one is the fallback.
+    const data = await fetchJson(`assets/claim-departments/${locale}.json`)
+      .catch(() => fetchJson('assets/claim-departments.json'));
+    if (data.departments && typeof data.departments === 'object') {
+      state.claimDepartments = { ...state.claimDepartments, ...data.departments };
+    }
   } catch {
-    state.claimDepartments = null;
+    // The generic sender and debrief stand in.
   }
 }
 
@@ -435,6 +436,11 @@ function pickClaimDepartment(preserveId = false, seed = null) {
 function claimDebriefForStatus() {
   if (state.status !== 'won' && state.status !== 'lost') return '';
   return pickClaimDebrief(state.claimDepartment, state.status, currentClaimSeed());
+}
+
+/** Custom killmails are played online but never recorded. */
+function isScored() {
+  return state.appMode === 'online' && state.onlineRun?.kind !== 'custom';
 }
 
 function isFree() {
@@ -538,7 +544,7 @@ async function restoreCachedTarget(gameplay) {
     if (entry.source === 'online') {
       if (!entry.run?.runId) throw new Error('cached run missing');
       const run = await api.run(entry.run.runId);
-      if (!run || run.status !== 'playing' || Number(run.attempts) > 0) throw new Error('cached run consumed');
+      if (!run || run.status !== 'playing' || run.begun) throw new Error('cached run consumed');
       if (run.gameplay !== gameplay) throw new Error('cached run gameplay changed');
       if (!run.target?.killmail) throw new Error('cached target missing');
       if (gameplay !== 'daily' && rejectsEmptyKb(run.target.killmail)) throw new Error('cached target is an empty hull');
@@ -704,7 +710,9 @@ function setAllowEmptyKb(enabled) {
     // ignore
   }
   const current = state.liveLosses?.[0];
-  if (emptyKbSettingApplies() && rejectsEmptyKb(current)) {
+  // A started online run stays the same target, so there is nothing to reload.
+  const started = state.appMode === 'online' && (state.guesses.length > 0 || state.timerStarted);
+  if (!started && emptyKbSettingApplies() && rejectsEmptyKb(current)) {
     location.reload();
     return;
   }
@@ -899,9 +907,9 @@ function startLockCooldown() {
 
 function startTimedRun() {
   if (!isTimed() || state.timerStarted || state.status !== 'playing') return;
-  recordDailyPlay();
   dropCurrentTargetCache();
   startTimedClock();
+  if (state.onlineRun?.runId) void runSync?.begin(state.onlineRun.runId, state.timerStartAt);
   state.timerHoldStart = 0;
   state.gaveUp = false;
   state.timedExpired = false;
@@ -916,7 +924,6 @@ function startTimedRun() {
 
 function failTimedRun() {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
-  if (isFree()) finishFreeRound(false);
   state.timerElapsedMs = currentElapsed();
   state.timerStarted = false;
   if (state.timerHandle) clearInterval(state.timerHandle);
@@ -934,7 +941,6 @@ function failTimedRun() {
 
 function giveUpTimed() {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
-  if (isFree()) finishFreeRound(false);
   const holdMs = state.timerHoldStart ? Math.max(0, Date.now() - state.timerHoldStart) : 0;
   state.timerElapsedMs = Math.max(0, currentElapsed() - holdMs);
   state.timerHoldStart = 0;
@@ -1149,10 +1155,7 @@ async function loadInsurancePrices() {
     state.insuranceLoaded = true;
     return null;
   }
-  state.insurancePromise = fetch(`${base}/latest/insurance/prices/?datasource=tranquility&language=en`, {
-    cache: 'no-store',
-    signal: AbortSignal.timeout(9000),
-  })
+  state.insurancePromise = esiFetch('/insurance/prices', 9000)
     .then(async (response) => {
       if (!response.ok) throw new Error(`insurance ${response.status}`);
       return response.json();
@@ -1209,13 +1212,16 @@ function readTimedCache(key) {
   }
 }
 
+// Loss pages are far larger than localStorage can hold; the browser's HTTP cache
+// keeps those for the hour zKillboard allows.
+const TIMED_CACHE_MAX_CHARS = 64 * 1024;
+
 function writeTimedCache(key, data, ttlMs) {
   if (!Number.isFinite(ttlMs) || ttlMs <= 0) return;
   try {
-    localStorage.setItem(`${ZKILL_CACHE_PREFIX}${key}`, JSON.stringify({
-      expiresAt: Date.now() + ttlMs,
-      data,
-    }));
+    const text = JSON.stringify({ expiresAt: Date.now() + ttlMs, data });
+    if (text.length > TIMED_CACHE_MAX_CHARS) return;
+    localStorage.setItem(`${ZKILL_CACHE_PREFIX}${key}`, text);
     const keys = Object.keys(localStorage).filter((entry) => entry.startsWith(ZKILL_CACHE_PREFIX));
     if (keys.length > 64) {
       keys
@@ -1237,22 +1243,60 @@ function writeTimedCache(key, data, ttlMs) {
 
 function statsCacheEntry(shipId) {
   const now = state.timeVerified ? serverNow().getTime() : Date.now();
-  const bucket = Math.floor(now / 600000);
+  const bucket = Math.floor(now / 3600000);
   return {
     key: `stats:${shipId}:${bucket}`,
-    ttlMs: Math.max(1000, 600000 - (now % 600000)),
+    ttlMs: Math.max(1000, 3600000 - (now % 3600000)),
   };
 }
 
+// Response shapes are pinned to this ESI compatibility date.
+const ESI_COMPATIBILITY_DATE = '2026-07-21';
+let esiPausedUntil = 0;
+
 function esiUrl(url) {
   const result = new URL(url);
-  const repo = state.manifest?.links?.repo || '';
-  result.searchParams.set(
-    'user_agent',
-    `FITDLE/${state.manifest?.version || 'dev'}${repo ? ` (+${repo})` : ''}`,
-  );
+  result.searchParams.set('compatibility_date', ESI_COMPATIBILITY_DATE);
+  result.searchParams.set('user_agent', buildUserAgent({
+    version: state.manifest?.version,
+    site: publicSite(location),
+    repo: state.manifest?.links?.repo,
+    // Only present when the operator chose to publish it.
+    contact: state.meta?.contact,
+  }));
   return result.toString();
 }
+
+/**
+ * One ESI request. Expires and ETag are handled by the HTTP cache; error and rate
+ * limits stop every further request until the window resets.
+ */
+async function esiFetch(path, timeoutMs) {
+  if (Date.now() < esiPausedUntil) {
+    throw Object.assign(new Error('ESI requests are paused'), { name: 'EsiPausedError', source: 'esi', request: path });
+  }
+  const base = String(state.manifest?.esi?.baseUrl || '').replace(/\/+$/, '');
+  const response = await fetch(esiUrl(`${base}${path}`), {
+    // Keeps level names in English whatever the browser language is.
+    headers: { Accept: 'application/json', 'Accept-Language': 'en' },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const number = (name) => (response.headers.has(name) ? Number(response.headers.get(name)) : NaN);
+  const pause = (ms) => { esiPausedUntil = Math.max(esiPausedUntil, Date.now() + ms); };
+  if (response.status === 420 || response.status === 429) {
+    const reset = number('x-esi-error-limit-reset');
+    pause(response.headers.has('retry-after') || !Number.isFinite(reset)
+      ? retryAfterMs(response.headers.get('retry-after'))
+      : reset * 1000);
+  } else if (number('x-esi-error-limit-remain') <= 10) {
+    pause(Math.max(1, number('x-esi-error-limit-reset') || 60) * 1000);
+  } else if (number('x-ratelimit-remaining') <= 5) {
+    pause(60_000);
+  }
+  return response;
+}
+
+let zkillPausedUntil = 0;
 
 async function fetchZkill(path, cache = null) {
   if (cache?.key) {
@@ -1271,36 +1315,37 @@ async function fetchZkill(path, cache = null) {
   // CORS preflight rejects custom X-User-Agent headers; build scripts identify
   // themselves instead.
   let lastError = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  if (Date.now() < zkillPausedUntil) {
+    throw Object.assign(new Error('zKillboard requests are paused'), {
+      name: 'ZkillHttpError', source: 'zkill', status: 429, request: path, retryable: false,
+    });
+  }
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await fetch(`${base}${path}`, {
-        cache: 'no-store',
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(12000),
       });
       if (!response.ok) {
-        const retryAfter = Number(response.headers.get('retry-after')) || 0;
+        const limited = response.status === 429;
+        if (limited) zkillPausedUntil = Math.max(zkillPausedUntil, Date.now() + retryAfterMs(response.headers.get('retry-after')));
         lastError = new Error(`zKillboard request failed (${response.status})`);
         lastError.name = 'ZkillHttpError';
         lastError.source = 'zkill';
         lastError.status = response.status;
         lastError.request = path;
-        lastError.retryable = response.status === 429 || response.status >= 500;
-        if (attempt < 2 && lastError.retryable) {
-          await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000 || 600 * (attempt + 1)));
-          continue;
-        }
+        lastError.retryable = response.status >= 500;
         throw lastError;
       }
-      const data = await response.json();
+      const data = slimKillmails(await response.json());
       if (cache?.key && cache?.ttlMs) writeTimedCache(cache.key, data, cache.ttlMs);
       return data;
     } catch (error) {
       lastError = error;
       if (!lastError.source) lastError.source = 'zkill';
       if (!lastError.request) lastError.request = path;
-      if (attempt >= 2 || error?.retryable === false) break;
-      await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+      if (attempt >= 1 || error?.retryable === false) break;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
   debugLog('zKillboard request', lastError);
@@ -1322,7 +1367,7 @@ function kbSelectionStartDate() {
   return String(state.manifest?.kbSelectionStartDate || state.kbSelectionStartDate || '');
 }
 
-const SHIP_PAGE_CACHE_MS = 10 * 60 * 1000;
+const SHIP_PAGE_CACHE_MS = 60 * 60 * 1000;
 const FREE_PAGE_CACHE_MS = SHIP_PAGE_CACHE_MS;
 
 function kbInvalid() {
@@ -1400,56 +1445,6 @@ async function fetchDailyKill(shipId, seed) {
 }
 
 
-function freeKillUrl(killId, fromRefresh = false, nonce = '') {
-  const url = new URL(location.href);
-  url.pathname = new URL('.', location.href).pathname;
-  url.search = '';
-  url.hash = '';
-  url.searchParams.set('kb', freeKillToken(killId));
-  if (fromRefresh && nonce) url.searchParams.set('n', nonce);
-  const rule = isTimed() ? 'timed' : state.mode === 'audit' ? 'audit' : 'standard';
-  if (rule !== 'standard') url.searchParams.set('rule', rule);
-  else url.searchParams.delete('rule');
-  return url.toString();
-}
-
-const FREE_INTENT_KEY = 'fitdle:v1:free-intent';
-
-function makeFreeNonce() {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  }
-}
-
-function writeFreeIntent(nonce, mode) {
-  try {
-    sessionStorage.setItem(FREE_INTENT_KEY, JSON.stringify({
-      nonce,
-      mode,
-      at: Date.now(),
-    }));
-  } catch {
-    // best effort
-  }
-}
-
-function enterFreeMode() {
-  const nonce = makeFreeNonce();
-  const mode = freeGameplayKey();
-  writeFreeIntent(nonce, mode);
-  const url = new URL(location.href);
-  url.pathname = new URL('.', location.href).pathname;
-  url.search = '';
-  url.hash = '';
-  url.searchParams.set('n', nonce);
-  const rule = isTimed() ? 'timed' : state.mode === 'audit' ? 'audit' : 'standard';
-  if (rule !== 'standard') url.searchParams.set('rule', rule);
-  else url.searchParams.delete('rule');
-  location.assign(url.toString());
-}
-
 async function pickRandomFreeKill() {
   const killShipPool = state.mode === 'audit'
     ? (state.manifest.auditKillShipPool || state.manifest.killShipPool)
@@ -1503,61 +1498,6 @@ function revealBaseSeed() {
   return `daily:${state.date}:${state.answerKillId || state.answerId}`;
 }
 
-const FREE_STREAK_KEY = 'fitdle:v1:free-streak';
-
-function saveFreeStreaks() {
-  try {
-    localStorage.setItem(FREE_STREAK_KEY, JSON.stringify(state.freeStreaks));
-  } catch {
-    // best effort
-  }
-}
-
-function freeGameplayKey() {
-  return isTimed() ? 'timed' : state.mode === 'audit' ? 'audit' : 'standard';
-}
-
-function setFreeStreak(mode, value) {
-  state.freeStreaks[mode] = Math.max(0, Math.floor(Number(value) || 0));
-  saveFreeStreaks();
-}
-
-function initFreeRound() {
-  if (!isFree()) return;
-  state.freeStreakMode = freeGameplayKey();
-  state.freeStreakBefore = Number(state.freeStreaks[state.freeStreakMode]) || 0;
-  state.freeStreakEvent = null;
-  // Direct kb/share links are neutral: they never start a streak round.
-  // Only the random refresh flow is eligible to change the counter.
-  state.freeRoundActive = state.freeFromRefresh === true;
-}
-
-function finishFreeRound(won) {
-  if (!isFree() || !state.freeRoundActive) return;
-  const mode = state.freeStreakMode || freeGameplayKey();
-  const before = Number(state.freeStreakBefore) || 0;
-  if (won) {
-    if (state.freeFromRefresh) {
-      setFreeStreak(mode, before + 1);
-      state.freeStreakEvent = 'increment';
-    } else {
-      state.freeStreakEvent = 'none';
-    }
-  } else {
-    setFreeStreak(mode, 0);
-    state.freeStreakEvent = before > 0 ? 'reset' : 'none';
-  }
-  state.freeRoundActive = false;
-}
-
-function abandonFreeRound() {
-  if (!isFree() || !state.freeRoundActive || state.status !== 'playing') return;
-  const mode = state.freeStreakMode || freeGameplayKey();
-  setFreeStreak(mode, 0);
-  state.freeStreakEvent = 'none';
-  state.freeRoundActive = false;
-}
-
 async function fetchAnswerLive() {
   if (state.liveFetched || !state.answerId) return;
   state.liveFetched = true;
@@ -1606,8 +1546,8 @@ function writeEntityNameCache(cache) {
 async function fetchVictimInfo() {
   const victim = state.liveLosses?.[0]?.victim;
   if (!victim || state.status === 'playing') return;
-  const key = [victim.character_id, victim.corporation_id, victim.alliance_id].join(':');
-  if (!key.trim(':')) return;
+  const victimKey = (item) => [item?.character_id, item?.corporation_id, item?.alliance_id].join(':');
+  const key = victimKey(victim);
   if (state.victimInfoKey !== key) state.victimInfo = null;
   if (state.victimInfoKey === key || state.victimInfoLoading) return;
   state.victimInfoKey = key;
@@ -1633,11 +1573,8 @@ async function fetchVictimInfo() {
     const cachedName = fresh(kind, id);
     if (cachedName) return { name: cachedName };
     try {
-      const requestUrl = esiUrl(`${base}/latest/${kind}/${Number(id)}/?datasource=tranquility`);
-      const response = await fetch(requestUrl, {
-        cache: 'default',
-        signal: AbortSignal.timeout(8000),
-      });
+      const requestUrl = `/${kind}/${Number(id)}`;
+      const response = await esiFetch(requestUrl, 8000);
       if (!response.ok) {
         esiFailed = true;
         esiError = Object.assign(new Error(`ESI request failed (${response.status})`), {
@@ -1659,7 +1596,7 @@ async function fetchVictimInfo() {
       esiFailed = true;
       esiError = error;
       if (!esiError.source) esiError.source = 'esi';
-      if (!esiError.request) esiError.request = `${base}/latest/${kind}/${Number(id)}/`;
+      if (!esiError.request) esiError.request = `/${kind}/${Number(id)}`;
       return null;
     }
   };
@@ -1668,7 +1605,13 @@ async function fetchVictimInfo() {
     read('corporations', victim.corporation_id),
     read('alliances', victim.alliance_id),
   ]);
-  if (state.victimInfoKey !== key) return;
+  if (victimKey(state.liveLosses?.[0]?.victim) !== key) {
+    // The target changed meanwhile: look up its own victim.
+    state.victimInfoLoading = false;
+    state.victimInfoKey = null;
+    void fetchVictimInfo();
+    return;
+  }
   if (esiFailed) {
     debugLog('ESI name lookup', esiError);
     if (state.victimEsiWarningKey !== key) {
@@ -1694,6 +1637,9 @@ function refreshVictimSlots() {
   });
 }
 
+// Type ids the SDE does not know; not asked again in this session.
+const missingTypeNames = new Set();
+
 async function fetchCargoTypeNames() {
   const sdeBase = (state.manifest?.sde?.apiBase || '').replace(/\/$/, '');
   const release = String(state.manifest?.sde?.release || '').trim();
@@ -1715,7 +1661,7 @@ async function fetchCargoTypeNames() {
   const unknown = [...new Set(
     getEquipment(state.liveLosses, state.refs).equipment
       .map((item) => item.module)
-      .filter((id) => !state.refs.modules[id] && !state.extraTypeNames[id])
+      .filter((id) => !state.refs.modules[id] && !state.extraTypeNames[id] && !missingTypeNames.has(Number(id)))
   )];
   if (!unknown.length) return;
   const entries = [];
@@ -1724,11 +1670,15 @@ async function fetchCargoTypeNames() {
     while (cursor < unknown.length) {
       const id = unknown[cursor++];
       try {
-        const response = await fetch(`${sdeBase}/${encodeURIComponent(release)}/types/${encodeURIComponent(id)}.json`, {
+        const record = (version) => fetch(`${sdeBase}/${encodeURIComponent(version)}/types/${encodeURIComponent(id)}.json`, {
           cache: 'default',
           headers: { Accept: 'application/json' },
           signal: AbortSignal.timeout(8000),
         });
+        // Only the current and previous SDE releases are kept upstream.
+        let response = await record(release);
+        if (response.status === 404) response = await record('latest');
+        if (response.status === 404) missingTypeNames.add(Number(id));
         if (response.ok) {
           const data = await response.json();
           const name = typeof data?.name === 'string'
@@ -2070,12 +2020,32 @@ function recomputeRevealed() {
   markInitialFresh();
 }
 
+const STATE_PREFIX = 'fitdle:v1:state:online-';
+const STATE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
+/** The service keeps finished runs; only open ones still need their local board. */
+function pruneStoredStates() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith(STATE_PREFIX) || key.startsWith(`fitdle:v1:state:${state.date}:`)) continue;
+      let data = null;
+      try { data = JSON.parse(localStorage.getItem(key) || 'null'); } catch { /* unreadable */ }
+      if (data?.status !== 'playing' || Date.now() - Number(data.savedAt) > STATE_MAX_AGE_MS) localStorage.removeItem(key);
+      else if (!data.savedAt) localStorage.setItem(key, JSON.stringify({ ...data, savedAt: Date.now() }));
+    }
+  } catch {
+    // best effort
+  }
+}
+
 function persist() {
-  if (isFree()) return;
+  // Practice, rooms and the room placeholder have nothing to come back to.
+  if (isFree() || !state.onlineRun?.runId) return;
   saveState(localStorage, state.date, {
     dataVersion: state.dataVersionKey,
     dailySeed: state.dailySeed,
     date: state.date,
+    savedAt: Date.now(),
     answerId: state.answerId,
     answerKillId: state.answerKillId,
     guesses: state.guesses,
@@ -2248,7 +2218,7 @@ function syncRoomChrome() {
         : `<span>${esc(state.appMode === 'online' ? tl('online.label', 'ONLINE') : tl('practice.label', 'PRACTICE'))}</span><strong>${esc(tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase()))}</strong>`;
     }
     const score = chip.querySelector('.cycle-score');
-    if (score) score.textContent = inRoom ? tl('status.scored', 'SCORED') : (state.appMode === 'online' ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED'));
+    if (score) score.textContent = inRoom ? tl('status.scored', 'SCORED') : (isScored() ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED'));
   }
 }
 
@@ -2288,14 +2258,14 @@ function renderShell() {
         </div>
       </div>
       <div class="topbar-center">
-        <div class="cycle-chip${state.appMode === 'online' ? '' : ' is-unscored'}" tabindex="0"
-          aria-label="${esc(`${state.appMode === 'online' ? tl('online.label', 'ONLINE') : tl('practice.label', 'PRACTICE')} // ${tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase())} // ${state.appMode === 'online' ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED')}`)}"
-          data-tip="${esc(state.appMode === 'online' ? tl('status.scoredHelp', 'Online results are recorded in the service statistics.') : tl('status.unscoredHelp', 'Practice runs are not scored and do not affect online statistics.'))}">
+        <div class="cycle-chip${isScored() ? '' : ' is-unscored'}" tabindex="0"
+          aria-label="${esc(`${state.appMode === 'online' ? tl('online.label', 'ONLINE') : tl('practice.label', 'PRACTICE')} // ${tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase())} // ${isScored() ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED')}`)}"
+          data-tip="${esc(isScored() ? tl('status.scoredHelp', 'Online results are recorded in the service statistics.') : state.appMode === 'online' ? t('status.customHelp') : tl('status.unscoredHelp', 'Practice runs are not scored and do not affect online statistics.'))}">
           <div class="cycle-mode-line">
             <span>${esc(state.appMode === 'online' ? tl('online.label', 'ONLINE') : tl('practice.label', 'PRACTICE'))}</span>
             <strong>${esc(tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase()))}</strong>
           </div>
-          <em class="cycle-score">${esc(state.appMode === 'online' ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED'))}</em>
+          <em class="cycle-score">${esc(isScored() ? tl('status.scored', 'SCORED') : tl('status.unscored', 'UNSCORED'))}</em>
         </div>
       </div>
       <div class="topbar-actions">
@@ -2478,14 +2448,13 @@ function renderChrome() {
   const dateCaption = $('#date-caption');
     if (dateCaption) {
     if (free) {
-      dateCaption.textContent = state.freeFromRefresh
-        ? t('free.badge')
-        : `${t('free.badge')} // ${t('free.unscored')}`;
+      dateCaption.textContent = `${t('free.badge')} // ${t('free.unscored')}`;
     } else {
       dateCaption.textContent = `${t('common.utc')} // ${t('hero.daily')}`;
     }
   }
   if (resetLabel) resetLabel.textContent = t('header.reset');
+  syncNewTarget();
   const dailyButton = $('.daily-reset-cta');
   if (dailyButton) {
     const ready = dailyResetReady();
@@ -2990,10 +2959,44 @@ function renderAttempts() {
   }, 700);
 }
 
+const acquireMarkup = new WeakMap();
+
+/** Replace the input area only when it changes, so typing (and an IME) survives updates. */
+function paintAcquire(slot, html) {
+  if (acquireMarkup.get(slot) === html) return;
+  acquireMarkup.set(slot, html);
+  slot.innerHTML = html;
+  state.composing = false;
+}
+
+function paintSearchBox(slot) {
+  paintAcquire(slot, `
+    <div class="acquire">
+      <div class="search-shell">
+        <div class="search-wrap">
+          <span class="search-icon">${icon('search')}</span>
+          <input id="ship-input" class="search-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" aria-label="${esc(t('board.inputLabel'))}" placeholder="${esc(t('board.placeholder'))}" autocomplete="off" autocorrect="off" spellcheck="false">
+          <span class="search-key">ENTER</span>
+        </div>
+        <button type="button" class="lock-button" data-action="submit">
+          ${icon('lock')} ${esc(t('board.submit'))}
+        </button>
+      </div>
+      <div class="acquire-meta">
+        <span>${icon('globe')} ${esc(t('board.typeAnyLanguage'))}</span>
+        <span>${icon('key')} ${esc(t('board.enterHint'))}</span>
+      </div>
+    </div>
+  `);
+  const input = $('#ship-input');
+  if (input && !state.composing && input.value !== state.inputValue) input.value = state.inputValue;
+  updateLockButton();
+}
+
 function renderArbitrationAcquire(slot) {
   const arb = state.roomArbitration;
   if (arb.phase === 'reveal') {
-    slot.innerHTML = `<div class="acquire"><p class="room-note">${esc(t('room.phase.reveal'))}</p></div>`;
+    paintAcquire(slot, `<div class="acquire"><p class="room-note">${esc(t('room.phase.reveal'))}</p></div>`);
     return;
   }
   const role = arbitrationRole();
@@ -3010,27 +3013,10 @@ function renderArbitrationAcquire(slot) {
         : role === 'spectator'
           ? 'room.spectator'
           : 'room.arbitration.waiting';
-    slot.innerHTML = `<div class="acquire"><p class="room-note">${esc(t(key))}</p></div>`;
+    paintAcquire(slot, `<div class="acquire"><p class="room-note">${esc(t(key))}</p></div>`);
     return;
   }
-  slot.innerHTML = `
-    <div class="acquire">
-      <div class="search-shell">
-        <div class="search-wrap">
-          <span class="search-icon">${icon('search')}</span>
-          <input id="ship-input" class="search-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" aria-label="${esc(t('board.inputLabel'))}" placeholder="${esc(t('board.placeholder'))}" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(state.inputValue)}">
-          <span class="search-key">ENTER</span>
-        </div>
-        <button type="button" class="lock-button" data-action="submit" ${state.inputValue.trim() ? '' : 'disabled'}>
-          ${icon('lock')} ${esc(t('board.submit'))}
-        </button>
-      </div>
-      <div class="acquire-meta">
-        <span>${icon('globe')} ${esc(t('board.typeAnyLanguage'))}</span>
-        <span>${icon('key')} ${esc(t('board.enterHint'))}</span>
-      </div>
-    </div>
-  `;
+  paintSearchBox(slot);
 }
 
 function renderAcquire() {
@@ -3039,11 +3025,11 @@ function renderAcquire() {
   if (state.roomEndless) {
     const phase = state.roomEndless.phase;
     if (phase === 'loading' || phase === 'starting') {
-      slot.innerHTML = `<div class="acquire"><p class="room-note">${esc(phase === 'loading' ? t('room.loadingRound') : t('room.startingRound'))}</p></div>`;
+      paintAcquire(slot, `<div class="acquire"><p class="room-note">${esc(phase === 'loading' ? t('room.loadingRound') : t('room.startingRound'))}</p></div>`);
       return;
     }
     if (phase === 'waiting' || phase === 'finished') {
-      slot.innerHTML = `<div class="acquire"><p class="room-note">${esc(t('room.waitingReady'))}</p></div>`;
+      paintAcquire(slot, `<div class="acquire"><p class="room-note">${esc(t('room.waitingReady'))}</p></div>`);
       return;
     }
   }
@@ -3052,7 +3038,7 @@ function renderAcquire() {
     return;
   }
   if (state.status !== 'playing') {
-    slot.innerHTML = `
+    paintAcquire(slot, `
       <div class="complete-block" data-status="${state.status}">
         <div class="complete-status">
           <span class="dot"></span>
@@ -3060,37 +3046,20 @@ function renderAcquire() {
         </div>
         <button type="button" class="link-button" data-action="debrief">${icon('target')} ${esc(t('end.review'))}</button>
       </div>
-    `;
+    `);
     return;
   }
   if (isTimed() && !state.timerStarted) {
-    slot.innerHTML = `
+    paintAcquire(slot, `
       <div class="acquire timed-acquire">
         <button type="button" class="start-button" data-action="start-timed">
           ${icon('clock')} ${esc(t('timed.start'))}
         </button>
         <p class="timed-hint">${esc(t('timed.startHint'))}</p>
-      </div>`;
+      </div>`);
     return;
   }
-  slot.innerHTML = `
-    <div class="acquire">
-      <div class="search-shell">
-        <div class="search-wrap">
-          <span class="search-icon">${icon('search')}</span>
-          <input id="ship-input" class="search-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions" aria-label="${esc(t('board.inputLabel'))}" placeholder="${esc(t('board.placeholder'))}" autocomplete="off" autocorrect="off" spellcheck="false" value="${esc(state.inputValue)}">
-          <span class="search-key">ENTER</span>
-        </div>
-        <button type="button" class="lock-button" data-action="submit" ${state.inputValue.trim() ? '' : 'disabled'}>
-          ${icon('lock')} ${esc(t('board.submit'))}
-        </button>
-      </div>
-      <div class="acquire-meta">
-        <span>${icon('globe')} ${esc(t('board.typeAnyLanguage'))}</span>
-        <span>${icon('key')} ${esc(t('board.enterHint'))}</span>
-      </div>
-    </div>
-  `;
+  paintSearchBox(slot);
   syncLockCooldown();
 }
 
@@ -3997,6 +3966,7 @@ function hideSuggestions() {
   }
   if (input) input.setAttribute('aria-expanded', 'false');
   state.activeSuggestion = -1;
+  state.suggestionChosen = false;
   state.suggestions = [];
 }
 
@@ -4049,6 +4019,7 @@ function updateLockButton() {
 
 function setInputValue(value) {
   state.inputValue = value;
+  state.suggestionChosen = false;
   const input = $('#ship-input');
   if (input && input.value !== value) input.value = value;
   const exact = exactShip(value);
@@ -4058,12 +4029,22 @@ function setInputValue(value) {
 }
 
 function currentGuessShip() {
-  const exact = exactShip(state.inputValue);
-  if (exact) return exact;
-  if (state.activeSuggestion >= 0 && state.suggestions[state.activeSuggestion]) {
+  // A suggestion chosen with the arrow keys is an explicit choice.
+  if (state.suggestionChosen && state.suggestions[state.activeSuggestion]) {
     return state.suggestions[state.activeSuggestion];
   }
-  if (state.selectedId != null) return state.catalogMap.get(state.selectedId) || null;
+  const { ship, ambiguous } = resolveShipQuery(state.index, state.inputValue, {
+    exclude: new Set(state.guesses),
+    selectedId: state.selectedId,
+  });
+  if (ship) return ship;
+  if (ambiguous) {
+    // Let the player choose instead of guessing one of them.
+    renderSuggestions();
+    $('#ship-input')?.focus();
+    return null;
+  }
+  showToast(t('toast.invalid'), '', 'error');
   return null;
 }
 
@@ -4076,10 +4057,7 @@ function submitGuess() {
     if (!selfId || arb.role === 'dealer' || arb.role === 'spectator') return;
     if (!arb.acceptingGuesses || arb.solved?.has(selfId) || arb.guessed?.has(selfId)) return;
     const ship = currentGuessShip();
-    if (!ship) {
-      showToast(t('toast.invalid'), '', 'error');
-      return;
-    }
+    if (!ship) return;
     if (!state.roomSurface?.send({ t: 'guess', text: displayName(ship) })) return;
     state.inputValue = '';
     state.selectedId = null;
@@ -4091,10 +4069,7 @@ function submitGuess() {
   }
   if (isTimed() && Date.now() < state.lockCooldownUntil) return;
   const ship = currentGuessShip();
-  if (!ship) {
-    showToast(t('toast.invalid'), '', 'error');
-    return;
-  }
+  if (!ship) return;
   if (state.guesses.includes(ship.id)) {
     showToast(t('toast.duplicate'), '', 'warn');
     return;
@@ -4102,18 +4077,9 @@ function submitGuess() {
   applyGuess(ship.id);
 }
 
-function recordDailyPlay() {
-  // Practice and online runs are not counted locally. Online runs are recorded
-  // by the service when the run finishes.
-}
-
 function recordDailyResult() {
   if (state.roomEndless) {
     finishEndlessRound();
-    return;
-  }
-  if (state.roomRace) {
-    finishRoomRace();
     return;
   }
   void finishOnlineRun();
@@ -4122,16 +4088,16 @@ function recordDailyResult() {
 function applyGuess(shipId) {
   const ship = state.catalogMap.get(shipId);
   if (!ship) return;
-  recordDailyPlay();
   dropCurrentTargetCache();
   const previousRevealed = new Set(state.revealed);
   const previousGuesses = state.guesses.length;
   hideSuggestions();
   state.guesses.push(shipId);
+  if (state.roomEndless) state.roomSurface?.sendGuess(state.roomEndless.roundId, shipId);
+  else if (state.onlineRun?.runId) void runSync?.guess(state.onlineRun.runId, shipId, isTimed() ? currentElapsed() : 0);
   const correct = shipId === state.answerId;
   if (isTimed() && correct) stopTimedClock();
   state.status = correct ? 'won' : (isTimed() ? 'playing' : (state.guesses.length >= ATTEMPT_LIMIT ? 'lost' : 'playing'));
-  if (isFree() && state.status !== 'playing') finishFreeRound(state.status === 'won');
   recomputeRevealed();
   state.fresh = new Set([...state.revealed].filter((index) => !previousRevealed.has(index)));
   state.latestIndex = previousGuesses;
@@ -4156,6 +4122,9 @@ function applyGuess(shipId) {
     if (!state.roomEndless) setTimeout(() => renderDebrief(), 850);
   } else if (window.innerWidth >= 860) {
     setTimeout(() => $('#ship-input')?.focus(), 60);
+  } else {
+    // Small screens: close the keyboard so the result is visible.
+    $('#ship-input')?.blur();
   }
 }
 
@@ -4244,8 +4213,8 @@ function renderDebrief() {
   const ship = state.answerShip;
   const total = state.answerData.clues.length;
   const free = isFree();
-  const url = shareLink();
-  const stats = state.stats || DEFAULT_STATS;
+  // Online targets other than Daily are not shared; practice killmails are.
+  const shareable = state.appMode !== 'online' || state.gameplay === 'daily';
   const sampleKill = state.answerData.sampleKill;
   const payout = debriefPayoutAmount();
   const description = (state.answerData.description || '').split(/\n{2,}/).filter(Boolean);
@@ -4279,7 +4248,6 @@ function renderDebrief() {
       ? t('oneShot.body')
       : (won ? t('end.victoryBody', { name: displayName(ship) }) : t('end.defeatBody', { name: displayName(ship) })));
   const claimDebrief = claimDebriefForStatus();
-  const freeStreakStat = '';
   const html = `
     <div class="modal debrief-modal${oneShot ? ' is-one-shot' : ''}" role="dialog" aria-modal="true" aria-labelledby="debrief-title" data-kind="debrief" data-status="${state.status}" data-one-shot="${oneShot}">
       <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
@@ -4328,15 +4296,15 @@ function renderDebrief() {
           ${bonusHtml}
 
           <div class="debrief-actions">
-            <button type="button" class="button primary" data-action="copy-share">${icon('share')} ${esc(t('end.share'))}</button>
+            ${shareable ? `<button type="button" class="button primary" data-action="copy-share">${icon('share')} ${esc(t('end.share'))}</button>` : ''}
             ${kbHref ? `<a class="button" href="${esc(kbHref)}" target="_blank" rel="noopener noreferrer">${icon('external')} ${esc(kbLabel)}</a>` : ''}
             <button type="button" class="button ghost" data-action="close-modal">${esc(t('end.review'))}</button>
           </div>
 
-          <div class="share-box">
+          ${shareable ? `<div class="share-box">
             <label for="share-url">${esc(t('end.share'))}</label>
-            <input id="share-url" type="text" readonly value="${esc(url)}">
-          </div>
+            <input id="share-url" type="text" readonly value="${esc(shareLink())}">
+          </div>` : ''}
 
           <div class="debrief-next" id="debrief-next">
             ${state.appMode === 'online' && state.gameplay === 'daily'
@@ -4397,36 +4365,6 @@ function closeModal() {
   state.modal = null;
   state.focusBeforeModal = null;
   if (focus && typeof focus.focus === 'function' && focus.isConnected) focus.focus();
-}
-
-function openFreeModal() {
-  openModal(`
-    <div class="modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="free-title" data-kind="free">
-      <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
-      <div class="panel-kicker">${icon('radar')} // ${esc(t('mode.free'))}</div>
-      <h2 id="free-title">${esc(t('freeModal.title'))}</h2>
-      <p class="mode-modal-body">${esc(t('freeModal.body'))}</p>
-      <label class="mode-modal-label" for="free-kb-input">${esc(t('freeModal.kbLabel'))}</label>
-      <input id="free-kb-input" class="mode-modal-input" type="text" autocomplete="off" placeholder="${esc(t('freeModal.placeholder'))}">
-      <div class="mode-modal-error" id="free-error" aria-live="polite"></div>
-      <div class="mode-modal-actions">
-        <button type="button" class="button primary" data-action="free-submit">${icon('target')} ${esc(t('freeModal.open'))}</button>
-        <button type="button" class="button ghost" data-action="close-modal">${esc(t('common.close'))}</button>
-      </div>
-    </div>
-  `, 'free');
-  setTimeout(() => $('#free-kb-input')?.focus(), 40);
-}
-
-async function submitFreeKill() {
-  const input = $('#free-kb-input');
-  const killId = parseKillId(input?.value);
-  if (!killId) {
-    const error = $('#free-error');
-    if (error) error.textContent = t('freeModal.invalid');
-    return;
-  }
-  location.assign(freeKillUrl(killId));
 }
 
 function multiplayerManualBlocks() {
@@ -4563,13 +4501,6 @@ async function copyText(text) {
   }
 }
 
-async function copyFreeShare() {
-  if (!isFree()) return;
-  const ok = await copyText(shareLink());
-  if (ok) showToast(t('toast.copied'), '', 'success');
-  else showToast(t('toast.copyFailed'), '', 'error');
-}
-
 async function copyShare() {
   const ok = await copyText(shareLink());
   if (ok) {
@@ -4605,6 +4536,7 @@ async function changeLocale(nextLocale) {
     state.locale = nextLocale;
     state.i18n = createI18n(nextLocale);
     await loadLocaleData(nextLocale, { keepLive: true, keepAnswer: true });
+    await loadClaimDepartments();
     if (localeTargetChanged(targetSnapshot)) {
       restoreLocaleTarget(targetSnapshot);
       debugLog('locale target restored');
@@ -4841,24 +4773,11 @@ document.addEventListener('click', (event) => {
       return;
     }
     if (action === 'set-gameplay') { setGameplay(actionEl.dataset.gameplay); return; }
-    if (action === 'new-target') {
-      dropCurrentTargetCache();
-      const url = new URL(location.href);
-      url.searchParams.delete('kb');
-      url.searchParams.delete('mode');
-      url.searchParams.delete('rule');
-      url.searchParams.set('claim', state.gameplay);
-      if (state.appMode === 'online') url.searchParams.set('mode', 'online');
-      location.assign(url.toString());
-      return;
-    }
+    if (action === 'new-target') { void requestNewTarget(); return; }
+    if (action === 'abandon-target') { closeModal(); void takeNewTarget(); return; }
     if (action === 'rooms') { openRooms(); return; }
     if (action === 'room-action') { handleRoomAction(); return; }
     if (action === 'leave-room') { leaveRoomAndRestore(); return; }
-    if (action === 'free-mode' || action === 'free-refresh') { enterFreeMode(); return; }
-    if (action === 'free-input') { openFreeModal(); return; }
-    if (action === 'free-share') { void copyFreeShare(); return; }
-    if (action === 'free-submit') { void submitFreeKill(); return; }
     if (action === 'toggle-empty-kb') { setAllowEmptyKb(!state.allowEmptyKb); return; }
     if (action === 'set-font') { setFontStyle(actionEl.dataset.font); return; }
     if (action === 'set-font-size') { setFontSize(actionEl.dataset.size); return; }
@@ -4921,11 +4840,6 @@ document.addEventListener('keydown', (event) => {
       closeModal();
       return;
     }
-    if (event.key === 'Enter' && state.modal?.kind === 'free') {
-      event.preventDefault();
-      void submitFreeKill();
-      return;
-    }
     if (event.key === 'Tab') {
       const root = $('#modal-root');
       const focusables = $$('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])', root).filter((el) => !el.disabled && el.offsetParent !== null);
@@ -4949,11 +4863,13 @@ document.addEventListener('keydown', (event) => {
     if (!state.suggestions.length) return;
     event.preventDefault();
     state.activeSuggestion = (state.activeSuggestion + 1) % state.suggestions.length;
+    state.suggestionChosen = true;
     renderSuggestions();
   } else if (event.key === 'ArrowUp') {
     if (!state.suggestions.length) return;
     event.preventDefault();
     state.activeSuggestion = (state.activeSuggestion - 1 + state.suggestions.length) % state.suggestions.length;
+    state.suggestionChosen = true;
     renderSuggestions();
   } else if (event.key === 'Enter') {
     event.preventDefault();
@@ -4987,7 +4903,6 @@ window.addEventListener('resize', () => {
 });
 
 window.addEventListener('pagehide', () => {
-  abandonFreeRound();
   if (state.status && state.answerId && !state.resetting) persist();
 });
 
@@ -5156,11 +5071,7 @@ async function resolveSession() {
         name: String(me.name || ''),
         characterId: Number(me.characterId) || null,
       };
-      try {
-        state.profileStats = await api.stats();
-      } catch {
-        state.profileStats = null;
-      }
+      void refreshProfileStats();
     }
   } catch {
     // Backend unavailable: practice mode.
@@ -5188,9 +5099,6 @@ function installTarget({ killmail, shipId, killId, run = null, source, free = fa
   state.dailySeed = null;
   state.onlineRun = run;
   state.onlineFinished = Boolean(run?.completed);
-  state.freeRequested = false;
-  state.freeFromRefresh = false;
-  state.freeRoundActive = false;
   state.kbValueCompact = false;
   state.lastRevealSize = 0;
   state.initialFreshDone = false;
@@ -5201,6 +5109,15 @@ function installTarget({ killmail, shipId, killId, run = null, source, free = fa
   pickClaimDepartment(false, Number(killId));
   void loadInsurancePrices();
   if (cacheable) cacheCurrentTarget();
+}
+
+/** A local board behind the room lobby; it is never shown or played. */
+function installPlaceholder() {
+  const ship = state.catalog.find((item) => Number(item.id) > 0);
+  const killmail = { killmail_id: 0, victim: { ship_type_id: Number(ship.id), items: [] }, zkb: {} };
+  installTarget({ killmail, shipId: ship.id, killId: 0, source: 'placeholder', cacheable: false });
+  state.liveLosses = [killmail];
+  state.liveFetched = true;
 }
 
 async function resolvePracticeTarget(route) {
@@ -5255,10 +5172,14 @@ async function prepareAppTarget(route) {
   state.gameplay = online || route.gameplay !== 'daily' ? route.gameplay : 'standard';
   state.roomRequest = route.mode === 'multiplayer' || route.room ? route.room || 'lobby' : null;
   if (state.roomRequest) {
-    // The room surface takes over after boot; load a practice target first so the
-    // board has a valid shell if the room cannot connect.
+    // The room surface takes over after boot. Signed-in pilots need no target of
+    // their own for that; guests get a practice one behind the login request.
     state.gameplay = 'standard';
     applyGameplay('standard');
+    if (online) {
+      installPlaceholder();
+      return;
+    }
     try {
       await resolvePracticeTarget({ ...route, gameplay: 'standard', kb: '' });
     } catch {
@@ -5268,6 +5189,7 @@ async function prepareAppTarget(route) {
   }
   applyGameplay(state.gameplay);
   if (usesSimulatedFit()) preloadDogma();
+  if (online && runSync?.runs.size) await runSync.flush();
   if (!route.kb && await restoreCachedTarget(state.gameplay)) return;
   if (online) {
     try {
@@ -5285,8 +5207,163 @@ async function prepareAppTarget(route) {
   }
 }
 
+let runSync = null;
+
+/** Deliver this account's guesses, including those an earlier visit could not send. */
+function startRunSync() {
+  if (!state.auth.loggedIn) return;
+  runSync = new RunSync({
+    api,
+    storage: localStorage,
+    user: state.auth.name,
+    onRun: (runId, run) => {
+      if (state.onlineRun?.runId === runId) applyServerRun(run);
+      if (run.completed) void refreshProfileStats();
+    },
+    onRejected: (runId, error) => {
+      debugLog('online run', error);
+      const run = error?.payload?.run;
+      if (run && state.onlineRun?.runId === runId) applyServerRun(run);
+      else if (state.onlineRun?.runId === runId) showToast(t('online.recordFailed'), '', 'warn', 5000);
+      void refreshProfileStats();
+    },
+  });
+}
+
+window.addEventListener('online', () => { void runSync?.flush(); });
+
+/** The service's answer wins over the local board, e.g. after playing on two devices. */
+function applyServerRun(run) {
+  state.onlineRun = { ...state.onlineRun, ...run };
+  if (!state.booted || state.roomEndless || state.roomArbitration) return;
+  const allowed = (run.guesses || []).filter((id) => state.catalogMap.has(Number(id)));
+  const guesses = run.completed ? allowed.map(Number) : mergeGuesses(allowed, state.guesses);
+  const ended = run.completed && state.status === 'playing';
+  if (!ended && guesses.length <= state.guesses.length) return;
+  state.guesses = guesses;
+  if (ended) {
+    if (isTimed()) {
+      stopTimedClock();
+      state.gaveUp = run.status === 'lost';
+    }
+    state.status = run.status;
+    state.onlineFinished = true;
+    dropCurrentTargetCache();
+  }
+  recomputeRevealed();
+  persist();
+  renderAll();
+  if (ended) renderDebrief();
+}
+
+/** The board of an online run: what the service confirmed plus unsent local guesses. */
+function mergeOnlineRun(restored) {
+  const run = state.onlineRun;
+  if (!run?.runId) return restored;
+  const known = (id) => state.catalogMap.has(Number(id));
+  const confirmed = (run.guesses || []).map(Number).filter(known);
+  if (run.completed) {
+    const lostTimed = isTimed() && run.status === 'lost';
+    return {
+      guesses: confirmed,
+      status: run.status,
+      timerElapsedMs: Number(run.elapsedMs) || 0,
+      timedExpired: lostTimed && restored.timedExpired === true,
+      gaveUp: lostTimed && restored.timedExpired !== true,
+    };
+  }
+  const local = restored.invalidated ? [] : restored.guesses || [];
+  const guesses = mergeGuesses(confirmed, local).slice(0, isTimed() ? undefined : ATTEMPT_LIMIT);
+  const merged = { ...restored, invalidated: false, guesses };
+  if (guesses.includes(state.answerId)) merged.status = 'won';
+  else if (!isTimed()) merged.status = guesses.length >= ATTEMPT_LIMIT ? 'lost' : 'playing';
+  else merged.status = restored.status === 'lost' ? 'lost' : 'playing';
+  if (isTimed() && merged.status === 'playing' && !restored.timerStarted && run.begun) {
+    // Started on another device: continue its clock.
+    merged.timerStarted = true;
+    merged.timerStartAt = Date.now() - Math.max(0, Number(run.now) - Number(run.startedAt) || 0);
+  }
+  if (restored.timerStarted && !run.begun) void runSync?.begin(run.runId, restored.timerStartAt);
+  for (const id of guesses) {
+    if (!confirmed.includes(id)) void runSync?.guess(run.runId, id, merged.timerElapsedMs || 0);
+  }
+  if (isTimed() && merged.status === 'lost') void runSync?.lose(run.runId, merged.timerElapsedMs || 0);
+  return merged;
+}
+
+/** A counted run of this player that another target would replace. */
+function replaceableRun() {
+  const run = state.onlineRun;
+  return state.appMode === 'online' && run?.runId && run.kind === 'random' ? run : null;
+}
+
+/** Before its clock starts a random timed target shows no clue, so there is nothing to change. */
+function timedTargetFixed() {
+  return isTimed() && state.status === 'playing' && !state.timerStarted
+    && !new URL(location.href).searchParams.has('kb');
+}
+
+function syncNewTarget() {
+  const button = $('.new-target-cta');
+  if (!button) return;
+  const fixed = timedTargetFixed();
+  button.setAttribute('aria-disabled', String(fixed));
+  if (fixed) button.dataset.tip = t('mode.timedFixed');
+  else delete button.dataset.tip;
+}
+
+function requestNewTarget() {
+  if (state.newTargetBusy) return;
+  const run = replaceableRun();
+  const started = run && state.status === 'playing' && !run.completed
+    && (state.guesses.length > 0 || state.timerStarted || run.begun);
+  if (!started || !$('#modal-root')) return takeNewTarget();
+  openModal(`
+    <div class="modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="abandon-title" data-kind="abandon">
+      <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
+      <div class="panel-kicker">${icon('refresh')} // ${esc(t('online.newTarget'))}</div>
+      <h2 id="abandon-title">${esc(t('online.abandonTitle'))}</h2>
+      <p class="mode-modal-body">${esc(t('online.abandonBody'))}</p>
+      <div class="mode-modal-actions">
+        <button type="button" class="button primary" data-action="close-modal" data-autofocus>${esc(t('online.abandonKeep'))}</button>
+        <button type="button" class="button ghost" data-action="abandon-target">${icon('refresh')} ${esc(t('online.newTarget'))}</button>
+      </div>
+    </div>
+  `, 'abandon');
+  return undefined;
+}
+
+async function takeNewTarget() {
+  if (state.newTargetBusy) return;
+  state.newTargetBusy = true;
+  const run = replaceableRun();
+  try {
+    if (run) {
+      // Deliver unsent guesses first, so a finished run is not taken for an open one.
+      const delivered = !runSync || await runSync.flush();
+      if (!delivered) throw new Error('run not delivered');
+      if (!state.onlineRun.completed && state.status === 'playing') await api.abandon(run.runId);
+    }
+  } catch (error) {
+    if (error?.status !== 404) {
+      debugLog('new target', error);
+      state.newTargetBusy = false;
+      showToast(t('online.unavailable'), '', 'warn', 5000);
+      return;
+    }
+  }
+  dropCurrentTargetCache();
+  const url = new URL(location.href);
+  url.searchParams.delete('kb');
+  url.searchParams.delete('mode');
+  url.searchParams.delete('rule');
+  url.searchParams.set('claim', state.gameplay);
+  if (state.appMode === 'online') url.searchParams.set('mode', 'online');
+  location.assign(url.toString());
+}
+
 async function refreshProfileStats() {
-  if (state.appMode !== 'online' || !state.auth.loggedIn) return;
+  if (!state.auth.loggedIn) return;
   try {
     state.profileStats = await api.stats();
     const record = document.querySelector('#pilot-menu .pilot-menu-record');
@@ -5301,35 +5378,12 @@ async function finishOnlineRun() {
   if (state.status === 'playing') return;
   state.onlineFinished = true;
   dropCurrentTargetCache();
-  try {
-    await api.finish(state.onlineRun.runId, {
-      status: state.status === 'won' ? 'won' : 'lost',
-      attempts: state.guesses.length,
-      elapsedMs: state.timerStarted ? currentElapsed() : state.timerElapsedMs,
-      answerId: state.status === 'won' ? state.answerId : null,
-      guesses: state.guesses,
-    });
-    await refreshProfileStats();
-  } catch (error) {
-    debugLog('online finish', error);
-    showToast(t('online.recordFailed'), '', 'warn', 5000);
-  }
-}
-
-function finishRoomRace() {
-  const race = state.roomRace;
-  if (!race) return;
-  race.surface.send({
-    t: 'raceResult',
-    status: state.status === 'won' ? 'won' : 'lost',
-    answerId: state.status === 'won' ? state.answerId : null,
-    attempts: state.guesses.length,
-    elapsedMs: state.timerStarted ? currentElapsed() : state.timerElapsedMs,
-  });
-  state.roomRace = null;
-  state.roomView = 'result';
-  race.surface.show();
-  applyRoomLayout();
+  // The service judges the guesses; only a timed loss has to be reported.
+  const delivered = isTimed() && state.status === 'lost'
+    ? await runSync?.lose(state.onlineRun.runId, state.timerStarted ? currentElapsed() : state.timerElapsedMs)
+    : await runSync?.flush();
+  // After the debrief, which clears earlier notices.
+  if (delivered === false) setTimeout(() => showToast(t('online.recordPending'), '', 'warn', 5000), 1000);
 }
 
 function roomEntrySnapshot() {
@@ -5379,6 +5433,15 @@ function roomRoundMode(gameplay) {
 async function prepareEndlessRound(message) {
   const target = message?.target;
   if (!target?.killmail) throw new Error('room-target');
+  // The connection dropped and came back during this round: keep the board.
+  if (message.resumed && state.roomEndless?.loaded && state.roomEndless.roundId === message.roundId) {
+    state.roomEndless.target = target;
+    if (mergeRoomGuesses(message.guesses) && state.roomEndless.phase === 'playing') recomputeRevealed();
+    applySubmittedRound(message);
+    applyRoomLayout();
+    renderAll();
+    return true;
+  }
   const gameplay = ['standard', 'audit', 'timed'].includes(message.gameplay) ? message.gameplay : 'standard';
   const { mode, timed } = roomRoundMode(gameplay);
   applyGameplay(gameplay);
@@ -5479,10 +5542,46 @@ async function prepareEndlessRound(message) {
   };
   state.timed = timed;
   state.roomEndless.phase = 'loading';
+  state.roomEndless.loaded = true;
+  mergeRoomGuesses(message.guesses);
+  applySubmittedRound(message);
   applyRoomLayout();
   renderAll();
   if (document.fonts?.ready) await document.fonts.ready;
   return true;
+}
+
+/** This player already reported a result for the round being resumed. */
+function applySubmittedRound(message) {
+  if (!message.submitted) return;
+  state.status = message.submitted.status === 'won' ? 'won' : 'lost';
+  state.roomEndless.phase = 'waiting';
+  state.visibleCount = state.answerData.clues.length;
+  stopTimedClock();
+}
+
+/** Guesses the server recorded, e.g. before a reload. Returns true if any was new here. */
+function mergeRoomGuesses(confirmed = []) {
+  const guesses = mergeGuesses(confirmed.filter((id) => state.catalogMap.has(Number(id))), state.guesses);
+  if (guesses.length === state.guesses.length) return false;
+  state.guesses = guesses;
+  return true;
+}
+
+function onRaceState(message) {
+  const room = state.roomEndless;
+  if (!room || room.roundId !== message.roundId || room.phase !== 'playing') return;
+  const added = mergeRoomGuesses(message.guesses);
+  const ended = message.status !== 'playing' && state.status === 'playing';
+  if (ended) {
+    state.status = message.status === 'won' ? 'won' : 'lost';
+    room.phase = 'waiting';
+    stopTimedClock();
+  }
+  if (!added && !ended) return;
+  recomputeRevealed();
+  renderAll();
+  syncRoomAction();
 }
 
 function onEndlessLoaded(message) {
@@ -5496,6 +5595,8 @@ function onEndlessLoaded(message) {
 
 function onEndlessStart(message) {
   if (!state.roomEndless) return;
+  // A resumed start must not restart a round that already runs here.
+  if (message.resumed && ['playing', 'waiting', 'finished'].includes(state.roomEndless.phase)) return;
   state.roomEndless.phase = 'starting';
   state.roomEndless.startAt = Number(message.startAt) || Date.now();
   state.roomEndless.endsAt = message.endsAt || null;
@@ -5515,6 +5616,9 @@ function beginEndlessRound() {
   recomputeRevealed();
   if (isTimed()) {
     startTimedClock();
+    // Follow the server's start, so a late or resumed client loses no clue time.
+    const startedAt = Number(state.roomEndless.startAt) - (Number(state.roomEndless.serverOffset) || 0);
+    if (Number.isFinite(startedAt) && startedAt > 0) state.timerStartAt = Math.min(Date.now(), startedAt);
     recomputeRevealed();
   }
   applyRoomLayout();
@@ -5539,23 +5643,14 @@ function onRoundEvent(message) {
     renderAll();
     syncRoomAction();
   }
-  if (message.t === 'arbitrationRoundResult' || message.t === 'arbitrationRoundStart') {
-    if (state.roomSurface) state.roomSurface.renderRoom();
-  }
 }
 
 function finishEndlessRound() {
   const room = state.roomEndless;
   if (!room || (room.phase !== 'playing' && room.phase !== 'starting')) return;
   room.phase = 'waiting';
-  state.roomSurface?.send({
-    t: 'raceResult',
-    roundId: room.roundId,
-    status: state.status === 'won' ? 'won' : 'lost',
-    answerId: state.status === 'won' ? state.answerId : null,
-    attempts: state.guesses.length,
-    elapsedMs: state.timerStarted ? currentElapsed() : state.timerElapsedMs,
-  });
+  // The server judges the guesses; only a timed loss has to be reported.
+  if (isTimed() && state.status === 'lost') state.roomSurface?.sendLoss(room.roundId);
   stopTimedClock();
   renderAll();
   syncRoomAction();
@@ -5587,7 +5682,8 @@ function syncRoomAction() {
     }
     if (room.phase === 'finished') {
       button.hidden = false;
-      const prepared = Boolean(room.prepared);
+      const prepared = Boolean(room.prepared)
+        || Boolean(state.roomSurface?.room?.match?.prepared?.includes?.(surface.playerId));
       button.disabled = prepared;
       button.textContent = prepared ? t('room.preparedState') : t('room.readyForNext');
       return;
@@ -5678,18 +5774,29 @@ function openRooms() {
     int,
     onViewChange: (view) => {
       state.roomView = view;
+      if (view === 'lobby' && !state.roomSurface?.room) state.roomCode = null;
       if (view !== 'arbitration') state.roomArbitration = null;
       if (view !== 'endless') state.roomEndless = view === 'lobby' || view === 'result' ? null : state.roomEndless;
       applyRoomLayout();
       if (view === 'arbitration' || view === 'endless') renderAll();
     },
     onArbitrationState: (context) => {
+      const signature = JSON.stringify(
+        [surface.playerId, [...surface.selected], context],
+        (key, value) => (value instanceof Set ? [...value] : value),
+      );
+      // Chat and other messages change nothing on the board.
+      if (state.roomArbitration && state.roomView === 'arbitration' && state.arbSignature === signature) return;
+      state.arbSignature = signature;
+      const previous = state.roomArbitration;
       state.roomArbitration = context;
       state.roomView = 'arbitration';
       state.status = 'playing';
-      state.inputValue = '';
-      state.selectedId = null;
-      state.suggestions = [];
+      if (previous?.matchId !== context.matchId || previous.round !== context.round || previous.phase !== context.phase) {
+        state.inputValue = '';
+        state.selectedId = null;
+        hideSuggestions();
+      }
       applyRoomLayout();
       syncRoomAction();
       renderAll();
@@ -5699,11 +5806,16 @@ function openRooms() {
     onEndlessLoaded: (message) => onEndlessLoaded(message),
     onEndlessRoundResult: (result) => onEndlessRoundResult(result),
     onRoundEvent: (message) => onRoundEvent(message),
+    onRaceState: (message) => onRaceState(message),
     onKicked: () => {
       showToast(tl('room.kicked', 'You were removed from the room by the host.'), '', 'error');
     },
     onLeave: () => leaveRoomAndRestore(),
     onRoomUpdate: () => {
+      // The server's list is authoritative: a lost request must stay clickable.
+      if (state.roomEndless) {
+        state.roomEndless.prepared = Boolean(surface.room?.match?.prepared?.includes?.(surface.playerId));
+      }
       syncRoomChrome();
       syncRoomAction();
     },
@@ -5713,15 +5825,12 @@ function openRooms() {
       state.roomArbitration = null;
       state.roomEndless = null;
       state.roomCode = null;
-      if (state.roomRace) {
-        state.roomRace = null;
-        state.guesses = [];
-        state.status = 'playing';
-      }
       applyRoomLayout();
       syncRoomAction();
     },
   });
+  // Leaving the room restores a real page in place of the placeholder.
+  surface.usedBoard = state.targetSource === 'placeholder';
   state.roomSurface = surface;
   state.roomView = 'lobby';
   surface.mount($('#room-view'), $('#room-rail'));
@@ -5765,13 +5874,14 @@ async function boot() {
   void applyBootFlavor();
   prefetchJson([
     'data/manifest.json',
-    'assets/claim-departments.json',
+    `assets/claim-departments/${state.locale}.json`,
     `data/catalog/${state.locale}.json`,
     'data/search.json',
     `data/refs/${state.locale}.json`,
   ]);
   state.fontSize = readFontSize();
   applyFontSize(state.fontSize);
+  let loginFailed = false;
   try {
     const manifest = await fetchJson('data/manifest.json');
     state.manifest = manifest;
@@ -5789,6 +5899,8 @@ async function boot() {
       canonical.searchParams.delete('rule');
       canonical.searchParams.delete('share');
       canonical.searchParams.delete('gameplay');
+      loginFailed = canonical.searchParams.has('auth_error');
+      canonical.searchParams.delete('auth_error');
       if (!canonical.searchParams.get('claim')) {
         if (state.timed) canonical.searchParams.set('claim', 'timed');
         else if (state.mode === 'audit') canonical.searchParams.set('claim', 'audit');
@@ -5803,12 +5915,11 @@ async function boot() {
     const route = parseAppRoute();
     api.setBase(String(manifest.apiBase || ''));
     await resolveSession();
+    startRunSync();
     if (state.meta?.gameDay) state.today = state.meta.gameDay;
     state.locale = detectLocale();
     if (!isLocale(state.locale) || !manifest.locales.includes(state.locale)) state.locale = manifest.defaultLocale || 'en';
     state.i18n = createI18n(state.locale);
-    state.stats = emptyStats();
-    state.freeStreaks = { standard: 0, audit: 0, timed: 0 };
     state.timeVerified = true;
     await prepareAppTarget(route);
     applyGameplay(state.gameplay);
@@ -5820,7 +5931,8 @@ async function boot() {
     if (canonical.href !== location.href) history.replaceState(null, '', canonical);
     await loadLocaleData(state.locale);
 
-    const restored = readStoredState();
+    const restored = mergeOnlineRun(readStoredState());
+    pruneStoredStates();
     if (!isFree() && restored.invalidated) {
       state.guesses = [];
       state.status = 'playing';
@@ -5841,7 +5953,6 @@ async function boot() {
       state.gaveUp = isTimed() && state.status === 'lost' && restored.gaveUp === true;
       state.timedExpired = isTimed() && state.status === 'lost' && restored.timedExpired === true;
     }
-    if (isFree()) initFreeRound();
     recomputeRevealed();
     state.inputValue = '';
     state.selectedId = null;
@@ -5866,6 +5977,7 @@ async function boot() {
     }
     state.booted = true;
     startTicker();
+    if (loginFailed) showToast(t('auth.failed'), '', 'error', 6000);
     if (state.loginRequired) showAuthGate();
     if (state.roomRequest && state.auth.loggedIn) openRooms();
   } catch (error) {

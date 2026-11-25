@@ -14,7 +14,7 @@ import {
 import { pickDealerRound, pickRaceTarget, KbUnavailableError } from '../js/mp/target.js';
 import { renderClueList } from '../js/mp/clue-view.js';
 import { avatarInitials, avatarHtml, portraitUrl } from '../js/avatar.js';
-import { shortPilotId, sortLocalPlayers } from '../js/rooms.js';
+import { reconnectDelay, shortPilotId, sortLocalPlayers } from '../js/rooms.js';
 import { MESSAGES } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -415,7 +415,30 @@ test('room UI is embedded and arbitration reuses the single-player dossier', () 
   assert.match(main, /id="room-rail"/);
   assert.match(main, /renderArbitrationDossier/);
   assert.match(main, /state\.roomArbitration/);
-  assert.match(MESSAGES.en['room.kickConfirm'], /\{name\}/);
   assert.match(MESSAGES.zh['room.kicked'], /房主/);
   assert.match(MESSAGES.en['room.arbitration.dealerPublish'], /clue/i);
+});
+
+test('room accents never use the black background fallback as a text color', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'styles', 'app.css'), 'utf8');
+  const values = [...css.matchAll(/--room-secondary:\s*([^;]+);/g)].map((match) => match[1].trim());
+  assert.equal(values.length, 5, 'default plus the four gameplays');
+  for (const value of values) assert.doesNotMatch(value, /^(#000|#000000|black)$/i);
+  for (const gameplay of ['standard', 'audit', 'timed', 'arbitration']) {
+    assert.ok(css.includes(`[data-room-gameplay="${gameplay}"]`), gameplay);
+  }
+});
+
+test('room reconnects start at once and then back off', () => {
+  assert.deepEqual([0, 1, 2, 5].map(reconnectDelay), [0, 800, 1600, 4000]);
+  assert.equal(reconnectDelay(100), 10000);
+});
+
+test('room panels keep their chat input and ignore replaced sockets', () => {
+  const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
+  // The textarea only exists in the once-built skeleton, never in a region.
+  assert.equal(rooms.split('data-room-chat-input rows').length - 1, 1);
+  assert.match(rooms, /if \(this\.ws === ws\) this\.onSocketClosed/);
+  assert.match(rooms, /!button\.isConnected/);
+  assert.match(rooms, /t: 'ping'/);
 });

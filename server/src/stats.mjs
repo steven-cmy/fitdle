@@ -59,7 +59,7 @@ export function profileStats(nameKey, gameDay) {
   const dailyWins = Number(statement(`SELECT COUNT(*) AS count FROM online_runs
     WHERE name_key = ? AND kind = 'daily' AND status = 'won'`).get(key)?.count || 0);
   const winDays = statement(`SELECT DISTINCT game_day FROM online_runs
-    WHERE name_key = ? AND status = 'won' ORDER BY game_day DESC`).all(key)
+    WHERE name_key = ? AND status = 'won' AND kind != 'custom' ORDER BY game_day DESC`).all(key)
     .map((row) => String(row.game_day))
     .filter(Boolean);
   const today = String(gameDay || '');
@@ -78,15 +78,14 @@ export function profileStats(nameKey, gameDay) {
   }
   const streaks = {};
   for (const gameplay of ['standard', 'audit', 'timed']) {
-    const rows = statement(`SELECT status FROM online_runs
-      WHERE name_key = ? AND gameplay = ? AND status != 'playing'
-      ORDER BY finished_at DESC, started_at DESC`).all(key, gameplay);
-    let streak = 0;
-    for (const row of rows) {
-      if (row.status !== 'won') break;
-      streak += 1;
-    }
-    streaks[gameplay] = streak;
+    // Wins since the last loss; the history before it is not read.
+    const loss = statement(`SELECT finished_at, started_at FROM online_runs
+      WHERE name_key = ? AND gameplay = ? AND status = 'lost' AND kind != 'custom'
+      ORDER BY finished_at DESC, started_at DESC LIMIT 1`).get(key, gameplay);
+    streaks[gameplay] = Number(statement(`SELECT COUNT(*) AS count FROM online_runs
+      WHERE name_key = ? AND gameplay = ? AND status = 'won' AND kind != 'custom'
+        AND (finished_at, started_at) > (?, ?)`)
+      .get(key, gameplay, loss?.finished_at ?? -1, loss?.started_at ?? -1).count);
   }
   return { dailyWins, winStreak, streaks };
 }

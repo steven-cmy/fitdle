@@ -10,6 +10,9 @@ export const CLAIM_DEPARTMENT_IDS = [
   'arbitration',
   'compliance',
   'alliance-srp',
+  'clone',
+  'concord',
+  'courier',
 ];
 
 export function claimSeed({ killId = null, killmailId = null, day = '' } = {}) {

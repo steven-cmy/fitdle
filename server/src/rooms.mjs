@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { buildSearchIndex, gameDateKey, normalizeText } from '../../js/game.js';
 import { buildClues } from '../../js/clues.js';
 import { clueForWire, sanitizeChatText, sanitizeText } from '../../js/mp/protocol.js';
@@ -11,12 +12,29 @@ import { buildRevealPlan } from '../../js/reveal.js';
 import { config } from './config.mjs';
 import { getSessionUser } from './auth.mjs';
 import { now, statement } from './db.mjs';
+import { withinLimit } from './limits.mjs';
 import { getRandomTarget, TargetUnavailable } from './targets.mjs';
+import { zkillFetch } from './zkill.mjs';
 import { recordExposure, recordArbitrationRound, recordRoomMatch } from './stats.mjs';
 
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const RULES = new Set(['standard', 'audit', 'timed', 'arbitration']);
 const ROOMS = new Map();
+const scrypt = promisify(crypto.scrypt);
+
+/** Close code for a socket taken over by a newer connection of that player. */
+export const CLOSE_REPLACED = 4001;
+const MESSAGE_WINDOW_MS = 10_000;
+const MESSAGE_LIMIT = 120;
+const PASSWORD_WINDOW_MS = 10 * 60 * 1000;
+const PASSWORD_LIMIT = 8;
+const CREATE_WINDOW_MS = 10 * 60 * 1000;
+const CREATE_LIMIT = 10;
+const passwordFailures = new Map();
+const RACE_ATTEMPT_LIMIT = 6;
+const RACE_COOLDOWN_MS = 5000;
+// Network delay may shorten the gap between two guesses a client kept apart.
+const RACE_COOLDOWN_TOLERANCE_MS = 500;
 
 export function normalizeRoomSettings(current = {}, incoming = {}) {
   const next = { ...current };
@@ -80,18 +98,44 @@ function randomCode() {
   return code;
 }
 
-function hashPassword(password) {
+async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(String(password), salt, 32).toString('hex');
+  const hash = (await scrypt(String(password), salt, 32)).toString('hex');
   return `${salt}:${hash}`;
 }
 
-function verifyPassword(password, value) {
+async function verifyPassword(password, value) {
   if (!value) return true;
   const [salt, expected] = String(value).split(':');
   if (!salt || !expected) return false;
-  const actual = crypto.scryptSync(String(password), salt, 32).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
+  const actual = await scrypt(String(password), salt, 32);
+  return crypto.timingSafeEqual(actual, Buffer.from(expected, 'hex'));
+}
+
+function passwordBlocked(key) {
+  const entry = passwordFailures.get(key);
+  if (!entry) return false;
+  if (now() >= entry.resetAt) {
+    passwordFailures.delete(key);
+    return false;
+  }
+  return entry.count >= PASSWORD_LIMIT;
+}
+
+function recordPasswordFailure(key) {
+  const entry = passwordFailures.get(key);
+  if (entry && now() < entry.resetAt) entry.count += 1;
+  else passwordFailures.set(key, { count: 1, resetAt: now() + PASSWORD_WINDOW_MS });
+}
+
+function messageAllowed(player) {
+  const at = now();
+  if (at - (player.messageWindowStart || 0) > MESSAGE_WINDOW_MS) {
+    player.messageWindowStart = at;
+    player.messageCount = 0;
+  }
+  player.messageCount = (player.messageCount || 0) + 1;
+  return player.messageCount <= MESSAGE_LIMIT;
 }
 
 const PLAYER_COLORS = Object.freeze([
@@ -132,7 +176,6 @@ function roomState(room) {
     maxPlayers: config.roomMaxPlayers,
     reconnectGraceMs: config.roomReconnectGraceMs,
     players: [...room.players.values()].map(snapshotPlayer),
-    matchNo: room.matchNo,
     bigRound: room.bigRound ? {
       number: room.bigRound.number,
       total: room.bigRound.total,
@@ -154,7 +197,7 @@ function publicMatch(match) {
       phase: match.phase,
       ready: [...match.ready],
       prepared: [...match.prepared],
-      finished: [...new Set(match.results.map((result) => result.playerId))],
+      finished: [...new Set(match.results.map((result) => result.playerId))].filter((id) => match.activeIds.includes(id)),
       activeCount: match.activeIds.length,
       startAt: match.startAt,
       endsAt: match.endsAt,
@@ -186,14 +229,7 @@ function publicMatch(match) {
       startedAt: match.startedAt,
     };
   }
-  return {
-    id: match.id,
-    rule: 'race',
-    gameplay: match.gameplay,
-    target: match.target,
-    startedAt: match.startedAt,
-    endsAt: match.endsAt,
-  };
+  return null;
 }
 
 function broadcast(room, message, exceptId = null) {
@@ -232,13 +268,19 @@ export function flushRooms() {
   pendingPersists.clear();
 }
 
+function prunePasswordFailures(at) {
+  for (const [key, entry] of passwordFailures) {
+    if (at >= entry.resetAt) passwordFailures.delete(key);
+  }
+}
+
 /** Drop rooms that outlived their TTL and have nobody connected. */
 export function evictExpiredRooms(at = now()) {
   let evicted = 0;
+  prunePasswordFailures(at);
   for (const [code, room] of ROOMS) {
     if (room.expiresAt > at) continue;
     if ([...room.players.values()].some((player) => player.connected)) continue;
-    clearTimeout(room.match?.timer);
     clearTimeout(room.match?.startTimer);
     clearTimeout(room.match?.roundTimer);
     for (const player of room.players.values()) clearTimeout(player.reconnectTimer);
@@ -278,9 +320,9 @@ function activeGuessers(room) {
   ));
 }
 
-function acceptedNames(shipId) {
-  const entry = SEARCH_BY_SHIP.get(Number(shipId));
-  return new Set([...(entry?.names || []), ...(entry?.acronyms || []), ...(entry?.nameAliases || [])]);
+/** Full names only: clients complete abbreviations before they submit a guess. */
+export function acceptedNames(shipId) {
+  return new Set(SEARCH_BY_SHIP.get(Number(shipId))?.names || []);
 }
 
 function publishedWeight(match) {
@@ -470,6 +512,32 @@ function settleArbitrationRound(room) {
   beginArbitrationDealerTurn(room, match, 'next-round');
 }
 
+/**
+ * Resolve a guessing phase that nobody can continue: called after a player left
+ * for good and after the dealer returned. A short drop keeps the turn open.
+ */
+function checkArbitrationProgress(room) {
+  const match = room.match;
+  if (!match || match.rule !== 'arbitration') return false;
+  if (match.phase === 'reveal') {
+    const active = [...room.players.values()].filter((item) => item.connected && !item.spectator);
+    if (!active.length || !active.every((item) => match.prepared.has(item.id))) return false;
+    finishArbitrationReveal(room);
+    return true;
+  }
+  if (!match.nonDealerIds.some((id) => room.players.has(id))) {
+    endArbitration(room);
+    return true;
+  }
+  if (match.phase !== 'player' || !match.acceptingGuesses || match.dealerDisconnected) return false;
+  const pending = match.nonDealerIds.filter((id) => (
+    room.players.has(id) && !match.solved.has(id) && !match.guessed.has(id)
+  ));
+  if (pending.length) return false;
+  advanceArbitrationRound(room);
+  return true;
+}
+
 function advanceArbitrationRound(room) {
   const match = room.match;
   if (!match || match.rule !== 'arbitration' || match.phase !== 'player') return;
@@ -480,8 +548,25 @@ function advanceArbitrationRound(room) {
   settleArbitrationRound(room);
 }
 
-function clearMatchTimer(room) {
-  if (room.match?.timer) clearTimeout(room.match.timer);
+/**
+ * Run one asynchronous load for a room. `current()` turns false when the load was
+ * cancelled or superseded, so late results and errors cannot touch a newer match.
+ */
+function loadMatch(room, work) {
+  const token = {};
+  room.loadToken = token;
+  const current = () => ROOMS.get(room.code) === room && room.loadToken === token;
+  return work(current)
+    .catch((error) => { if (current()) failRoom(room, error?.code === 'need-players' ? 'need-players' : 'target'); })
+    .finally(() => { if (room.loadToken === token) room.loadToken = null; });
+}
+
+function cancelLoad(room) {
+  room.loadToken = null;
+}
+
+function connectedPilots(room) {
+  return [...room.players.values()].filter((player) => player.connected && !player.spectator);
 }
 
 async function buildEndlessClues(room, target, roundNo) {
@@ -522,12 +607,14 @@ async function buildEndlessClues(room, target, roundNo) {
   };
 }
 
-async function prepareEndlessRound(room, roundNo) {
+async function prepareEndlessRound(room, roundNo, current) {
   const match = room.match;
   if (!match || match.rule !== 'endless') return;
   clearTimeout(match.startTimer);
   clearTimeout(match.roundTimer);
   const target = await getRandomTarget(match.gameplay);
+  const built = await buildEndlessClues(room, target, roundNo);
+  if (!current() || room.match !== match) return;
   recordExposure({
     source: 'room',
     mode: 'multiplayer',
@@ -540,7 +627,6 @@ async function prepareEndlessRound(room, roundNo) {
   match.roundNo = roundNo;
   match.target = target;
   match.seed = `room:${room.code}:${roundNo}:${target.killId}`;
-  const built = await buildEndlessClues(room, target, roundNo);
   match.clues = built.clues;
   match.sampleKill = built.sampleKill;
   match.fittedKills = built.fittedKills;
@@ -549,6 +635,8 @@ async function prepareEndlessRound(room, roundNo) {
   match.ready.clear();
   match.prepared.clear();
   match.results = [];
+  match.guesses = new Map();
+  match.lastGuessAt = new Map();
   match.startAt = null;
   match.endsAt = null;
   match.history ||= [];
@@ -568,11 +656,9 @@ async function prepareEndlessRound(room, roundNo) {
   changed(room);
 }
 
-async function startEndlessSession(room) {
-  const active = [...room.players.values()]
-    .filter((player) => player.connected && !player.spectator)
-    .map((player) => player.id);
-  if (active.length < 2) return false;
+function startEndlessSession(room) {
+  const active = connectedPilots(room).map((player) => player.id);
+  if (active.length < 2) return;
   room.phase = 'playing';
   room.match = {
     id: crypto.randomUUID(),
@@ -587,6 +673,8 @@ async function startEndlessSession(room) {
     ready: new Set(),
     prepared: new Set(),
     results: [],
+    guesses: new Map(),
+    lastGuessAt: new Map(),
     history: [],
     startAt: null,
     endsAt: null,
@@ -594,8 +682,36 @@ async function startEndlessSession(room) {
     roundTimer: null,
     startedAt: now(),
   };
-  await prepareEndlessRound(room, 1);
-  return true;
+  changed(room);
+  loadMatch(room, (current) => prepareEndlessRound(room, 1, current));
+}
+
+/** Every remaining player loaded the round. Timed rooms still ask for a ready. */
+function finishEndlessLoading(room) {
+  const match = room.match;
+  if (match.gameplay !== 'timed') {
+    startEndlessRound(room);
+    return;
+  }
+  match.phase = 'ready';
+  broadcast(room, {
+    t: 'endlessLoaded',
+    roundId: match.roundId,
+    roundNo: match.roundNo,
+    activeCount: match.activeIds.length,
+  });
+  changed(room);
+}
+
+/** Every remaining player asked for the next step. */
+function finishEndlessPrepare(room) {
+  const match = room.match;
+  if (match.phase === 'ready') {
+    startEndlessRound(room);
+    return;
+  }
+  if (room.loadToken) return;
+  loadMatch(room, (current) => prepareEndlessRound(room, match.roundNo + 1, current));
 }
 
 function startEndlessRound(room) {
@@ -625,6 +741,7 @@ function startEndlessRound(room) {
     changed(room);
     if (match.endsAt) {
       match.roundTimer = setTimeout(() => finishEndlessRound(room, 'timeout'), Math.max(1000, match.endsAt - now()));
+      match.roundTimer.unref?.();
     }
   }, Math.max(0, startAt - now()));
   match.startTimer.unref?.();
@@ -641,7 +758,7 @@ function finishEndlessRound(room, reason = 'complete') {
   if (reason === 'timeout') {
     for (const playerId of match.activeIds) {
       if (!known.has(playerId)) {
-        match.results.push({ playerId, status: 'lost', attempts: 0, elapsedMs: 0, at: now() });
+        match.results.push(raceResult(match, playerId, 'lost'));
       }
     }
   }
@@ -682,6 +799,7 @@ function endEndlessSession(room) {
   if (!match || match.rule !== 'endless') return;
   clearTimeout(match.startTimer);
   clearTimeout(match.roundTimer);
+  cancelLoad(room);
   const result = {
     id: match.id,
     rule: 'endless',
@@ -695,42 +813,115 @@ function endEndlessSession(room) {
   changed(room);
 }
 
-function finishEndlessRaceResult(room, player, message) {
-  const match = room.match;
-  if (!match || match.rule !== 'endless') return;
-  if (match.phase !== 'starting' && match.phase !== 'playing') return;
-  if (Number(message.roundId) !== Number(match.roundId) && String(message.roundId) !== String(match.roundId)) return;
-  if (!match.activeIds.includes(player.id)) return;
-  if (match.startAt && now() < match.startAt) return;
-  if (match.results.some((result) => result.playerId === player.id)) return;
-  const status = message.status === 'won' ? 'won' : 'lost';
-  if (status === 'won' && Number(message.answerId) !== Number(match.target.shipId)) return;
-  match.results.push({
-    playerId: player.id,
+function raceGuesses(match, playerId) {
+  return [...(match.guesses?.get(playerId) || [])];
+}
+
+function raceResult(match, playerId, status) {
+  return {
+    playerId,
     status,
-    attempts: Math.max(0, Number(message.attempts) || 0),
-    elapsedMs: Math.max(0, Number(message.elapsedMs) || 0),
+    attempts: raceGuesses(match, playerId).length,
+    elapsedMs: match.startAt ? Math.max(0, now() - match.startAt) : 0,
     at: now(),
+  };
+}
+
+/** The player's open part in this round, or null once it is decided. */
+function openRace(room, player, message) {
+  const match = room.match;
+  if (!match || match.rule !== 'endless') return null;
+  if (match.phase !== 'starting' && match.phase !== 'playing') return null;
+  if (!match.roundId || String(message.roundId) !== String(match.roundId)) return null;
+  return match.activeIds.includes(player.id) ? match : null;
+}
+
+/** Tell one player what the server has recorded for them in this round. */
+function sendRaceGuesses(player, match, extra = {}) {
+  const result = match.results.find((item) => item.playerId === player.id);
+  send(player, {
+    t: 'raceGuesses',
+    roundId: match.roundId,
+    guesses: raceGuesses(match, player.id),
+    status: result?.status || 'playing',
+    ...extra,
   });
+}
+
+function recordRaceResult(room, player, status, extra = {}) {
+  const match = room.match;
+  match.results.push({ ...raceResult(match, player.id, status), ...extra });
   broadcast(room, {
     t: 'endlessFinished',
     roundId: match.roundId,
     playerId: player.id,
     status,
+    ...extra,
   });
-  if (match.activeIds.every((id) => match.results.some((result) => result.playerId === id))) {
-    finishEndlessRound(room);
-  } else {
-    changed(room);
-  }
 }
 
-async function startArbitration(room, dealerId) {
+function raceComplete(match) {
+  return match.activeIds.every((id) => match.results.some((result) => result.playerId === id));
+}
+
+function handleRaceGuess(room, player, message) {
+  const match = openRace(room, player, message);
+  const shipId = Number(message.shipId);
+  if (!match || !SHIPS_BY_ID.has(shipId)) return;
+  const decided = match.results.some((result) => result.playerId === player.id);
+  const guesses = raceGuesses(match, player.id);
+  if (decided || guesses.includes(shipId)) {
+    // A resent guess after a lost answer must not count twice.
+    sendRaceGuesses(player, match);
+    return;
+  }
+  const at = now();
+  const lastAt = match.lastGuessAt.get(player.id) || 0;
+  const notBefore = Math.max(match.startAt || 0, match.gameplay === 'timed' && lastAt
+    ? lastAt + RACE_COOLDOWN_MS - RACE_COOLDOWN_TOLERANCE_MS
+    : 0);
+  if (at < notBefore) {
+    sendRaceGuesses(player, match, { retryMs: notBefore - at });
+    return;
+  }
+  match.guesses.set(player.id, [...guesses, shipId]);
+  match.lastGuessAt.set(player.id, at);
+  const won = shipId === Number(match.target.shipId);
+  const lost = !won && match.gameplay !== 'timed' && guesses.length + 1 >= RACE_ATTEMPT_LIMIT;
+  if (won || lost) recordRaceResult(room, player, won ? 'won' : 'lost');
+  sendRaceGuesses(player, match);
+  if (!won && !lost) return;
+  if (raceComplete(match)) finishEndlessRound(room);
+  else changed(room);
+}
+
+/** Only a timed round can end without the answer: given up or out of clues. */
+function handleRaceLoss(room, player, message) {
+  const match = openRace(room, player, message);
+  if (!match || match.gameplay !== 'timed' || message.status !== 'lost') return;
+  if (match.startAt && now() < match.startAt) return;
+  if (match.results.some((result) => result.playerId === player.id)) return;
+  recordRaceResult(room, player, 'lost');
+  sendRaceGuesses(player, match);
+  if (raceComplete(match)) finishEndlessRound(room);
+  else changed(room);
+}
+
+/** Leaving for good during a running round counts as a loss of that round. */
+function forfeitRound(room, player) {
+  const match = room.match;
+  if (match.phase !== 'starting' && match.phase !== 'playing') return;
+  if (!match.activeIds.includes(player.id)) return;
+  if (match.results.some((result) => result.playerId === player.id)) return;
+  recordRaceResult(room, player, 'lost', { forfeit: true, name: player.name });
+}
+
+async function startArbitration(room, wantedDealerId, current) {
   const round = await pickDealerRound({
     manifest: config.manifest,
     catalog: config.catalogShips,
     refsEn,
-    fetchImpl: fetch,
+    fetchImpl: zkillFetch,
     mode: 'audit',
     moduleFallbacks,
     weaponUpgradeGroups: config.manifest?.weaponUpgradeGroups || null,
@@ -740,6 +931,11 @@ async function startArbitration(room, dealerId) {
       baselineAttrs: await calculateDogmaBaseline(ship),
     }),
   });
+  if (!current()) return;
+  // Players may have left while the target loaded.
+  const active = connectedPilots(room);
+  if (active.length < 2) throw Object.assign(new Error('not enough players'), { code: 'need-players' });
+  const dealerId = active.some((player) => player.id === wantedDealerId) ? wantedDealerId : active[0].id;
   const accepted = acceptedNames(round.ship.id);
   recordExposure({
     source: 'room',
@@ -852,7 +1048,6 @@ function recordArbitrationMatch(room, match, result) {
 function endArbitration(room) {
   const match = room.match;
   if (!match || match.rule !== 'arbitration') return;
-  clearMatchTimer(room);
   recordArbitrationRoundOnce(room, match);
   const result = {
     matchId: match.id,
@@ -899,24 +1094,11 @@ function finishArbitrationReveal(room) {
   round.number = step.number;
   room.match = null;
   room.phase = 'playing';
-  startNextArbitration(room, round.order[round.index]).catch(() => failRoom(room, 'target'));
-}
-
-async function startNextArbitration(room, dealerId) {
-  if (!room.players.has(dealerId) || !room.players.get(dealerId).connected) {
-    const next = [...room.players.values()].find((player) => player.connected && !player.spectator);
-    if (!next) {
-      room.phase = 'between_matches';
-      room.bigRound = null;
-      changed(room);
-      return;
-    }
-    dealerId = next.id;
-  }
-  await startArbitration(room, dealerId);
+  loadMatch(room, (current) => startArbitration(room, round.order[round.index], current));
 }
 
 function failRoom(room, reason) {
+  cancelLoad(room);
   room.phase = 'between_matches';
   room.match = null;
   room.bigRound = null;
@@ -972,7 +1154,7 @@ function onMessage(room, player, raw) {
     return;
   }
   if (message.t === 'reset') {
-    if (!owner) return;
+    if (!owner || !['lobby', 'between_matches'].includes(room.phase)) return;
     for (const p of room.players.values()) p.score = 0;
     changed(room);
     return;
@@ -991,7 +1173,7 @@ function onMessage(room, player, raw) {
     for (const p of room.players.values()) {
       if (p.connected) p.spectator = false;
     }
-    const active = [...room.players.values()].filter((p) => p.connected && !p.spectator);
+    const active = connectedPilots(room);
     if (active.length < 2) {
       send(player, { t: 'error', code: 'need-players' });
       return;
@@ -1004,9 +1186,12 @@ function onMessage(room, player, raw) {
         number: 1,
         total: Math.max(1, Number(room.settings.bigRounds) || config.roomArbitrationBigRounds),
       };
-      startArbitration(room, order[0]).catch(() => failRoom(room, 'target'));
+      // Reserve the room before the target loads, so it cannot start twice.
+      room.phase = 'playing';
+      changed(room);
+      loadMatch(room, (current) => startArbitration(room, order[0], current));
     } else {
-      startEndlessSession(room).catch(() => failRoom(room, 'target'));
+      startEndlessSession(room);
     }
     return;
   }
@@ -1016,57 +1201,25 @@ function onMessage(room, player, raw) {
     if (String(message.roundId || '') !== String(match.roundId)) return;
     if (!match.activeIds.includes(player.id)) return;
     match.ready.add(player.id);
-    if (match.activeIds.every((id) => match.ready.has(id))) {
-      if (match.gameplay === 'timed') {
-        match.phase = 'ready';
-        broadcast(room, {
-          t: 'endlessLoaded',
-          roundId: match.roundId,
-          roundNo: match.roundNo,
-          activeCount: match.activeIds.length,
-        });
-        changed(room);
-      } else {
-        startEndlessRound(room);
-      }
-    } else {
-      changed(room);
-    }
+    if (match.activeIds.every((id) => match.ready.has(id))) finishEndlessLoading(room);
+    else changed(room);
     return;
   }
   if (message.t === 'prepare') {
     const match = room.match;
     if (!match) return;
     if (match.rule === 'endless') {
-      if (match.phase === 'ready' && match.gameplay === 'timed') {
-        if (!match.activeIds.includes(player.id)) return;
-        match.prepared.add(player.id);
-        if (match.activeIds.every((id) => match.prepared.has(id))) {
-          startEndlessRound(room);
-        } else {
-          changed(room);
-        }
-        return;
-      }
-      if (match.phase !== 'finished') return;
+      if (match.phase !== 'finished' && !(match.phase === 'ready' && match.gameplay === 'timed')) return;
       if (!match.activeIds.includes(player.id)) return;
       match.prepared.add(player.id);
-      if (match.activeIds.every((id) => match.prepared.has(id))) {
-        prepareEndlessRound(room, match.roundNo + 1).catch(() => failRoom(room, 'target'));
-      } else {
-        changed(room);
-      }
+      if (match.activeIds.every((id) => match.prepared.has(id))) finishEndlessPrepare(room);
+      else changed(room);
       return;
     }
     if (match.rule === 'arbitration' && match.phase === 'reveal') {
-      if (!match || player.spectator) return;
+      if (player.spectator) return;
       match.prepared.add(player.id);
-      const active = [...room.players.values()].filter((item) => item.connected && !item.spectator);
-      if (active.length && active.every((item) => match.prepared.has(item.id))) {
-        finishArbitrationReveal(room);
-      } else {
-        changed(room);
-      }
+      if (!checkArbitrationProgress(room)) changed(room);
     }
     return;
   }
@@ -1074,6 +1227,13 @@ function onMessage(room, player, raw) {
     if (!owner || room.phase !== 'playing') return;
     if (room.match?.rule === 'endless') endEndlessSession(room);
     else if (room.match?.rule === 'arbitration') endArbitration(room);
+    else if (room.loadToken) {
+      // The next arbitration target is still loading.
+      cancelLoad(room);
+      room.phase = 'between_matches';
+      room.bigRound = null;
+      changed(room);
+    }
     return;
   }
   if (message.t === 'publish') {
@@ -1146,12 +1306,17 @@ function onMessage(room, player, raw) {
     }
     return;
   }
+  if (message.t === 'raceGuess') {
+    handleRaceGuess(room, player, message);
+    return;
+  }
   if (message.t === 'raceResult') {
-    finishEndlessRaceResult(room, player, message);
+    handleRaceLoss(room, player, message);
     return;
   }
   if (message.t === 'leave') {
     removePlayer(room, player, 'leave');
+    return;
   }
   if (message.t === 'kick') {
     if (room.ownerId !== player.id) return;
@@ -1162,9 +1327,9 @@ function onMessage(room, player, raw) {
   }
 }
 
-function transferOwner(room) {
-  const current = room.players.get(room.ownerId);
-  if (current?.connected) return;
+/** The owner must be someone in the room; prefer a connected player. */
+function ensureOwner(room) {
+  if (room.players.has(room.ownerId)) return;
   const next = [...room.players.values()].find((p) => p.connected) || room.players.values().next().value;
   if (next) room.ownerId = next.id;
 }
@@ -1182,19 +1347,23 @@ function removePlayer(room, player, reason = 'leave') {
   if (ws?.readyState === 1) {
     try { ws.close(1008, reason); } catch { /* already closed */ }
   }
-  if (room.ownerId === player.id) transferOwner(room);
+  ensureOwner(room);
   if (room.match?.rule === 'endless') {
     const match = room.match;
+    if (reason !== 'kicked') forfeitRound(room, player);
     match.activeIds = match.activeIds.filter((id) => id !== player.id);
     match.ready.delete(player.id);
     match.prepared.delete(player.id);
-    if (match.phase === 'ready' || match.phase === 'finished') match.prepared.clear();
     if (!match.activeIds.length) {
       endEndlessSession(room);
       return;
     }
-    if (match.phase === 'loading' && match.activeIds.every((id) => match.ready.has(id))) {
-      startEndlessRound(room);
+    if (match.phase === 'loading' && match.target && match.activeIds.every((id) => match.ready.has(id))) {
+      finishEndlessLoading(room);
+      return;
+    }
+    if (['ready', 'finished'].includes(match.phase) && match.activeIds.every((id) => match.prepared.has(id))) {
+      finishEndlessPrepare(room);
       return;
     }
     if (match.phase === 'starting' || match.phase === 'playing') {
@@ -1214,33 +1383,80 @@ function removePlayer(room, player, reason = 'leave') {
     const match = room.match;
     match.nonDealerIds = match.nonDealerIds.filter((id) => id !== player.id);
     match.prepared.delete(player.id);
-    if (match.phase === 'reveal') {
-      match.prepared.clear();
-      const active = [...room.players.values()].filter((item) => item.connected && !item.spectator);
-      if (active.length && active.every((item) => match.prepared.has(item.id))) {
-        finishArbitrationReveal(room);
-        return;
-      }
-    }
+    if (checkArbitrationProgress(room)) return;
   }
   changed(room);
 }
 
 function scheduleDisconnect(room, player) {
-  clearTimeout(player.reconnectTimer);
   player.connected = false;
   player.disconnectedAt = now();
-  player.reconnectUntil = now() + config.roomReconnectGraceMs;
   if (room.match?.rule === 'arbitration' && room.match.dealerId === player.id) {
     room.match.dealerDisconnected = true;
   }
+  startGrace(room, player);
+  changed(room);
+}
+
+/** Remove the player unless they connect within the grace. */
+function startGrace(room, player) {
+  clearTimeout(player.reconnectTimer);
+  player.reconnectUntil = now() + config.roomReconnectGraceMs;
   player.reconnectTimer = setTimeout(() => {
     player.reconnectTimer = null;
     if (ROOMS.get(room.code) !== room || player.removed || player.connected) return;
     removePlayer(room, player, 'timeout');
   }, config.roomReconnectGraceMs);
   player.reconnectTimer.unref?.();
-  changed(room);
+}
+
+/** Bring a (re)connected player to the point the endless round has reached. */
+function resumeEndless(room, player) {
+  const match = room.match;
+  // The target is still loading; the regular broadcast follows.
+  if (!match.target || !match.activeIds.includes(player.id)) return;
+  const submitted = match.results.find((result) => result.playerId === player.id) || null;
+  send(player, {
+    t: 'endlessPrepare',
+    roundId: match.roundId,
+    roundNo: match.roundNo,
+    gameplay: match.gameplay,
+    target: match.target,
+    seed: match.seed,
+    clues: match.clues || [],
+    sampleKill: match.sampleKill || null,
+    fittedKills: match.fittedKills || [],
+    fitDelta: match.fitDelta || null,
+    activeIds: match.activeIds,
+    guesses: raceGuesses(match, player.id),
+    resumed: true,
+    phase: match.phase,
+    submitted: submitted ? { status: submitted.status, attempts: submitted.attempts } : null,
+  });
+  if (match.phase === 'finished') {
+    const result = match.history.at(-1);
+    if (result?.roundId === match.roundId) send(player, { t: 'endlessRoundResult', result });
+    return;
+  }
+  if (match.phase === 'ready') {
+    send(player, {
+      t: 'endlessLoaded',
+      roundId: match.roundId,
+      roundNo: match.roundNo,
+      activeCount: match.activeIds.length,
+    });
+    return;
+  }
+  if (match.startAt && !submitted) {
+    send(player, {
+      t: 'endlessStart',
+      roundId: match.roundId,
+      startAt: match.startAt,
+      serverNow: now(),
+      endsAt: match.endsAt,
+      resumed: true,
+    });
+  }
 }
 
 function requireUser(request, reply) {
@@ -1254,13 +1470,31 @@ function requireUser(request, reply) {
 
 export function registerRoomRoutes(app) {
   persistClosed = false;
+  // Ping frames keep idle connections alive through proxies and expose dead peers.
+  const heartbeat = setInterval(() => {
+    for (const room of ROOMS.values()) {
+      for (const player of room.players.values()) {
+        const ws = player.ws;
+        if (ws?.readyState !== 1) continue;
+        ws.missedPongs = (ws.missedPongs || 0) + 1;
+        if (ws.missedPongs > 2) ws.terminate();
+        else ws.ping();
+      }
+    }
+  }, config.roomHeartbeatMs);
+  heartbeat.unref?.();
   app.addHook('onClose', async () => {
+    clearInterval(heartbeat);
     flushRooms();
     persistClosed = true;
   });
   app.post('/api/v1/rooms', async (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
+    if (!withinLimit(`room:${user.name_key}`, CREATE_LIMIT, CREATE_WINDOW_MS)) {
+      reply.code(429).send({ error: 'rate-limited' });
+      return;
+    }
     let code = randomCode();
     while (ROOMS.has(code)) code = randomCode();
     const id = crypto.randomUUID();
@@ -1279,7 +1513,7 @@ export function registerRoomRoutes(app) {
     };
     const room = {
       code,
-      passwordHash: request.body?.password ? hashPassword(request.body.password) : '',
+      passwordHash: request.body?.password ? await hashPassword(String(request.body.password).slice(0, 128)) : '',
       ownerId: id,
       players: new Map([[id, player]]),
       phase: 'lobby',
@@ -1288,7 +1522,6 @@ export function registerRoomRoutes(app) {
         bigRounds: config.roomArbitrationBigRounds,
         raceDurationMs: config.roomTimedDurationMinutes * 60 * 1000,
       },
-      matchNo: 0,
       match: null,
       bigRound: null,
       createdAt: now(),
@@ -1296,6 +1529,7 @@ export function registerRoomRoutes(app) {
     };
     ROOMS.set(code, room);
     assignPlayerColor(room, player);
+    startGrace(room, player);
     persist(room);
     return {
       code,
@@ -1314,15 +1548,38 @@ export function registerRoomRoutes(app) {
       reply.code(404).send({ error: 'room-not-found' });
       return;
     }
-    if (!verifyPassword(String(request.body?.password || ''), room.passwordHash)) {
-      reply.code(403).send({ error: 'wrong-password' });
-      return;
+    const seated = () => [...room.players.values()].find((p) => p.nameKey === user.name_key);
+    if (room.passwordHash && !seated()) {
+      const password = String(request.body?.password || '').slice(0, 128);
+      if (!password) {
+        // An invite link tries without a password first; that is no guess.
+        reply.code(403).send({ error: 'wrong-password' });
+        return;
+      }
+      // Per room, so a success elsewhere cannot reset the count here.
+      const key = `${user.name_key}:${code}`;
+      if (passwordBlocked(key)) {
+        reply.code(429).send({ error: 'join-rate-limit' });
+        return;
+      }
+      if (!await verifyPassword(password, room.passwordHash)) {
+        recordPasswordFailure(key);
+        reply.code(403).send({ error: 'wrong-password' });
+        return;
+      }
+      passwordFailures.delete(key);
+      // The room may have been evicted while the password was checked.
+      if (ROOMS.get(code) !== room) {
+        reply.code(404).send({ error: 'room-not-found' });
+        return;
+      }
     }
-    const existing = [...room.players.values()].find((p) => p.nameKey === user.name_key);
+    const existing = seated();
     if (existing) {
       existing.name = user.display_name;
       existing.characterId = user.character_id == null ? existing.characterId : Number(user.character_id);
       assignPlayerColor(room, existing);
+      if (!existing.connected && !existing.reconnectTimer) startGrace(room, existing);
       return { code, playerId: existing.id, room: roomState(room), wsPath: `/api/v1/rooms/${code}/ws?player=${existing.id}` };
     }
     if (room.players.size >= config.roomMaxPlayers) {
@@ -1345,6 +1602,8 @@ export function registerRoomRoutes(app) {
     };
     room.players.set(id, player);
     assignPlayerColor(room, player);
+    ensureOwner(room);
+    startGrace(room, player);
     changed(room);
     return { code, playerId: id, room: roomState(room), wsPath: `/api/v1/rooms/${code}/ws?player=${id}` };
   });
@@ -1353,7 +1612,8 @@ export function registerRoomRoutes(app) {
     const user = requireUser(request, reply);
     if (!user) return;
     const room = ROOMS.get(String(request.params.code || '').toUpperCase());
-    if (!room) {
+    // Outsiders learn nothing about a room, not even that it exists.
+    if (![...(room?.players.values() || [])].some((player) => player.nameKey === user.name_key)) {
       reply.code(404).send({ error: 'room-not-found' });
       return;
     }
@@ -1370,7 +1630,12 @@ export function registerRoomRoutes(app) {
       socket.close(1008, 'unauthorized');
       return;
     }
+    const previous = player.ws;
     player.ws = socket;
+    if (previous && previous !== socket && previous.readyState <= 1) previous.close(CLOSE_REPLACED, 'replaced');
+    const openedAt = now();
+    let lastMessageAt = openedAt;
+    socket.on('pong', () => { socket.missedPongs = 0; });
     player.connected = true;
     player.removed = false;
     clearTimeout(player.reconnectTimer);
@@ -1385,40 +1650,29 @@ export function registerRoomRoutes(app) {
     if (room.match?.rule === 'arbitration' && player.id === room.match.dealerId) {
       sendDealerClues(room, room.match);
     }
-    if (room.match?.rule === 'endless' && room.match.activeIds.includes(player.id)) {
-      send(player, {
-        t: 'endlessPrepare',
-        roundId: room.match.roundId,
-        roundNo: room.match.roundNo,
-        gameplay: room.match.gameplay,
-        target: room.match.target,
-        seed: room.match.seed,
-        clues: room.match.clues || [],
-        sampleKill: room.match.sampleKill || null,
-        fittedKills: room.match.fittedKills || [],
-        fitDelta: room.match.fitDelta || null,
-        activeIds: room.match.activeIds,
-        resumed: true,
-      });
-      if (room.match.startAt) {
-        send(player, {
-          t: 'endlessStart',
-          roundId: room.match.roundId,
-          startAt: room.match.startAt,
-          serverNow: now(),
-          endsAt: room.match.endsAt,
-        });
-      }
-    }
-    changed(room);
+    if (room.match?.rule === 'endless') resumeEndless(room, player);
+    if (!checkArbitrationProgress(room)) changed(room);
     socket.on('message', (raw) => {
+      socket.missedPongs = 0;
+      lastMessageAt = now();
+      if (player.removed || player.ws !== socket || !messageAllowed(player)) return;
       try {
         onMessage(room, player, raw);
       } catch {
         // Ignore malformed room messages.
       }
     });
-    socket.on('close', () => {
+    socket.on('close', (closeCode) => {
+      // Diagnostics for dropped connections; no names, chat or targets.
+      app.log.info({
+        event: 'room-socket-closed',
+        closeCode,
+        openMs: now() - openedAt,
+        idleMs: now() - lastMessageAt,
+        phase: room.phase,
+        removed: Boolean(player.removed),
+        replaced: Boolean(player.ws) && player.ws !== socket,
+      }, 'room socket closed');
       if (player.removed || player.ws !== socket) return;
       player.ws = null;
       scheduleDisconnect(room, player);

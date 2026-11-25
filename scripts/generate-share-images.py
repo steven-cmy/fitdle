@@ -1,282 +1,411 @@
 #!/usr/bin/env python3
-"""Generate localized, score-specific 1200x630 Open Graph cards.
+# /// script
+# dependencies = ["pillow", "fonttools", "brotli"]
+# ///
+"""Generate the localized 1200x630 Open Graph cards as Pend claim files.
 
-Requires Pillow. Run from the repository root after changing share copy:
+Run from the repository root after changing interface or department copy; uv
+provides the packages, CJK and Cyrillic glyphs come from the Windows fonts:
 
-    python scripts/generate-share-images.py
+    uv run scripts/generate-share-images.py
 
-Every card is generic: it shows only FITDLE, the score, and localized copy.
-It never contains the target hull, killmail, victim, or fittings.
+A card shows one closed claim file: sender, recipient, status, the six review
+passes and a line from the sending department. Every word comes from js/messages
+and assets/claim-departments.json. The wreck is an invented outline: a card never
+contains a hull, killmail, victim or fitting.
 """
+import io
+import json
+import math
+import re
 from pathlib import Path
+
+from fontTools.ttLib import TTFont
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "share"
 OUT.mkdir(parents=True, exist_ok=True)
 
-W, H = 1200, 630
-BG = "#05080c"
-TEXT = "#eef9fc"
-MUTED = "#7b9eaa"
-AMBER = "#f2a63b"
-CYAN = "#36c8b4"
-GREEN = "#2ac3ac"
-DIM = "#28414b"
+W, H, SCALE = 1200, 630, 2
+BG = (5, 8, 11)
+PANEL = (10, 18, 26)
+PANEL_DEEP = (7, 13, 19)
+LINE = (38, 55, 67)
+LINE_STRONG = (58, 85, 101)
+TEXT = (226, 238, 245)
+BODY = (186, 203, 214)
+MUTED = (126, 148, 162)
+DIM = (66, 86, 98)
+AMBER = (242, 166, 59)
+TEAL = (54, 200, 180)
+CYAN = (85, 183, 212)
+RED = (214, 92, 78)
 
-LOCALES = {
-    "en": {
-        "badge": "EN", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "CLAIM APPROVED", "one": "SINGLE-PASS APPROVAL", "lost": "CLAIM ESCALATED",
-        "oneTag": "ONE PASS", "lostTag": "ESCALATED",
-        "tagline": "PEND INSURANCE // CLAIMS ASSESSMENT", "cta": "CAN YOU MATCH IT?",
-    },
-    "de": {
-        "badge": "DE", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "AKTE GENEHMIGT", "one": "IN EINER PRÜFUNG GENEHMIGT", "lost": "AKTE ESKALIERT",
-        "oneTag": "EINE PRÜFUNG", "lostTag": "ESKALIERT",
-        "tagline": "PEND INSURANCE // SCHADENSBEWERTUNG", "cta": "SCHAFFST DU DAS AUCH?",
-    },
-    "es": {
-        "badge": "ES", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "EXPEDIENTE APROBADO", "one": "APROBADO EN UNA REVISIÓN", "lost": "EXPEDIENTE ESCALADO",
-        "oneTag": "UNA REVISIÓN", "lostTag": "ESCALADO",
-        "tagline": "PEND INSURANCE // EVALUACIÓN DE SINIESTROS", "cta": "¿PUEDES IGUALARLO?",
-    },
-    "fr": {
-        "badge": "FR", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "DOSSIER APPROUVÉ", "one": "APPROUVÉ EN UN EXAMEN", "lost": "DOSSIER ESCALADÉ",
-        "oneTag": "UN EXAMEN", "lostTag": "ESCALADÉ",
-        "tagline": "PEND INSURANCE // ÉVALUATION DES SINISTRES", "cta": "POUVEZ-VOUS FAIRE AUTANT ?",
-    },
-    "ja": {
-        "badge": "日本語", "font": r"C:\Windows\Fonts\YuGothB.ttc",
-        "win": "クレーム承認", "one": "一発承認", "lost": "クレーム上申",
-        "oneTag": "一回の査定", "lostTag": "上申",
-        "tagline": "PEND INSURANCE // クレーム査定", "cta": "同じ査定ができますか？",
-    },
-    "ko": {
-        "badge": "한국어", "font": r"C:\Windows\Fonts\malgunbd.ttf",
-        "win": "클레임 승인", "one": "한 번에 승인", "lost": "클레임 이관",
-        "oneTag": "한 번의 검토", "lostTag": "이관",
-        "tagline": "PEND INSURANCE // 클레임 평가", "cta": "같은 평가를 할 수 있나요?",
-    },
-    "ru": {
-        "badge": "RU", "font": r"C:\Windows\Fonts\segoeuib.ttf",
-        "win": "ДЕЛО УТВЕРЖДЕНО", "one": "УТВЕРЖДЕНО ЗА ОДНУ ПРОВЕРКУ", "lost": "ДЕЛО ПЕРЕДАНО",
-        "oneTag": "ОДНА ПРОВЕРКА", "lostTag": "ПЕРЕДАНО",
-        "tagline": "PEND INSURANCE // ОЦЕНКА УБЫТКОВ", "cta": "СМОЖЕТЕ ТАК ЖЕ?",
-    },
-    "zh": {
-        "badge": "中文", "font": r"C:\Windows\Fonts\msyhbd.ttc",
-        "win": "理赔通过", "one": "一次复核通过", "lost": "案卷升级",
-        "oneTag": "一次复核", "lostTag": "已升级",
-        "tagline": "PEND INSURANCE // 理赔评估", "cta": "你能匹配这次评估吗？",
-    },
+WINDOWS = Path(r"C:\Windows\Fonts")
+CJK = {
+    "ja": ("YuGothB.ttc", "YuGothM.ttc"),
+    "ko": ("malgunbd.ttf", "malgun.ttf"),
+    "zh": ("msyhbd.ttc", "msyh.ttc"),
 }
+FALLBACK = ("segoeuib.ttf", "segoeui.ttf")
+EVE = {"bold": "eve_sans_neuebold_700_normal.woff2", "regular": "eve_sans_neueregular_400_normal.woff2"}
 
-BASE_FONT = r"C:\Windows\Fonts\segoeuib.ttf"
-MONO_FONT = r"C:\Windows\Fonts\consola.ttf"
+# Department and line for each result; 1 and the default card use interface copy.
+SOURCES = {
+    "2": ("salvage", "won", 5),
+    "3": ("wreck", "won", 2),
+    "4": ("cargo", "won", 3),
+    "5": ("fitting", "won", 3),
+    "6": ("intake", "won", 4),
+    "lost": ("hull", "lost", 5),
+}
+ENTRY = re.compile(r"^  '([^']+)': (?:'((?:[^'\\]|\\.)*)'|\"((?:[^\"\\]|\\.)*)\"),$")
+departments = json.loads((ROOT / "assets" / "claim-departments.json").read_text("utf8"))["departments"]
 
 
-def font(path, size):
-    return ImageFont.truetype(path, size, index=0)
+def load_messages(locale):
+    messages = {}
+    for line in (ROOT / "js" / "messages" / f"{locale}.js").read_text("utf8").splitlines():
+        match = ENTRY.match(line)
+        if match:
+            value = match[2] if match[2] is not None else match[3]
+            messages[match[1]] = value.replace("\\n", "\n").replace("\\'", "'").replace('\\"', '"')
+    return messages
 
 
-def text_width(draw, text, fnt):
-    box = draw.textbbox((0, 0), text, font=fnt)
-    return box[2] - box[0]
+def load_eve():
+    fonts = {}
+    for weight, name in EVE.items():
+        face = TTFont(ROOT / "assets" / "fonts" / name)
+        face.flavor = None
+        data = io.BytesIO()
+        face.save(data)
+        fonts[weight] = (data.getvalue(), set(face.getBestCmap()))
+    return fonts
 
 
-def wrap(draw, text, fnt, max_width):
-    if text_width(draw, text, fnt) <= max_width:
+EVE_FONTS = load_eve()
+cache = {}
+
+
+def eve_font(weight, size):
+    key = ("eve", weight, size)
+    if key not in cache:
+        cache[key] = ImageFont.truetype(io.BytesIO(EVE_FONTS[weight][0]), round(size * SCALE))
+    return cache[key]
+
+
+def other_font(locale, weight, size):
+    bold, regular = CJK.get(locale, FALLBACK)
+    key = (locale, weight, size)
+    if key not in cache:
+        cache[key] = ImageFont.truetype(str(WINDOWS / (bold if weight == "bold" else regular)), round(size * SCALE))
+    return cache[key]
+
+
+class Card:
+    """A supersampled canvas in 1200x630 units with one locale's fonts."""
+
+    def __init__(self, locale):
+        self.locale = locale
+        self.messages = load_messages(locale)
+        self.img = Image.new("RGB", (W * SCALE, H * SCALE), BG)
+        self.draw = ImageDraw.Draw(self.img, "RGBA")
+
+    def t(self, key, **values):
+        text = self.messages[key]
+        for name, value in values.items():
+            text = text.replace(f"{{{name}}}", str(value))
         return text
-    if " " in text:
-        words = text.split()
-        lines, current = [], ""
-        for word in words:
-            candidate = f"{current} {word}".strip()
-            if text_width(draw, candidate, fnt) <= max_width:
-                current = candidate
+
+    def line(self, points, fill, width=1.0):
+        self.draw.line([(x * SCALE, y * SCALE) for x, y in points], fill=fill, width=max(1, round(width * SCALE)), joint="curve")
+
+    def rect(self, box, fill=None, outline=None, width=1.0):
+        self.draw.rectangle([v * SCALE for v in box], fill=fill, outline=outline, width=max(1, round(width * SCALE)))
+
+    def polygon(self, points, fill=None, outline=None, width=1.0):
+        scaled = [(x * SCALE, y * SCALE) for x, y in points]
+        if fill:
+            self.draw.polygon(scaled, fill=fill)
+        if outline:
+            self.draw.line(scaled + [scaled[0], scaled[1]], fill=outline, width=max(1, round(width * SCALE)), joint="curve")
+
+    def runs(self, text, weight, size):
+        """Split text into Eve Sans Neue runs and fallback runs."""
+        # Cyrillic and Hangul words must not change the face inside a word.
+        covered = EVE_FONTS[weight][1]
+        latin = self.locale in ("en", "de", "es", "fr")
+        result = []
+        for part in re.findall(r"[\x21-\x7e\u00a0-\u024f]+(?:[ ]+[\x21-\x7e\u00a0-\u024f]+)*|[^\x21-\x7e\u00a0-\u024f]+", text):
+            use_eve = latin and all(ord(c) in covered or c == " " for c in part)
+            use_eve = use_eve or (not latin and re.fullmatch(r"[A-Za-z0-9/.\- ]+", part) is not None)
+            result.append((part, eve_font(weight, size) if use_eve else other_font(self.locale, weight, size)))
+        return result
+
+    def width(self, text, size, weight="regular", spacing=0.0):
+        total = sum(font.getlength(part) for part, font in self.runs(text, weight, size)) / SCALE
+        return total + spacing * max(0, len(text) - 1)
+
+    def text(self, x, y, text, size, fill, weight="regular", align="left", spacing=0.0):
+        """Draw on a baseline, so every script sits on the same line."""
+        width = self.width(text, size, weight, spacing)
+        x -= width if align == "right" else width / 2 if align == "center" else 0
+        for part, font in self.runs(text, weight, size):
+            if spacing:
+                for char in part:
+                    self.draw.text((x * SCALE, y * SCALE), char, font=font, fill=fill, anchor="ls")
+                    x += font.getlength(char) / SCALE + spacing
             else:
-                if current:
-                    lines.append(current)
-                current = word
-        if current:
-            lines.append(current)
-        return "\n".join(lines)
-    # CJK/other long unspaced strings: character wrap.
-    lines, current = [], ""
-    for char in text:
-        if text_width(draw, current + char, fnt) <= max_width:
-            current += char
+                self.draw.text((x * SCALE, y * SCALE), part, font=font, fill=fill, anchor="ls")
+                x += font.getlength(part) / SCALE
+        return width
+
+    def fit(self, text, size, smallest, limit, weight="regular", spacing=0.0):
+        while size > smallest and self.width(text, size, weight, spacing) > limit:
+            size -= 1
+        return size
+
+    def wrap(self, text, size, limit, weight="regular"):
+        # Break between words; Chinese and Japanese break anywhere but before punctuation.
+        units = (re.findall(r"[^\u3000-\u30ff\u3400-\u9fff\uff00-\uffef ]+|[ ]|.[、。，！？；：」”）]*", text)
+                 if self.locale in ("ja", "zh") else re.findall(r"\S+\s*", text))
+        lines, current = [], ""
+        for unit in units:
+            if current and self.width((current + unit).rstrip(), size, weight) > limit:
+                lines.append(current.rstrip())
+                current = unit.lstrip()
+            else:
+                current += unit
+        return lines + [current.rstrip()] if current.strip() else lines
+
+    def paragraph(self, x, y, text, size, smallest, limit, lines, fill, weight="regular", leading=1.38):
+        while size > smallest and len(self.wrap(text, size, limit, weight)) > lines:
+            size -= 1
+        rows = self.wrap(text, size, limit, weight)
+        # Never leave a few characters alone on the last line.
+        while len(rows) > 1 and self.width(rows[-1], size, weight) < limit * 0.22:
+            narrower = self.wrap(text, size, limit - size, weight)
+            if len(narrower) > len(rows):
+                break
+            limit, rows = limit - size, narrower
+        for row in rows[:lines]:
+            self.text(x, y, row, size, fill, weight)
+            y += size * leading
+        return y
+
+    def save(self, name):
+        self.img.resize((W, H), Image.LANCZOS).save(OUT / name, optimize=True)
+
+
+def mark(card, x, y, size, color):
+    """The FITDLE file mark of the interface (64 unit box)."""
+    k = size / 64
+    at = lambda points: [(x + px * k, y + py * k) for px, py in points]
+    card.line(at([(13, 8), (40, 8), (51, 19), (51, 56), (13, 56), (13, 8)]), color, 1.6 * k * 1.3)
+    card.line(at([(40, 8), (40, 19), (51, 19)]), color, 1.2 * k * 1.3)
+    card.line(at([(23, 49), (23, 24), (40, 24)]), color, 2 * k * 1.3)
+    card.line(at([(23, 35), (36, 35)]), color, 2 * k * 1.3)
+    card.line(at([(23, 49), (40, 49)]), CYAN, 1.4 * k * 1.3)
+
+
+def background(card):
+    for x in range(0, W + 1, 40):
+        card.line([(x, 0), (x, H)], (20, 40, 52, 46), 0.5)
+    for y in range(15, H, 40):
+        card.line([(0, y), (W, y)], (20, 40, 52, 46), 0.5)
+    mark(card, 36, 24, 66, TEXT)
+    card.text(106, 68, "FITDLE", 44, TEXT, "bold", spacing=3)
+    brand = f"{card.t('brand.parent')} // {card.t('brand.claimDivision')}"
+    card.text(107, 95, brand, card.fit(brand, 16, 11, 560), AMBER, "bold", spacing=0.4)
+    record = card.t("claim.scc")
+    card.text(1160, 66, record, card.fit(record, 15, 11, 330, "bold"), MUTED, "bold", "right", 0.6)
+    system = "FITTING IDENTIFICATION, TESTIMONY & DAMAGE LEDGER EVALUATION"
+    card.text(1160, 88, system, 9.5, MUTED, "regular", "right", 0.5)
+
+
+FRAGMENTS = [
+    # An invented hull seen from above, cut into seven numbered fragments.
+    [(0, -8), (34, -22), (62, -18), (62, 18), (34, 22), (0, 8)],
+    [(64, -18), (104, -34), (120, -30), (112, 0), (64, 0)],
+    [(64, 2), (112, 2), (120, 30), (104, 34), (64, 18)],
+    [(116, 0), (124, -30), (176, -26), (176, 26), (124, 30)],
+    [(126, -33), (158, -72), (214, -80), (206, -58), (176, -30)],
+    [(126, 33), (176, 30), (206, 58), (214, 80), (158, 72)],
+    [(180, -26), (226, -34), (262, -22), (270, 0), (262, 22), (226, 34), (180, 26)],
+]
+DRIFT = [(-30, -6, -0.10), (-12, -20, 0.12), (-10, 22, -0.16), (4, 6, 0.2), (12, -24, -0.14), (10, 26, 0.12), (30, 4, 0.08)]
+
+
+def wreck(card, box, spread, accent, missing):
+    """Scan plate with the fragments; `spread` pulls the wreck apart."""
+    x0, y0, x1, y1 = box
+    card.rect(box, PANEL_DEEP, LINE)
+    for step in range(1, 12):
+        x = x0 + (x1 - x0) * step / 12
+        card.line([(x, y0 + 6), (x, y1 - 6)], (54, 100, 116, 28), 0.5)
+    for step in range(1, 6):
+        y = y0 + (y1 - y0) * step / 6
+        card.line([(x0 + 6, y), (x1 - 6, y)], (54, 100, 116, 28), 0.5)
+    for cx, cy, dx, dy in [(x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)]:
+        card.line([(cx + 16 * dx, cy + 6 * dy), (cx + 6 * dx, cy + 6 * dy), (cx + 6 * dx, cy + 16 * dy)], LINE_STRONG, 1.4)
+    label = card.t("hero.scanLabel")
+    card.text(x0 + 18, y0 + 26, label, card.fit(label, 12, 9, 190, "bold"), MUTED, "bold", spacing=0.5)
+    # Up and left of the centre: the stamp covers the lower right corner.
+    ox, oy = (x0 + x1) / 2 - 163, (y0 + y1) / 2
+    for index, shape in enumerate(FRAGMENTS):
+        px, py, angle = (value * spread for value in DRIFT[index])
+        mx = sum(p[0] for p in shape) / len(shape)
+        my = sum(p[1] for p in shape) / len(shape)
+        cos, sin = math.cos(angle), math.sin(angle)
+        points = [(ox + px + mx + (x - mx) * cos - (y - my) * sin, oy + py + my + (x - mx) * sin + (y - my) * cos) for x, y in shape]
+        lost = index == 3 and missing
+        if lost:
+            # Fragment 04 is still missing: only its outline is on file.
+            closed = points + [points[0]]
+            for (ax, ay), (bx, by) in zip(closed, closed[1:]):
+                length = max(1, math.hypot(bx - ax, by - ay))
+                steps = int(length // 6)
+                for s in range(0, steps, 2):
+                    card.line([(ax + (bx - ax) * s / steps, ay + (by - ay) * s / steps),
+                               (ax + (bx - ax) * (s + 1) / steps, ay + (by - ay) * (s + 1) / steps)], accent, 1.2)
         else:
-            lines.append(current)
-            current = char
-    if current:
-        lines.append(current)
-    return "\n".join(lines)
+            card.polygon(points, (*accent, 30), (*accent, 190), 1.3)
+            card.line([points[0], points[len(points) // 2]], (*accent, 70), 0.8)
+        fx = sum(p[0] for p in points) / len(points)
+        fy = sum(p[1] for p in points) / len(points)
+        card.text(fx, fy + 4, f"{index + 1:02d}" if not lost else "04?", 11, accent if lost else (*TEXT, 210), "bold", "center")
 
 
-def adaptive_font(draw, text, path, start, minimum, max_width):
-    size = start
-    while size > minimum:
-        fnt = font(path, size)
-        wrapped = wrap(draw, text, fnt, max_width)
-        if "\n" in wrapped:
-            # Two lines are acceptable for long German/Russian headlines.
-            if all(text_width(draw, line, fnt) <= max_width for line in wrapped.split("\n")):
-                return fnt, wrapped
-        elif text_width(draw, text, fnt) <= max_width:
-            return fnt, text
-        size -= 2
-    fnt = font(path, minimum)
-    return fnt, wrap(draw, text, fnt, max_width)
+def check(card, x, y, color):
+    card.line([(x - 7, y), (x - 2, y + 5), (x + 8, y - 6)], color, 2.4)
 
 
-def frame(draw, copy):
-    for x in range(0, W, 60):
-        draw.line((x, 0, x, H), fill=(20, 50, 62, 30), width=1)
-    for y in range(0, H, 60):
-        draw.line((0, y, W, y), fill=(20, 50, 62, 30), width=1)
-    draw.text((70, 54), "FITDLE", font=font(BASE_FONT, 66), fill=TEXT)
-    draw.text((74, 126), "PEND INSURANCE // CLAIMS ASSESSMENT", font=font(BASE_FONT, 20), fill=AMBER)
-    badge_font = font(copy["font"], 18)
-    badge_w = text_width(draw, copy["badge"], badge_font)
-    draw.rounded_rectangle((W - 70 - badge_w - 30, 60, W - 70, 98), radius=3,
-                           outline=(60, 110, 125, 180), width=1)
-    draw.text((W - 70 - badge_w - 15, 68), copy["badge"], font=badge_font, fill=MUTED)
+def cross(card, x, y, color):
+    card.line([(x - 5, y - 5), (x + 5, y + 5)], color, 1.8)
+    card.line([(x - 5, y + 5), (x + 5, y - 5)], color, 1.8)
 
 
-def bottom(draw, copy, accent):
-    draw.line((70, 574, 1130, 574), fill=(35, 72, 84, 160), width=1)
-    tag_font = font(copy["font"], 14)
-    draw.multiline_text((72, 590), wrap(draw, copy["tagline"], tag_font, 780),
-                        font=tag_font, fill=MUTED, spacing=2)
-    cta_font = font(copy["font"], 18)
-    cta_w = text_width(draw, copy["cta"], cta_font)
-    draw.text((1128 - cta_w, 586), copy["cta"], font=cta_font, fill=accent)
+def ledger(card, box, key, accent):
+    """The six review passes of the file."""
+    x0, y0, x1, y1 = box
+    card.rect(box, PANEL_DEEP, LINE)
+    solved = int(key) if key.isdigit() else 0
+    used = solved or (6 if key == "lost" else 0)
+    rows, gap = 3, (y1 - y0) / 3
+    half = (x1 - x0) / 2
+    card.line([(x0 + half, y0), (x0 + half, y1)], LINE)
+    for n in range(1, 7):
+        column, row = divmod(n - 1, rows)
+        left, top = x0 + half * column, y0 + gap * row
+        if row:
+            card.line([(left, top), (left + half, top)], LINE)
+        hit = n == solved
+        if hit:
+            card.rect((left + 1, top + 1, left + half - 1, top + gap - 1), (*accent, 34))
+        label = card.t("board.attempt", n=n)
+        color = accent if hit else BODY if n <= used else DIM
+        card.text(left + 16, top + gap / 2 + 5, label, card.fit(label, 14, 10, half - 62, "bold"), color, "bold")
+        mx, my = left + half - 24, top + gap / 2
+        if hit:
+            check(card, mx, my, accent)
+        elif n <= used:
+            cross(card, mx, my, RED if key == "lost" else (150, 112, 70))
+        else:
+            card.line([(mx - 6, my), (mx + 6, my)], DIM, 1.6)
 
 
-def cells(draw, key, win):
-    for i in range(6):
-        x = 74 + i * 42
-        fill = (42, 195, 172, 220) if win and i < int(key) else (35, 57, 64, 180)
-        draw.rounded_rectangle((x, 186, x+29, 215), radius=3, fill=fill)
+def stamp(card, text, color, corner, angle, double=False):
+    size = card.fit(text, 30, 16, 205, "bold", 2)
+    width = card.width(text, size, "bold", 2) + 44
+    height = size + 30
+    layer = Image.new("RGBA", (round((width + 24) * SCALE), round((height + 24) * SCALE)), (0, 0, 0, 0))
+    ink = Card.__new__(Card)
+    ink.locale, ink.messages = card.locale, card.messages
+    ink.img, ink.draw = layer, ImageDraw.Draw(layer, "RGBA")
+    ink.rect((12, 12, 12 + width, 12 + height), (*BG, 165), (*color, 235), 3)
+    if double:
+        ink.rect((18, 18, 6 + width, 6 + height), None, (*color, 180), 1.2)
+    ink.text(12 + width / 2, 12 + height / 2 + size * 0.36, text, size, (*color, 245), "bold", "center", 2)
+    layer = layer.rotate(angle, resample=Image.BICUBIC, expand=True)
+    card.img.paste(layer, (round(corner[0] * SCALE - layer.width), round(corner[1] * SCALE - layer.height)), layer)
 
 
-def one_shot(draw, copy):
-    import math
-    frame(draw, copy)
-    cx, cy = 885, 300
-    for angle in range(0, 360, 12):
-        rad = math.radians(angle)
-        inner = 92
-        outer = 330 if angle % 36 == 0 else 235
-        alpha = 86 if angle % 36 == 0 else 34
-        draw.line((cx + math.cos(rad) * inner, cy + math.sin(rad) * inner,
-                   cx + math.cos(rad) * outer, cy + math.sin(rad) * outer),
-                  fill=(54, 228, 200, alpha), width=2 if angle % 36 == 0 else 1)
-    for r, alpha in [(92, 90), (160, 55), (230, 35)]:
-        draw.ellipse((cx-r, cy-r, cx+r, cy+r), outline=(54, 228, 200, alpha), width=2)
-    draw.line((cx-330, cy, cx+330, cy), fill=(54, 228, 200, 40), width=1)
-    draw.line((cx, cy-330, cx, cy+330), fill=(54, 228, 200, 40), width=1)
-    draw.ellipse((cx-12, cy-12, cx+12, cy+12), fill=(54, 228, 200, 230))
-    draw.ellipse((cx-38, cy-38, cx+38, cy+38), outline=(54, 228, 200, 120), width=2)
-    draw.text((cx-104, cy+248), "01 / 06", font=font(MONO_FONT, 16), fill=(123, 190, 185))
-
-    cells(draw, "1", True)
-    tag_font = font(copy["font"], 18)
-    draw.text((74, 236), copy["oneTag"], font=tag_font, fill=CYAN)
-    draw.text((66, 264), "1/6", font=font(BASE_FONT, 150), fill=CYAN)
-    headline_font, headline_text = adaptive_font(draw, copy["one"], copy["font"], 52, 30, 640)
-    draw.multiline_text((72, 430), headline_text, font=headline_font, fill=TEXT, spacing=6)
-    bottom(draw, copy, CYAN)
-
-
-def escaped(draw, copy):
-    import math
-    frame(draw, copy)
-    cx, cy = 900, 300
-    # Broken rings and a fading sweep communicate an escalated file.
-    for r, start, extent, alpha in [(235, 205, 255, 32), (160, 20, 250, 48), (92, 120, 230, 62)]:
-        draw.arc((cx-r, cy-r, cx+r, cy+r), start=start, end=start+extent,
-                 fill=(242, 166, 59, alpha), width=2)
-    for step in range(18):
-        rad = math.radians(198 - step * 1.5)
-        alpha = max(10, 80 - step * 4)
-        draw.line((cx, cy, cx + math.cos(rad) * 290, cy + math.sin(rad) * 290),
-                  fill=(242, 166, 59, alpha), width=1)
-    draw.line((cx-280, cy, cx-90, cy), fill=(242, 166, 59, 42), width=1)
-    draw.line((cx+110, cy, cx+280, cy), fill=(242, 166, 59, 42), width=1)
-    draw.line((cx, cy-280, cx, cy-110), fill=(242, 166, 59, 42), width=1)
-    draw.line((cx, cy+110, cx, cy+280), fill=(242, 166, 59, 42), width=1)
-    # Off-screen contact trace.
-    bx, by = cx + 170, cy - 105
-    draw.ellipse((bx-9, by-9, bx+9, by+9), outline=(242, 166, 59, 210), width=2)
-    draw.ellipse((bx-26, by-26, bx+26, by+26), outline=(242, 166, 59, 60), width=1)
-    draw.text((cx-102, cy+248), "ESCALATED // 06", font=font(MONO_FONT, 16), fill=(140, 112, 78))
-
-    cells(draw, "lost", False)
-    tag_font = font(copy["font"], 18)
-    draw.text((74, 236), copy["lostTag"], font=tag_font, fill=AMBER)
-    draw.text((66, 264), "0/6", font=font(BASE_FONT, 150), fill=AMBER)
-    headline_font, headline_text = adaptive_font(draw, copy["lost"], copy["font"], 52, 30, 640)
-    draw.multiline_text((72, 430), headline_text, font=headline_font, fill=TEXT, spacing=6)
-    bottom(draw, copy, AMBER)
-
-
-def card(locale, key, score):
-    copy = LOCALES[locale]
-    img = Image.new("RGB", (W, H), BG)
-    draw = ImageDraw.Draw(img, "RGBA")
-
-    if key == "1":
-        one_shot(draw, copy)
-        img.save(OUT / f"og-{key}-{locale}.png", optimize=True)
-        return
+def build(locale, key):
+    card = Card(locale)
+    t = card.t
+    groups = {group["id"]: group for group in departments[locale]}
     if key == "lost":
-        escaped(draw, copy)
-        img.save(OUT / f"og-{key}-{locale}.png", optimize=True)
-        return
+        accent, status, headline = AMBER, t("claim.escalated"), t("end.defeatKicker")
+    elif key == "open":
+        accent, status, headline = CYAN, t("claim.pending"), t("hero.title")
+    else:
+        accent, status, headline = TEAL, t("claim.confirmed"), t("oneShot.kicker" if key == "1" else "end.victoryKicker")
+    if key in SOURCES:
+        department, kind, index = SOURCES[key]
+        sender, note = groups[department]["name"], groups[department]["debriefs"][kind][index]
+    elif key == "1":
+        sender, note = groups["hull"]["name"], t("oneShot.body")
+    else:
+        sender, note = groups["intake"]["name"], groups["intake"]["memos"][0]
 
-    win = True
-    accent = GREEN
-    large = f"{key}/6"
-    frame(draw, copy)
-    cx, cy = 940, 310
-    for r, color in [(250, (50, 200, 180, 20)), (190, (50, 200, 180, 26)),
-                     (125, (242, 166, 59, 35)), (60, (242, 166, 59, 48))]:
-        draw.ellipse((cx-r, cy-r, cx+r, cy+r), outline=color, width=2)
-    draw.line((cx-270, cy, cx+270, cy), fill=(50, 200, 180, 22), width=1)
-    draw.line((cx, cy-270, cx, cy+270), fill=(50, 200, 180, 22), width=1)
+    background(card)
 
-    cells(draw, key, win)
-    draw.text((70, 248), large, font=font(BASE_FONT, 154), fill=accent)
-    headline_font, headline_text = adaptive_font(draw, copy["win"], copy["font"], 46, 28, 640)
-    draw.multiline_text((72, 460), headline_text, font=headline_font, fill=TEXT, spacing=6)
-    bottom(draw, copy, accent)
+    # The letter.
+    left, top, right, bottom = 40, 116, 702, 558
+    card.rect((left, top, right, bottom), PANEL, LINE_STRONG)
+    card.rect((left, top, left + 4, bottom), AMBER)
+    fields = [("claim.from", sender, TEXT), ("claim.to", t("claim.assessor"), TEXT),
+              ("claim.subject", t("claim.subjectValue"), TEXT), ("claim.status", status, accent)]
+    for n, (label, value, color) in enumerate(fields):
+        x = left + 28 + (n % 2) * 326
+        y = top + 32 + (n // 2) * 50
+        card.text(x, y, t(label), 12, MUTED, "bold", spacing=0.8)
+        card.text(x, y + 23, value, card.fit(value, 19, 12, 304, "bold"), color, "bold")
+    card.line([(left + 28, top + 128), (right - 24, top + 128)], LINE)
 
-    img.save(OUT / f"og-{key}-{locale}.png", optimize=True)
+    score = {"lost": "X/6", "open": ""}.get(key, f"{key}/6")
+    size = card.fit(headline, 50, 30, right - left - 56, "bold")
+    if card.width(headline, size, "bold") > right - left - 56:
+        rows = card.wrap(headline, 38, right - left - 56, "bold")
+        for n, row in enumerate(rows[:2]):
+            card.text(left + 28, top + 176 + n * 44, row, 38, TEXT, "bold")
+        y = top + 176 + (len(rows[:2]) - 1) * 44
+    else:
+        y = top + 186
+        card.text(left + 28, y, headline, size, TEXT, "bold")
+
+    note_top = y + 46
+    end = card.paragraph(left + 46, note_top, note, 23, 17, right - left - 84, 3, BODY)
+    card.rect((left + 28, note_top - 22, left + 30, end - 20), AMBER)
+
+    if score:
+        card.text(left + 26, bottom - 30, score, 92, accent, "bold")
+        label = t("end.attempts")
+        x = left + 26 + card.width(score, 92, "bold") + 22
+        card.text(x, bottom - 34, label, card.fit(label, 16, 11, right - x - 24, "bold"), MUTED, "bold", spacing=0.6)
+    else:
+        body = t("hero.body")
+        card.paragraph(left + 28, bottom - 74, body, 19, 15, right - left - 56, 3, MUTED)
+
+    # The evidence.
+    plate = (722, 116, 1160, 366)
+    spread = {"1": 0.0, "2": 0.35, "3": 0.5, "4": 0.65, "5": 0.8, "6": 0.95, "lost": 1.15, "open": 0.7}[key]
+    wreck(card, plate, spread, accent, key in ("lost", "open"))
+    ledger(card, (722, 382, 1160, 558), key, accent)
+    text = t("oneShot.title") if key == "1" else status
+    stamp(card, text, accent, (1166, 392), 7, double=key == "1")
+
+    card.line([(40, 578), (1160, 578)], LINE)
+    card.text(40, 604, t("share.tagline"), card.fit(t("share.tagline"), 15, 11, 700), MUTED)
+    card.text(1160, 604, t("share.open"), 16, accent, "bold", "right")
+    card.save("og.png" if key == "open" else f"og-{key}-{locale}.png")
 
 
+LOCALES = ["en", "de", "es", "fr", "ja", "ko", "ru", "zh"]
 for locale in LOCALES:
     for key in ["1", "2", "3", "4", "5", "6", "lost"]:
-        card(locale, key, key)
-
-
-def default_card():
-    copy = LOCALES["en"]
-    img = Image.new("RGB", (W, H), BG)
-    draw = ImageDraw.Draw(img, "RGBA")
-    frame(draw, copy)
-    cells(draw, "0", False)
-    draw.text((70, 246), "SIX REVIEW PASSES // ONE CLAIM", font=font(BASE_FONT, 22), fill=AMBER)
-    draw.text((66, 286), "VERIFY", font=font(BASE_FONT, 96), fill=TEXT)
-    draw.text((66, 382), "THE HULL", font=font(BASE_FONT, 96), fill=CYAN)
-    bottom(draw, copy, AMBER)
-    img.save(OUT / "og.png", optimize=True)
-
-
-default_card()
+        build(locale, key)
+build("en", "open")
 print(f"Wrote {len(LOCALES) * 7 + 1} share cards to {OUT}")

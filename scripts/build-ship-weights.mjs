@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { retryAfterMs } from '../js/retry-after.js';
 import { mergeWeights, planWeights } from './ship-weights.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -47,7 +48,7 @@ async function fetchShip(id) {
         signal: AbortSignal.timeout(15000),
       });
       if (response.status === 429) {
-        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, retryAfterMs(response.headers.get('retry-after'))));
         continue;
       }
       if (!response.ok) throw new Error(String(response.status));
@@ -69,11 +70,12 @@ const worker = async () => {
     const index = cursor++;
     if (index >= queue.length) return;
     rows[index] = await fetchShip(queue[index]);
-    await new Promise((r) => setTimeout(r, 180));
+    await new Promise((r) => setTimeout(r, 250));
     if ((index + 1) % 50 === 0) console.log(`Fetched ${index + 1}/${queue.length}`);
   }
 };
-await Promise.all(Array.from({ length: 2 }, worker));
+// One at a time: zKillboard asks clients to space requests out.
+await worker();
 
 const { usage, failed, zeroRecent, zeroAll } = mergeWeights({ ships, cache, rows });
 const payload = {

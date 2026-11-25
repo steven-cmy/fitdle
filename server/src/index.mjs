@@ -9,13 +9,43 @@ import { gameDateKey, msUntilNextDowntime } from '../../js/game.js';
 import { config } from './config.mjs';
 import { cleanupExpired } from './db.mjs';
 import { registerAuthRoutes } from './auth.mjs';
-import { registerRunRoutes } from './runs.mjs';
+import { expireRuns, registerRunRoutes } from './runs.mjs';
+import { pruneLimits } from './limits.mjs';
 import { evictExpiredRooms, registerRoomRoutes } from './rooms.mjs';
 import { pruneTargetCaches } from './targets.mjs';
 
-export async function buildApp() {
+/** Query strings may hold sign-in codes and room player ids: log the path only. */
+const logPath = (request) => String(request.url || '').split('?')[0];
+
+function loggerOptions(logStream) {
+  if (process.env.NODE_ENV === 'test' && !logStream) return false;
+  return {
+    level: process.env.LOG_LEVEL || 'info',
+    serializers: {
+      req: (request) => ({
+        method: request.method,
+        url: logPath(request),
+        host: request.host,
+        remoteAddress: request.ip,
+      }),
+    },
+    ...(logStream ? { stream: logStream } : {}),
+  };
+}
+
+/** Version query of the served release, written by build-dist into index.html. */
+function assetVersion() {
+  try {
+    const html = fs.readFileSync(path.join(config.staticDir, 'index.html'), 'utf8');
+    return /\/main\.js\?v=([\w.-]+)/.exec(html)?.[1] || '';
+  } catch {
+    return '';
+  }
+}
+
+export async function buildApp({ logStream = null } = {}) {
   const app = Fastify({
-    logger: process.env.NODE_ENV === 'test' ? false : { level: process.env.LOG_LEVEL || 'info' },
+    logger: loggerOptions(logStream),
     trustProxy: true,
     bodyLimit: 256 * 1024,
   });
@@ -25,6 +55,9 @@ export async function buildApp() {
   });
 
   app.addHook('onRequest', async (request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('X-Frame-Options', 'SAMEORIGIN');
     const origin = String(request.headers.origin || '');
     if (origin && config.allowedOrigins.length && !config.allowedOrigins.includes(origin)) {
       reply.code(403).send({ error: 'origin-not-allowed' });
@@ -53,6 +86,7 @@ export async function buildApp() {
       nextReset: new Date(now.getTime() + msUntilNextDowntime(now, config.gameDayStartMinutes)).toISOString(),
       dataVersion: String(config.manifest?.dataVersion || ''),
       algorithmVersion: config.algorithmVersion,
+      ...(config.publicContact ? { contact: config.publicContact } : {}),
       features: { online: true, rooms: true, sso: Boolean(config.eve.clientId) },
       limits: {
         maxPlayers: config.roomMaxPlayers,
@@ -67,17 +101,26 @@ export async function buildApp() {
     };
   });
 
+  for (const warning of config.warnings) app.log.warn(warning);
   registerAuthRoutes(app);
   registerRunRoutes(app);
   registerRoomRoutes(app);
 
   app.setErrorHandler((error, request, reply) => {
-    request.log?.error?.({ err: error, url: request.url }, 'request failed');
+    request.log?.error?.({ err: error, url: logPath(request) }, 'request failed');
     const status = Number(error.statusCode) || 500;
     reply.code(status).send({ error: status === 500 ? 'internal-error' : error.code || 'request-failed' });
   });
 
   if (fs.existsSync(config.staticDir)) {
+    const version = assetVersion();
+    const versioned = new RegExp(`\\.(?:js|css)\\?v=${version.replace(/[.]/g, '\\.')}$`);
+    app.addHook('onSend', async (request, reply) => {
+      // Only files of exactly this release: their address changes with the content.
+      if (version && [200, 304].includes(reply.statusCode) && versioned.test(request.url)) {
+        reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    });
     await app.register(fastifyStatic, {
       root: config.staticDir,
       prefix: '/',
@@ -95,7 +138,9 @@ export async function buildApp() {
 
   const cleanupTimer = setInterval(() => {
     cleanupExpired();
+    expireRuns();
     evictExpiredRooms();
+    pruneLimits();
     pruneTargetCaches();
   }, 10 * 60 * 1000);
   cleanupTimer.unref?.();
@@ -108,6 +153,7 @@ const isMain = process.argv[1]
 if (isMain || process.env.FITDLE_SERVER_MAIN === '1') {
   const app = await buildApp();
   cleanupExpired();
+  expireRuns();
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`FITDLE online service listening on ${config.host}:${config.port}`);

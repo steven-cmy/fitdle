@@ -5,6 +5,8 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const CACHE_FILE = path.join(ROOT, '.cache', 'zkill-version.json');
 const SOURCE = 'https://zkillboard.com/api/version/';
 const CACHE_MS = 60 * 60 * 1000;
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
 
 function readCache() {
   try {
@@ -30,7 +32,7 @@ export async function getZkillVersion({ fetchImpl = fetch, now = Date.now() } = 
     return { ...cache, cached: true };
   }
   try {
-    const response = await fetchImpl(SOURCE, { headers: { Accept: 'application/json' } });
+    const response = await fetchImpl(SOURCE, { headers: { Accept: 'application/json', 'User-Agent': USER_AGENT } });
     if (!response.ok) throw new Error(`zKill version failed: ${response.status}`);
     const payload = await response.json();
     const version = String(payload?.version || '').trim();

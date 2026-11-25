@@ -42,7 +42,7 @@ curl -fsS http://127.0.0.1:8787/api/v1/health
 
 镜像启动时会读取运行时 `PUBLIC_ORIGIN`，把静态 HTML 中的分享页 canonical/OG 地址替换为当前域名。因此同一个镜像可用于不同域名；域名变更后需要重新创建容器，而不是只 restart。
 
-Unraid：在环境变量中设置 `PUID=99`、`PGID=100`，挂载 `/mnt/user/appdata/fitdle:/data`。1.0.2+ 镜像会自动修正目录权限；1.0.1 需要对 appdata 目录执行一次 `chown -R 1000:1000`。
+Unraid：在环境变量中设置 `PUID=99`、`PGID=100`，挂载 `/mnt/user/appdata/fitdle:/data`。1.0.2+ 镜像会自动修正目录权限；1.0.1 需要对 appdata 目录执行一次 `chown -R 1000:1000`。其他配置（如 `API_CONTACT`）在容器编辑页用 “Add another Path, Port, Variable…” 添加为 Variable，Apply 后会重建容器生效；值保存在 Unraid 的容器模板里，不要写进镜像或提交到仓库。
 
 如果 GitLab Registry 要求认证：
 
@@ -108,12 +108,15 @@ SESSION_SECRET=...
 | `HOST` | 否 | 默认 `0.0.0.0` |
 | `PUID` | 否 | 容器运行 UID，默认 `1000`；Unraid 常用 `99` |
 | `PGID` | 否 | 容器运行 GID，默认 `1000`；Unraid 常用 `100` |
-| `FITDLE_DEV_AUTH` | 否 | 生产必须为 `0` |
+| `FITDLE_DEV_AUTH` | 否 | 生产必须为 `0`；非本机 `PUBLIC_ORIGIN` 会忽略它 |
 | `ROOM_MAX_PLAYERS` | 否 | 默认 `8`，范围 `2..32` |
 | `ROOM_ARBITRATION_BIG_ROUNDS` | 否 | 默认 `1` |
 | `ROOM_ARBITRATION_MAX_BIG_ROUNDS` | 否 | 默认 `5` |
 | `ROOM_TIMED_DURATION_MINUTES` | 否 | 默认 `10` |
 | `ROOM_TIMED_MAX_DURATION_MINUTES` | 否 | 默认 `60` |
+| `API_CONTACT` | 否 | 第三方 API 的联系方式（如邮箱），只加入服务端发出的 User-Agent，访客看不到 |
+| `API_CONTACT_PUBLIC` | 否 | 默认 `0`。浏览器请求 ESI 时自动带部署域名，无需配置；设为 `1` 时再附上联系方式，**所有访客都能看到** |
+| `ZKILL_MIN_INTERVAL_MS` | 否 | zKillboard 请求的最小间隔，默认 `250`，范围 `0..5000`，生产不要调低 |
 | `TARGET_SPARES` | 否 | 每个随机题库预备的目标数，默认 `2`，范围 `0..8`，`0` 为关闭 |
 | `ROOM_RECONNECT_GRACE_MS` | 否 | 掉线宽限，默认 `60000`，范围 `5000..300000` |
 

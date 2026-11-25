@@ -6,6 +6,9 @@
  * module state, charges and quantities come from the actual loss.
  */
 let enginePromise = null;
+// dist/ serves this module with a version query; pass it on so the engine and
+// its data always come from the same release.
+const VERSION = new URL(import.meta.url).search;
 
 const ATTR_KEYS = {
   4: 'mass',
@@ -37,7 +40,7 @@ function attrValue(attributes, id) {
 async function loadEngine() {
   if (!enginePromise) {
     enginePromise = (async () => {
-      const module = await import(new URL('../vendor/dogma-engine/esf_dogma_engine.js', import.meta.url).toString());
+      const module = await import(new URL(`../vendor/dogma-engine/esf_dogma_engine.js${VERSION}`, import.meta.url).toString());
       const nodeRuntime = typeof process !== 'undefined' && Boolean(process.versions?.node);
       let sdeBytes;
       let skills = [];
@@ -52,10 +55,10 @@ async function loadEngine() {
         sdeBytes = new Uint8Array(sde);
         skills = JSON.parse(skillSource);
       } else {
-        await module.default();
+        await module.default({ module_or_path: new URL(`../vendor/dogma-engine/esf_dogma_engine_bg.wasm${VERSION}`, import.meta.url) });
         const [response, skillsResponse] = await Promise.all([
-          fetch(new URL('../vendor/dogma-engine/sde.dat', import.meta.url), { cache: 'force-cache' }),
-          fetch(new URL('../vendor/dogma-engine/skills.json', import.meta.url), { cache: 'force-cache' }),
+          fetch(new URL(`../vendor/dogma-engine/sde.dat${VERSION}`, import.meta.url), { cache: 'force-cache' }),
+          fetch(new URL(`../vendor/dogma-engine/skills.json${VERSION}`, import.meta.url), { cache: 'force-cache' }),
         ]);
         if (!response.ok) throw new Error(`dogma SDE unavailable (${response.status})`);
         sdeBytes = new Uint8Array(await response.arrayBuffer());

@@ -5,7 +5,7 @@
       "Verifying assessor credentials",
       "Retrieving the loss file",
       "Checking the salvage manifest",
-      "Consulting the SCC protocol",
+      "Checking the SCC transaction record",
       "Calibrating the claim stamp",
       "Awaiting the claimant's version of events",
       "Locating the vessel that was insured"
@@ -15,7 +15,7 @@
       "Sachbearbeiterberechtigung wird geprüft",
       "Verlustakte wird abgerufen",
       "Wrack-Manifest wird geprüft",
-      "SCC-Protokoll wird konsultiert",
+      "SCC-Transaktionsregister wird geprüft",
       "Schadensstempel wird kalibriert",
       "Darstellung des Antragstellers wird erwartet",
       "Versichertes Schiff wird gesucht"
@@ -24,8 +24,8 @@
       "Abriendo el terminal de siniestros",
       "Verificando credenciales del perito",
       "Recuperando el expediente de pérdida",
-      "Comprobando el manifiesto del pecio",
-      "Consultando el protocolo del SCC",
+      "Comprobando el manifiesto de los restos",
+      "Consultando el registro de transacciones de la CCS",
       "Calibrando el sello de siniestros",
       "Esperando la versión del solicitante",
       "Localizando la nave asegurada"
@@ -35,37 +35,37 @@
       "Vérification des accréditations de l’expert",
       "Récupération du dossier de perte",
       "Contrôle du manifeste de l’épave",
-      "Consultation du protocole SCC",
+      "Consultation du registre des transactions SCC",
       "Calibrage du tampon de sinistre",
       "Attente de la version du demandeur",
       "Localisation du vaisseau assuré"
     ],
     "ja": [
-      "クレーム端末を起動中",
-      "査定担当者の資格を確認中",
+      "査定端末を起動中",
+      "査定員の資格を確認中",
       "損失ファイルを取得中",
       "残骸マニフェストを照合中",
-      "SCC プロトコルを確認中",
-      "クレーム印を調整中",
+      "SCC の取引記録を確認中",
+      "承認印を調整中",
       "申請者の説明を待機中",
-      "保険対象船を探索中"
+      "保険対象の艦船を探索中"
     ],
     "ko": [
-      "클레임 단말 여는 중",
-      "손해사정 담당자 자격 확인 중",
+      "손해사정 단말 여는 중",
+      "손해사정인 자격 확인 중",
       "손실 파일 불러오는 중",
       "잔해 목록 확인 중",
-      "SCC 프로토콜 확인 중",
-      "클레임 도장 조정 중",
+      "SCC 거래 기록 확인 중",
+      "승인 도장 조정 중",
       "신청자 측 설명 대기 중",
-      "보험 대상 선체 탐색 중"
+      "보험 가입 함선 탐색 중"
     ],
     "ru": [
       "Открытие терминала убытков",
       "Проверка полномочий оценщика",
       "Загрузка дела о потере",
       "Сверка манифеста обломков",
-      "Проверка протокола SCC",
+      "Проверка реестра сделок SCC",
       "Калибровка штампа убытков",
       "Ожидание версии заявителя",
       "Поиск застрахованного корабля"
@@ -75,7 +75,7 @@
       "正在验证评估员权限",
       "正在调取损失案卷",
       "正在核对残骸装配单",
-      "正在查阅 SCC 理赔协议",
+      "正在查阅 SCC 交易备案",
       "正在校准理赔印章",
       "正在等待申请人的说法",
       "正在定位那艘“已经投保”的船"
