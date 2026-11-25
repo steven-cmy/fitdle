@@ -71,6 +71,11 @@ async function loadEngine() {
   return enginePromise;
 }
 
+/** Start loading the engine early; failures surface in the real calculation. */
+export function preloadDogma() {
+  loadEngine().catch(() => {});
+}
+
 function applyAllVSkills(fit, skills) {
   // Audit mode is a max-performance simulation: all skills V and every
   // fitted module active. Killmails do not carry the victim's skill sheet.

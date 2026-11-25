@@ -10,7 +10,7 @@ import { calculateDogmaFit, calculateDogmaBaseline } from '../../js/dogma.js';
 import { buildRevealPlan } from '../../js/reveal.js';
 import { config } from './config.mjs';
 import { getSessionUser } from './auth.mjs';
-import { db, now } from './db.mjs';
+import { now, statement } from './db.mjs';
 import { getRandomTarget, TargetUnavailable } from './targets.mjs';
 import { recordExposure, recordArbitrationRound, recordRoomMatch } from './stats.mjs';
 
@@ -59,6 +59,8 @@ const SEARCH_INDEX = buildSearchIndex(config.catalogShips, refsEn.groups || {}, 
   locale: 'en',
   aliases: searchAliases,
 });
+const SHIPS_BY_ID = new Map(config.catalogShips.map((ship) => [Number(ship.id), ship]));
+const SEARCH_BY_SHIP = new Map(SEARCH_INDEX.map((entry) => [Number(entry.ship.id), entry]));
 
 export function nextBigRoundStep(round) {
   if (!round || !Array.isArray(round.order) || !round.order.length) return { kind: 'done' };
@@ -207,13 +209,54 @@ function send(player, message) {
   if (player?.ws && player.ws.readyState === 1) player.ws.send(JSON.stringify(message));
 }
 
+const PERSIST_DELAY_MS = 250;
+const pendingPersists = new Map();
+let persistClosed = false;
+
+/** Snapshot a room soon; bursts of changes collapse into one write. */
 function persist(room) {
+  if (persistClosed || pendingPersists.has(room)) return;
+  const timer = setTimeout(() => {
+    pendingPersists.delete(room);
+    writeRoom(room);
+  }, PERSIST_DELAY_MS);
+  timer.unref?.();
+  pendingPersists.set(room, timer);
+}
+
+export function flushRooms() {
+  for (const [room, timer] of pendingPersists) {
+    clearTimeout(timer);
+    writeRoom(room);
+  }
+  pendingPersists.clear();
+}
+
+/** Drop rooms that outlived their TTL and have nobody connected. */
+export function evictExpiredRooms(at = now()) {
+  let evicted = 0;
+  for (const [code, room] of ROOMS) {
+    if (room.expiresAt > at) continue;
+    if ([...room.players.values()].some((player) => player.connected)) continue;
+    clearTimeout(room.match?.timer);
+    clearTimeout(room.match?.startTimer);
+    clearTimeout(room.match?.roundTimer);
+    for (const player of room.players.values()) clearTimeout(player.reconnectTimer);
+    clearTimeout(pendingPersists.get(room));
+    pendingPersists.delete(room);
+    ROOMS.delete(code);
+    evicted += 1;
+  }
+  return evicted;
+}
+
+function writeRoom(room) {
   const state = {
     ...roomState(room),
     passwordHash: room.passwordHash,
     bigRound: room.bigRound,
   };
-  db.prepare(`INSERT INTO rooms(code, state_json, updated_at, expires_at) VALUES (?, ?, ?, ?)
+  statement(`INSERT INTO rooms(code, state_json, updated_at, expires_at) VALUES (?, ?, ?, ?)
     ON CONFLICT(code) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at, expires_at = excluded.expires_at`)
     .run(room.code, JSON.stringify(state), now(), room.expiresAt);
 }
@@ -236,7 +279,7 @@ function activeGuessers(room) {
 }
 
 function acceptedNames(shipId) {
-  const entry = SEARCH_INDEX.find((candidate) => Number(candidate.ship.id) === Number(shipId));
+  const entry = SEARCH_BY_SHIP.get(Number(shipId));
   return new Set([...(entry?.names || []), ...(entry?.acronyms || []), ...(entry?.nameAliases || [])]);
 }
 
@@ -442,7 +485,7 @@ function clearMatchTimer(room) {
 }
 
 async function buildEndlessClues(room, target, roundNo) {
-  const ship = config.catalogShips.find((entry) => Number(entry.id) === Number(target.shipId));
+  const ship = SHIPS_BY_ID.get(Number(target.shipId));
   if (!ship) throw new TargetUnavailable('target hull missing');
   const audit = room.gameplay === 'audit';
   let fittedAttrs = null;
@@ -680,78 +723,6 @@ function finishEndlessRaceResult(room, player, message) {
   } else {
     changed(room);
   }
-}
-
-async function startRace(room) {
-  const target = await getRandomTarget(room.gameplay);
-  recordExposure({
-    source: 'room',
-    mode: 'multiplayer',
-    gameplay: room.gameplay,
-    targetKillId: target.killId,
-    targetShipId: target.shipId,
-    gameDay: gameDateKey(new Date(), config.gameDayStartMinutes),
-  });
-  const raceDurationMs = room.gameplay === 'timed'
-    ? (Number(room.settings.raceDurationMs) || config.roomTimedDurationMinutes * 60 * 1000)
-    : 10 * 60 * 1000;
-  const match = {
-    id: crypto.randomUUID(),
-    rule: 'race',
-    gameplay: room.gameplay,
-    target,
-    results: [],
-    solved: new Set(),
-    startedAt: now(),
-    endsAt: now() + raceDurationMs,
-  };
-  match.timer = setTimeout(() => endRace(room), Math.max(1000, match.endsAt - now()));
-  room.match = match;
-  room.phase = 'playing';
-  broadcast(room, {
-    t: 'target',
-    matchId: match.id,
-    gameplay: room.gameplay,
-    target: match.target,
-    endsAt: match.endsAt,
-  });
-  changed(room);
-}
-
-function endRace(room) {
-  const match = room.match;
-  if (!match || match.rule !== 'race') return;
-  clearMatchTimer(room);
-  const ordered = [...match.results];
-  const scores = {};
-  const solved = ordered.filter((result) => result.status === 'won');
-  solved.forEach((result, index) => {
-    const points = rankPoints(index + 1);
-    scores[result.playerId] = points;
-    const player = room.players.get(result.playerId);
-    if (player) player.score += points;
-  });
-  const result = {
-    matchId: match.id,
-    rule: 'race',
-    gameplay: match.gameplay,
-    target: match.target,
-    results: ordered,
-    points: scores,
-    scores: Object.fromEntries([...room.players.values()].map((player) => [player.id, player.score])),
-  };
-  recordRoomMatch({
-    id: match.id,
-    roomCode: room.code,
-    rule: 'race',
-    targetKillId: match.target.killId,
-    targetShipId: match.target.shipId,
-    result,
-  });
-  room.match = null;
-  room.phase = 'between_matches';
-  broadcast(room, { t: 'matchResult', result });
-  changed(room);
 }
 
 async function startArbitration(room, dealerId) {
@@ -1282,6 +1253,11 @@ function requireUser(request, reply) {
 }
 
 export function registerRoomRoutes(app) {
+  persistClosed = false;
+  app.addHook('onClose', async () => {
+    flushRooms();
+    persistClosed = true;
+  });
   app.post('/api/v1/rooms', async (request, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
@@ -1434,7 +1410,6 @@ export function registerRoomRoutes(app) {
         });
       }
     }
-    broadcast(room, { t: 'room', room: roomState(room) }, player.id);
     changed(room);
     socket.on('message', (raw) => {
       try {

@@ -44,12 +44,15 @@ function fittedKill(killId = 4242, shipId = 670) {
   };
 }
 
-function mockFetch({ failPage = false, failKill = false } = {}) {
+function mockFetch({ failPage = false, failKill = false, bareList = false, requests = [] } = {}) {
   return async (url) => {
+    requests.push(String(url));
     const failure = { ok: false, status: 404, headers: { get: () => null }, json: async () => ({}) };
     if (String(url).includes('/api/losses/shipTypeID/')) {
       if (failPage) return failure;
-      return { ok: true, json: async () => [fittedKill()] };
+      const kill = fittedKill();
+      if (bareList) delete kill.victim.items;
+      return { ok: true, json: async () => [kill] };
     }
     if (String(url).includes('/api/killID/')) {
       if (failKill) return failure;
@@ -196,11 +199,13 @@ test('dealer wire clues never carry the answer or the full clue set', () => {
 });
 
 test('race target acquisition fetches a real fitted killmail and never falls back', async () => {
+  const requests = [];
   const target = await pickRaceTarget({
     manifest,
     mode: 'standard',
-    fetchImpl: mockFetch(),
+    fetchImpl: mockFetch({ requests }),
   });
+  assert.equal(requests.some((url) => url.includes('/api/killID/')), false);
   assert.equal(target.killId, 4242);
   assert.equal(target.shipId, 670);
   assert.equal(target.killmail.victim.ship_type_id, 670);
@@ -210,9 +215,11 @@ test('race target acquisition fetches a real fitted killmail and never falls bac
     (error) => error instanceof KbUnavailableError,
   );
   await assert.rejects(
-    () => pickRaceTarget({ manifest, mode: 'standard', fetchImpl: mockFetch({ failKill: true }) }),
+    () => pickRaceTarget({ manifest, mode: 'standard', fetchImpl: mockFetch({ bareList: true, failKill: true }) }),
     (error) => error instanceof KbUnavailableError,
   );
+  const bare = await pickRaceTarget({ manifest, mode: 'standard', fetchImpl: mockFetch({ bareList: true }) });
+  assert.equal(bare.killmail.victim.items.length, 2);
 });
 
 test('dealer round builds clues locally and exposes only wire clues', async () => {

@@ -5,15 +5,21 @@ import {
   lastCompleteMonthEnd,
   pickWeightedKillByRecency,
   sampleTargetTime,
+  killHasFittedModules,
   weightedRendezvousOrder,
 } from '../../js/game.js';
 import { config } from './config.mjs';
-import { db, now } from './db.mjs';
+import { now, statement } from './db.mjs';
+import { TtlCache } from './ttl-cache.mjs';
 
 const PAGE_TTL_MS = 10 * 60 * 1000;
 const KILL_TTL_MS = 60 * 60 * 1000;
-const pageCache = new Map();
-const killCache = new Map();
+const SAMPLE_SIZE = 5;
+// Full loss pages (up to 200 killmails each) are only needed by the Daily scan.
+const pageCache = new TtlCache({ ttlMs: PAGE_TTL_MS, max: 32 });
+// Random targets keep a few killmails per hull, so every hull fits.
+const sampleCache = new TtlCache({ ttlMs: PAGE_TTL_MS, max: 1024 });
+const killCache = new TtlCache({ ttlMs: KILL_TTL_MS, max: 512 });
 
 export class TargetUnavailable extends Error {
   constructor(reason = 'target', message = reason) {
@@ -58,23 +64,63 @@ async function requestJson(pathname) {
 export async function fetchKill(killId) {
   const id = Number(killId);
   if (!Number.isInteger(id) || id <= 0) throw new TargetUnavailable('kill', 'invalid kill id');
-  const cached = killCache.get(id);
-  if (cached && Date.now() - cached.at < KILL_TTL_MS) return cached.value;
-  const payload = await requestJson(`/api/killID/${id}/`);
-  const killmail = Array.isArray(payload) ? payload[0] : null;
-  if (!killmail?.victim?.ship_type_id) throw new TargetUnavailable('kill', 'kill has no victim hull');
-  killCache.set(id, { at: Date.now(), value: killmail });
-  return killmail;
+  return killCache.load(id, async () => {
+    const payload = await requestJson(`/api/killID/${id}/`);
+    const killmail = Array.isArray(payload) ? payload[0] : null;
+    if (!killmail?.victim?.ship_type_id) throw new TargetUnavailable('kill', 'kill has no victim hull');
+    return killmail;
+  });
+}
+
+async function requestShipPage(shipId, page) {
+  const payload = await requestJson(`/api/losses/shipTypeID/${Number(shipId)}/page/${Number(page)}/`);
+  if (!Array.isArray(payload)) throw new TargetUnavailable('zkill', 'invalid loss page');
+  return payload;
 }
 
 async function fetchShipPage(shipId, page) {
-  const key = `${shipId}:${page}`;
-  const cached = pageCache.get(key);
-  if (cached && Date.now() - cached.at < PAGE_TTL_MS) return cached.value;
-  const payload = await requestJson(`/api/losses/shipTypeID/${Number(shipId)}/page/${Number(page)}/`);
-  if (!Array.isArray(payload)) throw new TargetUnavailable('zkill', 'invalid loss page');
-  pageCache.set(key, { at: Date.now(), value: payload });
-  return payload;
+  return pageCache.load(`${shipId}:${page}`, () => requestShipPage(shipId, page));
+}
+
+/** Uniform draw without replacement. */
+function sample(list, size) {
+  const pool = [...list];
+  const picked = [];
+  while (picked.length < size && pool.length) {
+    const index = Math.floor(Math.random() * pool.length);
+    picked.push(pool[index]);
+    pool[index] = pool[pool.length - 1];
+    pool.pop();
+  }
+  return picked;
+}
+
+/**
+ * Take one random killmail from a hull's latest loss page. The page already
+ * carries complete killmails, so no per-kill request is needed. Returns null
+ * when the page has no eligible killmail.
+ */
+async function takeRandomKill(shipId, allowEmpty) {
+  for (let round = 0; round < 2; round++) {
+    const entry = await sampleCache.load(shipId, async () => {
+      const page = await requestShipPage(shipId, 1);
+      const any = page.filter((kill) => Number(kill?.victim?.ship_type_id) === shipId
+        && Number(kill?.killmail_id) > 0);
+      const fitted = any.filter(killHasFittedModules);
+      return {
+        any: sample(any, SAMPLE_SIZE),
+        fitted: sample(fitted, SAMPLE_SIZE),
+        hasAny: any.length > 0,
+        hasFitted: fitted.length > 0,
+      };
+    });
+    if (!(allowEmpty ? entry.hasAny : entry.hasFitted)) return null;
+    const killmail = (allowEmpty ? entry.any : entry.fitted).pop();
+    if (killmail) return killmail;
+    // Every sampled killmail was used: draw a new sample.
+    sampleCache.delete(shipId, entry);
+  }
+  return null;
 }
 
 function seedNumber(day) {
@@ -156,7 +202,7 @@ async function createDailyPin(day) {
       killmail,
       createdAt: now(),
     };
-    db.prepare(`INSERT INTO daily_pins(day, algorithm_version, data_version, seed, ship_id, kill_id, kill_hash, killmail_json, created_at)
+    statement(`INSERT INTO daily_pins(day, algorithm_version, data_version, seed, ship_id, kill_id, kill_hash, killmail_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(day) DO NOTHING`)
       .run(pin.day, pin.algorithmVersion, pin.dataVersion, pin.seed, pin.shipId, pin.killId, pin.killHash, JSON.stringify(pin.killmail), pin.createdAt);
@@ -177,7 +223,7 @@ export async function getDailyTarget(day) {
 }
 
 export function loadDailyPin(day, fallback = null) {
-  const row = db.prepare('SELECT * FROM daily_pins WHERE day = ?').get(day);
+  const row = statement('SELECT * FROM daily_pins WHERE day = ?').get(day);
   if (!row) return fallback;
   let killmail = fallback?.killmail;
   if (!killmail) {
@@ -201,7 +247,37 @@ export function loadDailyPin(day, fallback = null) {
   };
 }
 
-export async function getRandomTarget(gameplay) {
+// Ready-made random targets per pool, filled only after that pool was used.
+const spares = new Map();
+
+function refillSpares(shelf, pick) {
+  while (shelf.ready.length + shelf.pending < config.targetSpares) {
+    shelf.pending += 1;
+    pick()
+      .then((target) => shelf.ready.push({ at: Date.now(), target }))
+      // The next request refills again; nothing retries while nobody plays.
+      .catch(() => {})
+      .finally(() => { shelf.pending -= 1; });
+  }
+}
+
+/**
+ * Random target for one run or room round. Spares are drawn by the same rules
+ * ahead of time, handed out once, and never change what can be picked.
+ */
+export async function getRandomTarget(gameplay, { allowEmpty = true } = {}) {
+  const pick = () => pickRandomTarget(gameplay, allowEmpty);
+  const key = `${gameplay === 'audit' ? 'audit' : 'normal'}:${allowEmpty}`;
+  if (!spares.has(key)) spares.set(key, { ready: [], pending: 0 });
+  const shelf = spares.get(key);
+  while (shelf.ready.length && Date.now() - shelf.ready[0].at >= KILL_TTL_MS) shelf.ready.shift();
+  // Refill only after a success, so an upstream outage is not multiplied.
+  const target = shelf.ready.shift()?.target || await pick();
+  refillSpares(shelf, pick);
+  return target;
+}
+
+async function pickRandomTarget(gameplay, allowEmpty) {
   const pool = gameplay === 'audit'
     ? (config.manifest?.auditKillShipPool || config.manifest?.killShipPool || [])
     : (config.manifest?.normalShipPool || config.manifest?.killShipPool || []);
@@ -215,24 +291,11 @@ export async function getRandomTarget(gameplay) {
       shipId = ships.find((id) => !tried.has(id)) || shipId;
     }
     tried.add(shipId);
-    let page;
     try {
-      page = await fetchShipPage(shipId, 1);
+      const killmail = await takeRandomKill(shipId, allowEmpty);
+      if (killmail) return { shipId, killId: Number(killmail.killmail_id), killmail };
     } catch {
-      continue;
-    }
-    const candidates = page.filter((kill) => Number(kill?.victim?.ship_type_id) === Number(shipId));
-    if (!candidates.length) continue;
-    const order = candidates.slice().sort((a, b) => Number(b?.zkb?.totalValue || 0) - Number(a?.zkb?.totalValue || 0));
-    for (let index = 0; index < Math.min(3, order.length) && Date.now() < deadline; index++) {
-      const chosen = order[Math.floor(Math.random() * order.length)];
-      try {
-        const killmail = await fetchKill(Number(chosen?.killmail_id));
-        if (Number(killmail.victim?.ship_type_id) !== Number(shipId)) continue;
-        return { shipId: Number(shipId), killId: Number(killmail.killmail_id), killmail };
-      } catch {
-        // Try another candidate.
-      }
+      // Try another hull.
     }
   }
   throw new TargetUnavailable('random', 'no usable killmail');
@@ -256,7 +319,9 @@ export async function getCustomTarget(kb) {
   };
 }
 
-export function clearTargetCaches() {
-  pageCache.clear();
-  killCache.clear();
+export function pruneTargetCaches() {
+  pageCache.prune();
+  sampleCache.prune();
+  killCache.prune();
 }
+

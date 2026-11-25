@@ -133,7 +133,10 @@ export async function pickRaceTarget({
       const killId = Number(choice?.killmail_id);
       if (!killId) continue;
       try {
-        const killmail = await fetchKillmail(manifest, killId, { fetchImpl });
+        // Loss pages carry complete killmails; only ask again when one does not.
+        const killmail = Array.isArray(choice.victim?.items)
+          ? choice
+          : await fetchKillmail(manifest, killId, { fetchImpl });
         if (Number(killmail.victim.ship_type_id) !== Number(shipId)) continue;
         if (killHasFittedModules(killmail)) {
           return { killId, shipId, killmail };

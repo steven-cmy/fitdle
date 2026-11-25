@@ -1,5 +1,10 @@
 .git
-.cache
+.cache/*
+!.cache/normalized.json
+!.cache/killpool.json
+!.cache/sde-meta.json
+!.cache/ship-weights.json
+!.cache/zkill-version.json
 .env
 .env.local
 dist

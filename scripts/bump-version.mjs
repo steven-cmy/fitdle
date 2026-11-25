@@ -3,6 +3,8 @@
  * Bump the package version. Called by .githooks/pre-commit.
  *
  * Default: patch. Set VERSION_BUMP=minor|major|none to override.
+ * server/package.json and its lockfile follow the root version, because the
+ * test suite requires them to be identical.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,5 +43,20 @@ if (staged.status === 1) {
 
 pkg.version = next;
 fs.writeFileSync(pkgFile, `${JSON.stringify(pkg, null, 2)}\n`);
-spawnSync('git', ['add', 'package.json'], { cwd: ROOT, stdio: 'inherit' });
+const bumped = ['package.json'];
+for (const [file, apply] of [
+  ['server/package.json', (json) => { json.version = next; }],
+  ['server/package-lock.json', (json) => {
+    json.version = next;
+    if (json.packages?.['']) json.packages[''].version = next;
+  }],
+]) {
+  const target = path.join(ROOT, file);
+  if (!fs.existsSync(target)) continue;
+  const json = JSON.parse(fs.readFileSync(target, 'utf8'));
+  apply(json);
+  fs.writeFileSync(target, `${JSON.stringify(json, null, 2)}\n`);
+  bumped.push(file);
+}
+spawnSync('git', ['add', ...bumped], { cwd: ROOT, stdio: 'inherit' });
 console.log(`Version ${current} -> ${next}`);

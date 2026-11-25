@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+if [ -z "${PUBLIC_ORIGIN:-}" ]; then
+  echo "FITDLE startup: PUBLIC_ORIGIN is required (for example https://fitdle.example.com)" >&2
+  exit 1
+fi
+
 if [ "$(id -u)" = "0" ]; then
   PUID="${PUID:-1000}"
   PGID="${PGID:-1000}"
@@ -24,14 +29,15 @@ if [ "$(id -u)" = "0" ]; then
       ;;
   esac
   mkdir -p "$DB_DIR"
-  chown -R "$PUID:$PGID" "$DB_DIR" /data /app/dist
+  chown -R "$PUID:$PGID" "$DB_DIR" /data
+  # Render while still root so dist/ needs no ownership change; the service only
+  # reads it.
+  node /app/scripts/render-runtime-origin.mjs
+  export FITDLE_ORIGIN_RENDERED=1
   exec setpriv --reuid="$PUID" --regid="$PGID" --clear-groups /app/docker/entrypoint.sh "$@"
 fi
 
-if [ -z "${PUBLIC_ORIGIN:-}" ]; then
-  echo "FITDLE startup: PUBLIC_ORIGIN is required (for example https://fitdle.example.com)" >&2
-  exit 1
+if [ "${FITDLE_ORIGIN_RENDERED:-0}" != "1" ]; then
+  node /app/scripts/render-runtime-origin.mjs
 fi
-
-node /app/scripts/render-runtime-origin.mjs
 exec node /app/server/src/index.mjs

@@ -48,7 +48,7 @@ export const api = {
   },
   logout: () => request('/api/v1/auth/logout', { method: 'POST' }),
   daily: () => request('/api/v1/online/daily', { timeoutMs: 60000 }),
-  start: (gameplay) => request('/api/v1/online/start', { method: 'POST', body: { gameplay }, timeoutMs: 60000 }),
+  start: (gameplay, allowEmpty = true) => request('/api/v1/online/start', { method: 'POST', body: { gameplay, allowEmpty }, timeoutMs: 60000 }),
   custom: (gameplay, kb) => request('/api/v1/online/custom', { method: 'POST', body: { gameplay, kb }, timeoutMs: 60000 }),
   finish: (runId, payload) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}/finish`, { method: 'POST', body: payload }),
   run: (runId) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}`),

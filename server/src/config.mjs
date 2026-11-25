@@ -100,14 +100,11 @@ export const config = {
   roomArbitrationMaxBigRounds,
   roomTimedDurationMinutes,
   roomTimedMaxDurationMinutes,
+  targetSpares: boundedIntEnv('TARGET_SPARES', 2, 0, 8),
   roomReconnectGraceMs: boundedIntEnv('ROOM_RECONNECT_GRACE_MS', 60000, 5000, 300000),
   roomTtlMs: 2 * 60 * 60 * 1000,
   sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
 };
-
-export function requirePublicOrigin() {
-  return config.publicOrigin || `http://127.0.0.1:${config.port}`;
-}
 
 export function ssoConfigured() {
   return Boolean(config.eve.clientId && config.eve.clientSecret && config.eve.redirectUri);

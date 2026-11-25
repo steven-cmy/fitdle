@@ -234,12 +234,15 @@ instructions live in [README.md](README.md).
 ## Data flow
 
 1. `prepare:sde` calls the official SDE HTTP API (`sde.evetech.net/tranquility/latest/`),
-   downloads the required release-specific JSONL tables into `.cache/sde-source/`,
-   and normalizes them.
+   downloads the release-specific JSONL tables whose version changed into
+   `.cache/sde-source/`, reuses the rest, and normalizes them.
 2. `build:killpool` builds a small offline fallback pool from zKill global losses
    and stores zKill's server `Date` as `serverDate`.
-3. `build:weights` fetches zKill `stats/shipTypeID/{id}/kills/` for all SDE hulls
-   and stores recent/all ship-loss counts in `.cache/ship-weights.json`.
+3. `build:weights` fetches zKill `stats/shipTypeID/{id}/kills/` for missing or
+   aging hulls and stores recent/all ship-loss counts with a per-hull fetch time
+   in `.cache/ship-weights.json`. Entries expire after 7 days; from day 5 a build
+   renews up to 60 of the oldest. A failed request keeps the previous value and
+   never writes zeros, which would drop the hull from the pools.
    zKill's `rankings.recent` bucket is the 90-day window. Economy clues use
    `losses90`, recent kill rank (`shipsDestroyed`), and a recent
    kill/(kill+loss) danger index. The block title, not each row, says 90 days.
@@ -295,6 +298,15 @@ instructions live in [README.md](README.md).
 - If the scan cap is reached before the target time, no extra page is requested;
   all already-loaded pages are combined and one kill is chosen with a deterministic
   recency-weighted draw.
+- The personal `allowEmptyKb` setting applies to random targets: practice filters
+  in the browser and online runs send `allowEmpty` to `/online/start`. Daily,
+  rooms and explicit `kb` targets are shared or chosen, so they ignore it.
+- Service random targets use the complete killmail from the loss page (no
+  `killID` request) and keep five random killmails per hull for 10 minutes; the
+  browser uses the killmail the service sent.
+- `TARGET_SPARES` (default 2, 0..8) random targets per pool and empty-hull choice
+  are prepared after that pool's first use. They follow the same selection rules,
+  are handed out once and expire after an hour.
 - Every ship page is cached locally for 10 minutes, keyed by ship ID and page.
   Failures are not cached. A page 100 scan is the absolute API limit.
 - `FITDLE_KB_SELECTION_START_DATE` is a global lower bound for all modes.
@@ -568,8 +580,9 @@ refreshes, then the final `build`.
   version/commit, and push/tag/release/publish only as requested.
 - Do not write `CHANGELOG.md` during ordinary development; it is a release-only
   artifact.
-- The script changes only `package.json`; do not add a version string to
-  `README.md` and do not make the bump script edit it.
+- The script changes only `package.json`, `server/package.json` and
+  `server/package-lock.json`, which must share one version; do not add a version
+  string to `README.md` and do not make the bump script edit it.
 - In the DSH Windows sandbox, Git shell hooks may be blocked (`sh` signal-pipe
   error). In that environment run `node scripts/bump-version.mjs` manually, then
   `git commit --no-verify`. On a normal Git install the hook works automatically.
@@ -710,8 +723,8 @@ test reads `dist/`.
 - The published image is origin-neutral: Docker build uses
   `__FITDLE_PUBLIC_ORIGIN__`; the container entrypoint validates runtime
   `PUBLIC_ORIGIN` and renders it into static HTML before starting the service.
-- The container entrypoint starts as root only to create/chown the
-  `DATABASE_PATH` parent, `/data`, and `dist` to `PUID:PGID` (default
+- The container entrypoint starts as root only to render `PUBLIC_ORIGIN` and
+  create/chown the `DATABASE_PATH` parent and `/data` to `PUID:PGID` (default
   `1000:1000`), then drops to those IDs with `setpriv`. Bind-mounted and named
   volumes must be writable; read-only mounts fail fast. Unraid commonly uses
   `PUID=99`, `PGID=100`.
@@ -725,12 +738,22 @@ test reads `dist/`.
   `server/src/index.mjs` with `dist/`, `/api` and `/ws`. It needs `PUBLIC_ORIGIN`,
   `EVE_CLIENT_ID`, `EVE_CLIENT_SECRET` and `SESSION_SECRET` at runtime, plus a
   persistent `/data` volume for SQLite.
+- The runtime image carries only the `data/` files the server reads, and links
+  `/app/vendor` to `dist/vendor` for the server-side dogma engine. Update the
+  `COPY` list when the server starts reading another file.
+- `build-dist` writes `.br`/`.gz` siblings for static text assets (never HTML,
+  which is rendered at container start) and per-language
+  `dist/data/catalog/<locale>.json`; the browser falls back to the complete
+  `data/catalog.json`. `FITDLE_SKIP_PRECOMPRESS=1` skips compression locally.
 - `sde:check` compares the SDE API latest `release`/`buildNumber` with deployed
   `data/manifest.json`; writes `.cache/sde-check.env`.
-- The build job skips `prepare:sde` when SDE is unchanged and normalized schema
-  version 3 is cached; only a schema/SDE change downloads the SDE again.
+- The build job compares the latest SDE release with its cached `sde-meta.json`
+  and skips `prepare:sde` when they match and normalized schema version 3 is
+  cached; a schema/SDE change or `FORCE_SDE=1` downloads the SDE again.
 - Build caches `.cache/normalized.json`, `.cache/killpool.json`,
-  `.cache/sde-meta.json`, `.cache/ship-weights.json`.
+  `.cache/sde-meta.json`, `.cache/ship-weights.json`, `.cache/zkill-version.json`
+  and passes them to `image:publish` (`REUSE_BUILD_CACHE=1`), so the image makes
+  no data requests and matches Pages. Other image builds fetch everything.
 - If `data/catalog.json` is missing, build first; weights need a catalog.
 - Daily scheduled pipeline is disabled: daily selection no longer depends on a
   rebuild. Builds remain manual/web/MR driven.

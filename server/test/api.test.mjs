@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import WebSocket from 'ws';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
@@ -19,11 +20,16 @@ process.env.ROOM_ARBITRATION_MAX_BIG_ROUNDS = '4';
 process.env.ROOM_TIMED_DURATION_MINUTES = '15';
 process.env.ROOM_TIMED_MAX_DURATION_MINUTES = '30';
 process.env.ROOM_RECONNECT_GRACE_MS = '5000';
+process.env.TARGET_SPARES = '0';
 process.env.NODE_ENV = 'test';
 
 const { config } = await import('../src/config.mjs');
 const { characterIdFromSubject } = await import('../src/auth.mjs');
-const { normalizeRoomSettings, nextBigRoundStep } = await import('../src/rooms.mjs');
+const {
+  ROOMS, evictExpiredRooms, flushRooms, normalizeRoomSettings, nextBigRoundStep,
+} = await import('../src/rooms.mjs');
+const { TtlCache } = await import('../src/ttl-cache.mjs');
+const { getRandomTarget } = await import('../src/targets.mjs');
 const { buildApp } = await import('../src/index.mjs');
 const { db } = await import('../src/db.mjs');
 const { profileStats } = await import('../src/stats.mjs');
@@ -347,8 +353,222 @@ test('room owner transfer waits for the reconnect grace', async () => {
   guestSocket.close();
 });
 
+test('upstream cache is bounded, expires entries and shares pending loads', async () => {
+  let time = 0;
+  let calls = 0;
+  const cache = new TtlCache({ ttlMs: 100, max: 2, clock: () => time });
+  const load = (key) => cache.load(key, async () => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return `${key}:${calls}`;
+  });
+  assert.deepEqual(await Promise.all([load('a'), load('a')]), ['a:1', 'a:1']);
+  assert.equal(await load('a'), 'a:1');
+  await load('b');
+  await load('c');
+  assert.equal(cache.size, 2);
+  assert.equal(cache.get('a'), undefined);
+  time = 100;
+  assert.equal(cache.get('b'), undefined);
+  cache.prune();
+  assert.equal(cache.size, 0);
+  await assert.rejects(cache.load('x', async () => { throw new Error('down'); }), /down/);
+  assert.equal(await cache.load('x', async () => 'up'), 'up');
+});
+
+test('room snapshots are coalesced and expired empty rooms are dropped', async () => {
+  const cookie = await login('Eviction Pilot');
+  const create = async () => JSON.parse((await app.inject({
+    method: 'POST', url: '/api/v1/rooms', headers: { cookie, 'content-type': 'application/json' }, payload: {},
+  })).body).code;
+  const idle = await create();
+  const busy = await create();
+  const fresh = await create();
+  const stored = (code) => db.prepare('SELECT code FROM rooms WHERE code = ?').get(code);
+  assert.equal(stored(idle), undefined, 'writes wait for the coalescing window');
+  flushRooms();
+  assert.equal(stored(idle).code, idle);
+  ROOMS.get(idle).expiresAt = 1;
+  ROOMS.get(busy).expiresAt = 1;
+  [...ROOMS.get(busy).players.values()][0].connected = true;
+  evictExpiredRooms();
+  assert.equal(ROOMS.has(idle), false);
+  assert.equal(ROOMS.has(busy), true, 'rooms with a connected player stay');
+  assert.equal(ROOMS.has(fresh), true, 'rooms inside their TTL stay');
+  const missing = await app.inject({ method: 'GET', url: `/api/v1/rooms/${idle}`, headers: { cookie } });
+  assert.equal(missing.statusCode, 404);
+  ROOMS.delete(busy);
+  ROOMS.delete(fresh);
+});
+
+/** Replace zKill with synthetic loss pages and record every requested path. */
+async function withLossPages(makePage, run) {
+  const realFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url) => {
+    const { pathname } = new URL(String(url));
+    requests.push(pathname);
+    const ship = Number(/shipTypeID\/(\d+)\//.exec(pathname)?.[1]);
+    if (!ship) return new Response('[]', { status: 200 });
+    return new Response(JSON.stringify(makePage(ship)), { status: 200 });
+  };
+  try {
+    return await run(requests);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+const fittedItem = { flag: 19, item_type_id: 5973, quantity_destroyed: 1, quantity_dropped: 0 };
+const cargoItem = { flag: 5, item_type_id: 34, quantity_destroyed: 10, quantity_dropped: 0 };
+let killSerial = 1000;
+const lossPage = (ship, flags) => flags.map((fitted) => ({
+  killmail_id: killSerial += 1,
+  zkb: { totalValue: 1 },
+  victim: { ship_type_id: ship, items: fitted ? [fittedItem] : [cargoItem] },
+}));
+
+test('random targets come from the loss page without per-kill requests', async () => {
+  const pool = config.manifest.normalShipPool;
+  config.manifest.normalShipPool = [900001];
+  try {
+    await withLossPages((ship) => lossPage(ship, Array(20).fill(true)), async (requests) => {
+      const seen = new Set();
+      for (let i = 0; i < 5; i += 1) {
+        const target = await getRandomTarget('standard');
+        assert.equal(target.shipId, 900001);
+        assert.equal(target.killmail.killmail_id, target.killId);
+        assert.equal(target.killmail.victim.items.length, 1);
+        seen.add(target.killId);
+      }
+      assert.equal(seen.size, 5, 'a cached sample never repeats a killmail');
+      assert.equal(requests.length, 1, 'five targets share one page request');
+      await getRandomTarget('standard');
+      assert.equal(requests.length, 2, 'an exhausted sample is drawn again');
+      assert.ok(requests.every((pathname) => pathname.startsWith('/api/losses/')));
+    });
+  } finally {
+    config.manifest.normalShipPool = pool;
+  }
+});
+
+test('spare targets are prepared after first use and handed out once', async () => {
+  const pool = config.manifest.auditKillShipPool;
+  config.manifest.auditKillShipPool = [900010, 900011, 900012];
+  config.targetSpares = 2;
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
+  try {
+    await withLossPages((ship) => lossPage(ship, Array(50).fill(true)), async (requests) => {
+      await settle();
+      assert.equal(requests.length, 0, 'nothing is requested before a pool is used');
+      const seen = new Set();
+      for (let i = 0; i < 12; i += 1) {
+        const target = await getRandomTarget('audit');
+        assert.equal(seen.has(target.killId), false, 'a target is handed out once');
+        seen.add(target.killId);
+        assert.ok(config.manifest.auditKillShipPool.includes(target.shipId));
+        await settle();
+      }
+      // With spares ready the caller does not wait for the upstream service.
+      globalThis.fetch = () => new Promise(() => {});
+      const ready = await Promise.all([getRandomTarget('audit'), getRandomTarget('audit')]);
+      assert.notEqual(ready[0].killId, ready[1].killId);
+    });
+  } finally {
+    config.manifest.auditKillShipPool = pool;
+    config.targetSpares = 0;
+  }
+});
+
+test('a failed pick does not start background requests', async () => {
+  const pool = config.manifest.normalShipPool;
+  config.manifest.normalShipPool = Array.from({ length: 30 }, (_, index) => 900100 + index);
+  config.targetSpares = 2;
+  try {
+    await withLossPages(() => [], async (requests) => {
+      await assert.rejects(getRandomTarget('standard'), /no usable killmail/);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      assert.equal(requests.length, 6, 'only the six hulls the caller tried');
+    });
+  } finally {
+    config.manifest.normalShipPool = pool;
+    config.targetSpares = 0;
+  }
+});
+
+test('the empty-hull setting reaches random target selection', async () => {
+  const cookie = await login('Empty Hull Pilot');
+  const start = async (body) => JSON.parse((await app.inject({
+    method: 'POST', url: '/api/v1/online/start',
+    headers: { cookie, 'content-type': 'application/json' },
+    payload: { gameplay: 'standard', ...body },
+  })).body);
+  const isEmpty = (run) => run.target.killmail.victim.items[0].flag === 5;
+  const pool = config.manifest.normalShipPool;
+  try {
+    // One fitted loss among many empty hulls.
+    config.manifest.normalShipPool = [900002];
+    await withLossPages((ship) => lossPage(ship, [true, ...Array(60).fill(false)]), async () => {
+      for (let i = 0; i < 6; i += 1) assert.equal(isEmpty(await start({ allowEmpty: false })), false);
+    });
+    // Only empty hulls: refused when disabled, used when enabled or unspecified.
+    config.manifest.normalShipPool = [900003];
+    await withLossPages((ship) => lossPage(ship, Array(8).fill(false)), async () => {
+      assert.equal((await start({ allowEmpty: false })).error, 'target-unavailable');
+      assert.equal(isEmpty(await start({ allowEmpty: true })), true);
+      assert.equal(isEmpty(await start({})), true);
+    });
+    // A hull without fitted losses is skipped for the next one.
+    config.manifest.normalShipPool = [900004, 900005];
+    await withLossPages((ship) => lossPage(ship, Array(8).fill(ship === 900005)), async () => {
+      for (let i = 0; i < 4; i += 1) {
+        const run = await start({ allowEmpty: false });
+        assert.equal(run.target.shipId, 900005);
+      }
+    });
+  } finally {
+    config.manifest.normalShipPool = pool;
+  }
+});
+
+test('static assets are served precompressed with identical content', async () => {
+  for (const [url, type] of [
+    ['/js/main.js', /javascript/],
+    ['/data/manifest.json', /application\/json/],
+    ['/vendor/dogma-engine/esf_dogma_engine_bg.wasm', /application\/wasm/],
+  ]) {
+    const get = (encoding) => app.inject({ method: 'GET', url, headers: encoding ? { 'accept-encoding': encoding } : {} });
+    const plain = await get('');
+    assert.equal(plain.statusCode, 200, url);
+    assert.equal(plain.headers['content-encoding'], undefined);
+    for (const [encoding, decode] of [['br', zlib.brotliDecompressSync], ['gzip', zlib.gunzipSync]]) {
+      const packed = await get(encoding);
+      assert.equal(packed.headers['content-encoding'], encoding, url);
+      assert.match(packed.headers['content-type'], type);
+      assert.match(packed.headers.vary, /Accept-Encoding/);
+      assert.ok(packed.rawPayload.length < plain.rawPayload.length);
+      assert.ok(decode(packed.rawPayload).equals(plain.rawPayload), `${url} ${encoding}`);
+      const cached = await app.inject({
+        method: 'GET', url, headers: { 'accept-encoding': encoding, 'if-none-match': packed.headers.etag },
+      });
+      assert.equal(cached.statusCode, 304);
+    }
+    assert.match(plain.headers['content-type'], type);
+  }
+  for (const url of ['/', '/index.html', '/share/3/en.html']) {
+    const html = await app.inject({ method: 'GET', url, headers: { 'accept-encoding': 'br, gzip' } });
+    assert.equal(html.statusCode, 200, url);
+    assert.equal(html.headers['content-encoding'], undefined);
+    assert.match(html.headers['content-type'], /text\/html/);
+  }
+  const missing = await app.inject({ method: 'GET', url: '/js/nope.js', headers: { 'accept-encoding': 'br' } });
+  assert.equal(missing.statusCode, 404);
+});
+
 test.after(async () => {
   await app.close();
+  // Windows cannot delete an open database file.
+  db.close();
   for (const suffix of ['', '-wal', '-shm']) {
     try { fs.rmSync(`${dbFile}${suffix}`, { force: true }); } catch {}
   }

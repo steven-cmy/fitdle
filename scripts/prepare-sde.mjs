@@ -59,7 +59,8 @@ async function ensureSde() {
   console.log(`Downloading SDE ${latest.release} (build ${latest.buildNumber})`);
   const nextMeta = await downloadRelease(latest, SOURCE, {
     userAgent: USER_AGENT,
-    onTable: (table) => console.log(`  ${table}.jsonl`),
+    previousVersions: meta?.source === 'sde-api' ? meta.tableVersions : null,
+    onTable: (table, reused) => console.log(`  ${table}.jsonl${reused ? ' (unchanged, reused)' : ''}`),
   });
   await fsp.writeFile(META, `${JSON.stringify(nextMeta, null, 2)}\n`);
   console.log(`SDE source ready: ${nextMeta.release}`);

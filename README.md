@@ -22,7 +22,7 @@ FITDLE 是一个 EVE Online 理赔评估解谜服务：Node 24 + Fastify + WebSo
 ## 2. 快速开始：GitLab 镜像
 
 ```bash
-docker pull registry.gitlab.com/cmy/fitdle:1.0.1
+docker pull registry.gitlab.com/cmy/fitdle:1.0.27
 cp .env.example .env
 # 编辑 .env：PUBLIC_ORIGIN、EVE_CLIENT_ID、EVE_CLIENT_SECRET、SESSION_SECRET
 docker run -d \
@@ -31,7 +31,7 @@ docker run -d \
   --env-file .env \
   -p 127.0.0.1:8787:8787 \
   -v fitdle-data:/data \
-  registry.gitlab.com/cmy/fitdle:1.0.1
+  registry.gitlab.com/cmy/fitdle:1.0.27
 ```
 
 健康检查：
@@ -65,7 +65,7 @@ docker compose up -d
 ```yaml
 services:
   fitdle:
-    image: registry.gitlab.com/cmy/fitdle:1.0.1
+    image: registry.gitlab.com/cmy/fitdle:1.0.27
     env_file:
       - .env
     ports:
@@ -84,7 +84,7 @@ volumes:
 - `.env` 不打进镜像，也不提交。
 - `env_file` 将配置注入容器；不要把 `.env` 复制进镜像。
 - 默认 `DATABASE_PATH=/data/fitdle.sqlite`。如果 `.env` 覆盖它，必须仍指向 `/data` 下的路径，否则数据不会持久化。
-- `PUID` / `PGID` 控制容器内服务进程的 UID/GID；入口脚本会先把 `/data` 和 `dist` 的权限交给这两个 ID，再降权启动。默认 `1000:1000`，Unraid 常用 `99:100`。
+- `PUID` / `PGID` 控制容器内服务进程的 UID/GID；入口脚本会先写入 `PUBLIC_ORIGIN`、把数据库目录和 `/data` 的权限交给这两个 ID，再降权启动。默认 `1000:1000`，Unraid 常用 `99:100`。
 - PUID/PGID 需要 1.0.2 或更新镜像；1.0.1 镜像需先手工执行 `chown -R 1000:1000 /mnt/user/appdata/fitdle`。
 - Compose 只绑定 `127.0.0.1:8787`，公网入口由反向代理提供。
 
@@ -114,6 +114,7 @@ SESSION_SECRET=...
 | `ROOM_ARBITRATION_MAX_BIG_ROUNDS` | 否 | 默认 `5` |
 | `ROOM_TIMED_DURATION_MINUTES` | 否 | 默认 `10` |
 | `ROOM_TIMED_MAX_DURATION_MINUTES` | 否 | 默认 `60` |
+| `TARGET_SPARES` | 否 | 每个随机题库预备的目标数，默认 `2`，范围 `0..8`，`0` 为关闭 |
 | `ROOM_RECONNECT_GRACE_MS` | 否 | 掉线宽限，默认 `60000`，范围 `5000..300000` |
 
 生成 `SESSION_SECRET`：
@@ -164,7 +165,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    location /ws {
+    location ~ ^/api/v1/rooms/[^/]+/ws$ {
         proxy_pass http://fitdle;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
@@ -179,6 +180,8 @@ server {
     }
 }
 ```
+
+静态文件已预压缩，服务会按 `Accept-Encoding` 直接返回 br/gzip；反代透传即可，不需要再开启压缩。
 
 `map` 必须放在 Nginx 的 `http {}` 上下文，不能写进 `server {}`。
 
@@ -199,7 +202,7 @@ server {
     include /config/nginx/ssl.conf;
     client_max_body_size 8m;
 
-    location /ws {
+    location ~ ^/api/v1/rooms/[^/]+/ws$ {
         include /config/nginx/proxy.conf;
         include /config/nginx/resolver.conf;
         set $upstream_app fitdle;
@@ -230,7 +233,7 @@ SWAG Compose 片段：
 ```yaml
 services:
   fitdle:
-    image: registry.gitlab.com/cmy/fitdle:1.0.1
+    image: registry.gitlab.com/cmy/fitdle:1.0.27
     env_file:
       - .env
     volumes:
@@ -367,7 +370,7 @@ npm run build
 | 现象 | 检查 |
 |---|---|
 | OAuth 登录 401/回调错误 | `PUBLIC_ORIGIN` 与 EVE 应用注册回调完全一致；使用 HTTPS |
-| WebSocket 连接失败 | 反代 `/ws` 是否设置 `Upgrade`/`Connection`，`proxy_read_timeout` 是否足够 |
+| WebSocket 连接失败 | 反代 `/api/v1/rooms/<code>/ws` 是否设置 `Upgrade`/`Connection`，`proxy_read_timeout` 是否足够 |
 | 分享卡片指向旧域名 | 修改 `PUBLIC_ORIGIN` 后重新创建容器；仅 restart 不会重新渲染 HTML |
 | 数据重启丢失 | `DATABASE_PATH` 是否在 `/data` 下，Compose 是否挂载 `fitdle-data:/data` |
 | `unable to open database file` | 确认 `/data` 或 `DATABASE_PATH` 父目录可写；镜像启动时会以 root 修复该目录权限后降权为 `node`。只读挂载或指向不存在/不可写路径会导致启动失败 |

@@ -125,19 +125,31 @@ CREATE TABLE IF NOT EXISTS arbitration_rounds (
 );
 `);
 
+const statements = new Map();
+
+/** Prepare each SQL text once and reuse the compiled statement. */
+export function statement(sql) {
+  let prepared = statements.get(sql);
+  if (!prepared) {
+    prepared = db.prepare(sql);
+    statements.set(sql, prepared);
+  }
+  return prepared;
+}
+
 export function now() {
   return Date.now();
 }
 
 export function cleanupExpired() {
   const t = now();
-  db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(t);
-  db.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').run(t);
-  db.prepare('DELETE FROM rooms WHERE expires_at <= ?').run(t);
+  statement('DELETE FROM sessions WHERE expires_at <= ?').run(t);
+  statement('DELETE FROM oauth_states WHERE expires_at <= ?').run(t);
+  statement('DELETE FROM rooms WHERE expires_at <= ?').run(t);
 }
 
 export function getUser(nameKey) {
-  return db.prepare('SELECT * FROM users WHERE name_key = ?').get(nameKey) || null;
+  return statement('SELECT * FROM users WHERE name_key = ?').get(nameKey) || null;
 }
 
 export function upsertUser(nameKey, displayName, characterId = null) {
@@ -146,7 +158,7 @@ export function upsertUser(nameKey, displayName, characterId = null) {
   const safeCharacterId = Number.isSafeInteger(numericCharacterId) && numericCharacterId > 0
     ? numericCharacterId
     : null;
-  db.prepare(`INSERT INTO users(name_key, display_name, character_id, created_at, last_login_at)
+  statement(`INSERT INTO users(name_key, display_name, character_id, created_at, last_login_at)
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(name_key) DO UPDATE SET display_name = excluded.display_name,
       character_id = COALESCE(excluded.character_id, users.character_id),

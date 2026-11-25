@@ -12,7 +12,7 @@ stages:
   - deploy
 
 default:
-  image: node:24-bookworm
+  image: node:24-bookworm-slim
   interruptible: true
 
 # Runs on default-branch pipelines, MRs and manual/web runs. It compares the
@@ -48,27 +48,22 @@ build:
       - .cache/killpool.json
       - .cache/sde-meta.json
       - .cache/ship-weights.json
+      - .cache/zkill-version.json
   script:
+    # Compare with the cached release instead of the deployed Pages manifest,
+    # which is not readable when Pages access is restricted.
     - |
-      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/normalized.json ] || [ "$(node -p 'require("./.cache/normalized.json").normalizedVersion || 0' 2>/dev/null)" != "3" ]; then
-        if [ "$SDE_CHANGED" = "1" ]; then
-          npm run prepare:sde -- --refresh
-        else
-          npm run prepare:sde
-        fi
+      if [ "${FORCE_SDE:-0}" = "1" ] || [ "${FORCE_SDE:-0}" = "true" ] || [ "$(node -p 'require("./.cache/normalized.json").normalizedVersion || 0' 2>/dev/null)" != "3" ] || ! node scripts/build-cache.mjs --release "$SDE_RELEASE"; then
+        npm run prepare:sde -- --refresh
       fi
     - |
       if [ ! -f data/catalog.json ]; then
-        npm run build
+        npm run build:catalog
       fi
-    - |
-      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/killpool.json ] || ! grep -q '"serverDate"' .cache/killpool.json; then
-        npm run build:killpool
-      fi
-    - |
-      if [ "$SDE_CHANGED" = "1" ] || [ ! -f .cache/ship-weights.json ]; then
-        npm run build:weights
-      fi
+    # One request; keep the cached pool when zKill is unavailable.
+    - npm run build:killpool || grep -q '"serverDate"' .cache/killpool.json
+    # Requests only missing or aging hulls.
+    - npm run build:weights
     - npm run build
     - npm test
     - npm ci --prefix server --no-audit --no-fund
@@ -76,6 +71,12 @@ build:
   artifacts:
     paths:
       - dist
+      # Reused by image:publish so the image does not request the data again.
+      - .cache/normalized.json
+      - .cache/killpool.json
+      - .cache/sde-meta.json
+      - .cache/ship-weights.json
+      - .cache/zkill-version.json
     expire_in: 1 week
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -90,7 +91,7 @@ image:publish:
     entrypoint: [""]
   needs:
     - job: build
-      artifacts: false
+      artifacts: true
   timeout: 2h
   interruptible: false
   before_script:
@@ -111,6 +112,7 @@ image:publish:
         --destination "$CI_REGISTRY_IMAGE:latest" \
         --destination "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" \
         --build-arg "PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__" \
+        --build-arg "REUSE_BUILD_CACHE=1" \
         --cache=true \
         --cache-repo="$CI_REGISTRY_IMAGE/cache" \
         --cache-ttl=168h \
@@ -154,7 +156,7 @@ pages:
       artifacts: true
   script:
     - rm -rf public
-    - cp -r dist public
+    - mv dist public
   artifacts:
     paths:
       - public

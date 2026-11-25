@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import {
   ATTEMPT_LIMIT,
   INITIAL_REVEAL,
@@ -1479,6 +1480,18 @@ test('ZKILLBOARD statistics are fetched, cached, and passed to the clue builder'
   assert.equal(main.includes('state.liveStats = null;'), false);
 });
 
+test('the empty-hull setting is read, sent to the service and not overridden', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const api = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
+  const runs = fs.readFileSync(path.join(ROOT, 'server', 'src', 'runs.mjs'), 'utf8');
+  assert.ok(main.includes('state.allowEmptyKb = readAllowEmptyKb();'));
+  assert.equal(main.includes('state.allowEmptyKb = true;'), false, 'boot must not override the saved setting');
+  assert.ok(main.includes('api.start(route.gameplay, state.allowEmptyKb)'));
+  assert.ok(api.includes('body: { gameplay, allowEmpty }'));
+  assert.ok(runs.includes('request.body?.allowEmpty !== false'));
+  assert.ok(main.includes('cached target is an empty hull'));
+});
+
 test('API caching and builder cache policies are wired', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   assert.match(main, /statsCacheEntry/);
@@ -2742,4 +2755,70 @@ test('frontend source has no hard-coded deployment domains or local image caches
     assert.equal(/https?:\/\//.test(text), false, `${path.relative(ROOT, file)} contains a hard-coded URL`);
     assert.equal(/assets\/(ships|modules)/.test(text), false, `${path.relative(ROOT, file)} references a local image cache`);
   }
+});
+
+test('dist ships matching compressed copies for text assets but never for HTML', () => {
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    return entry.isDirectory() ? walk(full) : [full];
+  });
+  const files = walk(path.join(ROOT, 'dist'));
+  assert.equal(files.some((file) => /\.html\.(br|gz)$/.test(file)), false);
+  for (const file of ['js/main.js', 'styles/app.css', 'data/catalog.json', 'data/refs/en.json', 'vendor/dogma-engine/sde.dat']) {
+    const source = path.join(ROOT, 'dist', file);
+    const raw = fs.readFileSync(source);
+    assert.ok(zlib.brotliDecompressSync(fs.readFileSync(`${source}.br`)).equals(raw), `${file}.br`);
+    assert.ok(zlib.gunzipSync(fs.readFileSync(`${source}.gz`)).equals(raw), `${file}.gz`);
+  }
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(path.join(ROOT, 'dist', 'data', 'manifest.json'), 'utf8')),
+    manifest,
+  );
+});
+
+test('per-language catalogs match the complete catalog for rules and displayed text', () => {
+  const texts = (ship, locale) => [
+    ship.names,
+    ship.descriptions?.[locale] || ship.descriptions?.en || '',
+    ship.bonuses?.[locale] || ship.bonuses?.en || [],
+    (ship.bonusEntries || []).map((entry) => [
+      entry.text?.[locale] || entry.text?.en || '',
+      entry.skill?.[locale] || entry.skill?.en || '',
+    ]),
+  ];
+  const rules = (ship) => {
+    const { descriptions, bonuses, bonusEntries, ...rest } = ship;
+    return {
+      ...rest,
+      bonusEntries: (bonusEntries || []).map(({ text, skill, ...entry }) => entry),
+    };
+  };
+  const fullSize = fs.statSync(path.join(ROOT, 'data', 'catalog.json')).size;
+  for (const locale of manifest.locales) {
+    const file = path.join(ROOT, 'dist', 'data', 'catalog', `${locale}.json`);
+    const ships = JSON.parse(fs.readFileSync(file, 'utf8')).ships;
+    assert.ok(fs.statSync(file).size < fullSize / 2, `${locale} catalog is not split`);
+    assert.deepEqual(ships.map(rules), catalog.map(rules), `${locale} rules data`);
+    assert.deepEqual(
+      ships.map((ship) => texts(ship, locale)),
+      catalog.map((ship) => texts(ship, locale)),
+      `${locale} text`,
+    );
+  }
+});
+
+test('runtime image ships what the server needs without recursive chown layers', () => {
+  const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
+  const runtime = dockerfile.slice(dockerfile.indexOf('AS runtime'));
+  const entrypoint = fs.readFileSync(path.join(ROOT, 'docker', 'entrypoint.sh'), 'utf8');
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  assert.ok(runtime.includes('ln -s dist/vendor /app/vendor'), 'server-side dogma engine');
+  assert.equal(runtime.includes('chown -R'), false);
+  for (const file of ['catalog.json', 'manifest.json', 'search.json', 'module-fallback.json', 'refs/en.json']) {
+    assert.ok(runtime.includes(`/app/data/${file}`), file);
+  }
+  assert.equal(entrypoint.includes('/app/dist'), false, 'dist ownership is not rewritten at start');
+  assert.ok(entrypoint.indexOf('render-runtime-origin.mjs') < entrypoint.indexOf('exec setpriv'));
+  assert.equal(readme.includes('location /ws {'), false);
+  assert.ok(readme.includes('location ~ ^/api/v1/rooms/[^/]+/ws$ {'));
 });

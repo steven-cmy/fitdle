@@ -19,11 +19,27 @@ COPY server/package.json server/package-lock.json ./server/
 RUN npm install --no-audit --no-fund \
   && npm ci --prefix server --no-audit --no-fund
 
+# CI passes 1 to reuse the .cache files of its build job. By default the image
+# fetches everything itself, so a local build never picks up an old cache.
+ARG REUSE_BUILD_CACHE=0
+
 COPY . .
-RUN npm run prepare:sde
+RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && node scripts/build-cache.mjs; then \
+    echo "Reusing CI build cache"; \
+  else \
+    rm -rf .cache && npm run prepare:sde; \
+  fi
 RUN npm run build:catalog
-RUN npm run build:killpool
-RUN npm run build:weights -- --refresh
+RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && [ -f .cache/killpool.json ]; then \
+    echo "Reusing CI kill pool"; \
+  else \
+    npm run build:killpool; \
+  fi
+RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && [ -f .cache/ship-weights.json ]; then \
+    echo "Reusing CI ship weights"; \
+  else \
+    npm run build:weights; \
+  fi
 RUN npm run build
 RUN npm test
 RUN npm test --prefix server
@@ -43,17 +59,25 @@ ENV NODE_ENV=production \
     PUID=1000 \
     PGID=1000
 
-COPY package.json ./
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/data ./data
-COPY --from=build /app/js ./js
-COPY --from=build /app/server ./server
-COPY --from=build /app/scripts/render-runtime-origin.mjs ./scripts/render-runtime-origin.mjs
-COPY docker/entrypoint.sh ./docker/entrypoint.sh
+# Ownership is set while copying: a later recursive chown would store every file
+# in the image a second time.
+COPY --chown=node:node package.json ./
+COPY --chown=node:node --from=build /app/dist ./dist
+COPY --chown=node:node --from=build /app/data/catalog.json /app/data/manifest.json /app/data/search.json /app/data/module-fallback.json ./data/
+COPY --chown=node:node --from=build /app/data/refs/en.json ./data/refs/en.json
+COPY --chown=node:node --from=build /app/js ./js
+COPY --chown=node:node --from=build /app/server/package.json ./server/package.json
+COPY --chown=node:node --from=build /app/server/node_modules ./server/node_modules
+COPY --chown=node:node --from=build /app/server/src ./server/src
+COPY --chown=node:node --from=build /app/scripts/render-runtime-origin.mjs ./scripts/render-runtime-origin.mjs
+COPY --chown=node:node docker/entrypoint.sh ./docker/entrypoint.sh
 
-RUN chmod +x /app/docker/entrypoint.sh \
+# Audit and Arbitration rooms run the dogma engine on the server; js/dogma.js
+# resolves it at /app/vendor, so point that at the copy already in dist/.
+RUN ln -s dist/vendor /app/vendor \
+  && chmod +x /app/docker/entrypoint.sh \
   && mkdir -p /data \
-  && chown -R node:node /app /data
+  && chown node:node /data
 
 # The entrypoint starts as root only to make the database volume writable,
 # then drops to the unprivileged node user before starting the service.

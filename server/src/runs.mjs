@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { gameDateKey, msUntilNextDowntime } from '../../js/game.js';
 import { config } from './config.mjs';
 import { getSessionUser } from './auth.mjs';
-import { db, now } from './db.mjs';
+import { now, statement } from './db.mjs';
 import { getCustomTarget, getDailyTarget, getRandomTarget, TargetUnavailable } from './targets.mjs';
 import { recordExposure, recordRunFinish, profileStats } from './stats.mjs';
 
@@ -26,7 +26,7 @@ function targetPayload(target) {
 }
 
 function runRow(id) {
-  return db.prepare('SELECT * FROM online_runs WHERE id = ?').get(id) || null;
+  return statement('SELECT * FROM online_runs WHERE id = ?').get(id) || null;
 }
 
 function runResponse(row) {
@@ -63,7 +63,7 @@ function runResponse(row) {
 
 function insertRun({ nameKey, kind, gameplay, gameDay, target }) {
   const id = crypto.randomUUID();
-  db.prepare(`INSERT INTO online_runs(id, name_key, kind, gameplay, game_day, target_kill_id, target_ship_id, target_json, status, attempts, elapsed_ms, guesses_json, started_at)
+  statement(`INSERT INTO online_runs(id, name_key, kind, gameplay, game_day, target_kill_id, target_ship_id, target_json, status, attempts, elapsed_ms, guesses_json, started_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'playing', 0, 0, '[]', ?)`)
     .run(id, nameKey, kind, gameplay, gameDay, Number(target.killId), Number(target.shipId), JSON.stringify(targetPayload(target)), now());
   return runResponse(runRow(id));
@@ -91,7 +91,7 @@ export function registerRunRoutes(app) {
     const user = requireUser(request, reply);
     if (!user) return;
     const day = currentDay();
-    const existing = db.prepare(`SELECT * FROM online_runs
+    const existing = statement(`SELECT * FROM online_runs
       WHERE name_key = ? AND kind = 'daily' AND game_day = ? AND gameplay = 'daily'`)
       .get(user.name_key, day);
     if (existing) return runResponse(existing);
@@ -129,7 +129,8 @@ export function registerRunRoutes(app) {
       return;
     }
     try {
-      const target = await getRandomTarget(gameplay);
+      // Older clients do not send the setting; empty hulls stay allowed for them.
+      const target = await getRandomTarget(gameplay, { allowEmpty: request.body?.allowEmpty !== false });
       const day = currentDay();
       return insertRun({
         nameKey: user.name_key,
@@ -209,7 +210,7 @@ export function registerRunRoutes(app) {
       return;
     }
     const t = now();
-    db.prepare(`UPDATE online_runs SET status = ?, attempts = ?, elapsed_ms = ?, answer_id = ?, guesses_json = ?, finished_at = ?
+    statement(`UPDATE online_runs SET status = ?, attempts = ?, elapsed_ms = ?, answer_id = ?, guesses_json = ?, finished_at = ?
       WHERE id = ? AND status = 'playing'`)
       .run(status, attempts, elapsedMs, answerId, JSON.stringify(guesses), t, row.id);
     const updated = runRow(row.id);

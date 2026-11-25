@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /** Enable the repository's shared Git hooks. */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';

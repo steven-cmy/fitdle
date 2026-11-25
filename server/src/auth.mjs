@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { config, ssoConfigured } from './config.mjs';
-import { db, getUser, now, upsertUser } from './db.mjs';
+import { getUser, now, statement, upsertUser } from './db.mjs';
 
 export const SESSION_COOKIE = 'fitdle_session';
 const METADATA_TTL_MS = 5 * 60 * 1000;
@@ -95,8 +95,8 @@ async function verifyAccessToken(token) {
 export function createSession(name, reply) {
   const token = randomToken();
   const t = now();
-  db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(t);
-  db.prepare('INSERT INTO sessions(token_hash, name_key, created_at, expires_at) VALUES (?, ?, ?, ?)')
+  statement('DELETE FROM sessions WHERE expires_at <= ?').run(t);
+  statement('INSERT INTO sessions(token_hash, name_key, created_at, expires_at) VALUES (?, ?, ?, ?)')
     .run(hashToken(token), nameKey(name), t, t + config.sessionTtlMs);
   reply.setCookie(SESSION_COOKIE, token, {
     path: '/',
@@ -109,34 +109,17 @@ export function createSession(name, reply) {
 
 export function destroySession(request, reply) {
   const token = request.cookies?.[SESSION_COOKIE];
-  if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
+  if (token) statement('DELETE FROM sessions WHERE token_hash = ?').run(hashToken(token));
   reply.clearCookie(SESSION_COOKIE, { path: '/' });
 }
 
 export function getSessionUser(request) {
   const token = request.cookies?.[SESSION_COOKIE];
   if (!token) return null;
-  const session = db.prepare('SELECT * FROM sessions WHERE token_hash = ? AND expires_at > ?')
+  const session = statement('SELECT * FROM sessions WHERE token_hash = ? AND expires_at > ?')
     .get(hashToken(token), now());
   if (!session) return null;
   return getUser(session.name_key);
-}
-
-export function sessionUserFromToken(token) {
-  if (!token) return null;
-  const session = db.prepare('SELECT * FROM sessions WHERE token_hash = ? AND expires_at > ?')
-    .get(hashToken(token), now());
-  if (!session) return null;
-  return getUser(session.name_key);
-}
-
-export function authRequired(request, reply) {
-  const user = getSessionUser(request);
-  if (!user) {
-    reply.code(401).send({ error: 'login-required' });
-    return;
-  }
-  request.user = user;
 }
 
 export function registerAuthRoutes(app) {
@@ -166,8 +149,8 @@ export function registerAuthRoutes(app) {
     const verifier = randomToken(32);
     const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
     const t = now();
-    db.prepare('DELETE FROM oauth_states WHERE expires_at <= ?').run(t);
-    db.prepare('INSERT INTO oauth_states(state, verifier, return_to, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
+    statement('DELETE FROM oauth_states WHERE expires_at <= ?').run(t);
+    statement('INSERT INTO oauth_states(state, verifier, return_to, created_at, expires_at) VALUES (?, ?, ?, ?, ?)')
       .run(state, verifier, safeReturn(request.query?.return), t, t + 10 * 60 * 1000);
     const metadata = await getMetadata();
     const url = new URL(metadata.authorization_endpoint);
@@ -188,8 +171,8 @@ export function registerAuthRoutes(app) {
     }
     const state = String(request.query?.state || '');
     const code = String(request.query?.code || '');
-    const row = db.prepare('SELECT * FROM oauth_states WHERE state = ? AND expires_at > ?').get(state, now());
-    db.prepare('DELETE FROM oauth_states WHERE state = ?').run(state);
+    const row = statement('SELECT * FROM oauth_states WHERE state = ? AND expires_at > ?').get(state, now());
+    statement('DELETE FROM oauth_states WHERE state = ?').run(state);
     if (!row || !code) {
       return reply.redirect('/?auth_error=state');
     }

@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { loadBuildEnv } from './build-env.mjs';
+import { precompress } from './precompress.mjs';
 import { LOCALES, MESSAGES } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -45,6 +46,32 @@ const SITE_URL = (
 ).replace(/\/+$/, '');
 
 const runtimeManifest = JSON.parse(await fsp.readFile(path.join(DATA, 'manifest.json'), 'utf8'));
+// data/manifest.json stays readable; the shipped copy drops its indentation.
+await fsp.writeFile(path.join(DIST, 'data', 'manifest.json'), JSON.stringify(runtimeManifest));
+
+// Per-language catalogs: rules and search data stay identical, while the long
+// localized texts are limited to one language plus the English fallback. The
+// complete data/catalog.json is still shipped as a fallback for the browser.
+const fullCatalog = JSON.parse(await fsp.readFile(path.join(DATA, 'catalog.json'), 'utf8'));
+const catalogDir = path.join(DIST, 'data', 'catalog');
+await fsp.mkdir(catalogDir, { recursive: true });
+for (const locale of LOCALES) {
+  const pick = (texts) => (texts && typeof texts === 'object'
+    ? Object.fromEntries(Object.entries(texts).filter(([key]) => key === locale || key === 'en'))
+    : texts);
+  const ships = fullCatalog.ships.map((ship) => ({
+    ...ship,
+    descriptions: pick(ship.descriptions),
+    bonuses: pick(ship.bonuses),
+    bonusEntries: (ship.bonusEntries || []).map((entry) => ({
+      ...entry,
+      ...(entry.skill ? { skill: pick(entry.skill) } : {}),
+      ...(entry.text ? { text: pick(entry.text) } : {}),
+    })),
+  }));
+  await fsp.writeFile(path.join(catalogDir, `${locale}.json`), JSON.stringify({ ...fullCatalog, ships }));
+}
+
 const IMAGE_BASE = String(runtimeManifest?.images?.baseUrl || '').replace(/\/+$/, '');
 
 const indexHtml = (await fsp.readFile(path.join(ROOT, 'index.html'), 'utf8'))
@@ -117,36 +144,28 @@ location.replace(target.toString());
 </html>`;
 }
 
+// Free and timed runs share one score-independent card per language.
+for (const key of ['free', 'timed']) {
+  const dir = path.join(shareDir, key);
+  await fsp.mkdir(dir, { recursive: true });
+  for (const locale of LOCALES) {
+    await fsp.writeFile(path.join(dir, `${locale}.html`), sharePage({
+      key, locale,
+      title: message(locale, `share.${key}Title`),
+      description: message(locale, `share.${key}Description`),
+      depth: 2,
+      image: `${SITE_URL}/assets/share/og.png?v=3`,
+    }));
+  }
+}
 for (const score of [1, 2, 3, 4, 5, 6]) {
   const scoreKey = String(score);
+  const one = score === 1;
+  const dir = path.join(shareDir, scoreKey);
+  await fsp.mkdir(dir, { recursive: true });
   for (const locale of LOCALES) {
-  const dir = path.join(shareDir, 'free');
-  await fsp.mkdir(dir, { recursive: true });
-  await fsp.writeFile(path.join(dir, `${locale}.html`), sharePage({
-    key: 'free', locale,
-    title: message(locale, 'share.freeTitle'),
-    description: message(locale, 'share.freeDescription'),
-    depth: 2,
-    image: `${SITE_URL}/assets/share/og.png?v=3`,
-  }));
-}
-for (const locale of LOCALES) {
-  const dir = path.join(shareDir, 'timed');
-  await fsp.mkdir(dir, { recursive: true });
-  await fsp.writeFile(path.join(dir, `${locale}.html`), sharePage({
-    key: `timed`, locale,
-    title: message(locale, 'share.timedTitle'),
-    description: message(locale, 'share.timedDescription'),
-    depth: 2,
-    image: `${SITE_URL}/assets/share/og.png?v=3`,
-  }));
-}
-for (const locale of LOCALES) {
-    const one = score === 1;
     const title = `FITDLE — ${message(locale, one ? 'share.oneTitle' : 'share.winTitle', { score })}`;
     const description = message(locale, one ? 'share.oneBody' : 'share.winBody', { score });
-    const dir = path.join(shareDir, scoreKey);
-    await fsp.mkdir(dir, { recursive: true });
     await fsp.writeFile(path.join(dir, `${locale}.html`), sharePage({
       key: scoreKey, locale, title, description, depth: 2,
     }));
@@ -170,6 +189,12 @@ for (const locale of LOCALES) {
       key: 'lost', locale, title, description, depth: 1,
     }));
   }
+}
+
+if (process.env.FITDLE_SKIP_PRECOMPRESS !== '1') {
+  const totals = await precompress(DIST);
+  const mib = (value) => (value / 1024 / 1024).toFixed(1);
+  console.log(`Precompressed ${totals.files} files: ${mib(totals.raw)} MiB -> ${mib(totals.br)} MiB br / ${mib(totals.gz)} MiB gz.`);
 }
 
 const bytes = (await fsp.stat(path.join(DIST, 'data/catalog.json'))).size;

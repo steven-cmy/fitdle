@@ -10,7 +10,8 @@ import { config } from './config.mjs';
 import { cleanupExpired } from './db.mjs';
 import { registerAuthRoutes } from './auth.mjs';
 import { registerRunRoutes } from './runs.mjs';
-import { registerRoomRoutes } from './rooms.mjs';
+import { evictExpiredRooms, registerRoomRoutes } from './rooms.mjs';
+import { pruneTargetCaches } from './targets.mjs';
 
 export async function buildApp() {
   const app = Fastify({
@@ -31,7 +32,7 @@ export async function buildApp() {
     }
     if (origin && config.allowedOrigins.includes(origin)) {
       reply.header('Access-Control-Allow-Origin', origin);
-      reply.header('Vary', 'Origin');
+      reply.header('Vary', 'Origin, Accept-Encoding');
       reply.header('Access-Control-Allow-Credentials', 'true');
       reply.header('Access-Control-Allow-Headers', 'content-type');
       reply.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -84,12 +85,19 @@ export async function buildApp() {
       wildcard: true,
       cacheControl: true,
       maxAge: 0,
+      // build-dist writes .br/.gz siblings; HTML has none and is served as is.
+      preCompressed: true,
+      setHeaders: (response) => response.setHeader('Vary', 'Accept-Encoding'),
     });
   } else {
     app.log.warn(`static directory not found: ${config.staticDir}`);
   }
 
-  const cleanupTimer = setInterval(() => cleanupExpired(), 10 * 60 * 1000);
+  const cleanupTimer = setInterval(() => {
+    cleanupExpired();
+    evictExpiredRooms();
+    pruneTargetCaches();
+  }, 10 * 60 * 1000);
   cleanupTimer.unref?.();
   app.addHook('onClose', async () => clearInterval(cleanupTimer));
   return app;

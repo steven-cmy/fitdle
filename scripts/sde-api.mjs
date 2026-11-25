@@ -113,8 +113,25 @@ export async function downloadTable(latest, table, destination, {
   }
 }
 
+/** Link an unchanged table into staging; false means it must be downloaded. */
+async function reuseTable(latest, table, sourceDir, stagingDir, previousVersions) {
+  const version = latest.tables[table]?.version;
+  if (!version || previousVersions?.[table] !== version) return false;
+  const source = path.join(sourceDir, `${table}.jsonl`);
+  const target = path.join(stagingDir, `${table}.jsonl`);
+  try {
+    await firstAndLastLine(source);
+    await fsp.link(source, target).catch(() => fsp.copyFile(source, target));
+    return true;
+  } catch {
+    await fsp.rm(target, { force: true });
+    return false;
+  }
+}
+
 export async function downloadRelease(latest, destinationDir, {
   tables = SDE_TABLES,
+  previousVersions = null,
   userAgent = 'FITDLE/dev',
   fetchImpl = globalThis.fetch,
   concurrency = 4,
@@ -127,7 +144,11 @@ export async function downloadRelease(latest, destinationDir, {
   const worker = async () => {
     while (cursor < tables.length) {
       const table = tables[cursor++];
-      onTable(table);
+      if (await reuseTable(latest, table, destinationDir, staging, previousVersions)) {
+        onTable(table, true);
+        continue;
+      }
+      onTable(table, false);
       await downloadTable(latest, table, path.join(staging, `${table}.jsonl`), { userAgent, fetchImpl });
     }
   };

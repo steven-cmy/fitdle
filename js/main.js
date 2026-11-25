@@ -12,29 +12,22 @@ import {
   killHasFittedModules,
   lastCompleteMonthEnd,
   loadState,
-  loadStats,
   modeFromLocation,
   msUntilNextDowntime,
   parseKillId,
   normalizeText,
   chooseClosestKill,
   pickWeightedKillByRecency,
-  profileSimilarity,
-  recordPlay,
-  recordResult,
   sampleTargetTime,
   saveState,
-  saveStats,
   searchShips,
-  settleStats,
-  shareUrl,
   weightedHullOrder,
   weightedRendezvousOrder,
 } from './game.js';
 import { claimGroups, claimSeed, pickClaimDebrief, pickClaimGroup, pickClaimMemo } from './claim.js';
-import { detectLocale, createI18n, isLocale, resolveLocale, LOCALES, LOCALE_META } from './i18n.js';
+import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
 import { buildClues, auditSimulationItems, getEquipment, selectAuditFallbacks, EQUIPMENT_SLOT_ORDER } from './clues.js';
-import { calculateDogmaBaseline, calculateDogmaFit } from './dogma.js';
+import { calculateDogmaBaseline, calculateDogmaFit, preloadDogma } from './dogma.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed } from './reveal.js';
 import { CATEGORY_ICON, icon } from './icons.js';
 import { api } from './api.js';
@@ -79,6 +72,7 @@ const state = {
   manifest: null,
   catalog: [],
   catalogMap: new Map(),
+  catalogLocale: '',
   refs: null,
   liveStats: null,
   liveLosses: [],
@@ -547,6 +541,7 @@ async function restoreCachedTarget(gameplay) {
       if (!run || run.status !== 'playing' || Number(run.attempts) > 0) throw new Error('cached run consumed');
       if (run.gameplay !== gameplay) throw new Error('cached run gameplay changed');
       if (!run.target?.killmail) throw new Error('cached target missing');
+      if (gameplay !== 'daily' && rejectsEmptyKb(run.target.killmail)) throw new Error('cached target is an empty hull');
       installTarget({
         killmail: run.target.killmail,
         shipId: run.target.shipId,
@@ -559,6 +554,7 @@ async function restoreCachedTarget(gameplay) {
       return true;
     }
     if (!entry.killmail?.victim?.ship_type_id) throw new Error('cached practice target missing');
+    if (rejectsEmptyKb(entry.killmail)) throw new Error('cached target is an empty hull');
     installTarget({
       killmail: entry.killmail,
       shipId: entry.shipId,
@@ -574,13 +570,6 @@ async function restoreCachedTarget(gameplay) {
     writeTargetCache(data);
     return false;
   }
-}
-
-function freeKillFromLocation(search) {
-  const params = new URLSearchParams(search);
-  const raw = params.get('kb');
-  const id = raw ? freeKillIdFromToken(raw) : null;
-  return id ? { id, token: freeKillToken(id) } : null;
 }
 
 function applyFont(mode, persist = false) {
@@ -695,6 +684,18 @@ function readAllowEmptyKb() {
   }
 }
 
+/** Daily, rooms and explicit kb links use one fixed target for everyone. */
+function emptyKbSettingApplies() {
+  return state.gameplay !== 'daily'
+    && !state.roomCode
+    && !state.roomView
+    && !new URL(location.href).searchParams.get('kb');
+}
+
+function rejectsEmptyKb(killmail) {
+  return !state.allowEmptyKb && Boolean(killmail) && !killHasFittedModules(killmail);
+}
+
 function setAllowEmptyKb(enabled) {
   state.allowEmptyKb = Boolean(enabled);
   try {
@@ -703,7 +704,7 @@ function setAllowEmptyKb(enabled) {
     // ignore
   }
   const current = state.liveLosses?.[0];
-  if (!state.allowEmptyKb && current && !killHasFittedModules(current)) {
+  if (emptyKbSettingApplies() && rejectsEmptyKb(current)) {
     location.reload();
     return;
   }
@@ -1078,14 +1079,6 @@ function clueLabel(clue) {
   return t(`clue.${clue.k === 'cargoCapacity' ? 'cargo' : clue.k}`) || clue.k;
 }
 
-function shipThumb(ship, className = '') {
-  if (!ship) return '';
-  return `<span class="${className} ship-thumb">
-    <span class="fallback">${icon('ship')}</span>
-    <img src="${esc(shipIconPath(ship))}" alt="" loading="lazy" draggable="false" onerror="this.remove()">
-  </span>`;
-}
-
 function moduleThumb(moduleID) {
   return `<span class="module-icon">
     <span class="fallback">?</span>
@@ -1093,32 +1086,32 @@ function moduleThumb(moduleID) {
   </span>`;
 }
 
-function renderPips(slots) {
-  const rows = [
-    ['hi', 'H'],
-    ['med', 'M'],
-    ['low', 'L'],
-    ['rig', 'R'],
-  ];
-  return `<div class="slot-pips">
-    ${rows.map(([key, label]) => {
-      const value = slots?.[key] ?? 0;
-      return `<span class="slot-pip"><b>${int(value)}</b><span>${esc(label)}</span></span>`;
-    }).join('')}
-  </div>`;
-}
-
 // ---------------------------------------------------------------------------
 // Data loading
 // ---------------------------------------------------------------------------
 
 async function fetchJson(relative) {
-  if (JSON_CACHE.has(relative)) return JSON_CACHE.get(relative);
-  const response = await fetch(new URL(relative, BASE), { cache: 'no-cache' });
-  if (!response.ok) throw new Error(`${response.status} ${relative}`);
-  const json = await response.json();
-  JSON_CACHE.set(relative, json);
-  return json;
+  const cached = JSON_CACHE.get(relative);
+  if (cached) return cached;
+  // Cache the pending request so prefetches and their consumers share one
+  // download; a failed request is dropped so the next caller retries.
+  const pending = (async () => {
+    const response = await fetch(new URL(relative, BASE), { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`${response.status} ${relative}`);
+    return response.json();
+  })();
+  JSON_CACHE.set(relative, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    if (JSON_CACHE.get(relative) === pending) JSON_CACHE.delete(relative);
+    throw error;
+  }
+}
+
+function prefetchJson(paths) {
+  // Failures stay silent here: the code that needs the file reports them.
+  for (const path of paths) fetchJson(path).catch(() => {});
 }
 
 const INSURANCE_CACHE_KEY = 'fitdle:v1:insurance-prices';
@@ -1197,75 +1190,6 @@ function platinumPayout(shipId) {
 function debriefPayoutAmount() {
   if (state.status !== 'won') return 0;
   return platinumPayout(state.answerShip?.id);
-}
-
-async function fetchInternetTime() {
-  const sources = [state.manifest?.timeSource].filter(Boolean);
-  let lastError = null;
-  for (const source of sources) {
-    try {
-      const response = await fetch(source, {
-        method: 'HEAD',
-        cache: 'no-store',
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!response.ok) {
-        lastError = Object.assign(new Error(`Time source request failed (${response.status})`), {
-          name: 'TimeHttpError',
-          source: 'time',
-          status: response.status,
-          request: source,
-        });
-        continue;
-      }
-
-      // Same-origin HTTP Date header: no CORS preflight and no extra service.
-      const header = response.headers.get('date');
-      const serverMs = header ? Date.parse(header) : NaN;
-      if (Number.isFinite(serverMs)) {
-        state.serverAnchor = serverMs;
-        state.monotonicAnchor = performance.now();
-        state.timeVerified = true;
-        return true;
-      }
-
-      // Compatibility with a trace-style plain-text source.
-      const fallback = await fetch(source, {
-        cache: 'no-store',
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!fallback.ok) {
-        lastError = Object.assign(new Error(`Time source request failed (${fallback.status})`), {
-          name: 'TimeHttpError',
-          source: 'time',
-          status: fallback.status,
-          request: source,
-        });
-        continue;
-      }
-      const match = /(?:^|\n)ts=([\d.]+)/.exec(await fallback.text());
-      if (!match) {
-        lastError = Object.assign(new Error('Time source response invalid'), {
-          name: 'TimeDataError',
-          source: 'time',
-        });
-        continue;
-      }
-      state.serverAnchor = Number(match[1]) * 1000;
-      state.monotonicAnchor = performance.now();
-      state.timeVerified = true;
-      return true;
-    } catch (error) {
-      lastError = error;
-      if (!lastError.source) lastError.source = 'time';
-      if (!lastError.request) lastError.request = source;
-    }
-  }
-  debugLog('authoritative time', lastError);
-  state.serverAnchor = Date.now();
-  state.monotonicAnchor = performance.now();
-  state.timeVerified = false;
-  return false;
 }
 
 const ZKILL_CACHE_PREFIX = 'fitdle:v1:zkill:';
@@ -1490,7 +1414,6 @@ function freeKillUrl(killId, fromRefresh = false, nonce = '') {
 }
 
 const FREE_INTENT_KEY = 'fitdle:v1:free-intent';
-const FREE_INTENT_TTL_MS = 10 * 60 * 1000;
 
 function makeFreeNonce() {
   try {
@@ -1510,35 +1433,6 @@ function writeFreeIntent(nonce, mode) {
   } catch {
     // best effort
   }
-}
-
-function clearFreeIntent() {
-  try {
-    sessionStorage.removeItem(FREE_INTENT_KEY);
-  } catch {
-    // best effort
-  }
-}
-
-function freeIntentMatches(nonce, mode) {
-  try {
-    const raw = sessionStorage.getItem(FREE_INTENT_KEY);
-    if (!raw) return false;
-    const intent = JSON.parse(raw);
-    const valid = intent?.nonce === nonce
-      && intent?.mode === mode
-      && Date.now() - Number(intent?.at) < FREE_INTENT_TTL_MS;
-    if (!valid) clearFreeIntent();
-    return valid;
-  } catch {
-    return false;
-  }
-}
-
-function consumeFreeIntent(nonce, mode) {
-  if (!freeIntentMatches(nonce, mode)) return false;
-  clearFreeIntent();
-  return true;
 }
 
 function enterFreeMode() {
@@ -1610,20 +1504,6 @@ function revealBaseSeed() {
 }
 
 const FREE_STREAK_KEY = 'fitdle:v1:free-streak';
-const FREE_STREAK_MODES = ['standard', 'audit', 'timed'];
-
-function loadFreeStreaks() {
-  const empty = { standard: 0, audit: 0, timed: 0 };
-  try {
-    const parsed = JSON.parse(localStorage.getItem(FREE_STREAK_KEY) || '{}');
-    for (const mode of FREE_STREAK_MODES) {
-      empty[mode] = Math.max(0, Math.floor(Number(parsed?.[mode]) || 0));
-    }
-  } catch {
-    // best effort
-  }
-  return empty;
-}
 
 function saveFreeStreaks() {
   try {
@@ -1678,61 +1558,6 @@ function abandonFreeRound() {
   state.freeRoundActive = false;
 }
 
-function spawnFreeStreakConfetti(host, count) {
-  if (!host) return;
-  const compact = !!host.closest('.debrief-streak');
-  const baseSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 14;
-  const scale = baseSize / 14;
-  const spreadX = (compact ? 54 : 190) * scale;
-  const spreadY = (compact ? 40 : 140) * scale;
-  const colors = ['#9bd45a', '#f2a63b', '#6fc6e4', '#f4fdff'];
-  for (let i = 0; i < count; i++) {
-    const particle = document.createElement('i');
-    particle.className = 'debrief-streak-particle';
-    particle.style.setProperty('--dx', `${Math.round((Math.random() - 0.5) * spreadX)}px`);
-    particle.style.setProperty('--dy', `${Math.round((Math.random() - 0.65) * spreadY)}px`);
-    particle.style.setProperty('--rot', `${Math.round((Math.random() - 0.5) * 540)}deg`);
-    particle.style.setProperty('--delay', `${Math.round(Math.random() * 120)}ms`);
-    particle.style.background = colors[i % colors.length];
-    host.append(particle);
-  }
-  setTimeout(() => { host.replaceChildren(); }, 1500);
-}
-
-function animateFreeStreak() {
-  const root = document.querySelector('.debrief-streak');
-  const valueEl = root?.querySelector('.debrief-streak-value');
-  if (!root || !valueEl) return;
-  const event = root.dataset.event || 'none';
-  const oldValue = Number(root.dataset.old) || 0;
-  const newValue = Number(root.dataset.new) || 0;
-  root.setAttribute('aria-label', `${t('free.streak')} ${newValue}`);
-  if (event === 'increment') {
-    valueEl.textContent = String(oldValue);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        valueEl.textContent = String(newValue);
-        valueEl.classList.add('is-pop');
-        spawnFreeStreakConfetti(root.querySelector('.debrief-streak-burst'), Math.max(0, newValue));
-        setTimeout(() => valueEl.classList.remove('is-pop'), 450);
-      }, 50);
-    });
-  } else if (event === 'reset') {
-    valueEl.textContent = String(oldValue);
-    valueEl.classList.remove('is-reset');
-    // Let the old value sit in its normal colour first. Then switch the value,
-    // turn red and start shaking on the same frame. The colour animation holds
-    // red for the full shake and only fades back after the shake ends.
-    setTimeout(() => {
-      valueEl.textContent = '0';
-      valueEl.classList.add('is-reset');
-    }, 350);
-    setTimeout(() => valueEl.classList.remove('is-reset'), 2000);
-  } else {
-    valueEl.textContent = String(newValue);
-  }
-}
-
 async function fetchAnswerLive() {
   if (state.liveFetched || !state.answerId) return;
   state.liveFetched = true;
@@ -1747,7 +1572,11 @@ async function fetchAnswerLive() {
       ? Promise.resolve([state.freeKillmail])
       : state.dailyKillmail
         ? Promise.resolve([state.dailyKillmail])
-        : killId ? fetchZkill(`/api/killID/${killId}/`, { key: `kill:${killId}`, ttlMs: 3600000 }) : Promise.resolve(null),
+        // The service already sent the complete killmail; asking zKill again can
+        // fail or return nothing and would drop fitting and value clues.
+        : Number(state.answerKillmail?.killmail_id) === killId && killId
+          ? Promise.resolve([state.answerKillmail])
+          : killId ? fetchZkill(`/api/killID/${killId}/`, { key: `kill:${killId}`, ttlMs: 3600000 }) : Promise.resolve(null),
   ]);
   state.liveStats = stats.status === 'fulfilled' && stats.value?.type === 'shipTypeID'
     ? stats.value
@@ -2029,8 +1858,22 @@ function localizeAnswerData() {
   };
 }
 
+async function loadCatalog(locale) {
+  if (state.catalogLocale === locale) return;
+  // Per-language catalogs are generated into dist/; the complete catalog covers
+  // source previews and builds without them.
+  const catalog = await fetchJson(`data/catalog/${locale}.json`)
+    .catch(() => fetchJson('data/catalog.json'));
+  state.catalog = catalog.ships;
+  state.catalogMap = new Map(state.catalog.map((ship) => [ship.id, ship]));
+  state.catalogLocale = locale;
+  if (state.answerId) state.answerShip = state.catalogMap.get(state.answerId) || state.answerShip;
+}
+
 async function loadLocaleData(locale, { keepLive = false, keepAnswer = false } = {}) {
+  if (state.catalogLocale !== locale) prefetchJson([`data/catalog/${locale}.json`]);
   const refs = await fetchJson(`data/refs/${locale}.json`);
+  await loadCatalog(locale);
   state.refs = refs;
   state.index = buildSearchIndex(state.catalog, refs.groups, {
     races: refs.races, factions: refs.factions, locale: state.locale, aliases: state.searchAliases,
@@ -4259,14 +4102,6 @@ function submitGuess() {
   applyGuess(ship.id);
 }
 
-function statMode() {
-  return isTimed() ? 'timed' : state.mode === 'audit' ? 'audit' : 'standard';
-}
-
-function statsEligible() {
-  return !isFree() && state.date === state.today;
-}
-
 function recordDailyPlay() {
   // Practice and online runs are not counted locally. Online runs are recorded
   // by the service when the run finishes.
@@ -5311,6 +5146,7 @@ function setGameplay(gameplay) {
 
 async function resolveSession() {
   state.auth = { loading: false, loggedIn: false, name: '', characterId: null };
+  const metaRequest = api.meta().catch(() => null);
   try {
     const me = await api.me();
     if (me?.loggedIn) {
@@ -5329,12 +5165,11 @@ async function resolveSession() {
   } catch {
     // Backend unavailable: practice mode.
   }
-  try {
-    const meta = await api.meta();
-    if (meta?.gameDay) state.meta = meta;
-    if (meta?.gameDay) state.today = meta.gameDay;
-  } catch {
-    // Static/offline fallback keeps the local date only for practice.
+  // A failed meta request (static/offline) keeps the local date for practice.
+  const meta = await metaRequest;
+  if (meta?.gameDay) {
+    state.meta = meta;
+    state.today = meta.gameDay;
   }
 }
 
@@ -5398,7 +5233,7 @@ async function resolveOnlineTarget(route) {
   } else if (route.kb) {
     run = await api.custom(route.gameplay, route.kb);
   } else {
-    run = await api.start(route.gameplay);
+    run = await api.start(route.gameplay, state.allowEmptyKb);
   }
   if (!run?.target?.killmail) throw new Error('online target missing');
   applyGameplay(route.gameplay);
@@ -5432,6 +5267,7 @@ async function prepareAppTarget(route) {
     return;
   }
   applyGameplay(state.gameplay);
+  if (usesSimulatedFit()) preloadDogma();
   if (!route.kb && await restoreCachedTarget(state.gameplay)) return;
   if (online) {
     try {
@@ -5914,48 +5750,6 @@ function showAuthGate() {
   gate.querySelector('[data-auth-close]')?.addEventListener('click', () => gate.remove());
 }
 
-async function startRoomRace(message, surface) {
-  const target = message?.target;
-  if (!target?.killmail) return;
-  const gameplay = ['standard', 'audit', 'timed'].includes(message.gameplay) ? message.gameplay : 'standard';
-  applyGameplay(gameplay);
-  installTarget({
-    killmail: target.killmail,
-    shipId: target.shipId,
-    killId: target.killId,
-    source: 'online',
-    free: false,
-    cacheable: false,
-  });
-  state.appMode = 'online';
-  state.onlineRun = null;
-  state.onlineFinished = false;
-  state.roomRace = { surface, matchId: message.matchId };
-  state.roomCode = surface.code;
-  state.guesses = [];
-  state.status = 'playing';
-  state.visibleCount = 0;
-  state.revealed = new Set();
-  state.fresh = new Set();
-  state.timerStarted = false;
-  state.timerStartAt = 0;
-  state.timerElapsedMs = 0;
-  state.gaveUp = false;
-  state.timedExpired = false;
-  state.roomView = 'race';
-  state.roomArbitration = null;
-  try {
-    await loadLocaleData(state.locale);
-  } catch {
-    // The room result will carry the error if the puzzle cannot be built.
-  }
-  recomputeRevealed();
-  surface.hide();
-  applyRoomLayout();
-  renderAll();
-  window.scrollTo(0, 0);
-}
-
 
 async function boot() {
   state.locale = detectLocale();
@@ -5969,6 +5763,13 @@ async function boot() {
     applyFont('neue');
   }
   void applyBootFlavor();
+  prefetchJson([
+    'data/manifest.json',
+    'assets/claim-departments.json',
+    `data/catalog/${state.locale}.json`,
+    'data/search.json',
+    `data/refs/${state.locale}.json`,
+  ]);
   state.fontSize = readFontSize();
   applyFontSize(state.fontSize);
   try {
@@ -5979,9 +5780,7 @@ async function boot() {
     state.dataVersionKey = `${manifest.dataVersion}:${manifest.clueVersion || 1}`;
     state.gameDayStartMinutes = Number(manifest.gameDayStartMinutes ?? 11 * 60);
     state.kbSelectionStartDate = String(manifest.kbSelectionStartDate || '');
-    const catalog = await fetchJson('data/catalog.json');
-    state.catalog = catalog.ships;
-    state.catalogMap = new Map(state.catalog.map((ship) => [ship.id, ship]));
+    await loadCatalog(state.locale);
     state.searchAliases = await fetchJson('data/search.json').catch(() => null);
     state.timed = timedFromLocation(location.search);
     state.mode = state.timed ? 'normal' : modeFromLocation(location.search);
@@ -6010,7 +5809,6 @@ async function boot() {
     state.i18n = createI18n(state.locale);
     state.stats = emptyStats();
     state.freeStreaks = { standard: 0, audit: 0, timed: 0 };
-    state.allowEmptyKb = true;
     state.timeVerified = true;
     await prepareAppTarget(route);
     applyGameplay(state.gameplay);
