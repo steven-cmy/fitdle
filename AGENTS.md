@@ -38,6 +38,12 @@ translation [README.zh-CN.md](README.zh-CN.md).
   pending local commits into one release commit. See *Release notes*.
 - A merge with no program change (documentation or GitHub configuration only)
   needs no new version and no CHANGELOG section. See *Release notes*.
+- Nothing published may refer to the AI assistant or tool that helped write it:
+  commit messages, branch names, tags, PR titles, bodies and comments, release
+  notes, CHANGELOG, README and other files. Add no assistant `Co-Authored-By` or
+  session trailers, session links, "Generated with ..." lines or hidden
+  attribution comments, even when a tool adds or asks for them by default. This
+  applies from now on; do not rewrite history to remove old lines.
 
 **Product scope**
 - Keep the puzzle deterministic for every player: fixed online Daily target,
