@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Pull request gate for releases: the version in package.json must be newer
- * than the base branch's and CHANGELOG.md must have a matching section, so a
- * merge to main can never overwrite published image tags or skip the Release.
+ * Pull request gate for releases. A pull request that changes the program needs
+ * a version in package.json newer than the base branch's and a matching
+ * CHANGELOG.md section. One that changes only documentation or GitHub
+ * configuration passes without either (see NON_PROGRAM).
  *
  * Usage: node scripts/check-release.mjs <base-ref>   (e.g. origin/main)
  */
@@ -12,6 +13,29 @@ import { execFileSync } from 'node:child_process';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const base = process.argv[2] || 'origin/main';
+const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+
+// Everything not listed here counts as a program change.
+const NON_PROGRAM = [
+  /^[^/]+\.md$/, // Markdown in the repository root only
+  /^docs\//,
+  /^\.github\//,
+  /^LICENSE$/,
+  /^scripts\/check-release\.mjs$/, // this CI gate; never built or shipped
+];
+
+// --no-renames lists both sides of a move, so moving a program file into docs/
+// still counts.
+const changed = git('diff', '--name-only', '--no-renames', '-z', `${base}...HEAD`)
+  .split('\0')
+  .filter(Boolean);
+const program = changed.filter((file) => !NON_PROGRAM.some((pattern) => pattern.test(file)));
+
+if (!program.length) {
+  console.log(`Release check skipped: no program changes in ${changed.length} changed file(s).`);
+  process.exit(0);
+}
+console.log(`Program changes:\n${program.map((file) => `  ${file}`).join('\n')}`);
 
 const parse = (version) => String(version).split('.').map((part) => Number(part) || 0);
 const newer = (a, b) => {
@@ -21,9 +45,7 @@ const newer = (a, b) => {
 };
 
 const current = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
-const baseVersion = JSON.parse(
-  execFileSync('git', ['show', `${base}:package.json`], { cwd: ROOT, encoding: 'utf8' }),
-).version;
+const baseVersion = JSON.parse(git('show', `${base}:package.json`)).version;
 
 const errors = [];
 if (!newer(current, baseVersion)) {

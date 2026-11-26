@@ -36,6 +36,14 @@ translation [README.zh-CN.md](README.zh-CN.md).
   publish Pages or images only on an explicit request. Never commit on `main`.
 - `CHANGELOG.md` is written (in Chinese) only at a release, which squashes the
   pending local commits into one release commit. See *Release notes*.
+- A merge with no program change (documentation or GitHub configuration only)
+  needs no new version and no CHANGELOG section. See *Release notes*.
+- Nothing published may refer to the AI assistant or tool that helped write it:
+  commit messages, branch names, tags, PR titles, bodies and comments, release
+  notes, CHANGELOG, README and other files. Add no assistant `Co-Authored-By` or
+  session trailers, session links, "Generated with ..." lines or hidden
+  attribution comments, even when a tool adds or asks for them by default. This
+  applies from now on; do not rewrite history to remove old lines.
 
 **Product scope**
 - Keep the puzzle deterministic for every player: fixed online Daily target,
@@ -553,6 +561,23 @@ translation [README.zh-CN.md](README.zh-CN.md).
 
 - Only start a release when the user explicitly asks for one. Ordinary dev
   commits must not write a changelog.
+- A `dev` -> `main` PR with no program change is merged without a release: keep
+  the version, write no changelog, and do not title it `Release ...`.
+  `scripts/check-release.mjs` decides from the files changed since `main`. Only
+  these are not program files:
+  - `*.md` in the repository root (README, AGENTS, NOTICE, CHANGELOG),
+  - `docs/` and `.github/`,
+  - `LICENSE`,
+  - `scripts/check-release.mjs` itself.
+- Everything else is a program change and needs a newer version and a changelog
+  section, including `js/`, `server/`, all other `scripts/`, `vendor/` (its
+  Markdown too), `tests/`, `styles/`, `assets/`, `data/`, `index.html`, package
+  files, `Dockerfile`, `docker/`, compose and env examples, `.githooks/`, Git and
+  Docker ignore files and `.gitlab-ci.yml`. One such file in a PR is enough, and
+  so is moving or deleting one. Extend the list only when the owner asks.
+- After a merge without a new version, `pages` deploys, `release` skips the
+  existing Release and `image` pushes nothing. If the version has no Release yet
+  (a failed publish), `image` pushes again and `release` creates it.
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
 - At release, add the CHANGELOG section (and the final version) on `dev`, open a
@@ -664,11 +689,20 @@ refreshes, then the final `build`.
   `node scripts/bump-version.mjs` by hand, then `git commit --no-verify`.
 - `dev` is the working branch, `main` the release branch (only changed by
   squash-merged PRs). The hook runs only on local commits, so the merge never
-  bumps again. After the PR merges, reset dev (it must hold no unmerged work):
+  bumps again.
+- After a `dev` -> `main` PR merges, `.github/workflows/reset-dev.yml` resets
+  `github/dev` to the merge commit with a lease. Then sync the local branch,
+  which must hold no unpushed work:
+  `git fetch github && git switch dev && git reset --hard github/dev`.
+- The workflow leaves `dev` alone, and comments on the PR, when `dev` is no
+  longer at the merged PR head (something was pushed since), the branch is gone,
+  or GitHub rejects the push. It does nothing for PRs closed without merging or
+  from another branch. In those cases keep the unmerged commits, then reset by
+  hand (it must hold no unmerged work):
   `git fetch github && git switch dev && git reset --hard github/main && git push --force-with-lease github dev`.
 - Authority: the owner has delegated local tests, local git steps and plain
-  `git push github dev` (no force except the post-release reset above, which
-  needs a go-ahead). Never push `main`. Opening or merging the PR into `main`,
+  `git push github dev` (no force by hand except the manual post-release reset
+  above, which needs a go-ahead). Never push `main`. Opening or merging the PR into `main`,
   releasing, and changing GitHub settings stay with the owner and happen only
   when the owner says so.
 
@@ -803,12 +837,18 @@ test reads `dist/`.
 - Home: https://github.com/steven-cmy/fitdle. CI is
   `.github/workflows/ci.yml` with jobs `sde-check`, `build`, `image`, `release`,
   `pages`. Pull requests into `main` run `sde-check`, `build` (all tests) and
-  `release-check` (`scripts/check-release.mjs`: version newer than main, non-empty
-  CHANGELOG section) only. `image`, `release` and `pages` run only after a push to
+  `release-check` (`scripts/check-release.mjs`: for program changes, version newer
+  than main and non-empty CHANGELOG section; see *Release notes*) only. `image`, `release` and `pages` run only after a push to
   `main` (or a manual run on `main`); pushes to `dev` trigger nothing.
+  `.github/workflows/reset-dev.yml` runs when a PR into `main` closes and resets
+  `dev` after a merged `dev` PR (see *Version bump*).
 - `image` builds the all-in-one image with `docker buildx` and pushes it to
   `ghcr.io/steven-cmy/fitdle`. Tags: version, `v`-version, `latest`, short SHA;
-  `buildcache` holds the layer cache.
+  `buildcache` holds the layer cache. On a push to `main` it pushes only when
+  the GitHub Release `v<version>` does not exist, so published tags are not
+  overwritten (it fails if that cannot be checked). A manual run on `main` always
+  pushes, for example to rebuild with a new SDE, and overwrites the version tags
+  and `latest`.
 - `release` creates GitHub Release `v<version>` from the matching
   `CHANGELOG.md` section when that release does not exist yet; with no section
   it is skipped with a warning.
