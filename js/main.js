@@ -4441,13 +4441,6 @@ function renderManual() {
             </div>
           </div>
           <div class="manual-section">
-            <h3>${icon('radar')} ${esc(t('mode.multiplayer'))}</h3>
-            <p>${esc(t('help.multiplayerBody'))}</p>
-            ${multiplayerManualBlocks()}
-          </div>
-        </div>
-        <div class="manual-column">
-          <div class="manual-section">
             <h3>${icon('layers')} ${esc(t('help.gameplayTitle'))}</h3>
             <div class="manual-mode-block">
               <h4>${esc(t('help.generalTitle'))}</h4>
@@ -4468,6 +4461,13 @@ function renderManual() {
               <p class="manual-mode-hint">${esc(t('mode.timedHint'))}</p>
               <ul class="manual-mode-list">${t('mode.helpTimed').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
             </div>
+          </div>
+        </div>
+        <div class="manual-column">
+          <div class="manual-section">
+            <h3>${icon('radar')} ${esc(t('mode.multiplayer'))}</h3>
+            <p>${esc(t('help.multiplayerBody'))}</p>
+            ${multiplayerManualBlocks()}
           </div>
         </div>
       </div>
