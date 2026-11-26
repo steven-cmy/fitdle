@@ -101,7 +101,7 @@ export default {
   'end.shareLoss': 'FITDLE {date} — claim escalated X/6',
 
   'help.title': 'ASSESSOR HANDBOOK',
-  'help.intro': 'FITDLE is the Pend Insurance claims-assessment terminal. A loss report arrives with a salvage manifest; your task is to identify the hull and decide whether the claim agrees with the wreck.',
+  'help.intro': 'FITDLE is the Pend Insurance claims-assessment terminal. A loss report arrives with a salvage manifest; your task is to read the evidence and confirm which hull was lost.',
   'help.sourceBody': 'Ship data: EVE Static Data Export. Loss, fitting and ISK records: zKillboard. Pend Insurance is an EVE Online NPC corporation. FITDLE is an unofficial fan simulation, not affiliated with Fenris Creations.',
   'help.statsTitle': 'ASSESSOR RECORD',
   'help.statStreak': 'Current clean streak',
@@ -190,8 +190,8 @@ export default {
   'oneShot.title': 'NO FURTHER QUESTIONS',
   'oneShot.body': 'One review pass. Hull, wreck and report agree. The office is not used to this.',
 
-  'mode.helpNormal': 'Standard mode.\nWrong guesses gradually reveal intelligence.\nA correct guess reveals information shared with the target.',
-  'mode.helpAudit': 'Audit mode.\nThe salvage manifest uses a simulated complete fit and recovers deeper equipment evidence.\nRare hulls and fitting-specific details carry the highest evidentiary weight.\nSix review passes; no shared-clue matching.',
+  'mode.helpNormal': 'Standard mode.\nWrong guesses gradually reveal intelligence.\nEvery guess shows which attributes the guessed hull shares with the target.',
+  'mode.helpAudit': 'Fitting Audit mode.\nThe salvage manifest uses a simulated complete fit and recovers deeper equipment evidence.\nRare hulls and fitting-specific details carry the highest evidentiary weight.\nSix review passes; no shared-clue matching.',
 
   'dossier.equipmentSealed': 'Unrecovered modules',
   'dossier.traitsSealed': 'Unrecovered bonuses',
@@ -216,7 +216,7 @@ export default {
 
   'toast.noMatch': 'NO SHARED FIELDS',
 
-  'help.sharedRules': 'One hull. Six attempts.\nClues are declassified as you play.\nGuesses reveal information shared with the target.\nDifferent modes release intel in different ways.\nAn online run counts from your first guess, a timed one from starting the clock. Taking another target or leaving it unfinished for too long is a loss; a reload continues the same run.\nAbbreviations work when they name exactly one hull.',
+  'help.sharedRules': 'Six attempts in Standard and Fitting Audit; unlimited attempts in Timed.\nClues are declassified as you play.\nOnly Standard shows what a guessed hull shares with the target.\nDifferent modes release intel in different ways.\nAn online run counts from your first guess, a timed one from starting the clock. Taking another target or leaving it unfinished for too long is a loss; a reload continues the same run.\nAbbreviations work when they name exactly one hull.',
 
   'dossier.limitedHint': 'Can fit some hulls; a strong but not final clue.',
   'dossier.uniqueHint': 'Fits only one hull type; the strongest equipment clue.',
@@ -280,13 +280,14 @@ export default {
   'timed.giveUpTitle': 'FILE RETURNED',
   'timed.giveUpBody': 'You returned the file before confirming the hull. It was {name}.',
 
-  'mode.freeHint': 'Review a chosen killmail or a random one. Trainee reviews are not scored.',
-  'mode.helpFree': 'Trainee review.\nOpen a shared killboard link or draw a random target.\nTrainee reviews do not affect daily stats or daily progress.\nA shared killmail is never scored, also when signed in.',
+  'mode.freeHint': 'Practice without signing in, or review a chosen killmail. Neither is scored.',
+  'mode.helpFree': 'Trainee review.\nGuests draw random targets in any gameplay; nothing is recorded.\nOpening a shared killboard link reviews that exact killmail.\nA shared killmail is never scored, also when signed in.',
+  'help.onlineBody': 'Signed in, random claims in every gameplay are scored. Each result enters your assessor record and statistics. Winning on consecutive game days, in Daily or online, builds your clean streak.',
 
   'help.modesTitle': 'MODES',
   'help.gameplayTitle': 'GAMEPLAY',
   'help.generalTitle': 'GENERAL',
-  'help.dailyBody': 'One claim per game day, the same for everyone, reset at 11:00 UTC. It follows Standard rules. Sign in with EVE to play; the result enters your assessor record.',
+  'help.dailyBody': 'One claim per game day, the same for everyone, reset at {time} UTC. It follows Standard rules. Sign in with EVE to play; the result enters your assessor record.',
 
   'error.dailyUnavailableTitle': 'Daily claim unavailable',
   'error.dailyUnavailableBody': 'The authoritative time or killmail record could not be verified. Open a trainee review to take another claim.',
@@ -455,17 +456,17 @@ export default {
   'mode.dailyRefresh': 'REFRESH',
 
   'help.multiplayerFlowTitle': 'ROOM FLOW',
-  'help.multiplayerFlow': 'The host creates the room and chooses the gameplay and settings. At least two players are needed. Players join from the room list, preload the target and start together. After each round everyone readies up again; the next round starts when all are ready and uses a new shared target. Room scores accumulate until the host ends the match or resets them. Leaving during a round, or staying disconnected past the reconnect window, loses that round; being kicked by the host does not.',
+  'help.multiplayerFlow': 'The host creates the room and chooses the gameplay and settings. At least two players are needed. Players join from the room list. In Standard, Fitting Audit and Timed, everyone preloads the target and starts together; after each round everyone readies up again and the next round uses a new shared target. Room scores keep adding up across matches; only the host can reset them, in the lobby or between matches. Leaving the room removes your room score. Leaving during a round, or staying disconnected past the reconnect window, loses that round; being kicked by the host does not.',
   'help.multiplayerRaceTitle': 'STANDARD / AUDIT / TIMED',
-  'help.multiplayerRace': 'The rules are the same as solo play (see GAMEPLAY in the manual); only the differences are listed here.\nEveryone gets the same claim, the same evidence order and the same start.\nStandard and Fitting Audit: naming the hull ends your round. Fewer review passes score more; missing all six scores nothing.\nTimed: one countdown for the whole room, its length set by the host. Points follow the order in which players name the hull; anyone without a match when time runs out scores nothing.\nPlayers who finish early can look at the result while the others continue.',
+  'help.multiplayerRace': 'The rules are the same as solo play (see GAMEPLAY in the manual); only the differences are listed here.\nEveryone gets the same claim, the same evidence order and the same start.\nStandard and Fitting Audit: naming the hull ends your round. Fewer review passes score more; missing all six scores nothing.\nTimed: each round has one countdown shared by the whole room, its length set by the host. Points follow the order in which players name the hull; anyone without a match when time runs out scores nothing.\nPlayers who finish early can look at the result while the others continue.',
   'help.multiplayerArbitrationTitle': 'ARBITRATION',
-  'help.multiplayerArbitration': 'No timer. Players take turns as the dealer; once everyone has dealt, one big round is complete. The host sets the number of big rounds.\nThe dealer sees the answer, all evidence, and what share of the total evidence weight each piece carries.\nEach small round the dealer publishes at least one new piece of evidence that carries weight. Equipment and cargo evidence is added automatically in a fixed order; the dealer picks the rest. Once everything is published, players simply keep guessing.\nAfter the dealer publishes, every other player guesses once by entering the full hull name (abbreviations are completed first). The next small round starts when everyone has guessed.\nPlayers: the earlier you name the hull and the less evidence is public, the more you score. You score on the spot and then watch the rest of the stint. Leaving counts as not solved; points already earned stay.\nDealer: at the end of each small round, every player still guessing earns the dealer points in line with the evidence published so far. When the stint ends, the more that has been published, the bigger the dealer\'s extra bonus. The dealer\'s score is scaled to the number of players, so small and large tables are equally fair.\nThe stint ends after six small rounds or when everyone has solved it. The answer is revealed, everyone readies up, and the next dealer takes over.\nScores count only inside this room and never go to your account. If the dealer disconnects, the room waits for the reconnect window; after that the stint is settled and the match ends.\nIn short: the dealer wants to publish a lot yet keep players guessing as long as possible; players want to name the hull earlier with less evidence.',
+  'help.multiplayerArbitration': 'No timer. Players take turns as the dealer; once everyone has dealt, one big round is complete. The host sets the number of big rounds.\nThe dealer sees the answer, all evidence, and what share of the total evidence weight each piece carries.\nEach small round the dealer publishes at least one new piece of evidence that carries weight. Equipment and cargo evidence is added automatically in a fixed order; the dealer picks the rest. Once everything is published, players simply keep guessing.\nAfter the dealer publishes, every other player guesses once by entering the full hull name (abbreviations are completed first). The next small round starts when everyone has guessed.\nPlayers: the earlier you name the hull and the less evidence is public, the more you score. You score on the spot and then watch the rest of the stint. Leaving counts as not solved; points already earned stay.\nDealer: at the end of each small round, every player still guessing earns the dealer points in line with the evidence published so far. When the stint ends, the more that has been published, the bigger the dealer\'s extra bonus. The dealer\'s score is scaled to the number of players, so small and large tables are equally fair.\nThe stint ends after six small rounds or when everyone has solved it. The answer is revealed, everyone readies up, and the next dealer takes over.\nScores count only inside this room and never go to your account. If the dealer disconnects, the room waits for the reconnect window; after that the stint is settled and the match ends.\nPlayers who join during a match watch until the whole match ends and take part from the next one.\nIf the next dealer has left the room, the following player in the dealer order deals instead.\nIn short: the dealer wants to publish a lot yet keep players guessing as long as possible; players want to name the hull earlier with less evidence.',
 
   'room.reconnecting': 'RECONNECTING',
   'room.kick': 'KICK',
   'room.kicked': 'You were removed from the room by the host.',
   'room.arbitration.waiting': 'Waiting for the round to open.',
-  'room.arbitration.dealerPublish': 'Publish at least one clue to open the round.',
+  'room.arbitration.dealerPublish': 'Publish at least one clue that carries weight to open the round.',
 
   'help.dailyWins': 'Daily wins',
 

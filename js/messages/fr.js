@@ -101,7 +101,7 @@ export default {
   'end.shareLoss': 'FITDLE {date} — dossier transmis après X/6 examens',
 
   'help.title': 'MANUEL DE L’EXPERT',
-  'help.intro': 'FITDLE est le terminal d’évaluation des sinistres de Pend Insurance. Un rapport de perte arrive avec un manifeste d’épave ; votre tâche est d’identifier la coque et de vérifier si le dossier concorde avec l’épave.',
+  'help.intro': 'FITDLE est le terminal d’évaluation des sinistres de Pend Insurance. Un rapport de perte arrive avec un manifeste d’épave ; votre tâche est de lire les preuves et de confirmer quelle coque a été perdue.',
   'help.sourceBody': 'Données des vaisseaux : EVE Static Data Export. Pertes, équipement et ISK : zKillboard. Pend Insurance est une corporation PNJ d’EVE Online. FITDLE est une simulation de fans non officielle, non affiliée à Fenris Creations.',
   'help.statsTitle': 'DOSSIER DE L’EXPERT',
   'help.statStreak': 'Série actuelle',
@@ -190,8 +190,8 @@ export default {
   'oneShot.title': 'PAS D’AUTRE QUESTION',
   'oneShot.body': 'Un seul examen. Coque, épave et rapport concordent. Le bureau n’a pas l’habitude.',
 
-  'mode.helpNormal': 'Mode standard.\nLes erreurs révèlent progressivement des informations.\nUne bonne réponse révèle les informations partagées avec la cible.',
-  'mode.helpAudit': 'Mode audit.\nLe manifeste simule l’équipement complet et récupère des preuves plus profondes.\nLes coques rares et les détails d’équipement ont le plus grand poids probatoire.\nSix examens ; pas de correspondance d’indices partagés.',
+  'mode.helpNormal': 'Mode standard.\nLes erreurs révèlent progressivement des informations.\nChaque proposition montre les attributs que la coque proposée partage avec la cible.',
+  'mode.helpAudit': 'Audit d’équipement.\nLe manifeste simule l’équipement complet et récupère des preuves plus profondes.\nLes coques rares et les détails d’équipement ont le plus grand poids probatoire.\nSix examens ; pas de correspondance d’indices partagés.',
 
   'dossier.equipmentSealed': 'Modules non récupérés',
   'dossier.traitsSealed': 'Bonus non récupérés',
@@ -216,7 +216,7 @@ export default {
 
   'toast.noMatch': 'AUCUN CHAMP COMMUN',
 
-  'help.sharedRules': 'Une coque. Six tentatives.\nLes preuves sont récupérées au fil du jeu.\nUne proposition révèle les informations partagées avec la cible.\nChaque mode libère les indices à sa façon.\nUn dossier en ligne compte dès votre première proposition, en mode chronométré dès le lancement du chrono. En prendre un autre ou le laisser trop longtemps inachevé est une défaite ; un rechargement reprend le même dossier.\nLes abréviations valent si elles désignent une seule coque.',
+  'help.sharedRules': 'Six tentatives en Standard et en Audit d’équipement ; illimitées en Chronométré.\nLes preuves sont récupérées au fil du jeu.\nSeul le mode standard montre ce que la coque proposée partage avec la cible.\nChaque mode libère les indices à sa façon.\nUn dossier en ligne compte dès votre première proposition, en mode chronométré dès le lancement du chrono. En prendre un autre ou le laisser trop longtemps inachevé est une défaite ; un rechargement reprend le même dossier.\nLes abréviations valent si elles désignent une seule coque.',
 
   'dossier.limitedHint': 'Compatible avec certaines coques ; un indice fort mais pas définitif.',
   'dossier.uniqueHint': 'Compatible avec un seul type de coque ; l’indice d’équipement le plus fort.',
@@ -280,13 +280,14 @@ export default {
   'timed.giveUpTitle': 'DOSSIER RENVOYÉ',
   'timed.giveUpBody': 'Vous avez renvoyé le dossier avant de confirmer la coque. C’était {name}.',
 
-  'mode.freeHint': 'Évaluez un rapport de victime choisi ou aléatoire. L’entraînement n’est pas noté.',
-  'mode.helpFree': 'Entraînement.\nOuvrez un lien de killboard partagé ou tirez un dossier au hasard.\nL’entraînement n’affecte ni les statistiques ni la progression quotidienne.\nUn rapport partagé n’est jamais noté, même connecté.',
+  'mode.freeHint': 'Entraînez-vous sans connexion ou évaluez un rapport choisi. Aucun des deux n’est noté.',
+  'mode.helpFree': 'Entraînement.\nSans connexion, vous tirez des dossiers au hasard dans tous les modes ; rien n’est enregistré.\nUn lien de killboard partagé ouvre exactement ce rapport.\nUn rapport partagé n’est jamais noté, même connecté.',
+  'help.onlineBody': 'Une fois connecté, les dossiers aléatoires de tous les modes sont notés. Chaque résultat entre dans votre dossier et vos statistiques. Gagner des jours de jeu consécutifs, en quotidien ou en ligne, forme votre série.',
 
   'help.modesTitle': 'MODES',
   'help.gameplayTitle': 'MODES DE JEU',
   'help.generalTitle': 'GÉNÉRAL',
-  'help.dailyBody': 'Un dossier par jour de jeu, le même pour tous, réinitialisé à 11:00 UTC, aux règles standard. Connectez-vous avec EVE pour jouer ; le résultat entre dans votre dossier.',
+  'help.dailyBody': 'Un dossier par jour de jeu, le même pour tous, réinitialisé à {time} UTC, aux règles standard. Connectez-vous avec EVE pour jouer ; le résultat entre dans votre dossier.',
 
   'error.dailyUnavailableTitle': 'Dossier du jour indisponible',
   'error.dailyUnavailableBody': 'L’heure de référence ou le rapport de victime n’a pas pu être vérifié. Ouvrez l’entraînement pour prendre un autre dossier.',
@@ -455,17 +456,17 @@ export default {
   'mode.dailyRefresh': 'ACTUALISER',
 
   'help.multiplayerFlowTitle': 'DÉROULÉ DE SALLE',
-  'help.multiplayerFlow': 'L’hôte crée la salle et choisit le mode et les réglages. Deux joueurs minimum. On rejoint depuis la liste des salles, on précharge la cible, puis on démarre ensemble. Après chaque manche, tout le monde se prépare à nouveau ; la suivante démarre quand tous sont prêts, avec une nouvelle cible partagée. Les points de salle s’accumulent jusqu’à ce que l’hôte termine la partie ou les remette à zéro. Quitter une manche en cours, ou rester déconnecté au-delà du délai de reconnexion, la fait perdre ; être exclu par l’hôte, non.',
+  'help.multiplayerFlow': 'L’hôte crée la salle et choisit le mode et les réglages. Deux joueurs minimum. On rejoint depuis la liste des salles. En Standard, Audit d’équipement et Chronométré, chacun précharge la cible et tous démarrent ensemble ; après chaque manche, tout le monde se prépare à nouveau et la suivante utilise une nouvelle cible partagée. Les points de salle s’accumulent d’une partie à l’autre ; seul l’hôte peut les remettre à zéro, dans le salon ou entre deux parties. Quitter la salle fait perdre ses points de salle. Quitter une manche en cours, ou rester déconnecté au-delà du délai de reconnexion, la fait perdre ; être exclu par l’hôte, non.',
   'help.multiplayerRaceTitle': 'STANDARD / AUDIT / CHRONOMÉTRÉ',
-  'help.multiplayerRace': 'Les règles sont celles du jeu en solo (voir MODES DE JEU dans le manuel) ; seules les différences sont indiquées ici.\nTout le monde reçoit le même dossier, le même ordre des preuves et le même départ.\nStandard et Audit d’équipement : trouver la coque termine votre manche. Moins vous utilisez de passes d’examen, plus vous marquez ; six erreurs ne rapportent rien.\nChronométré : un compte à rebours commun à toute la salle, dont l’hôte fixe la durée. Les points suivent l’ordre dans lequel chacun trouve la coque ; qui n’a pas trouvé à la fin du temps ne marque rien.\nCeux qui finissent tôt peuvent consulter le résultat pendant que les autres continuent.',
+  'help.multiplayerRace': 'Les règles sont celles du jeu en solo (voir MODES DE JEU dans le manuel) ; seules les différences sont indiquées ici.\nTout le monde reçoit le même dossier, le même ordre des preuves et le même départ.\nStandard et Audit d’équipement : trouver la coque termine votre manche. Moins vous utilisez de passes d’examen, plus vous marquez ; six erreurs ne rapportent rien.\nChronométré : à chaque manche, un compte à rebours commun à toute la salle, dont l’hôte fixe la durée. Les points suivent l’ordre dans lequel chacun trouve la coque ; qui n’a pas trouvé à la fin du temps ne marque rien.\nCeux qui finissent tôt peuvent consulter le résultat pendant que les autres continuent.',
   'help.multiplayerArbitrationTitle': 'ARBITRAGE',
-  'help.multiplayerArbitration': 'Pas de chrono. Les joueurs sont donneur à tour de rôle ; quand chacun l’a été, une grande manche est terminée. L’hôte fixe le nombre de grandes manches.\nLe donneur voit la réponse, toutes les preuves et la part du poids total que représente chaque preuve.\nÀ chaque petite manche, le donneur publie au moins une nouvelle preuve qui a du poids. Les preuves d’équipement et de cargaison s’ajoutent automatiquement dans un ordre fixe ; le donneur choisit le reste. Une fois tout publié, on continue simplement à deviner.\nEnsuite, chaque autre joueur devine une fois en saisissant le nom complet de la coque (les abréviations sont complétées avant). La petite manche suivante commence quand tout le monde a deviné.\nJoueurs : plus vous trouvez la coque tôt et moins il y a de preuves publiques, plus vous marquez. Les points sont acquis sur le moment, puis vous regardez la fin du tour. Partir compte comme non trouvé ; les points déjà gagnés restent.\nDonneur : à la fin de chaque petite manche, chaque joueur qui cherche encore lui rapporte des points selon les preuves publiées jusque-là. À la fin du tour, il reçoit un bonus d’autant plus grand qu’il a publié. Son score est ramené au nombre de joueurs, pour que petites et grandes tables soient aussi justes.\nLe tour se termine après six petites manches ou quand tout le monde a trouvé ; la réponse est révélée et, quand tous sont prêts, le donneur suivant prend la main.\nLes points ne valent que dans cette salle et ne vont pas sur votre compte. Si le donneur se déconnecte, la salle attend le délai de reconnexion ; ensuite le tour est réglé et la partie se termine.\nEn bref : le donneur veut publier beaucoup tout en faisant tenir les joueurs le plus longtemps possible ; les joueurs veulent trouver plus tôt avec moins de preuves.',
+  'help.multiplayerArbitration': 'Pas de chrono. Les joueurs sont donneur à tour de rôle ; quand chacun l’a été, une grande manche est terminée. L’hôte fixe le nombre de grandes manches.\nLe donneur voit la réponse, toutes les preuves et la part du poids total que représente chaque preuve.\nÀ chaque petite manche, le donneur publie au moins une nouvelle preuve qui a du poids. Les preuves d’équipement et de cargaison s’ajoutent automatiquement dans un ordre fixe ; le donneur choisit le reste. Une fois tout publié, on continue simplement à deviner.\nEnsuite, chaque autre joueur devine une fois en saisissant le nom complet de la coque (les abréviations sont complétées avant). La petite manche suivante commence quand tout le monde a deviné.\nJoueurs : plus vous trouvez la coque tôt et moins il y a de preuves publiques, plus vous marquez. Les points sont acquis sur le moment, puis vous regardez la fin du tour. Partir compte comme non trouvé ; les points déjà gagnés restent.\nDonneur : à la fin de chaque petite manche, chaque joueur qui cherche encore lui rapporte des points selon les preuves publiées jusque-là. À la fin du tour, il reçoit un bonus d’autant plus grand qu’il a publié. Son score est ramené au nombre de joueurs, pour que petites et grandes tables soient aussi justes.\nLe tour se termine après six petites manches ou quand tout le monde a trouvé ; la réponse est révélée et, quand tous sont prêts, le donneur suivant prend la main.\nLes points ne valent que dans cette salle et ne vont pas sur votre compte. Si le donneur se déconnecte, la salle attend le délai de reconnexion ; ensuite le tour est réglé et la partie se termine.\nQui rejoint pendant une partie regarde jusqu’à la fin de la partie entière et joue à partir de la suivante.\nSi le prochain donneur a quitté la salle, le joueur suivant dans l’ordre des donneurs donne à sa place.\nEn bref : le donneur veut publier beaucoup tout en faisant tenir les joueurs le plus longtemps possible ; les joueurs veulent trouver plus tôt avec moins de preuves.',
 
   'room.reconnecting': 'RECONNEXION',
   'room.kick': 'EXCLURE',
   'room.kicked': 'L’hôte vous a retiré de la salle.',
   'room.arbitration.waiting': 'En attente de l’ouverture de la manche.',
-  'room.arbitration.dealerPublish': 'Publiez au moins un indice pour ouvrir la manche.',
+  'room.arbitration.dealerPublish': 'Publiez au moins un indice qui a du poids pour ouvrir la manche.',
 
   'help.dailyWins': 'Dossiers du jour approuvés',
 

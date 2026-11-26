@@ -16,6 +16,7 @@ process.env.SESSION_SECRET = 'test-secret';
 process.env.FITDLE_DEV_AUTH = '1';
 process.env.PUBLIC_ORIGIN = 'http://127.0.0.1:8790';
 process.env.ROOM_MAX_PLAYERS = '3';
+process.env.FITDLE_GAME_DAY_START_UTC = '11:00';
 process.env.ROOM_ARBITRATION_BIG_ROUNDS = '2';
 process.env.ROOM_ARBITRATION_MAX_BIG_ROUNDS = '4';
 process.env.ROOM_TIMED_DURATION_MINUTES = '15';
@@ -75,6 +76,21 @@ test('the API contact stays on the server unless it is published', async () => {
   config.publicContact = 'ops@example.test';
   assert.equal((await meta()).contact, 'ops@example.test');
   config.publicContact = '';
+});
+
+test('the game day start is a runtime setting published in meta', async () => {
+  assert.equal(config.gameDayStartMinutes, 660);
+  assert.equal(config.warnings.some((warning) => warning.includes('FITDLE_GAME_DAY_START_UTC')), false);
+  const read = async (url) => JSON.parse((await app.inject({ method: 'GET', url })).body);
+  assert.equal((await read('/api/v1/meta')).gameDayStartMinutes, 660);
+  config.gameDayStartMinutes = 630;
+  try {
+    const meta = await read('/api/v1/meta');
+    assert.equal(meta.gameDayStartMinutes, 630);
+    assert.match(meta.nextReset, /T10:30:00/);
+  } finally {
+    config.gameDayStartMinutes = 660;
+  }
 });
 
 test('meta and health are available without a session', async () => {

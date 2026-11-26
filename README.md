@@ -11,12 +11,12 @@ The interface is available in English, German, Spanish, French, Japanese, Korean
 ## How to play
 
 - **Standard**: each miss reveals more fitting and cargo. Stats your guess shares with the answer are shown right away.
-- **Fitting Audit**: stats are calculated from the actual fit with all skills at V (using [dogma-engine](https://github.com/EVEShipFit/dogma-engine)). Harder.
+- **Fitting Audit**: stats are calculated from the actual fit with all skills at V (using [dogma-engine](https://github.com/EVEShipFit/dogma-engine)). Your guesses don't show shared stats, and rarer hulls come up more often. Harder.
 - **Timed**: clues come out on a clock, no matter how many guesses you make.
 
-Log in with EVE SSO to play the daily puzzle (the same for everyone) and keep a record and streak. Without logging in you get practice mode: play as much as you like, nothing is scored.
+Log in with EVE SSO to play the daily puzzle (the same for everyone). Random targets you play while logged in are recorded too, in your record, stats and streak. Without logging in you play as a trainee: as much as you like, nothing is scored. A killmail opened from a shared killboard link is never scored.
 
-Multiplayer rooms support all three modes, plus Arbitration, where players take turns as the dealer.
+Multiplayer rooms support all three modes, plus Arbitration Review, where players take turns as the dealer.
 
 ## Self-hosting
 
@@ -29,17 +29,18 @@ docker run -d --name fitdle --restart unless-stopped \
   ghcr.io/steven-cmy/fitdle:latest
 ```
 
-Or use [compose.example.yml](compose.example.yml). Image tags are `latest`, the version (e.g. `1.0.55`), `v` plus the version, and the commit SHA; replace `latest` to pin a version.
+Or use [compose.example.yml](compose.example.yml). Image tags are `latest`, the version number (as in `package.json`), `v` plus the version, and the commit SHA; replace `latest` to pin a version.
 
 > Images used to be published at `registry.gitlab.com/cmy/fitdle`. That address is no longer updated; switch the image to the one above and keep your data volume as is.
 
 A few notes:
 
 - `SESSION_SECRET` can be any long random string, e.g. `openssl rand -base64 32`.
-- It runs without SSO too, but then only practice mode is available.
+- It runs without SSO too, but then only trainee mode is available.
 - The database lives at `/data/fitdle.sqlite`, so mount a volume there.
 - On Unraid, set `PUID=99` and `PGID=100`.
 - After changing `PUBLIC_ORIGIN`, recreate the container; a restart is not enough.
+- The game day (the Daily target, streaks and the reset countdown) starts at 11:00 UTC by default. Set `FITDLE_GAME_DAY_START_UTC` to change it, either as `HH:MM` in UTC (e.g. `12:30`) or as minutes after 00:00 UTC (e.g. `750`), then recreate the container. An invalid value is logged at startup and 11:00 is used. Changing it moves the boundary of the current game day, so the Daily target may change once.
 - All other options are documented in [.env.example](.env.example).
 
 Put a reverse proxy in front for HTTPS. Rooms use WebSockets, so `/api/v1/rooms/<code>/ws` needs the upgrade headers:
@@ -62,7 +63,7 @@ location / {
 }
 ```
 
-Health check: `GET /api/v1/health`. If you only see practice mode, check `/api/v1/meta` and the container logs.
+Health check: `GET /api/v1/health`. If you only see trainee mode, check `/api/v1/meta` and the container logs.
 
 ## Development
 
@@ -82,13 +83,13 @@ npm run test:server
 npm run server:start      # http://127.0.0.1:8787
 ```
 
-For the front end alone, run `npm start` and open http://127.0.0.1:4173 (practice mode).
+For the front end alone, run `npm start` and open http://127.0.0.1:4173 (trainee mode).
 
 UI strings for all 8 languages are in `js/messages/` and must keep the same keys. Use the official EVE translations for game terms (see [docs/i18n-glossary.md](docs/i18n-glossary.md)). More detailed conventions are in [AGENTS.md](AGENTS.md).
 
 ## CI
 
-GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests into `main` only build and test, and require a new version and CHANGELOG section when the program changes, not for documentation or `.github/` changes (day-to-day pushes to `dev` run nothing). Merged changes on `main` deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static practice build). A version without a Release also gets its image published to GHCR and a Release when CHANGELOG has a matching section; an already released version is not pushed again unless the workflow is run manually. After a `dev` pull request is merged, [reset-dev.yml](.github/workflows/reset-dev.yml) resets `dev` to the merged `main`; if `dev` has moved since, it leaves the branch alone and comments on the pull request.
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests into `main` only build and test, and require a new version and CHANGELOG section when the program changes, not for documentation or `.github/` changes (day-to-day pushes to `dev` run nothing). Merged changes on `main` deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static trainee build). A version without a Release also gets its image published to GHCR and a Release when CHANGELOG has a matching section; an already released version is not pushed again unless the workflow is run manually. After a `dev` pull request is merged, [reset-dev.yml](.github/workflows/reset-dev.yml) resets `dev` to the merged `main`; if `dev` has moved since, it leaves the branch alone and comments on the pull request.
 
 ## License
 

@@ -52,13 +52,14 @@ import {
 import { buildClues, auditSimulationItems, propulsionPriority, clueMatchesShip, EQUIPMENT_SLOT_ORDER, getEquipment, humanBucketKey, moduleFitSize, selectAuditFallbacks, STANDARD_DEFENSE_RANGE } from '../js/clues.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed, DEFAULT_REVEAL_CONFIG, timedRevealTotal } from '../js/reveal.js';
 import { MESSAGES, resolveLocale } from '../js/i18n.js';
+import { formatGameDayStart, parseGameDayStartMinutes, resolveGameDayStart } from '../js/game.js';
 import { brandLogoHtml, fitdleMark, FITDLE_SYSTEM_LONG, PEND_INSURANCE_ID, SCC_ID } from '../js/brand.js';
 import { avatarHtml, DEFAULT_PORTRAIT_ID, portraitUrl } from '../js/avatar.js';
 import { TRIGLAVIAN_CONVOCATION_ID, TRIGLAVIAN_FACTION_ID, triglavianBrand, triglavianDepartments } from '../js/triglavian-copy.js';
 import { LEGAL_NOTICES } from '../js/legal-copy.js';
 import { claimGroups, claimSeed, pickClaimDebrief, pickClaimGroup, pickClaimMemo } from '../js/claim.js';
 import { DEFAULT_REVEAL, DEFAULT_KB_RECENCY_HALF_LIFE_DAYS, DEFAULT_KB_MAX_SCAN_PAGES, loadBuildConfig, parseDateOnly, parseGameDayStart } from '../scripts/build-env.mjs';
-import { normalizePublicOrigin, renderRuntimeOrigin } from '../scripts/render-runtime-origin.mjs';
+import { normalizePublicOrigin, renderRuntimeGameDay, renderRuntimeOrigin } from '../scripts/render-runtime-origin.mjs';
 import { versionHtml, versionImports } from '../scripts/version-assets.mjs';
 import { buildUserAgent, parseContact, publicSite } from '../js/user-agent.js';
 
@@ -232,9 +233,26 @@ test('daily selection uses time sampling and capped ship-page lookups', () => {
   assert.equal(main.includes('step < 12'), false);
 });
 
+test('game day start accepts HH:MM or minutes and warns about anything else', () => {
+  assert.equal(parseGameDayStartMinutes('11:00'), 660);
+  assert.equal(parseGameDayStartMinutes(' 0:30 '), 30);
+  assert.equal(parseGameDayStartMinutes('660'), 660);
+  assert.equal(parseGameDayStartMinutes('0'), 0);
+  for (const bad of ['24:00', '11:60', '1440', '-5', '11.5', 'noon', '']) assert.equal(parseGameDayStartMinutes(bad), null, bad);
+  assert.equal(formatGameDayStart(545), '09:05');
+  assert.deepEqual(resolveGameDayStart(undefined, 660), { minutes: 660, warning: null });
+  assert.deepEqual(resolveGameDayStart('12:30', 660), { minutes: 750, warning: null });
+  const bad = resolveGameDayStart('25:00', 660);
+  assert.equal(bad.minutes, 660);
+  assert.match(bad.warning, /FITDLE_GAME_DAY_START_UTC="25:00".*using 11:00 UTC/);
+});
+
 test('build configuration validates the game day and KB lower bound', () => {
   assert.deepEqual(parseGameDayStart('10:30'), { text: '10:30', minutes: 630 });
   assert.throws(() => parseGameDayStart('24:00'), /HH:MM/);
+  assert.deepEqual(parseGameDayStart('660'), { text: '11:00', minutes: 660 });
+  assert.deepEqual(parseGameDayStart('9:05'), { text: '09:05', minutes: 545 });
+  assert.throws(() => parseGameDayStart('1440'), /minutes 0-1439/);
   assert.equal(parseDateOnly('2012-05-22'), '2012-05-22');
   assert.throws(() => parseDateOnly('2026-02-29'), /valid date/);
   assert.equal(manifest.gameDayStartUtc, '11:00');
@@ -960,6 +978,37 @@ test('runtime origin rendering validates and replaces static placeholders', asyn
   }
 });
 
+test('runtime game day start is written into the shipped manifest', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fitdle-gameday-'));
+  try {
+    const file = path.join(root, 'data', 'manifest.json');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const built = { dataVersion: 'x', gameDayStartMinutes: 660, gameDayStartUtc: '11:00', downtimeUtcHour: 11, pad: 'p'.repeat(2048) };
+    fs.writeFileSync(file, JSON.stringify(built));
+    fs.writeFileSync(`${file}.br`, 'stale');
+    fs.writeFileSync(`${file}.gz`, 'stale');
+    assert.deepEqual(renderRuntimeGameDay({ root, value: undefined }), { minutes: 660, changed: false, warning: null });
+    assert.equal(fs.readFileSync(`${file}.br`, 'utf8'), 'stale');
+    const result = renderRuntimeGameDay({ root, value: '12:30' });
+    assert.deepEqual(result, { minutes: 750, changed: true, warning: null });
+    const written = fs.readFileSync(file);
+    const manifest = JSON.parse(written);
+    assert.equal(manifest.gameDayStartMinutes, 750);
+    assert.equal(manifest.gameDayStartUtc, '12:30');
+    assert.equal(manifest.downtimeUtcHour, 12);
+    assert.equal(manifest.dataVersion, 'x');
+    assert.ok(zlib.brotliDecompressSync(fs.readFileSync(`${file}.br`)).equals(written));
+    assert.ok(zlib.gunzipSync(fs.readFileSync(`${file}.gz`)).equals(written));
+    const bad = renderRuntimeGameDay({ root, value: 'noon', fallback: 660 });
+    assert.equal(bad.minutes, 660);
+    assert.equal(bad.changed, true);
+    assert.match(bad.warning, /"noon".*using 11:00 UTC/);
+    assert.equal(JSON.parse(fs.readFileSync(file)).gameDayStartUtc, '11:00');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('Docker image, Compose and GHCR image publishing are wired', () => {
   const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
   const compose = fs.readFileSync(path.join(ROOT, 'compose.example.yml'), 'utf8');
@@ -1567,6 +1616,13 @@ test('field manual stays abstract and does not expose reveal mechanics', () => {
   assert.doesNotMatch(MESSAGES.en['mode.helpTimed'], /30 seconds|batch/i);
   assert.match(MESSAGES.en['help.sharedRules'], /Six attempts/);
   assert.doesNotMatch(MESSAGES.en['help.sharedRules'], /candidate hulls|weight|queue/i);
+  assert.match(MESSAGES.en['help.sharedRules'], /unlimited attempts in Timed/);
+  assert.match(MESSAGES.en['help.sharedRules'], /Only Standard shows/);
+  for (const lang of Object.keys(MESSAGES)) {
+    assert.ok(MESSAGES[lang]['help.onlineBody']?.length > 20, `${lang} manual misses online runs`);
+  }
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /t\('help\.onlineBody'\)/);
 });
 
 test('catalog is SDE-only, complete, and references official data lazily', () => {
