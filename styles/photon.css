@@ -985,12 +985,6 @@ a:focus-visible {
   white-space: nowrap;
 }
 
-.room-rules p {
-  margin: 6px 0;
-  color: var(--photon-muted);
-  font-size: .82rem;
-  line-height: 1.45;
-}
 
 .room-local {
   min-width: 0;
