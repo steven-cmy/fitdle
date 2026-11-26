@@ -960,10 +960,10 @@ test('runtime origin rendering validates and replaces static placeholders', asyn
   }
 });
 
-test('Docker image, Compose and GitLab image publishing are wired', () => {
+test('Docker image, Compose and GHCR image publishing are wired', () => {
   const dockerfile = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
   const compose = fs.readFileSync(path.join(ROOT, 'compose.example.yml'), 'utf8');
-  const ci = fs.readFileSync(path.join(ROOT, '.gitlab-ci.yml'), 'utf8');
+  const ci = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
   const envExample = fs.readFileSync(path.join(ROOT, '.env.example'), 'utf8');
   assert.match(dockerfile, /ARG PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__/);
@@ -977,12 +977,11 @@ test('Docker image, Compose and GitLab image publishing are wired', () => {
   assert.match(envExample, /^PGID=1000$/m);
   assert.match(compose, /127\.0\.0\.1:8787:8787/);
   assert.match(compose, /fitdle-data:\/data/);
-  assert.match(ci, /image:publish:/);
-  assert.match(ci, /kaniko/);
-  assert.match(ci, /CI_REGISTRY_IMAGE/);
+  assert.match(ci, /^  image:$/m);
+  assert.match(ci, /IMAGE="ghcr\.io\//);
   assert.match(ci, /--build-arg "PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__"/);
-  assert.match(readme, /registry\.gitlab\.com\/cmy\/fitdle/);
-  assert.match(readme, /linuxserver\/swag|proxy-confs/);
+  assert.match(compose, /ghcr\.io\/steven-cmy\/fitdle/);
+  assert.match(readme, /ghcr\.io\/steven-cmy\/fitdle/);
 });
 
 test('SDE API release and deployment checks are wired', () => {
@@ -1523,7 +1522,7 @@ test('API caching and builder cache policies are wired', () => {
   assert.match(main, /FREE_PAGE_CACHE_MS/);
   assert.match(main, /user_agent/);
   assert.match(main, /data\/module-fallback\.json/);
-  const ci = fs.readFileSync(path.join(ROOT, '.gitlab-ci.yml'), 'utf8');
+  const ci = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
   assert.match(ci, /normalizedVersion/);
   assert.match(ci, /!= "3"/);
   assert.match(ci, /fitdle-build-v6/);

@@ -6,7 +6,7 @@ const CACHE_FILE = path.join(ROOT, '.cache', 'zkill-version.json');
 const SOURCE = 'https://zkillboard.com/api/version/';
 const CACHE_MS = 60 * 60 * 1000;
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
+const USER_AGENT = `FITDLE/${pkg.version} (+https://github.com/steven-cmy/fitdle)`;
 
 function readCache() {
   try {

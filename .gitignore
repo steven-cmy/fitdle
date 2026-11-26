@@ -11,3 +11,7 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 zkb-api.html
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+compose.yml

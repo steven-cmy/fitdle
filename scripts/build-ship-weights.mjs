@@ -16,7 +16,7 @@ import { mergeWeights, planWeights } from './ship-weights.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
+const USER_AGENT = `FITDLE/${pkg.version} (+https://github.com/steven-cmy/fitdle)`;
 const CACHE = path.join(ROOT, '.cache', 'ship-weights.json');
 const CATALOG = path.join(ROOT, 'data', 'catalog.json');
 const BASE = 'https://zkillboard.com/api/stats/shipTypeID';

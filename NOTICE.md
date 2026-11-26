@@ -64,23 +64,31 @@ short time; the FITDLE server does not persist those API responses.
 
 ## Fonts
 
-The optional EVE font faces (Eve Sans Neue and classic EveSans) are bundled
-locally in `assets/fonts/`, extracted from the community font pack at
-<https://make.itworks.cc/assets/fonts/eve_fonts_all.css> for local,
-non-commercial fan use. They are Fenris Creations assets and are not covered by the MIT
-license. When a glyph is missing, the UI falls back to system sans/黑体 stacks
-(PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans CJK, Source Han Sans,
-WenQuanYi Micro Hei, Malgun Gothic, Yu Gothic, Segoe UI).
+`assets/fonts/` contains two kinds of fonts:
 
-The hidden Triglavian font easter egg uses the **Triglavian** WOFF2 face from
-the user-provided `eve-fonts.css` (base64 `@font-face`), converted from EVE
-Online client assets. It is bundled locally for the same non-commercial fan
-use and is not covered by the MIT license. Unsupported glyphs fall back to the
-normal system stack.
+- **Open-licensed fonts** (Afacad Flux, Cinzel, Iceberg, Space Mono), used for
+  the faction typefaces. They are under the SIL Open Font License; the license
+  texts are the `OFL-*.txt` files next to them.
+- **EVE Online fonts**, which belong to Fenris Creations (formerly CCP hf. / CCP
+  Games) and are **not** covered by the MIT license or any license from this
+  project:
+  - Eve Sans Neue (`eve_sans_neue*.woff2`) and classic EveSans (`EveSans.ttf`),
+    taken from the community font pack at
+    <https://make.itworks.cc/assets/fonts/eve_fonts_all.css>.
+  - Triglavian (`Triglavian.woff2`), used only by a hidden easter egg, converted
+    from EVE Online client assets.
+
+The EVE fonts are included only for this non-commercial fan project. They are
+optional: without them the UI falls back to system fonts (PingFang SC, Hiragino
+Sans GB, Microsoft YaHei, Noto Sans CJK, Source Han Sans, WenQuanYi Micro Hei,
+Malgun Gothic, Yu Gothic, Segoe UI). **If Fenris Creations or another rights
+holder asks, they will be removed from this repository and its images right
+away.** Do not reuse them in other projects.
 
 ## Code
 
 The Fitdle source code is MIT licensed. See [LICENSE](LICENSE).
 
 If you are a rights holder and believe an asset should not be included, please
-open an issue or contact the maintainer so it can be removed.
+open an issue at <https://github.com/steven-cmy/fitdle/issues> or contact the
+maintainer, and it will be removed.

@@ -1,43 +1,55 @@
 # FITDLE — Agent & Maintainer Notes
 
-This file is the engineering/AI handoff. Human-facing introduction and hosting
-instructions live in [README.md](README.md).
+Engineering handoff for people and coding agents. The public introduction and
+hosting guide is [README.md](README.md).
+
+**Quick orientation**
+- Puzzle: guess the victim hull of a real zKillboard killmail from staged clues.
+  Gameplays: Standard, Fitting Audit, Timed; Arbitration in rooms only.
+- Front end: static ES modules (`index.html`, `js/`, `styles/`), no bundler.
+  Back end: `server/` (Node 24, Fastify, WebSocket, `node:sqlite`).
+- Build: `prepare:sde` → `build:catalog` → `build:killpool` → `build:weights` →
+  `build`; tests: `npm test` and `npm run test:server` (see *Commands*).
+- Rules below are grouped: hard rules first, then architecture, game rules
+  (target, KB, reveal), runtime/API, UI copy, and CI/deployment.
 
 ## Non-negotiable rules
 
-- Never reveal today's target ship, killmail ID, victim name, or answer render in
-  tests, logs, commits, screenshots, or chat. Use non-target/public data in screenshots.
-- Default to a **patch** version bump whenever code changes are made, unless the
-  user explicitly says not to patch. Never bump `minor` or `major` automatically.
-- Ordinary code changes are committed locally with the patch bump but are **not
-  pushed**. Only push after an explicit release request.
-- Write `CHANGELOG.md` entries only when the user explicitly asks for a release;
-  the release step also squashes the pending local commits into one release
-  version/commit.
-- Never create a PR or merge automatically. Tag, release, publish Pages, or publish
-  container images only when the user explicitly asks.
-- Do not commit `.cache/`, `dist/`, browser state, or the GitLab token.
-- Keep the puzzle deterministic for every player: fixed online daily target, stable hull /
-  page hashes, and completed-month record selection.
-- The lightweight Node service is the only backend: EVE SSO, online daily/random
-  targets, statistics and authoritative rooms. Do not add accounts beyond EVE SSO,
-  a second runtime database, or public leaderboards without an explicit request.
-- Do not add third-party signaling or relay services. zKill/ESI/EVE images and
-  the locally vendored dogma engine are data/gameplay dependencies, not runtime
-  services.
+**Secrecy**
+- Never reveal today's target ship, killmail ID, victim name or answer render in
+  tests, logs, commits, screenshots or chat. Use non-target/public data in screenshots.
+- Never commit `.env`, `.cache/`, `dist/`, `data/`, browser profiles, databases or
+  any token. `API_CONTACT` and SSO secrets are runtime-only.
+
+**Versioning and release**
+- Every code change gets a **patch** bump (the pre-commit hook does it). Never
+  bump `minor`/`major` unless the owner asks. Docs/CI-only commits may skip it
+  (`VERSION_BUMP=none` or `--no-verify`).
+- Ordinary commits stay local. Push, open/merge MRs or PRs, tag, release, publish
+  Pages or images only on an explicit request.
+- `CHANGELOG.md` is written (in Chinese) only at a release, which squashes the
+  pending local commits into one release commit. See *Release notes*.
+
+**Product scope**
+- Keep the puzzle deterministic for every player: fixed online Daily target,
+  stable hull/page hashes, completed-month record selection.
+- The Node service is the only backend (EVE SSO, targets, stats, rooms). No other
+  accounts, second runtime database, public leaderboard, or third-party
+  signaling/relay service without an explicit request. zKill/ESI/EVE images and
+  the vendored dogma engine are data dependencies, not services.
 - Prefer official SDE/zKill/ESI/image sources. Do not cache images in the repo.
-- Do not hard-code deployment domains in authored JS/CSS/HTML. Use `manifest.links`
-  or runtime location; share OG images use `PUBLIC_ORIGIN` at build time and
-  `CI_PAGES_URL` as the CI fallback.
-- UI follows the EVE Photon UI direction: dark compact panels, fine borders, clear
-  hierarchy. Do not add effects or decorative design that was not explicitly
-  requested. Remove decorative effects rather than adding new ones.
-- Interface strings live in `js/messages/<locale>.js`, one flat file per language with
-  identical keys. Terms and their sources are listed in `docs/i18n-glossary.md`.
-- Localization priority: official EVE localization/announcements, then community
-  wording, then own translation. Never translate EVE Online terms/names/official
-  strings; keep the official term or English source. Record ambiguous terms in
-  `docs/i18n-glossary.md` for later review.
+- Do not hard-code deployment domains in authored JS/CSS/HTML. Use
+  `manifest.links` or the runtime location; share OG images use `PUBLIC_ORIGIN`
+  (CI fallback `PAGES_URL`, then GitLab's `CI_PAGES_URL`).
+
+**UI and copy**
+- Follow EVE Photon UI: dark compact panels, fine borders, clear hierarchy. Do not
+  add effects or decoration that were not requested; remove rather than add.
+- Interface strings live in `js/messages/<locale>.js`, one flat file per language
+  with identical keys. Terms and sources are in `docs/i18n-glossary.md`.
+- Localization priority: official EVE localization, then community wording, then
+  own translation. Never translate EVE terms/names/official strings; record
+  ambiguous terms in the glossary.
 
 ## Architecture
 
@@ -129,8 +141,7 @@ instructions live in [README.md](README.md).
   `FC wat do?` in every locale.
 - Missing/failed department data falls back to `claim.fromValue`, no memo, and
   the generic debrief body.
-- Topbar `.brand-sub` is `${brand.parent} // ${brand.scc}`; it no longer includes
-  the `F.I.T.D.L.E.` prefix or the claims-assessment suffix.
+- Topbar `.brand-sub` is exactly `${brand.parent} // ${brand.scc}`.
 
 ### Triglavian font mode
 
@@ -303,8 +314,8 @@ instructions live in [README.md](README.md).
 
 ## Target selection
 
-- Eligibility: all SDE hulls except those with zero all-time zKill losses (9
-  special/ceremony hulls). Current eligible count is 421.
+- Eligibility: all SDE hulls except those with zero all-time zKill losses
+  (special/ceremony hulls).
 - Standard: mild high-usage preference:
   `1 + 2.2 * log1p(recent)/log1p(max)`.
 - Audit: mild low-usage preference:
@@ -315,8 +326,7 @@ instructions live in [README.md](README.md).
   `dataVersion` is never part of the daily seed.
 - Ship: weighted rendezvous order over the mode pool. Each unique ship keeps its
   best copy score; ships are sorted by score with numeric ship ID as the tie-break.
-  The first item equals the previous single-ship pick, and later items are the
-  deterministic fallback queue. No floats, array order or usage stats are consulted.
+  Later items are the deterministic fallback queue. No floats, array order or usage stats are consulted.
 - Online Standard/Audit/Timed use a server-issued random target per run; practice
   uses a client random/current KB target. Only Daily has a fixed daily KB.
 - The target continues to rotate every game day even if the site is not rebuilt;
@@ -524,12 +534,10 @@ instructions live in [README.md](README.md).
 - Write the changelog in Chinese.
 - Write only player-visible changes and behavior changes. Do not include numeric
   values, balance figures, seed values, hashes, or internal implementation details.
-- Put the changelog in the GitLab Release description and keep the matching
+- Put the changelog in the GitHub Release description and keep the matching
   `CHANGELOG.md` section in Chinese. Do not publish a release with an empty or
   generic description.
-- The v1.0.0 changelog/release description states that the legacy one-shot
-  builder images are deprecated and points users to the all-in-one service image.
-  Do not delete old registry tags automatically.
+- Do not delete old registry tags automatically.
 
 ## Runtime API caching
 
@@ -619,38 +627,16 @@ refreshes, then the final `build`.
 
 ## Version bump
 
-`.githooks/pre-commit` calls `scripts/bump-version.mjs`.
-
-- The hook defaults to a patch. Ordinary code changes are committed locally with
-  a patch bump, so every code change gets a patch version by default.
-- Ordinary patch commits are **never pushed**. Do not push a branch, open an MR,
-  tag, release, deploy Pages, or publish container images without an explicit
-  release request.
-- Use `VERSION_BUMP=none` / `--no-verify` only when the user explicitly says not
-  to patch, or when the commit is docs/CI-only.
-- Automatic/ordinary bumps are **patch only**. Never choose `minor` or `major`
-  on your own.
-- A release is an explicit user instruction. Only then: write the Chinese
-  `CHANGELOG.md` section, choose the requested release version (`minor`/`major`
-  only when explicitly asked), squash the pending local commits into one release
-  version/commit, and push/tag/release/publish only as requested.
-- Do not write `CHANGELOG.md` during ordinary development; it is a release-only
-  artifact.
+- `.githooks/pre-commit` runs `scripts/bump-version.mjs` (enable with
+  `npm run hooks:install`). It defaults to patch; `VERSION_BUMP=minor|major|none`
+  overrides it.
 - The script changes only `package.json`, `server/package.json` and
-  `server/package-lock.json`, which must share one version; do not add a version
-  string to `README.md` and do not make the bump script edit it.
-- In the DSH Windows sandbox, Git shell hooks may be blocked (`sh` signal-pipe
-  error). In that environment run `node scripts/bump-version.mjs` manually, then
-  `git commit --no-verify`. On a normal Git install the hook works automatically.
-
-### Dev branch workflow
-
-- Day-to-day work goes on `dev`; `main` stays the release branch.
-- Code changes get a patch bump and a local commit by default; do not bump
-  minor/major and do not push unless explicitly asked for a release.
-- At an explicit release, write the changelog, squash the pending local commits
-  into one release commit, and then push/release only for that request.
-- Never release or publish from `dev` unless explicitly asked.
+  `server/package-lock.json`, which must share one version. Do not put a version
+  string in `README.md`.
+- Where Git shell hooks cannot run (some Windows sandboxes), run
+  `node scripts/bump-version.mjs` by hand, then `git commit --no-verify`.
+- Day-to-day work may use a `dev` branch; `main` is the release branch. Never
+  release from `dev` unless asked.
 
 ## Runtime URLs and storage
 
@@ -701,7 +687,7 @@ refreshes, then the final `build`.
 - Regenerate with `uv run scripts/generate-share-images.py` (Windows fonts; uv provides
   Pillow). Raise the `?v=` in `build-dist`, `index.html` and the test when they change.
 - `og:image` is score- and locale-specific, absolute using `PUBLIC_ORIGIN` or CI
-  `CI_PAGES_URL`; never commit a local domain.
+  `PAGES_URL`; never commit a local domain.
 - Cargo/type names not in SDE refs are fetched from the SDE record API
   (`<apiBase>/<release>/types/<id>.json`) with the current locale. Never reuse
   `extraTypeNames` across locales. Resolved names are cached in localStorage per
@@ -747,11 +733,9 @@ refreshes, then the final `build`.
   guess behavior only; never expose queue names, budgets, weights, counts,
   thresholds, transfer formulas, or seed details.
 - Mode sections must contain only mode-specific rules.
-- Do not restore the removed sentence about identical UTC target/language in
-  step 04.
 - Legal copy follows the ximicon.space CCP notice pattern, localized legally,
   with Fenris Creations (formerly CCP hf.) and the deployed site URL as the site
-  subject. Never embed the GitLab repository URL in the legal copy.
+  subject. Never embed the repository URL in the legal copy.
 
 ## Footer
 
@@ -779,9 +763,18 @@ test reads `dist/`.
 
 ## CI / deployment
 
-- `.gitlab-ci.yml`: `sde:check`, `build`, `image:publish`, `release`, `pages`.
-- `image:publish` uses Kaniko to build the all-in-one image into GitLab
-  Container Registry. Tags: version, `v`-version, `latest`, short SHA.
+- Home: https://github.com/steven-cmy/fitdle. CI is
+  `.github/workflows/ci.yml` with jobs `sde-check`, `build`, `image`, `release`,
+  `pages`. Pull requests run `sde-check` and `build` (all tests) only.
+- `image` builds the all-in-one image with `docker buildx` and pushes it to
+  `ghcr.io/steven-cmy/fitdle`. Tags: version, `v`-version, `latest`, short SHA;
+  `buildcache` holds the layer cache.
+- `release` creates GitHub Release `v<version>` from the matching
+  `CHANGELOG.md` section when that release does not exist yet; with no section
+  it is skipped with a warning.
+- `.gitlab-ci.yml` is the former GitLab pipeline (Kaniko into
+  `registry.gitlab.com/cmy/fitdle`). It is kept only until the GitHub pipeline is
+  proven, then removed; tests check the GitHub workflow.
 - The published image is origin-neutral: Docker build uses
   `__FITDLE_PUBLIC_ORIGIN__`; the container entrypoint validates runtime
   `PUBLIC_ORIGIN` and renders it into static HTML before starting the service.
@@ -793,12 +786,8 @@ test reads `dist/`.
 - `build-dist` adds one `?v=<version>-<hash>` to all script and stylesheet
   references, because CDNs may cache `.js`/`.css` while HTML stays fresh. The service
   caches those for long only when `v` is the version it serves.
-- The one-shot builder image and its CI jobs were removed in the 1.0.0 cleanup.
-  Do not restore `Dockerfile.oneshot`, `docker/BUILDER_VERSION`,
-  `publish:builder` or the old Kaniko builder pipeline. The application is an
-  online service, not a pure static site.
-- v1.0.0 release notes mark the legacy one-shot builder images as deprecated;
-  do not delete registry tags automatically.
+- Do not restore the removed one-shot builder (`Dockerfile.oneshot`,
+  `publish:builder`). The application is an online service, not a static site.
 - The all-in-one `Dockerfile` builds SDE data and `dist/`, then runs
   `server/src/index.mjs` with `dist/`, `/api` and `/ws`. It needs `PUBLIC_ORIGIN`,
   `EVE_CLIENT_ID`, `EVE_CLIENT_SECRET` and `SESSION_SECRET` at runtime, plus a
@@ -810,30 +799,34 @@ test reads `dist/`.
   which is rendered at container start) and per-language
   `dist/data/catalog/<locale>.json`; the browser falls back to the complete
   `data/catalog.json`. `FITDLE_SKIP_PRECOMPRESS=1` skips compression locally.
-- `sde:check` compares the SDE API latest `release`/`buildNumber` with deployed
+- `sde-check` compares the SDE API latest `release`/`buildNumber` with deployed
   `data/manifest.json`; writes `.cache/sde-check.env`.
 - The build job compares the latest SDE release with its cached `sde-meta.json`
   and skips `prepare:sde` when they match and normalized schema version 3 is
   cached; a schema/SDE change or `FORCE_SDE=1` downloads the SDE again.
-- Build caches `.cache/normalized.json`, `.cache/killpool.json`,
+- Build caches (via `actions/cache`, a new key per run) `.cache/normalized.json`, `.cache/killpool.json`,
   `.cache/sde-meta.json`, `.cache/ship-weights.json`, `.cache/zkill-version.json`
-  and passes them to `image:publish` (`REUSE_BUILD_CACHE=1`), so the image makes
+  and passes them to `image` (`REUSE_BUILD_CACHE=1`), so the image makes
   no data requests and matches Pages. Other image builds fetch everything.
 - If `data/catalog.json` is missing, build first; weights need a catalog.
 - Daily scheduled pipeline is disabled: daily selection no longer depends on a
-  rebuild. Builds remain manual/web/MR driven.
-- `pages` publishes `dist/` to `public/`. Pages is practice/static-only; online
-  login, scoring and rooms require the all-in-one service.
-- Current Pages: https://cmy.gitlab.io/fitdle/ and
-  https://fitdle-717fa9.gitlab.io/.
-- Custom domain `fitdle.itworks.cc` may be a separate old deployment; Cloudflare
-  Insights injected there is not app code.
+  rebuild. Builds run on pushes to `main`, pull requests and manual runs.
+- `pages` deploys `dist/` to GitHub Pages
+  (https://steven-cmy.github.io/fitdle/; repository setting Pages → Source:
+  GitHub Actions). Pages is practice/static-only; online login, scoring and rooms
+  require the all-in-one service.
+- Production: `fitdle.itworks.cc` runs the all-in-one image on the owner's
+  Unraid Docker host; the owner pulls new images manually. Cloudflare Insights
+  injected there is not app code.
+- The repository URL used in User-Agents and the footer is set in
+  `server/src/config.mjs` and `scripts/build-catalog.mjs` (plus the other
+  `scripts/*` User-Agents).
 
 ## Known limitations
 
 - SDE builds require network access to `sde.evetech.net`; a complete cached
   `.cache/sde-source` can build offline. The latest release can change more often
-  than the old zip, so use `check:sde-cache`/CI `sde:check` rather than rebuilding
+  than the old zip, so use `check:sde-cache`/CI `sde-check` rather than rebuilding
   blindly.
 - zKill can rate-limit; a ship-page failure aborts target selection instead of
   silently falling back to a static pool or another ship.
@@ -843,14 +836,10 @@ test reads `dist/`.
   failure keeps the numeric fallback and does not block the puzzle.
 - The online service is single-instance with SQLite. Rooms are authoritative in
   memory with DB snapshots; there is no horizontal scaling or public leaderboard.
-- GitLab Pages publishes only the static/practice build. Online login, scoring and
+- GitHub Pages publishes only the static/practice build. Online login, scoring and
   rooms require the all-in-one Node service.
-- Legacy one-shot builder images are deprecated and no longer published; use the
-  all-in-one Dockerfile/image. The v1.0.0 release notes carry the formal
-  deprecation notice.
 
 ## Local preview
 
-- After every change, verify `http://127.0.0.1:4173/` is serving `dist/`.
-- If it is down, start it with `npm start` as a background process and confirm the
-  HTTP response before finishing.
+- After a UI change, rebuild and check `http://127.0.0.1:4173/` (`npm start`
+  serves `dist/`) before finishing.

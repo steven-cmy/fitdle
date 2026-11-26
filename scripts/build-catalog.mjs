@@ -19,7 +19,7 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const ENV = loadBuildEnv(ROOT);
 const BUILD_CONFIG = loadBuildConfig(ROOT);
 const PACKAGE_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '1.0.0';
-const USER_AGENT = `FITDLE/${PACKAGE_VERSION} (+https://gitlab.com/cmy/fitdle)`;
+const USER_AGENT = `FITDLE/${PACKAGE_VERSION} (+https://github.com/steven-cmy/fitdle)`;
 const SDE_FILE = path.join(ROOT, '.cache', 'normalized.json');
 const OUT = path.join(ROOT, 'data');
 const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'ru', 'zh'];
@@ -467,7 +467,7 @@ const manifest = {
     eveOnline: 'https://www.eveonline.com/',
     fenris: 'https://fenris.com/',
     glossary: 'https://ddd4512kk-source.github.io/EVE-Online-Tranquility-Chinese-Personas/glossary/',
-    repo: 'https://gitlab.com/cmy/fitdle',
+    repo: 'https://github.com/steven-cmy/fitdle',
   },
   timeSource: TIME_SOURCE,
   answerPool: catalog.map((ship) => ship.id).sort((a, b) => a - b),

@@ -1,392 +1,93 @@
 # FITDLE
 
-FITDLE 是一个 EVE Online 理赔评估解谜服务：Node 24 + Fastify + WebSocket + SQLite，前端为静态 `dist/`，支持 EVE SSO、在线每日目标、练习模式、权威联机房间和多语言界面。
+EVE Online 猜船小游戏。给你一份 zKillboard 上真实的击毁报告，船名藏起来，只看属性、装配、货柜这些线索，猜是什么船。猜错一次，多给一点线索。
 
-仓库同时发布：
+An EVE Online hull-guessing game built on real killmails. UI in EN / DE / ES / FR / JA / KO / RU / ZH.
 
-- 全栈 Docker 镜像：`registry.gitlab.com/cmy/fitdle`
-- GitLab Pages 静态练习构建
+## 玩法
 
-## 1. 技术栈
+- **标准**：猜错后揭示更多装备和货柜；你猜的船和答案相同的属性会直接亮出来。
+- **装配核验**：属性按实际装配、全 V 技能算出来（用 [dogma-engine](https://github.com/EVEShipFit/dogma-engine)），难一些。
+- **计时**：线索按时间放出，跟猜了几次无关。
 
-| 组件 | 说明 |
-|---|---|
-| Node.js | 24+ |
-| Web 服务 | Fastify、`@fastify/websocket`、`@fastify/static` |
-| 数据库 | SQLite（`node:sqlite`），默认 `/data/fitdle.sqlite` |
-| 前端 | 静态 ES modules、Photon 风格 CSS |
-| 登录 | EVE SSO，仅 `publicData` scope |
-| 外部数据 | 官方 SDE、zKillboard、ESI、EVE image service |
-| 构建 | `dist/`、`data/`、SDE catalog、kill pool、usage weights |
+用 EVE SSO 登录后可以玩每日题（所有人同一题），并记录战绩和连胜。不登录就是练习模式，随便玩，不计分。
 
-## 2. 快速开始：GitLab 镜像
+联机房间支持上面三种玩法，外加一个轮流坐庄的「仲裁」玩法。
+
+## 部署
+
+需要一个 EVE 开发者应用（[developers.eveonline.com](https://developers.eveonline.com/)），回调地址填 `https://你的域名/api/v1/auth/eve/callback`。
 
 ```bash
-docker pull registry.gitlab.com/cmy/fitdle:1.0.27
-cp .env.example .env
-# 编辑 .env：PUBLIC_ORIGIN、EVE_CLIENT_ID、EVE_CLIENT_SECRET、SESSION_SECRET
-docker run -d \
-  --name fitdle \
-  --restart unless-stopped \
-  --env-file .env \
-  -p 127.0.0.1:8787:8787 \
-  -v fitdle-data:/data \
-  registry.gitlab.com/cmy/fitdle:1.0.27
+cp .env.example .env   # 填 PUBLIC_ORIGIN、EVE_CLIENT_ID、EVE_CLIENT_SECRET、SESSION_SECRET
+docker run -d --name fitdle --restart unless-stopped \
+  --env-file .env -p 127.0.0.1:8787:8787 -v fitdle-data:/data \
+  ghcr.io/steven-cmy/fitdle:latest
 ```
 
-健康检查：
+或者用 [compose.example.yml](compose.example.yml)。镜像 tag 有 `latest`、版本号（如 `1.0.55`）、`v` 加版本号和 commit sha，想固定版本就把 `latest` 换掉。
 
-```bash
-curl -fsS http://127.0.0.1:8787/api/v1/health
-```
+> 镜像以前发布在 `registry.gitlab.com/cmy/fitdle`，现在改到 GHCR。旧地址不再更新，把镜像地址改成上面的即可，数据卷不用动。
 
-镜像启动时会读取运行时 `PUBLIC_ORIGIN`，把静态 HTML 中的分享页 canonical/OG 地址替换为当前域名。因此同一个镜像可用于不同域名；域名变更后需要重新创建容器，而不是只 restart。
+几点说明：
 
-Unraid：在环境变量中设置 `PUID=99`、`PGID=100`，挂载 `/mnt/user/appdata/fitdle:/data`。1.0.2+ 镜像会自动修正目录权限；1.0.1 需要对 appdata 目录执行一次 `chown -R 1000:1000`。其他配置（如 `API_CONTACT`）在容器编辑页用 “Add another Path, Port, Variable…” 添加为 Variable，Apply 后会重建容器生效；值保存在 Unraid 的容器模板里，不要写进镜像或提交到仓库。
+- `SESSION_SECRET` 随便生成一个长随机串即可，例如 `openssl rand -base64 32`。
+- 不填 SSO 也能跑，只是只有练习模式。
+- 数据库是 `/data/fitdle.sqlite`，记得挂卷。
+- Unraid 上设 `PUID=99`、`PGID=100`。
+- 改了 `PUBLIC_ORIGIN` 要重建容器，光 restart 不行。
+- 其他可选配置都在 [.env.example](.env.example) 里，有注释。
 
-如果 GitLab Registry 要求认证：
-
-```bash
-docker login registry.gitlab.com
-```
-
-## 3. Docker Compose + `.env`
-
-```bash
-cp .env.example .env
-# 编辑 .env
-cp compose.example.yml compose.yml
-docker compose pull
-docker compose up -d
-```
-
-`compose.example.yml`：
-
-```yaml
-services:
-  fitdle:
-    image: registry.gitlab.com/cmy/fitdle:1.0.27
-    env_file:
-      - .env
-    ports:
-      - "127.0.0.1:8787:8787"
-    environment:
-      PUID: ${PUID:-1000}
-      PGID: ${PGID:-1000}
-    volumes:
-      - fitdle-data:/data
-    restart: unless-stopped
-
-volumes:
-  fitdle-data:
-```
-
-- `.env` 不打进镜像，也不提交。
-- `env_file` 将配置注入容器；不要把 `.env` 复制进镜像。
-- 默认 `DATABASE_PATH=/data/fitdle.sqlite`。如果 `.env` 覆盖它，必须仍指向 `/data` 下的路径，否则数据不会持久化。
-- `PUID` / `PGID` 控制容器内服务进程的 UID/GID；入口脚本会先写入 `PUBLIC_ORIGIN`、把数据库目录和 `/data` 的权限交给这两个 ID，再降权启动。默认 `1000:1000`，Unraid 常用 `99:100`。
-- PUID/PGID 需要 1.0.2 或更新镜像；1.0.1 镜像需先手工执行 `chown -R 1000:1000 /mnt/user/appdata/fitdle`。
-- Compose 只绑定 `127.0.0.1:8787`，公网入口由反向代理提供。
-
-## 4. 必需配置
-
-```dotenv
-PUBLIC_ORIGIN=https://fitdle.example.com
-EVE_CLIENT_ID=...
-EVE_CLIENT_SECRET=...
-SESSION_SECRET=...
-```
-
-| 变量 | 必需 | 说明 |
-|---|---|---|
-| `PUBLIC_ORIGIN` | 是 | 用户实际访问的 HTTPS origin，不要带末尾 `/`；决定 OAuth 回调、Cookie、CORS、分享页 canonical/OG |
-| `EVE_CLIENT_ID` | 在线登录 | EVE 开发者应用 Client ID |
-| `EVE_CLIENT_SECRET` | 在线登录 | 仅服务端使用，不要放进镜像或前端 |
-| `SESSION_SECRET` | 是 | 会话签名和每日目标派生；用随机值 |
-| `DATABASE_PATH` | 否 | 默认 `/data/fitdle.sqlite` |
-| `PORT` | 否 | 默认 `8787` |
-| `HOST` | 否 | 默认 `0.0.0.0` |
-| `PUID` | 否 | 容器运行 UID，默认 `1000`；Unraid 常用 `99` |
-| `PGID` | 否 | 容器运行 GID，默认 `1000`；Unraid 常用 `100` |
-| `FITDLE_DEV_AUTH` | 否 | 生产必须为 `0`；非本机 `PUBLIC_ORIGIN` 会忽略它 |
-| `ROOM_MAX_PLAYERS` | 否 | 默认 `8`，范围 `2..32` |
-| `ROOM_ARBITRATION_BIG_ROUNDS` | 否 | 默认 `1` |
-| `ROOM_ARBITRATION_MAX_BIG_ROUNDS` | 否 | 默认 `5` |
-| `ROOM_TIMED_DURATION_MINUTES` | 否 | 默认 `10` |
-| `ROOM_TIMED_MAX_DURATION_MINUTES` | 否 | 默认 `60` |
-| `API_CONTACT` | 否 | 第三方 API 的联系方式（如邮箱），只加入服务端发出的 User-Agent，访客看不到 |
-| `API_CONTACT_PUBLIC` | 否 | 默认 `0`。浏览器请求 ESI 时自动带部署域名，无需配置；设为 `1` 时再附上联系方式，**所有访客都能看到** |
-| `ZKILL_MIN_INTERVAL_MS` | 否 | zKillboard 请求的最小间隔，默认 `250`，范围 `0..5000`，生产不要调低 |
-| `TARGET_SPARES` | 否 | 每个随机题库预备的目标数，默认 `2`，范围 `0..8`，`0` 为关闭 |
-| `ROOM_RECONNECT_GRACE_MS` | 否 | 掉线宽限，默认 `60000`，范围 `5000..300000` |
-
-生成 `SESSION_SECRET`：
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-```
-
-EVE SSO 回调地址必须精确为：
-
-```text
-https://fitdle.example.com/api/v1/auth/eve/callback
-```
-
-即 `${PUBLIC_ORIGIN}/api/v1/auth/eve/callback`。
-
-## 5. Nginx 反向代理
-
-示例为同机 Nginx；上游为 `127.0.0.1:8787`。WebSocket 必须单独设置 upgrade。
+前面需要一个反代提供 HTTPS。注意房间用 WebSocket，`/api/v1/rooms/<code>/ws` 要带上升级头：
 
 ```nginx
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ''      close;
+location ~ ^/api/v1/rooms/[^/]+/ws$ {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 3600s;
 }
 
-upstream fitdle {
-    server 127.0.0.1:8787;
-    keepalive 16;
-}
-
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-    server_name fitdle.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/fitdle.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/fitdle.example.com/privkey.pem;
-    client_max_body_size 8m;
-
-    location / {
-        proxy_pass http://fitdle;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location ~ ^/api/v1/rooms/[^/]+/ws$ {
-        proxy_pass http://fitdle;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        proxy_buffering off;
-    }
+location / {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
 
-静态文件已预压缩，服务会按 `Accept-Encoding` 直接返回 br/gzip；反代透传即可，不需要再开启压缩。
+健康检查：`GET /api/v1/health`。只显示练习模式的话，先看 `/api/v1/meta` 和容器日志。
 
-`map` 必须放在 Nginx 的 `http {}` 上下文，不能写进 `server {}`。
+## 开发
 
-如果服务只在 Docker 网络内，将 upstream 改为 `server fitdle:8787;`，并让 Nginx 与 fitdle 在同一 Docker network。
-
-## 6. linuxserver SWAG
-
-SWAG 负责 HTTPS 证书和 80/443；FITDLE 不发布公网端口。
-
-将以下文件放到 SWAG 的 `/config/nginx/proxy-confs/fitdle.subdomain.conf`：
-
-```nginx
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    server_name fitdle.*;
-
-    include /config/nginx/ssl.conf;
-    client_max_body_size 8m;
-
-    location ~ ^/api/v1/rooms/[^/]+/ws$ {
-        include /config/nginx/proxy.conf;
-        include /config/nginx/resolver.conf;
-        set $upstream_app fitdle;
-        set $upstream_port 8787;
-        set $upstream_proto http;
-        proxy_pass $upstream_proto://$upstream_app:$upstream_port;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-        proxy_buffering off;
-    }
-
-    location / {
-        include /config/nginx/proxy.conf;
-        include /config/nginx/resolver.conf;
-        set $upstream_app fitdle;
-        set $upstream_port 8787;
-        set $upstream_proto http;
-        proxy_pass $upstream_proto://$upstream_app:$upstream_port;
-    }
-}
-```
-
-SWAG Compose 片段：
-
-```yaml
-services:
-  fitdle:
-    image: registry.gitlab.com/cmy/fitdle:1.0.27
-    env_file:
-      - .env
-    volumes:
-      - fitdle-data:/data
-    networks:
-      - swag
-    restart: unless-stopped
-
-  swag:
-    image: lscr.io/linuxserver/swag:latest
-    cap_add:
-      - NET_ADMIN
-    environment:
-      PUID: 1000
-      PGID: 1000
-      TZ: Etc/UTC
-      URL: example.com
-      SUBDOMAINS: fitdle
-      VALIDATION: http
-    volumes:
-      - ./swag:/config
-    ports:
-      - "80:80"
-      - "443:443"
-    networks:
-      - swag
-    restart: unless-stopped
-
-volumes:
-  fitdle-data:
-
-networks:
-  swag:
-```
-
-`SUBDOMAINS=fitdle` 对应 `fitdle.example.com`；`VALIDATION` 按 SWAG 的证书方式调整（测试可用 `http`，生产建议 `dns` 或 `duckdns`）。证书生效后访问 `https://fitdle.example.com`。
-
-## 7. 镜像 tag、升级与备份
-
-发布的 tag：
-
-- `1.0.1`：固定版本
-- `v1.0.1`：带 `v` 的版本
-- `latest`：最新默认分支构建
-- `<commit-sha>`：可追溯构建
-
-生产建议固定版本 tag，不要依赖 `latest`。
-
-升级：
+Node 24+。前端是原生 ES modules，没有打包器；后端在 `server/`，Fastify + SQLite。
 
 ```bash
-docker compose pull
-docker compose up -d
-```
-
-升级保留 `fitdle-data` volume。SQLite 文件在 `/data/fitdle.sqlite`；备份前停止容器，复制 volume 或 `/data` 目录。
-
-回滚：
-
-```bash
-# 修改 compose 中的 image tag 到上一个版本
-docker compose up -d
-```
-
-## 8. 本地源码构建
-
-要求 Node 24+、npm、Git，并能访问 SDE、zKillboard、ESI 和 npm registry。
-
-```bash
-git clone https://gitlab.com/cmy/fitdle.git
-cd fitdle
-cp .env.example .env
 npm install
-npm run prepare:sde
+npm run prepare:sde       # 下载官方 SDE
 npm run build:catalog
 npm run build:killpool
-npm run build:weights -- --refresh
-npm run build
+npm run build:weights
+npm run build             # 生成 data/ 和 dist/
 npm test
-```
 
-启动完整服务：
-
-```bash
 npm install --prefix server
 npm run test:server
-npm run server:start
+npm run server:start      # http://127.0.0.1:8787
 ```
 
-本地静态预览：
+只看前端的话 `npm start`，打开 http://127.0.0.1:4173 （练习模式）。
 
-```bash
-npm start
-# http://127.0.0.1:4173/
-```
+改界面文字的话，8 种语言在 `js/messages/` 下，键名要保持一致，EVE 名词用官方译名（见 [docs/i18n-glossary.md](docs/i18n-glossary.md)）。更细的约定写在 [AGENTS.md](AGENTS.md)。
 
-本地构建 Docker 镜像：
+## CI
 
-```bash
-docker build \
-  --build-arg PUBLIC_ORIGIN=https://fitdle.example.com \
-  -t fitdle:local .
-```
+GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：PR 只构建和测试；推到 `main` 后还会推送镜像到 GHCR、部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态练习版），并在版本号变化且 CHANGELOG 有对应章节时创建 Release。
 
-传入实际 `PUBLIC_ORIGIN` 时，镜像不再需要运行时替换；不传时使用占位符，由容器启动时注入。
+## License
 
-## 9. 数据更新
+代码是 [MIT](LICENSE)。EVE Online、Pend Insurance、Secure Commerce Commission 的名称，以及游戏数据、图片和字体，归 Fenris Creations（原 CCP Games）所有，不在 MIT 范围内，详见 [NOTICE.md](NOTICE.md)。本项目是非官方粉丝作品，和 CCP、zKillboard 都没有关系。
 
-```bash
-# 官方 SDE
-npm run update:sde
-npm run build:killpool
-npm run build
-
-# zKillboard 船型使用频率
-npm run build:weights -- --refresh
-npm run build
-
-# dogma engine
-npm run update:dogma
-npm run build
-```
-
-镜像用户直接拉取新版本镜像即可；数据已在镜像构建阶段生成。
-
-## 10. 健康检查与故障排查
-
-- 健康端点：`GET /api/v1/health`
-- 服务元信息：`GET /api/v1/meta`
-- 日志：`docker logs -f fitdle`
-
-常见问题：
-
-| 现象 | 检查 |
-|---|---|
-| OAuth 登录 401/回调错误 | `PUBLIC_ORIGIN` 与 EVE 应用注册回调完全一致；使用 HTTPS |
-| WebSocket 连接失败 | 反代 `/api/v1/rooms/<code>/ws` 是否设置 `Upgrade`/`Connection`，`proxy_read_timeout` 是否足够 |
-| 分享卡片指向旧域名 | 修改 `PUBLIC_ORIGIN` 后重新创建容器；仅 restart 不会重新渲染 HTML |
-| 数据重启丢失 | `DATABASE_PATH` 是否在 `/data` 下，Compose 是否挂载 `fitdle-data:/data` |
-| `unable to open database file` | 确认 `/data` 或 `DATABASE_PATH` 父目录可写；镜像启动时会以 root 修复该目录权限后降权为 `node`。只读挂载或指向不存在/不可写路径会导致启动失败 |
-| 镜像拉取 401 | 执行 `docker login registry.gitlab.com` |
-| 页面只显示练习模式 | 容器未配置 SSO 凭据或服务端未启动；检查 `.env` 与 `/api/v1/meta` |
-
-## 11. 静态 Pages（可选）
-
-GitLab Pages 只发布 `dist/` 静态练习构建，不包含登录、在线统计或联机房间。完整在线功能使用本文档的 Docker 镜像。
-
-## 12. 许可与数据来源
-
-- FITDLE 源代码：MIT License，见 [LICENSE](LICENSE)。
-- EVE Online、Pend Insurance、Secure Commerce Commission 及相关素材归 Fenris Creations 所有；本项目为非官方、非商业粉丝作品。
-- 数据来源：官方 EVE SDE、zKillboard、EVE ESI、EVE image service、EVEShip.fit dogma-engine。
-- 完整声明见 [NOTICE.md](NOTICE.md)。
+`assets/fonts/` 里的 Eve Sans Neue、EveSans 和 Triglavian 是 EVE 的官方字体，版权归 Fenris Creations，只为这个粉丝项目附带，不要拿去别处用。删掉它们界面会退回系统字体，不影响功能。版权方有要求的话会立即移除，来源见 [NOTICE.md](NOTICE.md#fonts)。

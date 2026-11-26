@@ -1,0 +1,191 @@
+name: CI
+
+# Pull requests build and test. Pushes to main (and manual runs) also publish
+# the container image to GHCR, deploy GitHub Pages and create the GitHub Release
+# for a new package.json version.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      force_sde:
+        description: Download the SDE again even if the cached release matches
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Static practice build; also the share/OG origin for Pages.
+  PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+
+jobs:
+  # Compares the SDE API release with the deployed Pages manifest and passes
+  # SDE_RELEASE to the build job.
+  sde-check:
+    runs-on: ubuntu-latest
+    outputs:
+      sde_release: ${{ steps.check.outputs.SDE_RELEASE }}
+      sde_changed: ${{ steps.check.outputs.SDE_CHANGED }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: check
+        run: |
+          node scripts/check-sde.mjs
+          cat .cache/sde-check.env >> "$GITHUB_OUTPUT"
+
+  # Rebuild the normalized SDE from the cached SDE API tables on every build so
+  # code/data schema changes cannot be masked by an older normalized cache.
+  build:
+    runs-on: ubuntu-latest
+    needs: sde-check
+    env:
+      SDE_RELEASE: ${{ needs.sde-check.outputs.sde_release }}
+      FORCE_SDE: ${{ inputs.force_sde && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Restore data cache
+        uses: actions/cache@v4
+        with:
+          # Caches are immutable on GitHub: save a new entry per run and restore
+          # the newest one.
+          key: fitdle-build-v6-${{ github.run_id }}
+          restore-keys: fitdle-build-v6-
+          path: |
+            .cache/normalized.json
+            .cache/killpool.json
+            .cache/sde-meta.json
+            .cache/ship-weights.json
+            .cache/zkill-version.json
+      - name: Prepare SDE
+        run: |
+          if [ "${FORCE_SDE:-0}" = "1" ] || [ "$(node -p 'require("./.cache/normalized.json").normalizedVersion || 0' 2>/dev/null)" != "3" ] || ! node scripts/build-cache.mjs --release "$SDE_RELEASE"; then
+            npm run prepare:sde -- --refresh
+          fi
+      - name: Build catalog
+        run: |
+          if [ ! -f data/catalog.json ]; then
+            npm run build:catalog
+          fi
+      # One request; keep the cached pool when zKill is unavailable.
+      - run: npm run build:killpool || grep -q '"serverDate"' .cache/killpool.json
+      # Requests only missing or aging hulls.
+      - run: npm run build:weights
+      - run: npm run build
+      - run: npm test
+      - run: npm ci --prefix server --no-audit --no-fund
+      - run: npm run test:server
+      - name: Keep build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          retention-days: 7
+          include-hidden-files: true
+          # dist for Pages; the data files are reused by the image so it does
+          # not request the data again.
+          path: |
+            dist
+            .cache/normalized.json
+            .cache/killpool.json
+            .cache/sde-meta.json
+            .cache/ship-weights.json
+            .cache/zkill-version.json
+
+  image:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          test -n "$VERSION"
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          SHORT_SHA="${GITHUB_SHA::8}"
+          docker buildx build . \
+            --file Dockerfile \
+            --push \
+            --tag "$IMAGE:$VERSION" \
+            --tag "$IMAGE:v$VERSION" \
+            --tag "$IMAGE:latest" \
+            --tag "$IMAGE:$SHORT_SHA" \
+            --build-arg "PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__" \
+            --build-arg "REUSE_BUILD_CACHE=1" \
+            --cache-from "type=registry,ref=$IMAGE:buildcache" \
+            --cache-to "type=registry,ref=$IMAGE:buildcache,mode=max" \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+
+  # A new package.json version gets a GitHub Release whose notes are the
+  # matching CHANGELOG.md section. Without a section the release is skipped.
+  release:
+    runs-on: ubuntu-latest
+    needs: image
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          test -n "$VERSION"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Release v$VERSION already exists."
+            exit 0
+          fi
+          NOTES="$(awk -v section="## v$VERSION" '$0 == section {found=1; next} found && /^## / {exit} found {print}' CHANGELOG.md)"
+          if [ -z "$NOTES" ]; then
+            echo "::warning::CHANGELOG.md has no ## v$VERSION section; release skipped."
+            exit 0
+          fi
+          printf '%s\n' "$NOTES" > notes.md
+          gh release create "v$VERSION" --title "FITDLE v$VERSION" --notes-file notes.md --target "$GITHUB_SHA"
+
+  pages:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4

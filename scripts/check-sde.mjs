@@ -11,10 +11,10 @@ import { fetchLatestRelease, sdeBase } from './sde-api.mjs';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const ENV = loadBuildEnv(ROOT);
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
+const USER_AGENT = `FITDLE/${pkg.version} (+https://github.com/steven-cmy/fitdle)`;
 const CACHE = path.join(ROOT, '.cache');
 const OUT = path.join(CACHE, 'sde-check.env');
-const PAGES = (process.env.CI_PAGES_URL || process.env.PAGES_URL || '').replace(/\/$/, '');
+const PAGES = (process.env.PAGES_URL || process.env.CI_PAGES_URL || '').replace(/\/$/, '');
 const FORCE = process.env.FORCE_SDE === '1' || process.env.FORCE_SDE === 'true';
 
 async function remoteRelease() {

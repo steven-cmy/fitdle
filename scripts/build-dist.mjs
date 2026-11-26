@@ -51,6 +51,7 @@ for (const file of ['assets/watchlist.json', 'assets/boot-flavor.json', 'assets/
 // answer or target hull in the preview.
 const SITE_URL = (
   ENV.PUBLIC_ORIGIN
+  || process.env.PAGES_URL
   || process.env.CI_PAGES_URL
   || 'http://127.0.0.1:4173'
 ).replace(/\/+$/, '');

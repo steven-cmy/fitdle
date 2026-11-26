@@ -106,7 +106,7 @@ export const config = {
   },
   userAgent: buildUserAgent({
     version: readJson(path.join(ROOT, 'package.json'), {}).version,
-    repo: 'https://gitlab.com/cmy/fitdle',
+    repo: 'https://github.com/steven-cmy/fitdle',
     contact: apiContact,
   }),
   // Shared with every visitor, so it needs its own explicit opt-in.

@@ -1,5 +1,19 @@
 # 更新日志
 
+## v1.0.55
+
+### 项目迁移到 GitHub
+
+- 仓库迁移到 https://github.com/steven-cmy/fitdle ，构建、测试、镜像、发布与静态练习版都改由 GitHub Actions 完成。
+- 容器镜像改为 `ghcr.io/steven-cmy/fitdle`，tag 规则不变（版本号、`v` 版本号、`latest`）。旧地址 `registry.gitlab.com/cmy/fitdle` 不再更新，把镜像地址换成新的即可，数据卷与配置不用改。
+- 静态练习版改到 https://steven-cmy.github.io/fitdle/ 。
+- 页脚源码链接指向新的 GitHub 仓库。
+
+### 文档
+
+- 重写 README，补充部署、反向代理与常见问题说明。
+- 写明 EVE 字体的来源与版权归属，版权方要求时会移除。
+
 ## v1.0.54
 
 ### 联机

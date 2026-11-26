@@ -14,7 +14,7 @@ import { fetchLatestRelease, sdeBase, SDE_TABLES } from './sde-api.mjs';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const ENV = loadBuildEnv(ROOT);
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const USER_AGENT = `FITDLE/${pkg.version} (+https://gitlab.com/cmy/fitdle)`;
+const USER_AGENT = `FITDLE/${pkg.version} (+https://github.com/steven-cmy/fitdle)`;
 const META = path.join(ROOT, '.cache', 'sde-meta.json');
 const SOURCE = path.join(ROOT, '.cache', 'sde-source');
 

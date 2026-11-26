@@ -1,7 +1,6 @@
 services:
   fitdle:
-    # PUID/PGID support requires 1.0.2+; on 1.0.1 chown the data directory first.
-    image: registry.gitlab.com/cmy/fitdle:1.0.27
+    image: ghcr.io/steven-cmy/fitdle:latest
     env_file:
       - .env
     environment:

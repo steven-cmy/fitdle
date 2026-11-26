@@ -176,12 +176,12 @@ test('the SDE build cache is reused only for the same release and schema', async
 test('the image reuses CI data only when asked to', async () => {
   const dockerfile = await fs.readFile(path.join(ROOT, 'Dockerfile'), 'utf8');
   const ignore = await fs.readFile(path.join(ROOT, '.dockerignore'), 'utf8');
-  const ci = await fs.readFile(path.join(ROOT, '.gitlab-ci.yml'), 'utf8');
+  const ci = await fs.readFile(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
   assert.match(dockerfile, /ARG REUSE_BUILD_CACHE=0/);
   assert.ok(dockerfile.includes('rm -rf .cache && npm run prepare:sde'));
   assert.ok(ci.includes('--build-arg "REUSE_BUILD_CACHE=1"'));
   for (const file of ['normalized', 'killpool', 'sde-meta', 'ship-weights', 'zkill-version']) {
     assert.ok(ignore.includes(`!.cache/${file}.json`), file);
-    assert.equal(ci.split(`- .cache/${file}.json`).length - 1, 2, `${file} is cached and passed on`);
+    assert.equal(ci.split(`\n            .cache/${file}.json`).length - 1, 2, `${file} is cached and passed on`);
   }
 });
