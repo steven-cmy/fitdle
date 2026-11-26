@@ -2,6 +2,13 @@ import { esc } from './mp/clue-view.js';
 import { avatarHtml } from './avatar.js';
 import { icon } from './icons.js';
 
+/** One line renders as a paragraph; several lines render as a list. */
+function manualBody(text) {
+  const lines = String(text).split('\n').filter(Boolean);
+  if (lines.length < 2) return `<p>${esc(text)}</p>`;
+  return `<ul class="manual-mode-list">${lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>`;
+}
+
 const GAMEPLAY_KEYS = ['standard', 'audit', 'timed', 'arbitration'];
 const ERROR_CODES = new Set([
   'room-not-found',
@@ -474,15 +481,12 @@ export class RoomSurface {
   renderManualBlocks() {
     return [
       ['help.multiplayerFlowTitle', 'help.multiplayerFlow'],
-      ['help.multiplayerStandardTitle', 'help.multiplayerStandard'],
-      ['help.multiplayerAuditTitle', 'help.multiplayerAudit'],
-      ['help.multiplayerTimedTitle', 'help.multiplayerTimed'],
+      ['help.multiplayerRaceTitle', 'help.multiplayerRace'],
       ['help.multiplayerArbitrationTitle', 'help.multiplayerArbitration'],
-      ['help.multiplayerReadyTitle', 'help.multiplayerReady'],
     ].map(([title, body]) => `
       <div class="manual-mode-block">
         <h4>${esc(this.t(title))}</h4>
-        <p>${esc(this.t(body))}</p>
+        ${manualBody(this.t(body))}
       </div>`).join('');
   }
 

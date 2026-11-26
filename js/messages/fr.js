@@ -262,7 +262,7 @@ export default {
 
   'mode.timed': 'CHRONO',
   'mode.timedHint': 'Tentatives illimitées contre la montre. Les preuves arrivent selon le temps.',
-  'mode.helpTimed': 'Mode chronométré.\nLa partie commence au lancement du chrono.\nLes informations se révèlent selon le temps ; les tentatives n’en ajoutent pas.\nTrouvez la coque pour arrêter le chrono.',
+  'mode.helpTimed': 'Mode chronométré.\nLa partie commence au lancement du chrono.\nLes informations se révèlent selon le temps ; les tentatives n’en ajoutent pas.\nTrouvez la coque pour arrêter le chrono.\nAprès chaque tentative, la saisie est bloquée quelques secondes.',
 
   'timed.start': 'LANCER LE CHRONO',
   'timed.startHint': 'Aucune preuve avant le départ. Tentatives illimitées ; le chrono tourne jusqu’à la confirmation de la coque.',
@@ -448,7 +448,7 @@ export default {
 
   'clue.kbValueToggle': 'Changer le format de valeur du rapport de victime',
 
-  'help.multiplayerBody': 'Les salles multijoueur partagent le même dossier de perte. L’hôte choisit le mode ; tous préchargent le même KB, démarrent avec le même ordre d’indices et se préparent pour la manche suivante.',
+  'help.multiplayerBody': 'Dans une salle, tout le monde expertise le même dossier. L’hôte choisit le mode : Standard, Audit d’équipement et Chronométré sont des courses sur le même dossier ; l’Arbitrage est mené par un donneur.',
 
   'end.insurancePayout': 'REMBOURSEMENT DE L’ASSURANCE',
 
@@ -457,17 +457,11 @@ export default {
   'mode.dailyRefresh': 'ACTUALISER',
 
   'help.multiplayerFlowTitle': 'DÉROULÉ DE SALLE',
-  'help.multiplayerFlow': 'L’hôte crée la salle et choisit le mode et les réglages. Deux joueurs minimum. On rejoint depuis la liste, on précharge la cible, puis on démarre ensemble. Une fois terminé, on se prépare. La manche suivante utilise une nouvelle cible partagée ; les points de salle s’accumulent jusqu’à la fin de la partie par l’hôte. Quitter une manche en cours ou rester déconnecté la fait perdre.',
-  'help.multiplayerStandardTitle': 'STANDARD',
-  'help.multiplayerStandard': 'Six examens. Une mauvaise coque révèle davantage de preuves ; la bonne coque termine votre manche. Moins d’essais donnent plus de points. Tous voient les mêmes indices dans le même ordre.',
-  'help.multiplayerAuditTitle': 'AUDIT D’ÉQUIPEMENT',
-  'help.multiplayerAudit': 'Les valeurs de l’équipement sont simulées. Les erreurs révèlent des preuves ; la bonne coque termine votre manche. Moins d’essais donnent plus de points. Le même déroulé s’applique.',
-  'help.multiplayerTimedTitle': 'CHRONOMÉTRÉ',
-  'help.multiplayerTimed': 'Compte à rebours partagé. La bonne coque termine votre manche ; les erreurs coûtent du temps. L’ordre d’arrivée décide des points de manche. Les premiers arrivés peuvent revoir le résultat. La manche suivante commence quand tout le monde a terminé et s’est préparé.',
+  'help.multiplayerFlow': 'L’hôte crée la salle et choisit le mode et les réglages. Deux joueurs minimum. On rejoint depuis la liste des salles, on précharge la cible, puis on démarre ensemble. Après chaque manche, tout le monde se prépare à nouveau ; la suivante démarre quand tous sont prêts, avec une nouvelle cible partagée. Les points de salle s’accumulent jusqu’à ce que l’hôte termine la partie ou les remette à zéro. Quitter une manche en cours, ou rester déconnecté au-delà du délai de reconnexion, la fait perdre ; être exclu par l’hôte, non.',
+  'help.multiplayerRaceTitle': 'STANDARD / AUDIT / CHRONOMÉTRÉ',
+  'help.multiplayerRace': 'Les règles sont celles du jeu en solo (voir MODES DE JEU dans le manuel) ; seules les différences sont indiquées ici.\nTout le monde reçoit le même dossier, le même ordre des preuves et le même départ.\nStandard et Audit d’équipement : trouver la coque termine votre manche. Moins vous utilisez de passes d’examen, plus vous marquez ; six erreurs ne rapportent rien.\nChronométré : un compte à rebours commun à toute la salle, dont l’hôte fixe la durée. Les points suivent l’ordre dans lequel chacun trouve la coque ; qui n’a pas trouvé à la fin du temps ne marque rien.\nCeux qui finissent tôt peuvent consulter le résultat pendant que les autres continuent.',
   'help.multiplayerArbitrationTitle': 'ARBITRAGE',
-  'help.multiplayerArbitration': 'Le donneur tourne. Il voit la réponse et publie des indices ; les joueurs actifs devinent une fois par petite manche. Une erreur donne au donneur la valeur des indices publiés. Un joueur correct quitte le groupe actif. Six petites manches ou tous les essais closent le tour ; la réponse est révélée, puis le donneur suivant prend le relais. Les grandes manches bouclent la rotation.',
-  'help.multiplayerReadyTitle': 'PRÉPARATION',
-  'help.multiplayerReady': 'La préparation ne vaut que pour la vérification en cours. Elle est effacée au début de la manche, à la fin ou en quittant. Tous doivent se préparer à nouveau pour la manche suivante.',
+  'help.multiplayerArbitration': 'Pas de chrono. Les joueurs sont donneur à tour de rôle ; quand chacun l’a été, une grande manche est terminée. L’hôte fixe le nombre de grandes manches.\nLe donneur voit la réponse, toutes les preuves et la valeur de chaque preuve pour chaque joueur.\nÀ chaque petite manche, le donneur publie au moins une nouvelle preuve. Les preuves d’équipement et de cargaison s’ajoutent automatiquement dans un ordre fixe ; le donneur choisit le reste. Une fois tout publié, on continue simplement à deviner.\nEnsuite, chaque autre joueur devine une fois en saisissant le nom complet de la coque (les abréviations sont complétées avant). La petite manche suivante commence quand tout le monde a deviné.\nBonne réponse : plus vous trouvez tôt et moins il y a de preuves publiques, plus vous marquez. Vous regardez ensuite la fin du tour.\nPas encore trouvé : à la fin de chaque petite manche, chaque joueur qui cherche encore rapporte au donneur la valeur de toutes les preuves publiées jusque-là. Des preuves de valeur rapportent plus au donneur, mais rendent aussi la coque plus facile à trouver.\nLe tour se termine après six petites manches ou quand tout le monde a trouvé ; la réponse est révélée et, quand tous sont prêts, le donneur suivant prend la main.\nLes points s’accumulent sur toute la partie. Si le donneur se déconnecte, la salle attend le délai de reconnexion ; ensuite, la partie se termine.',
 
   'room.reconnecting': 'RECONNEXION',
   'room.kick': 'EXCLURE',

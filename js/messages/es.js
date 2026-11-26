@@ -262,7 +262,7 @@ export default {
 
   'mode.timed': 'CRONO',
   'mode.timedHint': 'Intentos ilimitados contra el reloj. La evidencia llega según el tiempo.',
-  'mode.helpTimed': 'Modo cronometrado.\nLa partida empieza al iniciar el cronómetro.\nLa información se revela según el tiempo; los intentos no añaden más.\nAcierta el casco para detener el reloj.',
+  'mode.helpTimed': 'Modo cronometrado.\nLa partida empieza al iniciar el cronómetro.\nLa información se revela según el tiempo; los intentos no añaden más.\nAcierta el casco para detener el reloj.\nTras cada intento, el envío queda bloqueado unos segundos.',
 
   'timed.start': 'INICIAR EL RELOJ',
   'timed.startHint': 'Sin evidencia hasta empezar. Intentos ilimitados; el reloj corre hasta confirmar el casco.',
@@ -448,7 +448,7 @@ export default {
 
   'clue.kbValueToggle': 'Cambiar el formato del valor del informe de muertes',
 
-  'help.multiplayerBody': 'Las salas multijugador comparten un mismo informe de pérdida. El anfitrión elige el modo; todos precargan el mismo KB, empiezan con el mismo orden de pistas y se preparan para la siguiente ronda.',
+  'help.multiplayerBody': 'En una sala todos evalúan el mismo expediente. El anfitrión elige la modalidad: Estándar, Auditoría de equipamiento y Contrarreloj son carreras sobre el mismo expediente; el Arbitraje lo dirige un repartidor.',
 
   'end.insurancePayout': 'PAGO DEL SEGURO',
 
@@ -457,17 +457,11 @@ export default {
   'mode.dailyRefresh': 'ACTUALIZAR',
 
   'help.multiplayerFlowTitle': 'FLUJO DE SALA',
-  'help.multiplayerFlow': 'El anfitrión crea la sala y elige modo y ajustes. Hacen falta al menos dos jugadores. Se unen desde la lista, precargan el objetivo y empiezan a la vez. Al terminar, cada jugador se prepara. La siguiente ronda usa un nuevo objetivo compartido; los puntos de sala se acumulan hasta que el anfitrión termina la partida. Salir o seguir desconectado durante una ronda la da por perdida.',
-  'help.multiplayerStandardTitle': 'ESTÁNDAR',
-  'help.multiplayerStandard': 'Seis pasadas de revisión. Un casco incorrecto revela más pruebas; un casco correcto termina tu ronda. Menos intentos dan más puntos. Todos ven las mismas pistas en el mismo orden.',
-  'help.multiplayerAuditTitle': 'AUDITORÍA DE EQUIPAMIENTO',
-  'help.multiplayerAudit': 'Los valores del equipamiento se simulan. Los fallos revelan pruebas; un casco correcto termina tu ronda. Menos intentos dan más puntos. Se aplica el mismo flujo de preparación.',
-  'help.multiplayerTimedTitle': 'CONTRARRELOJ',
-  'help.multiplayerTimed': 'Cuenta atrás compartida. Un casco correcto termina tu ronda; los fallos cuestan tiempo. El orden de finalización decide los puntos de ronda. Quien termina antes puede revisar el resultado. La siguiente ronda empieza cuando todos terminan y se preparan.',
+  'help.multiplayerFlow': 'El anfitrión crea la sala y elige modalidad y ajustes. Hacen falta al menos dos jugadores. Se unen desde la lista de salas, precargan el objetivo y empiezan a la vez. Tras cada ronda todos vuelven a prepararse; la siguiente empieza cuando todos están listos y usa un nuevo objetivo compartido. Los puntos de sala se acumulan hasta que el anfitrión termina la partida o los reinicia. Salir durante una ronda, o seguir desconectado más allá del margen de reconexión, la da por perdida; ser expulsado por el anfitrión no.',
+  'help.multiplayerRaceTitle': 'ESTÁNDAR / AUDITORÍA / CONTRARRELOJ',
+  'help.multiplayerRace': 'Las reglas son las del juego individual (ver MODALIDADES en el manual); aquí solo se indican las diferencias.\nTodos reciben el mismo expediente, el mismo orden de pruebas y la misma salida.\nEstándar y Auditoría de equipamiento: acertar el casco termina tu ronda. Cuantas menos revisiones uses, más puntos; si fallas las seis, no puntúas.\nContrarreloj: una cuenta atrás común para toda la sala, con la duración que fija el anfitrión. Los puntos siguen el orden en que se acierta el casco; quien no acierta antes de que acabe el tiempo no puntúa.\nQuien termina antes puede ver el resultado mientras los demás siguen.',
   'help.multiplayerArbitrationTitle': 'ARBITRAJE',
-  'help.multiplayerArbitration': 'El repartidor rota. Ve la respuesta y publica pistas; los jugadores activos adivinan una vez por ronda corta. Un fallo da al repartidor el valor de las pistas publicadas. Un acierto saca al jugador del grupo activo. Seis rondas cortas o todos los intentos cierran el turno; se revela la respuesta y pasa el siguiente repartidor. Las rondas grandes completan la rotación.',
-  'help.multiplayerReadyTitle': 'PREPARACIÓN',
-  'help.multiplayerReady': 'La preparación solo cuenta para la comprobación actual. Se borra al empezar la ronda, al terminar o al salir. Todos deben prepararse de nuevo para la siguiente ronda.',
+  'help.multiplayerArbitration': 'Sin cronómetro. Los jugadores son repartidor por turnos; cuando todos lo han sido, termina una ronda grande. El anfitrión fija el número de rondas grandes.\nEl repartidor ve la respuesta, todas las pruebas y cuánto vale cada prueba para cada jugador.\nEn cada ronda corta el repartidor publica al menos una prueba nueva. Las pruebas de equipamiento y carga se añaden solas en un orden fijo; el resto lo elige el repartidor. Cuando ya está todo publicado, simplemente se sigue adivinando.\nDespués, cada uno de los demás jugadores adivina una vez escribiendo el nombre completo del casco (las abreviaturas se completan antes). La siguiente ronda corta empieza cuando todos han adivinado.\nAcierto: cuanto antes aciertes y menos pruebas haya publicadas, más puntos. Después solo observas el resto del turno.\nSin acertar todavía: al final de cada ronda corta, cada jugador que sigue adivinando da al repartidor el valor de todas las pruebas publicadas hasta ese momento. Las pruebas valiosas dan más puntos al repartidor, pero también facilitan encontrar el casco.\nEl turno termina tras seis rondas cortas o cuando todos han acertado; se revela la respuesta y, cuando todos están listos, entra el siguiente repartidor.\nLos puntos se acumulan durante toda la partida. Si el repartidor se desconecta, la sala espera el margen de reconexión; después, la partida termina.',
 
   'room.reconnecting': 'RECONECTANDO',
   'room.kick': 'EXPULSAR',

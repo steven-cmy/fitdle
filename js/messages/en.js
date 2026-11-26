@@ -262,7 +262,7 @@ export default {
 
   'mode.timed': 'TIMED',
   'mode.timedHint': 'Unlimited attempts against the clock. Evidence arrives on a schedule.',
-  'mode.helpTimed': 'Timed mode.\nThe run starts when you start the timer.\nIntel unfolds on a schedule; guesses do not reveal extra intel.\nName the hull to stop the clock.',
+  'mode.helpTimed': 'Timed mode.\nThe run starts when you start the timer.\nIntel unfolds on a schedule; guesses do not reveal extra intel.\nName the hull to stop the clock.\nAfter each guess, submitting is locked for a few seconds.',
 
   'timed.start': 'START THE CLOCK',
   'timed.startHint': 'No evidence until you start. Unlimited attempts; the clock runs until the hull is confirmed.',
@@ -448,7 +448,7 @@ export default {
 
   'clue.kbValueToggle': 'Toggle the killmail value format',
 
-  'help.multiplayerBody': 'Multiplayer rooms share one loss file. The host selects a gameplay; every player preloads the same KB, starts with the same clue order, and readies up for the next round.',
+  'help.multiplayerBody': 'In a room everyone assesses the same claim file. The host picks the gameplay: Standard, Fitting Audit and Timed are same-claim races; Arbitration is led by a dealer.',
 
   'end.insurancePayout': 'INSURANCE PAYOUT',
 
@@ -457,17 +457,11 @@ export default {
   'mode.dailyRefresh': 'REFRESH',
 
   'help.multiplayerFlowTitle': 'ROOM FLOW',
-  'help.multiplayerFlow': 'The host creates the room and chooses the gameplay and settings. At least two players are needed. Players join from the room list, preload the target, then start together. Finished players ready up. The next round uses a new shared target; room scores accumulate until the host ends the match. Leaving or staying disconnected during a round loses that round.',
-  'help.multiplayerStandardTitle': 'STANDARD',
-  'help.multiplayerStandard': 'Six review passes. A wrong hull recovers more evidence; a correct hull ends your round. Fewer passes score more. Every player sees the same clues in the same order.',
-  'help.multiplayerAuditTitle': 'FITTING AUDIT',
-  'help.multiplayerAudit': 'Fitted values are simulated for the target. Wrong guesses recover evidence; a correct hull ends your round. Fewer passes score more. The same ready flow applies.',
-  'help.multiplayerTimedTitle': 'TIMED',
-  'help.multiplayerTimed': 'A shared countdown. A correct hull ends your round; wrong guesses cost time. Finish order decides the round points. Early finishers can review the result. The next round starts after everyone finishes and readies up.',
+  'help.multiplayerFlow': 'The host creates the room and chooses the gameplay and settings. At least two players are needed. Players join from the room list, preload the target and start together. After each round everyone readies up again; the next round starts when all are ready and uses a new shared target. Room scores accumulate until the host ends the match or resets them. Leaving during a round, or staying disconnected past the reconnect window, loses that round; being kicked by the host does not.',
+  'help.multiplayerRaceTitle': 'STANDARD / AUDIT / TIMED',
+  'help.multiplayerRace': 'The rules are the same as solo play (see GAMEPLAY in the manual); only the differences are listed here.\nEveryone gets the same claim, the same evidence order and the same start.\nStandard and Fitting Audit: naming the hull ends your round. Fewer review passes score more; missing all six scores nothing.\nTimed: one countdown for the whole room, its length set by the host. Points follow the order in which players name the hull; anyone without a match when time runs out scores nothing.\nPlayers who finish early can look at the result while the others continue.',
   'help.multiplayerArbitrationTitle': 'ARBITRATION',
-  'help.multiplayerArbitration': 'The dealer rotates. The dealer sees the answer and publishes clues; active players get one guess per small round. A miss awards the dealer the value of the published clues. A correct player leaves the active pool. Six small rounds or all guesses end the stint; the answer is revealed, then the next dealer takes over. Big rounds wrap the dealer rotation.',
-  'help.multiplayerReadyTitle': 'READY CHECK',
-  'help.multiplayerReady': 'Ready only applies to the current check. It clears when the round starts, when you finish, or when you leave. Everyone must ready again for the next round.',
+  'help.multiplayerArbitration': 'No timer. Players take turns as the dealer; once everyone has dealt, one big round is complete. The host sets the number of big rounds.\nThe dealer sees the answer, all evidence, and what each piece of evidence is worth for each player.\nEach small round the dealer publishes at least one new piece of evidence. Equipment and cargo evidence is added automatically in a fixed order; the dealer picks the rest. Once everything is published, players simply keep guessing.\nAfter the dealer publishes, every other player guesses once by entering the full hull name (abbreviations are completed first). The next small round starts when everyone has guessed.\nCorrect: the earlier you name the hull and the less evidence is public, the more you score. You then watch the rest of the stint.\nNot solved yet: at the end of each small round, every player still guessing earns the dealer the value of all evidence published so far. Valuable evidence earns the dealer more, but also makes the hull easier to find.\nThe stint ends after six small rounds or when everyone has solved it. The answer is revealed, everyone readies up, and the next dealer takes over.\nScores accumulate over the whole match. If the dealer disconnects, the room waits for the reconnect window; after that the match ends.',
 
   'room.reconnecting': 'RECONNECTING',
   'room.kick': 'KICK',

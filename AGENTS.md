@@ -222,10 +222,13 @@ translation [README.zh-CN.md](README.zh-CN.md).
   room can run 1..N **big rounds**, where one big round is one pass through the
   active dealer order. The small-round rules are fixed; only the big-round count
   is host-configurable. The dealer publishes at least one unpublished clue per
-  round (or all); active players guess once. A wrong guess awards the dealer the
-  sum of **all currently published** clue weights; correct players get no numeric
-  score and become spectators. If every clue is published, players keep guessing
-  each round. The stint ends after six rounds or when every player has guessed.
+  round (or all); equipment/cargo clues are auto-selected from the audit reveal
+  plan, not hand-picked. Active players guess once per small round. At the end of
+  each small round the dealer earns, for every player still unsolved, the sum of
+  that player's weights for **all currently published** clues. A correct player
+  scores remaining rounds x that player's unpublished clue weights, then spectates.
+  If every clue is published, players keep guessing each round. The stint ends
+  after six rounds or when every player has solved it.
 - Room state, target selection, clue release, guessing, scoring and timers are
   authoritative on the server. Clients never send scores. The server stores
   target exposures/runs/rounds for future statistics; no leaderboard UI/API yet.
@@ -704,6 +707,9 @@ refreshes, then the final `build`.
 - The manual is now pure instructions plus the copyright/fan-work notice:
   Mode descriptions (Daily, Free), Gameplay descriptions (General, Standard,
   Audit, Timed), Multiplayer/Arbitration, then the legal notice.
+- The multiplayer manual does not restate the solo gameplays: one block lists
+  only how Standard/Audit/Timed rooms differ from solo, while Arbitration is
+  explained in full. Manual bodies with several lines render as a list.
 - Personal statistics, personal progress reset, language copy and display
   controls are not part of the manual.
 - Display controls (font face, font size, empty KB) live in the compact Topbar

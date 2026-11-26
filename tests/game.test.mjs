@@ -1342,11 +1342,12 @@ test('manual is pure instructions and copyright with all modes', () => {
   const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
   assert.match(main, /help\.multiplayerBody/);
   assert.match(main, /help\.multiplayerFlowTitle/);
-  assert.match(main, /help\.multiplayerStandardTitle/);
-  assert.match(main, /help\.multiplayerAuditTitle/);
-  assert.match(main, /help\.multiplayerTimedTitle/);
+  assert.match(main, /help\.multiplayerRaceTitle/);
   assert.match(main, /help\.multiplayerArbitrationTitle/);
-  assert.match(main, /help\.multiplayerReadyTitle/);
+  assert.match(rooms, /help\.multiplayerRaceTitle/);
+  assert.match(rooms, /help\.multiplayerArbitrationTitle/);
+  // Multiplayer only lists what differs from solo play; the solo modes are not restated.
+  assert.doesNotMatch(main + rooms, /help\.multiplayer(Standard|Audit|Timed|Ready)/);
   assert.match(main, /manual-section[\s\S]*manual-mode-block/);
   assert.match(rooms, /room-manual manual-section/);
   assert.match(rooms, /manual-mode-block/);
@@ -1361,17 +1362,12 @@ test('manual is pure instructions and copyright with all modes', () => {
       'help.multiplayerBody',
       'help.multiplayerFlowTitle',
       'help.multiplayerFlow',
-      'help.multiplayerStandardTitle',
-      'help.multiplayerStandard',
-      'help.multiplayerAuditTitle',
-      'help.multiplayerAudit',
-      'help.multiplayerTimedTitle',
-      'help.multiplayerTimed',
+      'help.multiplayerRaceTitle',
+      'help.multiplayerRace',
       'help.multiplayerArbitrationTitle',
       'help.multiplayerArbitration',
-      'help.multiplayerReadyTitle',
-      'help.multiplayerReady',
     ]) assert.ok(MESSAGES[lang][key], `${lang} missing ${key}`);
+    assert.ok(MESSAGES[lang]['help.multiplayerArbitration'].split('\n').length >= 6, `${lang} arbitration manual too short`);
   }
 });
 

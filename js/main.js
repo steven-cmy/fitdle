@@ -4367,18 +4367,22 @@ function closeModal() {
   if (focus && typeof focus.focus === 'function' && focus.isConnected) focus.focus();
 }
 
+/** One line renders as a paragraph; several lines render as a list. */
+function manualBody(text) {
+  const lines = String(text).split('\n').filter(Boolean);
+  if (lines.length < 2) return `<p>${esc(text)}</p>`;
+  return `<ul class="manual-mode-list">${lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>`;
+}
+
 function multiplayerManualBlocks() {
   return [
     ['help.multiplayerFlowTitle', 'help.multiplayerFlow'],
-    ['help.multiplayerStandardTitle', 'help.multiplayerStandard'],
-    ['help.multiplayerAuditTitle', 'help.multiplayerAudit'],
-    ['help.multiplayerTimedTitle', 'help.multiplayerTimed'],
+    ['help.multiplayerRaceTitle', 'help.multiplayerRace'],
     ['help.multiplayerArbitrationTitle', 'help.multiplayerArbitration'],
-    ['help.multiplayerReadyTitle', 'help.multiplayerReady'],
   ].map(([title, body]) => `
     <div class="manual-mode-block">
       <h4>${esc(t(title))}</h4>
-      <p>${esc(t(body))}</p>
+      ${manualBody(t(body))}
     </div>`).join('');
 }
 
