@@ -215,9 +215,24 @@ jobs:
           printf '%s\n' "$NOTES" > notes.md
           gh release create "v$VERSION" --title "FITDLE v$VERSION" --notes-file notes.md --target "$GITHUB_SHA"
 
-  pages:
+  # Uploading and deploying are separate jobs: a deploy in the same job could
+  # miss the artifact it had just uploaded, and re-running only the deploy must
+  # not upload a second one.
+  pages-build:
     runs-on: ubuntu-latest
     needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  pages:
+    runs-on: ubuntu-latest
+    needs: pages-build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       pages: write
@@ -226,11 +241,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: build
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
+      # The artifact list can lag behind the upload.
+      - run: sleep 20
       - id: deploy
         uses: actions/deploy-pages@v4
