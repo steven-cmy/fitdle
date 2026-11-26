@@ -569,9 +569,9 @@ translation [README.zh-CN.md](README.zh-CN.md).
   files, `Dockerfile`, `docker/`, compose and env examples, `.githooks/`, Git and
   Docker ignore files and `.gitlab-ci.yml`. One such file in a PR is enough, and
   so is moving or deleting one. Extend the list only when the owner asks.
-- A merge without a new version still runs the publish jobs: `pages` deploys,
-  `release` skips an existing Release, and `image` rebuilds and **overwrites** the
-  current version's image tags and `latest`.
+- After a merge without a new version, `pages` deploys, `release` skips the
+  existing Release and `image` pushes nothing. If the version has no Release yet
+  (a failed publish), `image` pushes again and `release` creates it.
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
 - At release, add the CHANGELOG section (and the final version) on `dev`, open a
@@ -838,7 +838,11 @@ test reads `dist/`.
   `dev` after a merged `dev` PR (see *Version bump*).
 - `image` builds the all-in-one image with `docker buildx` and pushes it to
   `ghcr.io/steven-cmy/fitdle`. Tags: version, `v`-version, `latest`, short SHA;
-  `buildcache` holds the layer cache.
+  `buildcache` holds the layer cache. On a push to `main` it pushes only when
+  the GitHub Release `v<version>` does not exist, so published tags are not
+  overwritten (it fails if that cannot be checked). A manual run on `main` always
+  pushes, for example to rebuild with a new SDE, and overwrites the version tags
+  and `latest`.
 - `release` creates GitHub Release `v<version>` from the matching
   `CHANGELOG.md` section when that release does not exist yet; with no section
   it is skipped with a warning.
