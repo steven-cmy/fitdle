@@ -432,7 +432,7 @@ export class RoomSurface {
         </div>
       </header>
       ${region('error')}
-      <div class="room-grid">
+      <div class="room-grid room-grid-lobby">
         <section class="room-list room-lobby-forms">
           <div class="room-list-head">
             <h3>${esc(this.t('room.createRoom'))} / ${esc(this.t('room.joinRoom'))}</h3>
