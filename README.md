@@ -88,7 +88,7 @@ UI strings for all 8 languages are in `js/messages/` and must keep the same keys
 
 ## CI
 
-GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests build and test only. Pushes to `main` also publish the image to GHCR, deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static practice build), and create a Release when the version changes and CHANGELOG has a matching section.
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests into `main` build, test and check the version/CHANGELOG only (day-to-day pushes to `dev` run nothing). Merged changes on `main` publish the image to GHCR, deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static practice build), and create a Release when the version changes and CHANGELOG has a matching section.
 
 ## License
 

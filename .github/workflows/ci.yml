@@ -1,12 +1,15 @@
 name: CI
 
-# Pull requests build and test. Pushes to main (and manual runs) also publish
-# the container image to GHCR, deploy GitHub Pages and create the GitHub Release
-# for a new package.json version.
+# Day-to-day work goes to dev, which does not trigger CI. A pull request into
+# main only checks and tests (sde-check, build, release-check). After the PR is
+# merged, the push to main publishes the container image to GHCR, deploys
+# GitHub Pages and creates the GitHub Release for the new package.json version.
+# Manual runs publish only when started on main.
 on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
     inputs:
       force_sde:
@@ -103,10 +106,23 @@ jobs:
             .cache/ship-weights.json
             .cache/zkill-version.json
 
+  # Pull requests only: the version must grow and CHANGELOG.md must describe it.
+  release-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/check-release.mjs "origin/${{ github.base_ref }}"
+
   image:
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     timeout-minutes: 120
     permissions:
       contents: read
@@ -173,7 +189,7 @@ jobs:
   pages:
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       pages: write
       id-token: write

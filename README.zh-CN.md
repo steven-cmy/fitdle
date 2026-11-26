@@ -88,7 +88,7 @@ npm run server:start      # http://127.0.0.1:8787
 
 ## CI
 
-GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：PR 只构建和测试；推到 `main` 后还会推送镜像到 GHCR、部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态练习版），并在版本号变化且 CHANGELOG 有对应章节时创建 Release。
+GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：向 `main` 的 PR 只构建、测试并检查版本号和 CHANGELOG（日常推送到 `dev` 不触发任何流程）；合并到 `main` 后才会推送镜像到 GHCR、部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态练习版），并在版本号变化且 CHANGELOG 有对应章节时创建 Release。
 
 ## License
 

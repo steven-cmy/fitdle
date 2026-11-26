@@ -26,8 +26,14 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Every code change gets a **patch** bump (the pre-commit hook does it). Never
   bump `minor`/`major` unless the owner asks. Docs/CI-only commits may skip it
   (`VERSION_BUMP=none` or `--no-verify`).
-- Ordinary commits stay local. Push, open/merge MRs or PRs, tag, release, publish
-  Pages or images only on an explicit request.
+- Before every commit run `npm test` and `npm run test:server` (run
+  `npm install --prefix server` first) and make sure they pass. Before opening a
+  release PR also run the full build (`npm run build`) and both suites. If the
+  environment cannot run something, say exactly which checks did not run in the
+  report so the owner can run them locally; never claim untested work passes.
+- Work happens on the local `dev` branch. Ordinary commits may be pushed to
+  `github/dev` (no CI runs there). Open/merge PRs into `main`, tag, release,
+  publish Pages or images only on an explicit request. Never commit on `main`.
 - `CHANGELOG.md` is written (in Chinese) only at a release, which squashes the
   pending local commits into one release commit. See *Release notes*.
 
@@ -545,12 +551,13 @@ translation [README.zh-CN.md](README.zh-CN.md).
 
 ## Release notes
 
-- Only start a release when the user explicitly asks for one. Ordinary local
-  commits must not be pushed and must not write a changelog.
+- Only start a release when the user explicitly asks for one. Ordinary dev
+  commits must not write a changelog.
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
-- At release, squash the pending local commits into one release version/commit
-  before tagging.
+- At release, add the CHANGELOG section (and the final version) on `dev`, open a
+  PR `dev` -> `main` titled `Release <version>: <summary>`, and squash-merge it
+  once CI passes; the squash commit is the release commit. Merging publishes.
 - Write the changelog in Chinese.
 - Write only player-visible changes and behavior changes. Do not include numeric
   values, balance figures, seed values, hashes, or internal implementation details.
@@ -655,8 +662,10 @@ refreshes, then the final `build`.
   string in `README.md`.
 - Where Git shell hooks cannot run (some Windows sandboxes), run
   `node scripts/bump-version.mjs` by hand, then `git commit --no-verify`.
-- Day-to-day work may use a `dev` branch; `main` is the release branch. Never
-  release from `dev` unless asked.
+- `dev` is the working branch, `main` the release branch (only changed by
+  squash-merged PRs). The hook runs only on local commits, so the merge never
+  bumps again. After the PR merges, reset dev (it must hold no unmerged work):
+  `git fetch github && git switch dev && git reset --hard github/main && git push --force-with-lease github dev`.
 
 ## Runtime URLs and storage
 
@@ -788,7 +797,10 @@ test reads `dist/`.
 
 - Home: https://github.com/steven-cmy/fitdle. CI is
   `.github/workflows/ci.yml` with jobs `sde-check`, `build`, `image`, `release`,
-  `pages`. Pull requests run `sde-check` and `build` (all tests) only.
+  `pages`. Pull requests into `main` run `sde-check`, `build` (all tests) and
+  `release-check` (`scripts/check-release.mjs`: version newer than main, non-empty
+  CHANGELOG section) only. `image`, `release` and `pages` run only after a push to
+  `main` (or a manual run on `main`); pushes to `dev` trigger nothing.
 - `image` builds the all-in-one image with `docker buildx` and pushes it to
   `ghcr.io/steven-cmy/fitdle`. Tags: version, `v`-version, `latest`, short SHA;
   `buildcache` holds the layer cache.
@@ -833,7 +845,7 @@ test reads `dist/`.
   no data requests and matches Pages. Other image builds fetch everything.
 - If `data/catalog.json` is missing, build first; weights need a catalog.
 - Daily scheduled pipeline is disabled: daily selection no longer depends on a
-  rebuild. Builds run on pushes to `main`, pull requests and manual runs.
+  rebuild. Builds run on pushes to `main`, pull requests into `main` and manual runs; only `main` publishes.
 - `pages` deploys `dist/` to GitHub Pages
   (https://steven-cmy.github.io/fitdle/; repository setting Pages → Source:
   GitHub Actions). Pages is practice/static-only; online login, scoring and rooms
