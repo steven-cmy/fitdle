@@ -1,7 +1,8 @@
 # FITDLE — Agent & Maintainer Notes
 
 Engineering handoff for people and coding agents. The public introduction and
-hosting guide is [README.md](README.md).
+hosting guide is [README.md](README.md) (English, default) with the Chinese
+translation [README.zh-CN.md](README.zh-CN.md).
 
 **Quick orientation**
 - Puzzle: guess the victim hull of a real zKillboard killmail from staged clues.
@@ -50,6 +51,10 @@ hosting guide is [README.md](README.md).
 - Localization priority: official EVE localization, then community wording, then
   own translation. Never translate EVE terms/names/official strings; record
   ambiguous terms in the glossary.
+- The README exists in two languages: `README.md` (English, default) and
+  `README.zh-CN.md` (Chinese). Every README change updates both in the same
+  commit, with the same sections, links and image. Both keep the
+  `English | 简体中文` switch at the top.
 
 ## Architecture
 
@@ -773,8 +778,8 @@ test reads `dist/`.
   `CHANGELOG.md` section when that release does not exist yet; with no section
   it is skipped with a warning.
 - `.gitlab-ci.yml` is the former GitLab pipeline (Kaniko into
-  `registry.gitlab.com/cmy/fitdle`). It is kept only until the GitHub pipeline is
-  proven, then removed; tests check the GitHub workflow.
+  `registry.gitlab.com/cmy/fitdle`). The owner keeps it for now; do not delete it
+  unless asked. Tests check the GitHub workflow.
 - The published image is origin-neutral: Docker build uses
   `__FITDLE_PUBLIC_ORIGIN__`; the container entrypoint validates runtime
   `PUBLIC_ORIGIN` and renders it into static HTML before starting the service.

@@ -1,44 +1,48 @@
 # FITDLE
 
-EVE Online 猜船小游戏。给你一份 zKillboard 上真实的击毁报告，船名藏起来，只看属性、装配、货柜这些线索，猜是什么船。猜错一次，多给一点线索。
+English | [简体中文](README.zh-CN.md)
 
-An EVE Online hull-guessing game built on real killmails. UI in EN / DE / ES / FR / JA / KO / RU / ZH.
+![FITDLE](assets/share/og.png)
 
-## 玩法
+A ship-guessing game for EVE Online. You get a real killmail from zKillboard with the ship name hidden, and have to work out the hull from clues: stats, fitting, cargo and so on. Every wrong guess reveals a bit more.
 
-- **标准**：猜错后揭示更多装备和货柜；你猜的船和答案相同的属性会直接亮出来。
-- **装配核验**：属性按实际装配、全 V 技能算出来（用 [dogma-engine](https://github.com/EVEShipFit/dogma-engine)），难一些。
-- **计时**：线索按时间放出，跟猜了几次无关。
+The interface is available in English, German, Spanish, French, Japanese, Korean, Russian and Chinese.
 
-用 EVE SSO 登录后可以玩每日题（所有人同一题），并记录战绩和连胜。不登录就是练习模式，随便玩，不计分。
+## How to play
 
-联机房间支持上面三种玩法，外加一个轮流坐庄的「仲裁」玩法。
+- **Standard**: each miss reveals more fitting and cargo. Stats your guess shares with the answer are shown right away.
+- **Fitting Audit**: stats are calculated from the actual fit with all skills at V (using [dogma-engine](https://github.com/EVEShipFit/dogma-engine)). Harder.
+- **Timed**: clues come out on a clock, no matter how many guesses you make.
 
-## 部署
+Log in with EVE SSO to play the daily puzzle (the same for everyone) and keep a record and streak. Without logging in you get practice mode: play as much as you like, nothing is scored.
 
-需要一个 EVE 开发者应用（[developers.eveonline.com](https://developers.eveonline.com/)），回调地址填 `https://你的域名/api/v1/auth/eve/callback`。
+Multiplayer rooms support all three modes, plus Arbitration, where players take turns as the dealer.
+
+## Self-hosting
+
+You need an EVE developer application ([developers.eveonline.com](https://developers.eveonline.com/)) with the callback URL set to `https://your-domain/api/v1/auth/eve/callback`.
 
 ```bash
-cp .env.example .env   # 填 PUBLIC_ORIGIN、EVE_CLIENT_ID、EVE_CLIENT_SECRET、SESSION_SECRET
+cp .env.example .env   # fill in PUBLIC_ORIGIN, EVE_CLIENT_ID, EVE_CLIENT_SECRET, SESSION_SECRET
 docker run -d --name fitdle --restart unless-stopped \
   --env-file .env -p 127.0.0.1:8787:8787 -v fitdle-data:/data \
   ghcr.io/steven-cmy/fitdle:latest
 ```
 
-或者用 [compose.example.yml](compose.example.yml)。镜像 tag 有 `latest`、版本号（如 `1.0.55`）、`v` 加版本号和 commit sha，想固定版本就把 `latest` 换掉。
+Or use [compose.example.yml](compose.example.yml). Image tags are `latest`, the version (e.g. `1.0.55`), `v` plus the version, and the commit SHA; replace `latest` to pin a version.
 
-> 镜像以前发布在 `registry.gitlab.com/cmy/fitdle`，现在改到 GHCR。旧地址不再更新，把镜像地址改成上面的即可，数据卷不用动。
+> Images used to be published at `registry.gitlab.com/cmy/fitdle`. That address is no longer updated; switch the image to the one above and keep your data volume as is.
 
-几点说明：
+A few notes:
 
-- `SESSION_SECRET` 随便生成一个长随机串即可，例如 `openssl rand -base64 32`。
-- 不填 SSO 也能跑，只是只有练习模式。
-- 数据库是 `/data/fitdle.sqlite`，记得挂卷。
-- Unraid 上设 `PUID=99`、`PGID=100`。
-- 改了 `PUBLIC_ORIGIN` 要重建容器，光 restart 不行。
-- 其他可选配置都在 [.env.example](.env.example) 里，有注释。
+- `SESSION_SECRET` can be any long random string, e.g. `openssl rand -base64 32`.
+- It runs without SSO too, but then only practice mode is available.
+- The database lives at `/data/fitdle.sqlite`, so mount a volume there.
+- On Unraid, set `PUID=99` and `PGID=100`.
+- After changing `PUBLIC_ORIGIN`, recreate the container; a restart is not enough.
+- All other options are documented in [.env.example](.env.example).
 
-前面需要一个反代提供 HTTPS。注意房间用 WebSocket，`/api/v1/rooms/<code>/ws` 要带上升级头：
+Put a reverse proxy in front for HTTPS. Rooms use WebSockets, so `/api/v1/rooms/<code>/ws` needs the upgrade headers:
 
 ```nginx
 location ~ ^/api/v1/rooms/[^/]+/ws$ {
@@ -58,19 +62,19 @@ location / {
 }
 ```
 
-健康检查：`GET /api/v1/health`。只显示练习模式的话，先看 `/api/v1/meta` 和容器日志。
+Health check: `GET /api/v1/health`. If you only see practice mode, check `/api/v1/meta` and the container logs.
 
-## 开发
+## Development
 
-Node 24+。前端是原生 ES modules，没有打包器；后端在 `server/`，Fastify + SQLite。
+Node 24+. The front end is plain ES modules with no bundler; the back end in `server/` is Fastify + SQLite.
 
 ```bash
 npm install
-npm run prepare:sde       # 下载官方 SDE
+npm run prepare:sde       # download the official SDE
 npm run build:catalog
 npm run build:killpool
 npm run build:weights
-npm run build             # 生成 data/ 和 dist/
+npm run build             # writes data/ and dist/
 npm test
 
 npm install --prefix server
@@ -78,16 +82,16 @@ npm run test:server
 npm run server:start      # http://127.0.0.1:8787
 ```
 
-只看前端的话 `npm start`，打开 http://127.0.0.1:4173 （练习模式）。
+For the front end alone, run `npm start` and open http://127.0.0.1:4173 (practice mode).
 
-改界面文字的话，8 种语言在 `js/messages/` 下，键名要保持一致，EVE 名词用官方译名（见 [docs/i18n-glossary.md](docs/i18n-glossary.md)）。更细的约定写在 [AGENTS.md](AGENTS.md)。
+UI strings for all 8 languages are in `js/messages/` and must keep the same keys. Use the official EVE translations for game terms (see [docs/i18n-glossary.md](docs/i18n-glossary.md)). More detailed conventions are in [AGENTS.md](AGENTS.md).
 
 ## CI
 
-GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：PR 只构建和测试；推到 `main` 后还会推送镜像到 GHCR、部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态练习版），并在版本号变化且 CHANGELOG 有对应章节时创建 Release。
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests build and test only. Pushes to `main` also publish the image to GHCR, deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static practice build), and create a Release when the version changes and CHANGELOG has a matching section.
 
 ## License
 
-代码是 [MIT](LICENSE)。EVE Online、Pend Insurance、Secure Commerce Commission 的名称，以及游戏数据、图片和字体，归 Fenris Creations（原 CCP Games）所有，不在 MIT 范围内，详见 [NOTICE.md](NOTICE.md)。本项目是非官方粉丝作品，和 CCP、zKillboard 都没有关系。
+The code is [MIT](LICENSE). EVE Online, Pend Insurance, Secure Commerce Commission and the related names, game data, images and fonts belong to Fenris Creations (formerly CCP Games) and are not covered by the MIT license; see [NOTICE.md](NOTICE.md). This is an unofficial fan project, not affiliated with CCP or zKillboard.
 
-`assets/fonts/` 里的 Eve Sans Neue、EveSans 和 Triglavian 是 EVE 的官方字体，版权归 Fenris Creations，只为这个粉丝项目附带，不要拿去别处用。删掉它们界面会退回系统字体，不影响功能。版权方有要求的话会立即移除，来源见 [NOTICE.md](NOTICE.md#fonts)。
+The Eve Sans Neue, EveSans and Triglavian fonts in `assets/fonts/` are official EVE fonts owned by Fenris Creations. They are included only for this fan project; please don't reuse them elsewhere. Without them the UI falls back to system fonts and works the same. They will be removed right away if the rights holder asks; sources are listed in [NOTICE.md](NOTICE.md#fonts).
