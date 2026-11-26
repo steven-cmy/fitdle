@@ -16,6 +16,7 @@ const ERROR_CODES = new Set([
   'room-full',
   'login-required',
   'clue-required',
+  'clue-weight-required',
   'need-players',
   'rule-required',
   'target',
@@ -112,7 +113,6 @@ export class RoomSurface {
     this.playerId = '';
     this.room = null;
     this.dealerClues = null;
-    this.dealerScores = null;
     this.dealerTarget = null;
     this.decoyShipIds = [];
     this.arbitrationReveal = null;
@@ -269,6 +269,10 @@ export class RoomSurface {
       role: match?.dealerId === this.playerId ? 'dealer' : self?.spectator ? 'spectator' : 'player',
       clueCount: Number(match?.clueCount) || (this.dealerClues?.length || 0),
       clueMeta: match?.clueMeta || [],
+      share: Number(match?.share) || 0,
+      playerCount: Number(match?.playerCount) || 0,
+      scoring: match?.scoring || null,
+      dealerPoints: Number(match?.dealerPoints) || 0,
       dealerTarget: this.dealerTarget,
       decoyShipIds: match?.decoyShipIds || this.decoyShipIds,
       revealResult: match?.revealResult || this.arbitrationReveal || null,
@@ -938,6 +942,9 @@ export class RoomSurface {
     return `
       <h3>${esc(this.t('room.matchResult'))}</h3>
       <p>${esc(result.rule === 'arbitration' ? this.t('room.targetRevealed') : this.t('room.raceFinished'))}</p>
+      ${result.rule === 'arbitration' && Number(result.endBonus) > 0
+    ? `<p class="room-note">${esc(this.t('room.arbitration.endBonusResult', { points: this.int(result.endBonus) }))}</p>`
+    : ''}
       <table class="room-score-table">
         <thead><tr><th>${esc(this.t('room.pilot'))}</th><th>${esc(this.t('room.score'))}</th></tr></thead>
         <tbody>
@@ -1144,7 +1151,6 @@ export class RoomSurface {
 
   clearArbitration() {
     this.dealerClues = null;
-    this.dealerScores = null;
     this.dealerTarget = null;
     this.decoyShipIds = [];
     this.arbitrationReveal = null;
@@ -1167,7 +1173,6 @@ export class RoomSurface {
         break;
       case 'dealerClues':
         this.dealerClues = message.clues || [];
-        this.dealerScores = message.scores || null;
         this.dealerTarget = message.dealerTarget || null;
         this.arbitrationReveal = null;
         this.decoyShipIds = message.decoyShipIds || this.decoyShipIds || [];
@@ -1214,7 +1219,10 @@ export class RoomSurface {
         this.pushFeed({ key: 'room.feed.intelBatch', vars: { count: Number(message.count) || 0 } });
         break;
       case 'solved':
-        this.pushFeed({ key: 'room.feed.solved', vars: { name: this.playerName(message.playerId) } });
+        this.pushFeed({
+          key: 'room.feed.arbSolved',
+          vars: { name: this.playerName(message.playerId), points: this.int(message.points || 0) },
+        });
         break;
       case 'miss':
         this.pushFeed({ key: 'room.feed.miss', vars: { name: this.playerName(message.playerId) } });

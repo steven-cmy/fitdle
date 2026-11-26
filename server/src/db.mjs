@@ -125,9 +125,18 @@ CREATE TABLE IF NOT EXISTS arbitration_rounds (
   guesses INTEGER NOT NULL,
   correct INTEGER NOT NULL,
   dealer_score INTEGER NOT NULL,
+  published_share REAL NOT NULL DEFAULT 0,
+  unsolved INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
 `);
+
+// Added in 1.0.57; arbitration rounds of earlier releases get the share columns here.
+{
+  const columns = db.prepare('PRAGMA table_info(arbitration_rounds)').all().map((column) => column.name);
+  if (!columns.includes('published_share')) db.exec('ALTER TABLE arbitration_rounds ADD COLUMN published_share REAL NOT NULL DEFAULT 0');
+  if (!columns.includes('unsolved')) db.exec('ALTER TABLE arbitration_rounds ADD COLUMN unsolved INTEGER NOT NULL DEFAULT 0');
+}
 
 // Added in 1.0.45; databases of earlier releases get it here.
 if (!db.prepare('PRAGMA table_info(online_runs)').all().some((column) => column.name === 'begun_at')) {

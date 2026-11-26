@@ -1368,6 +1368,16 @@ test('manual is pure instructions and copyright with all modes', () => {
       'help.multiplayerArbitration',
     ]) assert.ok(MESSAGES[lang][key], `${lang} missing ${key}`);
     assert.ok(MESSAGES[lang]['help.multiplayerArbitration'].split('\n').length >= 6, `${lang} arbitration manual too short`);
+    // The manual explains scoring in words: no coefficients or formulas.
+    assert.doesNotMatch(MESSAGES[lang]['help.multiplayerArbitration'], /[0-9×÷=%]/, `${lang} arbitration manual shows numbers`);
+    for (const key of [
+      'room.roundScore',
+      'room.arbitration.solveNow',
+      'room.arbitration.endBonus',
+      'room.arbitration.endBonusResult',
+      'room.feed.arbSolved',
+      'room.error.clue-weight-required',
+    ]) assert.ok(MESSAGES[lang][key], `${lang} missing ${key}`);
   }
 });
 

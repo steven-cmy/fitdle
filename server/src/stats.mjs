@@ -36,11 +36,13 @@ export function recordRunFinish(run) {
       Number(run.target_kill_id), run.gameplay, mode);
 }
 
-export function recordArbitrationRound({ matchId, round, dealerNameKey, published, guesses, correct, dealerScore }) {
-  statement(`INSERT INTO arbitration_rounds(match_id, round, dealer_name_key, published_json, guesses, correct, dealer_score, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+export function recordArbitrationRound({
+  matchId, round, dealerNameKey, published, guesses, correct, dealerScore, publishedShare = 0, unsolved = 0,
+}) {
+  statement(`INSERT INTO arbitration_rounds(match_id, round, dealer_name_key, published_json, guesses, correct, dealer_score, published_share, unsolved, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(matchId, Number(round), dealerNameKey, JSON.stringify(published), Number(guesses) || 0,
-      Number(correct) || 0, Number(dealerScore) || 0, now());
+      Number(correct) || 0, Number(dealerScore) || 0, Number(publishedShare) || 0, Number(unsolved) || 0, now());
 }
 
 export function recordRoomMatch({ id, roomCode, rule, targetKillId, targetShipId, result }) {

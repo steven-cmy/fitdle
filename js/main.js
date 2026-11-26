@@ -30,6 +30,12 @@ import { slimKillmails } from './killmail.js';
 import { buildUserAgent, publicSite } from './user-agent.js';
 import { calculateDogmaBaseline, calculateDogmaFit, preloadDogma } from './dogma.js';
 import { buildRevealPlan, computeRevealed, computeTimedRevealed } from './reveal.js';
+import {
+  ARBITRATION_SCORING,
+  arbitrationSolvePoints,
+  arbitrationDealerRoundRaw,
+  arbitrationEndBonusRaw,
+} from './mp/rules.js';
 import { CATEGORY_ICON, icon } from './icons.js';
 import { api } from './api.js';
 import { avatarHtml } from './avatar.js';
@@ -3482,6 +3488,23 @@ function renderArbitrationHiddenRow(clue, index) {
   </div>`;
 }
 
+/**
+ * What the dealer would earn by publishing `pending` now: this round's points
+ * if nobody solves, and the end bonus if the stint ended at that share.
+ */
+function arbitrationDealerPreview(arb, pending) {
+  const scoring = arb.scoring || ARBITRATION_SCORING;
+  const players = Math.max(1, Number(arb.playerCount) || 1);
+  const byIndex = new Map((arb.dealerClues || []).map((clue) => [Number(clue.i), clue]));
+  const added = pending.reduce((sum, index) => sum + (Number(byIndex.get(Number(index))?.p) || 0), 0);
+  const share = Math.min(1, (Number(arb.share) || 0) + added);
+  const unsolved = Math.max(0, players - (arb.solved?.size || 0));
+  return {
+    round: Math.round(arbitrationDealerRoundRaw({ share, unsolved, scoring }) / players),
+    end: Math.round(arbitrationEndBonusRaw({ share, players, scoring }) / players),
+  };
+}
+
 function renderArbitrationDossier() {
   const arb = state.roomArbitration;
   const role = arbitrationRole();
@@ -3524,11 +3547,13 @@ function renderArbitrationDossier() {
       if (clue.auto && !published.has(Number(clue.i))) auto.add(Number(clue.i));
     }
     const pending = [...new Set([...selected, ...auto])].filter((index) => !published.has(Number(index)));
-    const roundScore = pending.reduce((sum, index) => {
-      const clue = (arb.dealerClues || []).find((entry) => Number(entry.i) === Number(index));
-      return sum + Object.values(clue?.scores || {}).reduce((inner, value) => inner + (Number(value) || 0), 0);
-    }, 0);
-    if (countText) countText.textContent = String(roundScore);
+    const preview = arbitrationDealerPreview(arb, pending);
+    if (countText) {
+      countText.textContent = String(preview.round);
+      const tip = t('room.arbitration.endBonus', { points: preview.end });
+      countText.parentElement?.setAttribute('data-tip', tip);
+      countText.parentElement?.setAttribute('title', tip);
+    }
     if (countLabel) countLabel.textContent = t('room.roundScore');
     if (orb) {
       orb.hidden = true;
@@ -3539,8 +3564,15 @@ function renderArbitrationDossier() {
       progressLine.style.display = 'none';
     }
   } else {
-    if (countText) countText.textContent = `${shown} / ${total || '?'}`;
-    if (countLabel) countLabel.textContent = t('dossier.decrypted');
+    const canScore = role === 'player' && arb.phase === 'player';
+    if (countText) {
+      countText.textContent = canScore
+        ? String(arbitrationSolvePoints({ share: arb.share, round: arb.round, scoring: arb.scoring || ARBITRATION_SCORING }))
+        : `${shown} / ${total || '?'}`;
+      countText.parentElement?.removeAttribute('data-tip');
+      countText.parentElement?.removeAttribute('title');
+    }
+    if (countLabel) countLabel.textContent = t(canScore ? 'room.arbitration.solveNow' : 'dossier.decrypted');
     if (orb) {
       orb.hidden = false;
       orb.style.display = '';
@@ -3599,8 +3631,7 @@ function renderArbitrationDossier() {
     const index = Number(row.dataset.clueIndex);
     const clue = clues.find((entry) => Number(entry.i) === index);
     if (!clue || clue.hidden) return;
-    const values = [...new Set(Object.values(clue.scores || {}).map((value) => Number(value) || 0))];
-    const scoreText = values.length > 1 ? values.join(' / ') : String(values[0] ?? 0);
+    const scoreText = `${Math.round((Number(clue.p) || 0) * 1000) / 10}%`;
     const weight = Math.max(0, Number(clue.w) || 0);
     const tip = t('room.clueWeight', { weight });
     const meta = row.querySelector('.attr-meta');

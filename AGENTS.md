@@ -222,13 +222,25 @@ translation [README.zh-CN.md](README.zh-CN.md).
   room can run 1..N **big rounds**, where one big round is one pass through the
   active dealer order. The small-round rules are fixed; only the big-round count
   is host-configurable. The dealer publishes at least one unpublished clue per
-  round (or all); equipment/cargo clues are auto-selected from the audit reveal
-  plan, not hand-picked. Active players guess once per small round. At the end of
-  each small round the dealer earns, for every player still unsolved, the sum of
-  that player's weights for **all currently published** clues. A correct player
-  scores remaining rounds x that player's unpublished clue weights, then spectates.
-  If every clue is published, players keep guessing each round. The stint ends
-  after six rounds or when every player has solved it.
+  round (or all), and at least one with weight while any weighted clue is still
+  selectable (`clue-weight-required`); active players guess once. If every clue
+  is published, players keep guessing each round. The stint ends after six
+  rounds or when every player still in the room has solved.
+- Arbitration scoring lives in `js/mp/rules.js` (`ARBITRATION_SCORING`, shared by
+  server and dossier preview). f = published share of the total clue weight
+  after the dealer publishes; n = players at stint start (fixed). A solve in
+  round k pays `solveBase*(1-f)+solveEarly*(7-k)` at once. After each round
+  every unsolved player gives the dealer `dealerRound*f`; when the stint ends
+  (six rounds, all solved, dealer leaves or host ends) the dealer gets
+  `dealerEnd*n*f`. The dealer total is the raw sum / n, credited with cumulative
+  rounding (`arbitrationDealerCredit`). A player who leaves stays unsolved to the
+  end of the stint and keeps earned points; a solved leaver stays solved. Leaving
+  dealer / host end settle the current round and the end bonus before
+  `matchResult`. When the scheduled dealer is gone, the next connected pilot in
+  the big-round order deals. Scores are room-only, never stored on accounts.
+  Clues on the wire carry `p` (share of total weight), never per-player values.
+  `arbitration_rounds` stores `published_share` and `unsolved` per round for
+  later coefficient tuning.
 - Room state, target selection, clue release, guessing, scoring and timers are
   authoritative on the server. Clients never send scores. The server stores
   target exposures/runs/rounds for future statistics; no leaderboard UI/API yet.

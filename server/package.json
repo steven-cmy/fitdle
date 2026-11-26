@@ -2,7 +2,7 @@
   "name": "fitdle-server",
   "private": true,
   "type": "module",
-  "version": "1.0.56",
+  "version": "1.0.57",
   "description": "FITDLE lightweight online service: EVE SSO, daily targets, statistics, and authoritative rooms.",
   "engines": {
     "node": ">=24"

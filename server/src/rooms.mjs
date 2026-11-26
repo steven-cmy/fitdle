@@ -5,7 +5,17 @@ import { promisify } from 'node:util';
 import { buildSearchIndex, gameDateKey, normalizeText } from '../../js/game.js';
 import { buildClues } from '../../js/clues.js';
 import { clueForWire, sanitizeChatText, sanitizeText } from '../../js/mp/protocol.js';
-import { rankPoints, endlessRoundScore, allocatePlayerRoundScores, ROOM_SCORE_PER_KB } from '../../js/mp/rules.js';
+import {
+  rankPoints,
+  endlessRoundScore,
+  ROOM_SCORE_PER_KB,
+  ARBITRATION_SCORING,
+  arbitrationShare,
+  arbitrationSolvePoints,
+  arbitrationDealerRoundRaw,
+  arbitrationEndBonusRaw,
+  arbitrationDealerCredit,
+} from '../../js/mp/rules.js';
 import { pickDealerRound } from '../../js/mp/target.js';
 import { calculateDogmaFit, calculateDogmaBaseline } from '../../js/dogma.js';
 import { buildRevealPlan } from '../../js/reveal.js';
@@ -218,6 +228,10 @@ function publicMatch(match) {
       acceptingGuesses: Boolean(match.acceptingGuesses),
       dealerDisconnected: Boolean(match.dealerDisconnected),
       totalRounds: Number(match.totalRounds) || 6,
+      share: arbitrationMatchShare(match),
+      playerCount: Number(match.playerCount) || 0,
+      scoring: ARBITRATION_SCORING,
+      dealerPoints: Number(match.dealerPoints) || 0,
       clueCount: match.clues?.length || 0,
       clueMeta: (match.clues || []).map((clue, index) => ({
         i: index,
@@ -325,25 +339,63 @@ export function acceptedNames(shipId) {
   return new Set(SEARCH_BY_SHIP.get(Number(shipId))?.names || []);
 }
 
-function publishedWeight(match) {
-  return match.publishedClues.reduce((sum, clue) => sum + (Number(clue.w) || 0), 0);
-}
-
-function arbitrationScoreRow(match, playerId, index, round = match.round) {
-  return Number(match.scoreData?.scores?.[playerId]?.[Math.max(0, round - 1)]?.[index] || 0);
+function arbitrationMatchShare(match) {
+  return arbitrationShare(match.clues, match.published);
 }
 
 function arbitrationClueWire(match, clue, index) {
-  const scores = {};
-  for (const playerId of match.nonDealerIds) {
-    scores[playerId] = arbitrationScoreRow(match, playerId, index);
-  }
   return {
     ...clueForWire(clue),
     i: index,
+    p: arbitrationShare(match.clues, [index]),
     ...(match.autoIndices?.has(index) ? { auto: true } : {}),
-    scores,
   };
+}
+
+/** Players who started the stint and have not solved; a leaver stays unsolved. */
+function arbitrationUnsolvedCount(match) {
+  return match.nonDealerIds.filter((id) => !match.solved.has(id)).length;
+}
+
+/** Add raw dealer points and credit the rounded difference to the dealer. */
+function creditArbitrationDealer(room, match, raw) {
+  match.dealerRaw = (Number(match.dealerRaw) || 0) + Math.max(0, Number(raw) || 0);
+  const credit = arbitrationDealerCredit({
+    raw: match.dealerRaw,
+    players: match.playerCount,
+    credited: match.dealerPoints,
+  });
+  match.dealerPoints += credit;
+  const dealer = room.players.get(match.dealerId);
+  if (dealer) dealer.score += credit;
+  return credit;
+}
+
+/** The dealer's settlement for the current round, once per round. */
+function settleArbitrationDealerRound(room, match) {
+  match.settledRounds ||= new Set();
+  if (match.settledRounds.has(match.round)) return 0;
+  match.settledRounds.add(match.round);
+  return creditArbitrationDealer(room, match, arbitrationDealerRoundRaw({
+    share: arbitrationMatchShare(match),
+    unsolved: arbitrationUnsolvedCount(match),
+  }));
+}
+
+/** The dealer's end bonus, once per stint. */
+function applyArbitrationEndBonus(room, match) {
+  if (match.endBonusApplied) return match.endBonus || 0;
+  match.endBonusApplied = true;
+  match.endBonus = creditArbitrationDealer(room, match, arbitrationEndBonusRaw({
+    share: arbitrationMatchShare(match),
+    players: match.playerCount,
+  }));
+  return match.endBonus;
+}
+
+/** Players still in the room who started this stint. */
+function presentArbitrationPlayers(room, match) {
+  return match.nonDealerIds.filter((id) => room.players.has(id));
 }
 
 function pickDecoyShips(targetShipId) {
@@ -420,7 +472,6 @@ function sendDealerClues(room, match) {
     phase: match.phase,
     dealerTarget: { shipId: match.target.shipId, killId: match.target.killId },
     decoyShipIds: match.decoyShipIds,
-    scores: match.scoreData.scores,
   });
 }
 
@@ -460,6 +511,7 @@ function revealArbitrationStint(room, match) {
   match.phase = 'reveal';
   match.acceptingGuesses = false;
   match.prepared.clear();
+  const endBonus = applyArbitrationEndBonus(room, match);
   const result = {
     matchId: match.id,
     rule: 'arbitration',
@@ -468,6 +520,7 @@ function revealArbitrationStint(room, match) {
     totalRounds: match.totalRounds,
     target: { shipId: match.target.shipId, killId: match.target.killId },
     dealerPoints: match.dealerPoints,
+    endBonus,
     solved: [...match.solved],
     scores: arbitrationScores(room),
     nextDealer: null,
@@ -482,17 +535,8 @@ function revealArbitrationStint(room, match) {
 function settleArbitrationRound(room) {
   const match = room.match;
   if (!match || match.rule !== 'arbitration' || match.phase !== 'player') return;
+  const dealerRoundPoints = settleArbitrationDealerRound(room, match);
   recordArbitrationRoundOnce(room, match);
-  let dealerRoundPoints = 0;
-  for (const playerId of match.nonDealerIds) {
-    if (match.solved.has(playerId)) continue;
-    for (const index of match.published) {
-      dealerRoundPoints += arbitrationScoreRow(match, playerId, index);
-    }
-  }
-  match.dealerPoints += dealerRoundPoints;
-  const dealer = room.players.get(match.dealerId);
-  if (dealer) dealer.score += dealerRoundPoints;
   match.acceptingGuesses = false;
   broadcast(room, {
     t: 'arbitrationRoundResult',
@@ -501,8 +545,9 @@ function settleArbitrationRound(room) {
     dealerPoints: dealerRoundPoints,
     scores: arbitrationScores(room),
   });
-  const allSolved = match.nonDealerIds.length > 0
-    && match.nonDealerIds.every((playerId) => match.solved.has(playerId));
+  const present = presentArbitrationPlayers(room, match);
+  const allSolved = present.length > 0
+    && present.every((playerId) => match.solved.has(playerId));
   if (allSolved || match.round >= (Number(match.totalRounds) || 6)) {
     match.allSolved = allSolved;
     revealArbitrationStint(room, match);
@@ -916,6 +961,24 @@ function forfeitRound(room, player) {
   recordRaceResult(room, player, 'lost', { forfeit: true, name: player.name });
 }
 
+/**
+ * The dealer whose turn it is, or, when that pilot is gone, the next pilot in
+ * the big-round order who is still connected.
+ */
+function substituteDealerId(room, active, wantedDealerId) {
+  const ids = new Set(active.map((player) => player.id));
+  if (ids.has(wantedDealerId)) return wantedDealerId;
+  const order = room.bigRound?.order || [];
+  const at = order.indexOf(wantedDealerId);
+  if (at >= 0) {
+    for (let step = 1; step < order.length; step += 1) {
+      const id = order[(at + step) % order.length];
+      if (ids.has(id)) return id;
+    }
+  }
+  return active[0].id;
+}
+
 async function startArbitration(room, wantedDealerId, current) {
   const round = await pickDealerRound({
     manifest: config.manifest,
@@ -935,7 +998,7 @@ async function startArbitration(room, wantedDealerId, current) {
   // Players may have left while the target loaded.
   const active = connectedPilots(room);
   if (active.length < 2) throw Object.assign(new Error('not enough players'), { code: 'need-players' });
-  const dealerId = active.some((player) => player.id === wantedDealerId) ? wantedDealerId : active[0].id;
+  const dealerId = substituteDealerId(room, active, wantedDealerId);
   const accepted = acceptedNames(round.ship.id);
   recordExposure({
     source: 'room',
@@ -966,7 +1029,11 @@ async function startArbitration(room, wantedDealerId, current) {
     nonDealerIds: [...room.players.values()]
       .filter((player) => player.connected && !player.spectator && player.id !== dealerId)
       .map((player) => player.id),
-    scoreData: null,
+    playerCount: 0,
+    dealerRaw: 0,
+    settledRounds: new Set(),
+    endBonusApplied: false,
+    endBonus: 0,
     autoIndices: new Set(),
     autoEquipmentCursor: 0,
     autoCargoCursor: 0,
@@ -978,12 +1045,7 @@ async function startArbitration(room, wantedDealerId, current) {
     revealResult: null,
     decoyShipIds: pickDecoyShips(round.shipId),
   };
-  match.scoreData = allocatePlayerRoundScores({
-    clues: match.clues,
-    players: match.nonDealerIds,
-    rounds: match.totalRounds,
-    x: ROOM_SCORE_PER_KB,
-  });
+  match.playerCount = match.nonDealerIds.length;
   selectArbitrationAuto(match);
   room.match = match;
   room.phase = 'playing';
@@ -1012,7 +1074,6 @@ async function startArbitration(room, wantedDealerId, current) {
     phase: match.phase,
     dealerTarget: { shipId: match.target.shipId, killId: match.target.killId },
     decoyShipIds: match.decoyShipIds,
-    scores: match.scoreData.scores,
   });
   changed(room);
 }
@@ -1029,6 +1090,8 @@ function recordArbitrationRoundOnce(room, match) {
     guesses: match.guesses,
     correct: match.correct,
     dealerScore: match.dealerPoints,
+    publishedShare: arbitrationMatchShare(match),
+    unsolved: arbitrationUnsolvedCount(match),
   });
 }
 
@@ -1048,6 +1111,10 @@ function recordArbitrationMatch(room, match, result) {
 function endArbitration(room) {
   const match = room.match;
   if (!match || match.rule !== 'arbitration') return;
+  // Settle what was played before the stint ends: the current round only
+  // counts once the dealer has published in it.
+  if (match.phase === 'player') settleArbitrationDealerRound(room, match);
+  const endBonus = applyArbitrationEndBonus(room, match);
   recordArbitrationRoundOnce(room, match);
   const result = {
     matchId: match.id,
@@ -1055,6 +1122,7 @@ function endArbitration(room) {
     dealerId: match.dealerId,
     target: { shipId: match.target.shipId, killId: match.target.killId },
     dealerPoints: match.dealerPoints,
+    endBonus,
     solved: [...match.solved],
     scores: arbitrationScores(room),
   };
@@ -1080,6 +1148,7 @@ function finishArbitrationReveal(room) {
       dealerId: match.dealerId,
       target: { shipId: match.target.shipId, killId: match.target.killId },
       dealerPoints: match.dealerPoints,
+      endBonus: match.endBonus || 0,
       solved: [...match.solved],
       scores: arbitrationScores(room),
     };
@@ -1255,6 +1324,19 @@ function onMessage(room, player, raw) {
       send(player, { t: 'error', code: 'clue-required' });
       return;
     }
+    // Each round must publish some weight, so every round a player holds out
+    // is worth more to the dealer. Only when nothing weighted is left may a
+    // round publish weightless clues alone.
+    const weighted = (index) => (Number(match.clues[index]?.w) || 0) > 0;
+    const weightLeft = match.clues.some((clue, index) => (
+      !match.published.has(index)
+      && weighted(index)
+      && ((clue.k !== 'equipment' && clue.k !== 'cargo') || match.autoIndices.has(index))
+    ));
+    if (weightLeft && !valid.some(weighted)) {
+      send(player, { t: 'error', code: 'clue-weight-required' });
+      return;
+    }
     for (const index of valid) {
       match.published.add(index);
       const wire = arbitrationClueWire(match, match.clues[index], index);
@@ -1287,17 +1369,11 @@ function onMessage(room, player, raw) {
     if (match.accepted.has(guess)) {
       match.correct += 1;
       match.solved.add(player.id);
-      const row = match.scoreData?.scores?.[player.id]?.[Math.max(0, match.round - 1)] || [];
-      const unrevealed = row.reduce((sum, value, index) => (
-        match.published.has(index) ? sum : sum + (Number(value) || 0)
-      ), 0);
-      const remaining = Math.max(0, (Number(match.totalRounds) || 6) - match.round + 1);
-      player.score += remaining * unrevealed;
-      broadcast(room, { t: 'solved', playerId: player.id, points: remaining * unrevealed });
+      const points = arbitrationSolvePoints({ share: arbitrationMatchShare(match), round: match.round });
+      player.score += points;
+      broadcast(room, { t: 'solved', playerId: player.id, points });
     } else {
-      const row = match.scoreData?.scores?.[player.id]?.[Math.max(0, match.round - 1)] || [];
-      const points = [...match.published].reduce((sum, index) => sum + (Number(row[index]) || 0), 0);
-      broadcast(room, { t: 'miss', playerId: player.id, points });
+      broadcast(room, { t: 'miss', playerId: player.id });
     }
     if (activeGuessers(room).every((p) => match.guessed.has(p.id))) {
       advanceArbitrationRound(room);
@@ -1381,7 +1457,7 @@ function removePlayer(room, player, reason = 'leave') {
   }
   if (room.match?.rule === 'arbitration') {
     const match = room.match;
-    match.nonDealerIds = match.nonDealerIds.filter((id) => id !== player.id);
+    // A leaver keeps counting as unsolved; points already earned stay.
     match.prepared.delete(player.id);
     if (checkArbitrationProgress(room)) return;
   }

@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   RANK_POINTS, rankPoints, raceRoundScores, raceTargetReached, rankPlayers,
-  arbitrationRoundScores, unpublishedWeight, score,
-  ROOM_SCORE_PER_KB, endlessRoundScore, allocatePlayerRoundScores,
+  score, ROOM_SCORE_PER_KB, endlessRoundScore,
+  ARBITRATION_SCORING, arbitrationShare, arbitrationSolvePoints,
+  arbitrationDealerRoundRaw, arbitrationEndBonusRaw, arbitrationDealerCredit,
 } from '../js/mp/rules.js';
 import {
   clueForWire, decodeMessage, encodeMessage, normalizeName, RateLimiter,
@@ -62,27 +63,114 @@ function mockFetch({ failPage = false, failKill = false, bareList = false, reque
   };
 }
 
-test('endless scores use 3000 points and integer arbitration buckets', () => {
+test('endless scores use 3000 points', () => {
   assert.equal(ROOM_SCORE_PER_KB, 3000);
   assert.equal(endlessRoundScore({ status: 'won', attempts: 1 }), 3000);
   assert.equal(endlessRoundScore({ status: 'won', attempts: 2 }), 2500);
   assert.equal(endlessRoundScore({ status: 'won', attempts: 6 }), 500);
   assert.equal(endlessRoundScore({ status: 'won', attempts: 7 }), 0);
   assert.equal(endlessRoundScore({ status: 'lost', attempts: 6 }), 0);
+});
 
-  const clues = [
-    { w: 10 }, { w: 20 }, { w: 70 },
-  ];
-  const players = ['a', 'b'];
-  const allocated = allocatePlayerRoundScores({ clues, players, rounds: 6, x: 3000 });
-  const allScores = Object.values(allocated.scores).flat(2);
-  assert.equal(allScores.reduce((sum, value) => sum + value, 0), 3000);
-  assert.ok(allScores.every((value) => Number.isInteger(value) && value >= 0));
-  assert.deepEqual(allocated.budgets.a, [250, 250, 250, 250, 250, 250]);
+/**
+ * Replay one arbitration stint with the shared rules, the way the server
+ * settles it: `shares[r]` is f after the dealer published in round r + 1;
+ * `solvedAt[id]` is the 1-based solve round (missing = never), `leftAfter`
+ * only documents that a leaver keeps counting as unsolved.
+ */
+function replayStint({ players, shares, solvedAt = {}, dealerLeavesInRound = null }) {
+  const n = players.length;
+  const points = Object.fromEntries(players.map((id) => [id, 0]));
+  const solved = new Set();
+  let raw = 0;
+  let credited = 0;
+  const credit = (value) => {
+    raw += value;
+    const add = arbitrationDealerCredit({ raw, players: n, credited });
+    credited += add;
+  };
+  let lastShare = 0;
+  for (let index = 0; index < shares.length; index += 1) {
+    const round = index + 1;
+    const share = shares[index];
+    lastShare = share;
+    if (dealerLeavesInRound !== round) {
+      for (const id of players) {
+        if (!solved.has(id) && solvedAt[id] === round) {
+          solved.add(id);
+          points[id] += arbitrationSolvePoints({ share, round });
+        }
+      }
+    }
+    credit(arbitrationDealerRoundRaw({ share, unsolved: n - solved.size }));
+    if (dealerLeavesInRound === round || solved.size === n) break;
+  }
+  credit(arbitrationEndBonusRaw({ share: lastShare, players: n }));
+  return { points, dealer: credited };
+}
 
-  const one = allocatePlayerRoundScores({ clues, players: ['a'], rounds: 6, x: 3000 });
-  assert.equal(one.scores.a[0].reduce((sum, value) => sum + value, 0), 500);
-  assert.equal(one.scores.a[0][0], 50);
+test('arbitration scoring constants and share', () => {
+  assert.deepEqual({ ...ARBITRATION_SCORING }, {
+    solveBase: 1200, solveEarly: 20, dealerRound: 600, dealerEnd: 800, rounds: 6,
+  });
+  const clues = [{ w: 10 }, { w: 30 }, { w: 60 }, { w: 0 }];
+  assert.equal(arbitrationShare(clues, []), 0);
+  assert.equal(arbitrationShare(clues, [0, 1]), 0.4);
+  assert.equal(arbitrationShare(clues, new Set([0, 1, 2, 3])), 1);
+  assert.equal(arbitrationShare([{ w: 0 }], [0]), 0);
+});
+
+test('arbitration worked examples from the plan', () => {
+  // 2 players: A solves in round 1, B in round 3.
+  let result = replayStint({ players: ['a', 'b'], shares: [0.2, 0.5, 0.8], solvedAt: { a: 1, b: 3 } });
+  assert.deepEqual(result.points, { a: 1080, b: 320 });
+  assert.equal(result.dealer, 850);
+  // 3 players all solve in round 1.
+  result = replayStint({ players: ['a', 'b', 'c'], shares: [0.1], solvedAt: { a: 1, b: 1, c: 1 } });
+  assert.deepEqual(result.points, { a: 1200, b: 1200, c: 1200 });
+  assert.equal(result.dealer, 80);
+  // 2 players never solve.
+  result = replayStint({ players: ['a', 'b'], shares: [0.1, 0.2, 0.4, 0.6, 0.8, 1] });
+  assert.deepEqual(result.points, { a: 0, b: 0 });
+  assert.equal(result.dealer, 2660);
+  // B leaves after round 2 and counts as unsolved; A solves in round 4.
+  result = replayStint({ players: ['a', 'b'], shares: [0.2, 0.4, 0.6, 0.7], solvedAt: { a: 4 } });
+  assert.deepEqual(result.points, { a: 420, b: 0 });
+  assert.equal(result.dealer, 1490);
+  // The dealer leaves in round 2 after publishing; nobody solved.
+  result = replayStint({ players: ['a', 'b'], shares: [0.3, 0.5], dealerLeavesInRound: 2 });
+  assert.equal(result.dealer, 880);
+  // A solves in round 1 and leaves (still solved); B solves in round 2.
+  result = replayStint({ players: ['a', 'b'], shares: [0.2, 0.5], solvedAt: { a: 1, b: 2 } });
+  assert.deepEqual(result.points, { a: 1080, b: 700 });
+  assert.equal(result.dealer, 460);
+});
+
+test('arbitration rewards early players and patient dealers', () => {
+  for (const share of [0, 0.3, 0.9]) {
+    for (let round = 1; round < 6; round += 1) {
+      assert.ok(arbitrationSolvePoints({ share, round }) > arbitrationSolvePoints({ share, round: round + 1 }));
+    }
+  }
+  for (let round = 1; round <= 6; round += 1) {
+    assert.ok(arbitrationSolvePoints({ share: 0.2, round }) > arbitrationSolvePoints({ share: 0.5, round }));
+  }
+  // The longer one player holds out, the more the dealer scores.
+  const shares = [0.1, 0.2, 0.3, 0.5, 0.7, 0.9];
+  const dealerFor = (round) => replayStint({ players: ['a', 'b'], shares, solvedAt: { a: round, b: 1 } }).dealer;
+  for (let round = 1; round <= 6; round += 1) {
+    assert.ok(dealerFor(round + 1) > dealerFor(round), `round ${round}`);
+  }
+  // Points are non-negative integers and rounding never drifts.
+  let raw = 0;
+  let credited = 0;
+  for (const value of [33.3, 66.6, 12.7, 401.9]) {
+    raw += value;
+    credited += arbitrationDealerCredit({ raw, players: 3, credited });
+    assert.ok(Number.isInteger(credited));
+  }
+  assert.equal(credited, Math.round(raw / 3));
+  assert.equal(arbitrationSolvePoints({ share: 2, round: 9 }), 20);
 });
 
 test('multiplayer rank points and race scoring follow finish order', () => {
@@ -120,34 +208,6 @@ test('race ranking ignores spectators and breaks ties deterministically', () => 
     { a: 2, b: 1 },
   );
   assert.equal(ranked[0].id, 'a');
-});
-
-test('dealer scoring uses published weight and locked unpublished snapshots', () => {
-  const clues = [
-    { w: 10 }, { w: 8 }, { w: 6 }, { w: 4 }, { w: 2 },
-  ];
-  const published = [0, 1];
-  const result = arbitrationRoundScores({
-    clues,
-    publishedIndices: published,
-    solves: [
-      { playerId: 'a', snapshot: 20 },
-      { playerId: 'b', snapshot: 10 },
-    ],
-  });
-  assert.equal(result.totalWeight, 30);
-  assert.equal(result.publishedWeight, 18);
-  assert.equal(result.unpublishedWeight, 12);
-  assert.equal(result.dealerScore, 18);
-  assert.deepEqual(result.playerScores, { a: 10, b: 5 });
-  assert.equal(result.correctCount, 2);
-
-  const noCorrect = arbitrationRoundScores({ clues, publishedIndices: published, solves: [] });
-  assert.equal(noCorrect.dealerScore, 18);
-  assert.deepEqual(noCorrect.playerScores, {});
-
-  assert.equal(unpublishedWeight(clues, [0, 1, 2, 3, 4]), 0);
-  assert.equal(score(2.6), 3);
 });
 
 test('protocol validates messages, names, text and rate limits', () => {
