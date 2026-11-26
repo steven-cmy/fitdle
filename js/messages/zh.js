@@ -262,7 +262,7 @@ export default {
 
   'mode.timed': '计时',
   'mode.timedHint': '不限次数，与时间赛跑。证据按时间送达。',
-  'mode.helpTimed': '计时模式。\n开始计时后进入评估。\n证据按时间送达，猜测不会额外揭示。\n确认船体即可停止计时。',
+  'mode.helpTimed': '计时模式。\n开始计时后进入评估。\n证据按时间送达，猜测不会额外揭示。\n确认船体即可停止计时。\n每次鉴定后，需要等待几秒才能再次提交。',
 
   'timed.start': '开始计时',
   'timed.startHint': '开始前没有任何证据。可无限次尝试，计时到确认船体为止。',
@@ -349,7 +349,6 @@ export default {
 
   'room.lobbyKicker': '联机模式 // 大厅',
   'room.title': '联机模式',
-  'room.close': '关闭',
   'room.createRoom': '创建房间',
   'room.capacity': '上限 {max}',
   'room.passwordOptional': '可选密码',
@@ -358,14 +357,11 @@ export default {
   'room.codePlaceholder': '房间码',
   'room.password': '密码',
   'room.join': '加入',
-  'room.rules': '规则',
-  'room.rulesBody': '房主创建房间后选择玩法。房间没有默认玩法。',
-  'room.arbitrationRule': '仲裁复核采用庄家主导的残骸评估；其他玩法为同案卷竞速。',
   'room.roomKicker': 'LOCAL // {code}',
   'room.noGameplay': '未选择玩法',
   'room.roomStatus': '在线 {active} / {max}',
   'room.share': '分享房间',
-  'room.leave': '离开',
+  'room.leave': '返回大厅',
   'room.round': '第 {round} / {total} 回合',
   'room.dealerLine': '庄家：{name}',
   'room.fullIntel': '完整情报',
@@ -394,7 +390,8 @@ export default {
   'room.pilot': '玩家',
   'room.score': '分数',
   'room.feed.solved': '{name} 猜中了本回合。',
-  'room.feed.miss': '{name} 猜错，庄家得分。',
+  'room.feed.miss': '{name} 猜错。',
+  'room.feed.arbSolved': '{name} 猜中，得 {points} 分。',
   'room.feed.forfeit': '{name} 中途离开，本轮记负。',
   'room.chatTitle': '亚空间通讯信标',
   'room.chatUnavailable': '亚空间通讯信标无法连接。频道列表不可用。',
@@ -415,6 +412,7 @@ export default {
   'room.error.room-full': '房间人数已满。',
   'room.error.login-required': '登录 EVE 后才能使用联机模式。',
   'room.error.clue-required': '至少选择一条未公布线索。',
+  'room.error.clue-weight-required': '至少公布一条有权重的线索。',
   'room.error.need-players': '至少需要两名在线玩家。',
   'room.error.rule-required': '请先选择玩法。',
   'room.error.target': '目标加载失败。',
@@ -448,7 +446,7 @@ export default {
 
   'clue.kbValueToggle': '切换击毁报告价值格式',
 
-  'help.multiplayerBody': '联机房间共用同一份损失档案。房主选择玩法；所有玩家预加载同一份 KB，以相同线索顺序同时开始，并为下一轮做准备。',
+  'help.multiplayerBody': '联机房间里，所有人评估同一份案卷。房主选择玩法：标准、装配审计和计时是同案卷竞速，仲裁复核由庄家主导。',
 
   'end.insurancePayout': '保险赔付',
 
@@ -457,17 +455,11 @@ export default {
   'mode.dailyRefresh': '刷新',
 
   'help.multiplayerFlowTitle': '房间流程',
-  'help.multiplayerFlow': '房主创建房间并选择玩法与设置，至少需要两名玩家。玩家从房间列表加入，预加载目标后同时开始。完成的玩家进入准备；新一轮使用新的共享目标，房间分数持续累计，直到房主结束对局。本轮开始后离开或一直断线，本轮记负。',
-  'help.multiplayerStandardTitle': '标准',
-  'help.multiplayerStandard': '每轮六次复核。船体不符会恢复更多证据，确认船体即结束自己的本轮；复核次数越少得分越高。所有玩家看到相同证据和相同顺序。',
-  'help.multiplayerAuditTitle': '装配审计',
-  'help.multiplayerAudit': '目标属性按模拟装配显示。船体不符会恢复证据，确认船体即结束自己的本轮；复核次数越少得分越高。准备流程相同。',
-  'help.multiplayerTimedTitle': '计时',
-  'help.multiplayerTimed': '共用倒计时。确认船体即结束自己的本轮，船体不符会消耗时间。完成先后决定本轮名次分。提前完成的玩家可以查看结算。所有人完成并准备后进入下一轮。',
+  'help.multiplayerFlow': '房主创建房间并选择玩法与设置，至少需要两名玩家。玩家从房间列表加入，预加载目标后同时开始。每轮结束后所有人重新准备，全员准备好才开始下一轮，并换一份新的共享案卷。房间分数持续累计，直到房主结束对局或重置分数。本轮开始后主动离开，或断线超过重连等待时间，本轮记负；被房主踢出不记负。',
+  'help.multiplayerRaceTitle': '标准 / 装配审计 / 计时',
+  'help.multiplayerRace': '规则与单人玩法相同（见手册「玩法说明」），这里只写联机的不同之处。\n所有人使用同一份案卷、同一证据顺序，同时开始。\n标准与装配审计：确认船体即结束自己的本轮；用的复核次数越少得分越高，六次都不符则本轮不得分。\n计时：全房间共用一个倒计时，时长由房主设置。按确认船体的先后排名得分；时间到仍未确认则不得分。\n先完成的玩家可以查看结算，等其他人完成。',
   'help.multiplayerArbitrationTitle': '仲裁复核',
-  'help.multiplayerArbitration': '庄家轮换。庄家查看答案并公布线索；活跃玩家每个小轮猜一次。猜错时庄家获得已公布线索的分值；猜中的玩家退出活跃竞猜。六小轮或所有人猜完后结束本轮，公布答案并轮到下一位庄家。大轮次完成一轮庄家轮换。',
-  'help.multiplayerReadyTitle': '准备确认',
-  'help.multiplayerReady': '准备状态只对当前检查生效。本轮开始、完成或离开后清除；下一轮需要所有人重新准备。',
+  'help.multiplayerArbitration': '没有计时。玩家轮流当庄家；所有人都当过一次庄家为一个大轮，大轮数由房主设置。\n庄家能看到答案、全部证据，以及每条证据占全部证据分量的比例。\n每个小轮，庄家至少公布一条有分量的新证据。装备和货柜证据由系统按固定顺序自动附上，其余由庄家挑选。证据全部公布后，玩家直接继续竞猜。\n庄家公布后，其他玩家每人猜一次，输入完整船名（简称会先补全）。所有人都猜完后进入下一小轮。\n玩家：越早猜中、已公开的证据越少，得分越高，猜中时当场计分，之后本庄只观战。中途离开按没猜中算，已得的分保留。\n庄家：每个小轮结束时，每位还没猜中的玩家都按已公布证据的分量为庄家带来分数；本庄结束时，已公布得越多，庄家再得一笔奖励。庄家得分按本庄玩家人数折算，人多人少同样公平。\n六个小轮结束或所有人都猜中后，本庄结束并公布答案；所有人准备后由下一位庄家接手。\n分数只在本房间内累计，不计入账号。庄家掉线时房间会等待重连，超时则先结算再结束对局。\n一句话：庄家要多公布，又要让玩家撑得越久越好；玩家要用越少的证据越早猜中。',
 
   'room.reconnecting': '重连中',
   'room.kick': '踢出',
@@ -502,5 +494,8 @@ export default {
   'room.dealerAnswer': '庄家 // 答案',
   'room.roundAnswer': '本轮答案',
   'room.holdToKick': '长按踢出',
-  'room.roundScore': '本轮线索分值',
+  'room.roundScore': '本轮预计得分',
+  'room.arbitration.solveNow': '现在猜中可得',
+  'room.arbitration.endBonus': '若此时结束，结束奖励 +{points}',
+  'room.arbitration.endBonusResult': '庄家公布奖励：+{points}',
 };

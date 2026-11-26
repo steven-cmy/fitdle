@@ -17,6 +17,9 @@ process.env.ZKILL_MIN_INTERVAL_MS = '0';
 process.env.NODE_ENV = 'test';
 
 const { config } = await import('../src/config.mjs');
+const {
+  arbitrationShare, arbitrationSolvePoints, arbitrationDealerRoundRaw, arbitrationEndBonusRaw,
+} = await import('../../js/mp/rules.js');
 const { ROOMS, acceptedNames } = await import('../src/rooms.mjs');
 const { zkill } = await import('../src/zkill.mjs');
 const { clearHulls } = await import('../src/targets.mjs');
@@ -308,6 +311,101 @@ test('arbitration accepts full ship names only', async () => {
   await closeAll(pilots, setup.code);
 });
 
+// --- Arbitration scoring ------------------------------------------------------
+
+const shareOf = (match) => arbitrationShare(match.clues, match.published);
+const answerText = (match) => [...match.accepted][0];
+
+test('arbitration wire clues carry their weight share, never per-player values', async () => {
+  const setup = await startArbitration(3);
+  const { room, dealer } = setup;
+  const clues = (await until(() => dealer.last('dealerClues'), 'dealer clues')).clues;
+  assert.ok(clues.length > 0);
+  assert.equal(clues.some((clue) => 'scores' in clue), false);
+  assert.equal('scores' in dealer.last('dealerClues'), false);
+  const total = clues.reduce((sum, clue) => sum + clue.p, 0);
+  assert.ok(Math.abs(total - 1) < 1e-9);
+  await publish(setup);
+  const state = dealer.log.filter((message) => message.t === 'room').at(-1).room.match;
+  assert.equal(state.playerCount, 2);
+  assert.ok(state.share > 0 && Math.abs(state.share - shareOf(room.match)) < 1e-9);
+  assert.equal(state.scoring.solveBase, 1200);
+  await closeAll(setup.pilots, setup.code);
+});
+
+test('arbitration pays a solve at once and the dealer per unsolved player', async () => {
+  const setup = await startArbitration(3);
+  const { room, pilots } = setup;
+  await publish(setup);
+  const share = shareOf(room.match);
+  pilots[1].send({ t: 'guess', text: answerText(room.match) });
+  pilots[2].send({ t: 'guess', text: 'definitely wrong' });
+  await until(() => room.match?.round === 2, 'round settled');
+  const expectedSolve = arbitrationSolvePoints({ share, round: 1 });
+  assert.equal(pilots[1].last('solved').points, expectedSolve);
+  assert.equal(room.players.get(pilots[1].id).score, expectedSolve);
+  assert.equal(room.players.get(pilots[2].id).score, 0);
+  const dealerRound = Math.round(arbitrationDealerRoundRaw({ share, unsolved: 1 }) / 2);
+  assert.equal(room.match.dealerPoints, dealerRound);
+  assert.equal(room.players.get(pilots[0].id).score, dealerRound);
+  assert.equal('points' in pilots[0].last('miss'), false);
+  await closeAll(pilots, setup.code);
+});
+
+test('everyone solving ends the stint with only the end bonus for the dealer', async () => {
+  const setup = await startArbitration(3);
+  const { room, pilots } = setup;
+  await publish(setup);
+  const share = shareOf(room.match);
+  pilots[1].send({ t: 'guess', text: answerText(room.match) });
+  pilots[2].send({ t: 'guess', text: answerText(room.match) });
+  await until(() => room.match?.phase === 'reveal', 'reveal');
+  const bonus = Math.round(arbitrationEndBonusRaw({ share, players: 2 }) / 2);
+  assert.equal(room.match.dealerPoints, bonus);
+  assert.equal(pilots[0].last('arbitrationReveal').result.endBonus, bonus);
+  await closeAll(pilots, setup.code);
+});
+
+test('a leaver keeps counting as unsolved for the dealer', async () => {
+  const setup = await startArbitration(3);
+  const { room, pilots } = setup;
+  await publish(setup);
+  const share = shareOf(room.match);
+  pilots[2].send({ t: 'leave' });
+  await until(() => !room.players.has(pilots[2].id), 'left');
+  pilots[1].send({ t: 'guess', text: 'definitely wrong' });
+  await until(() => room.match?.round === 2, 'round settled');
+  assert.equal(room.match.dealerPoints, Math.round(arbitrationDealerRoundRaw({ share, unsolved: 2 }) / 2));
+  await closeAll(pilots, setup.code);
+});
+
+test('ending arbitration settles the round and the end bonus first', async () => {
+  const setup = await startArbitration(2);
+  const { room, pilots } = setup;
+  await publish(setup);
+  const share = shareOf(room.match);
+  pilots[0].send({ t: 'end' });
+  await until(() => pilots[1].last('matchResult'), 'match result');
+  const raw = arbitrationDealerRoundRaw({ share, unsolved: 1 }) + arbitrationEndBonusRaw({ share, players: 1 });
+  const result = pilots[1].last('matchResult').result;
+  assert.equal(result.dealerPoints, Math.round(raw));
+  assert.equal(result.scores[pilots[0].id], Math.round(raw));
+  assert.equal(room.match, null);
+  await closeAll(pilots, setup.code);
+});
+
+test('each arbitration round must publish some weight', async () => {
+  const setup = await startArbitration(2);
+  const { room, dealer } = setup;
+  const index = room.match.clues.findIndex((clue) => clue.k !== 'equipment' && clue.k !== 'cargo');
+  room.match.clues[index].w = 0;
+  room.match.autoIndices = new Set();
+  dealer.send({ t: 'publish', indices: [index] });
+  await until(() => dealer.log.some((message) => message.t === 'error' && message.code === 'clue-weight-required'), 'refused');
+  assert.equal(room.match.phase, 'dealer');
+  await closeAll(setup.pilots, setup.code);
+});
+
 // --- H1 / H2 / M5: arbitration never stalls ---------------------------------
 
 test('arbitration settles when the last pending guesser leaves', async () => {
@@ -400,6 +498,7 @@ test('an arbitration dealer who leaves while loading is replaced', async () => {
   release();
   await until(() => room.match, 'match');
   assert.ok(room.players.has(room.match.dealerId), 'the dealer is still in the room');
+  assert.equal(room.match.dealerId, pilots[1].id, 'the next pilot in the dealer order deals');
   assert.equal(room.match.nonDealerIds.includes(room.match.dealerId), false);
   await closeAll(pilots, code);
 });

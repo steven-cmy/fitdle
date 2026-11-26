@@ -621,6 +621,34 @@ a:focus-visible {
   }
 }
 
+/* Lobby: gameplay manual on the left, create/join forms on the right. */
+.room-grid.room-grid-lobby {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: start;
+}
+
+.room-grid-lobby > aside {
+  order: -1;
+}
+
+.room-grid-lobby .room-manual.manual-section {
+  max-height: 70vh;
+}
+
+@media (max-width: 980px) {
+  .room-grid.room-grid-lobby {
+    grid-template-columns: 1fr;
+  }
+
+  .room-grid-lobby > aside {
+    order: 0;
+  }
+
+  .room-grid-lobby .room-manual.manual-section {
+    max-height: none;
+  }
+}
+
 .room-list,
 .arbitration-board {
   border: 1px solid var(--photon-line);
@@ -985,12 +1013,6 @@ a:focus-visible {
   white-space: nowrap;
 }
 
-.room-rules p {
-  margin: 6px 0;
-  color: var(--photon-muted);
-  font-size: .82rem;
-  line-height: 1.45;
-}
 
 .room-local {
   min-width: 0;

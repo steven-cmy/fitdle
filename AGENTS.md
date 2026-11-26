@@ -1,7 +1,8 @@
 # FITDLE — Agent & Maintainer Notes
 
 Engineering handoff for people and coding agents. The public introduction and
-hosting guide is [README.md](README.md).
+hosting guide is [README.md](README.md) (English, default) with the Chinese
+translation [README.zh-CN.md](README.zh-CN.md).
 
 **Quick orientation**
 - Puzzle: guess the victim hull of a real zKillboard killmail from staged clues.
@@ -25,8 +26,14 @@ hosting guide is [README.md](README.md).
 - Every code change gets a **patch** bump (the pre-commit hook does it). Never
   bump `minor`/`major` unless the owner asks. Docs/CI-only commits may skip it
   (`VERSION_BUMP=none` or `--no-verify`).
-- Ordinary commits stay local. Push, open/merge MRs or PRs, tag, release, publish
-  Pages or images only on an explicit request.
+- Before every commit run `npm test` and `npm run test:server` (run
+  `npm install --prefix server` first) and make sure they pass. Before opening a
+  release PR also run the full build (`npm run build`) and both suites. If the
+  environment cannot run something, say exactly which checks did not run in the
+  report so the owner can run them locally; never claim untested work passes.
+- Work happens on the local `dev` branch. Ordinary commits may be pushed to
+  `github/dev` (no CI runs there). Open/merge PRs into `main`, tag, release,
+  publish Pages or images only on an explicit request. Never commit on `main`.
 - `CHANGELOG.md` is written (in Chinese) only at a release, which squashes the
   pending local commits into one release commit. See *Release notes*.
 
@@ -50,6 +57,10 @@ hosting guide is [README.md](README.md).
 - Localization priority: official EVE localization, then community wording, then
   own translation. Never translate EVE terms/names/official strings; record
   ambiguous terms in the glossary.
+- The README exists in two languages: `README.md` (English, default) and
+  `README.zh-CN.md` (Chinese). Every README change updates both in the same
+  commit, with the same sections, links and image. Both keep the
+  `English | 简体中文` switch at the top.
 
 ## Architecture
 
@@ -217,10 +228,25 @@ hosting guide is [README.md](README.md).
   room can run 1..N **big rounds**, where one big round is one pass through the
   active dealer order. The small-round rules are fixed; only the big-round count
   is host-configurable. The dealer publishes at least one unpublished clue per
-  round (or all); active players guess once. A wrong guess awards the dealer the
-  sum of **all currently published** clue weights; correct players get no numeric
-  score and become spectators. If every clue is published, players keep guessing
-  each round. The stint ends after six rounds or when every player has guessed.
+  round (or all), and at least one with weight while any weighted clue is still
+  selectable (`clue-weight-required`); active players guess once. If every clue
+  is published, players keep guessing each round. The stint ends after six
+  rounds or when every player still in the room has solved.
+- Arbitration scoring lives in `js/mp/rules.js` (`ARBITRATION_SCORING`, shared by
+  server and dossier preview). f = published share of the total clue weight
+  after the dealer publishes; n = players at stint start (fixed). A solve in
+  round k pays `solveBase*(1-f)+solveEarly*(7-k)` at once. After each round
+  every unsolved player gives the dealer `dealerRound*f`; when the stint ends
+  (six rounds, all solved, dealer leaves or host ends) the dealer gets
+  `dealerEnd*n*f`. The dealer total is the raw sum / n, credited with cumulative
+  rounding (`arbitrationDealerCredit`). A player who leaves stays unsolved to the
+  end of the stint and keeps earned points; a solved leaver stays solved. Leaving
+  dealer / host end settle the current round and the end bonus before
+  `matchResult`. When the scheduled dealer is gone, the next connected pilot in
+  the big-round order deals. Scores are room-only, never stored on accounts.
+  Clues on the wire carry `p` (share of total weight), never per-player values.
+  `arbitration_rounds` stores `published_share` and `unsolved` per round for
+  later coefficient tuning.
 - Room state, target selection, clue release, guessing, scoring and timers are
   authoritative on the server. Clients never send scores. The server stores
   target exposures/runs/rounds for future statistics; no leaderboard UI/API yet.
@@ -525,12 +551,13 @@ hosting guide is [README.md](README.md).
 
 ## Release notes
 
-- Only start a release when the user explicitly asks for one. Ordinary local
-  commits must not be pushed and must not write a changelog.
+- Only start a release when the user explicitly asks for one. Ordinary dev
+  commits must not write a changelog.
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
-- At release, squash the pending local commits into one release version/commit
-  before tagging.
+- At release, add the CHANGELOG section (and the final version) on `dev`, open a
+  PR `dev` -> `main` titled `Release <version>: <summary>`, and squash-merge it
+  once CI passes; the squash commit is the release commit. Merging publishes.
 - Write the changelog in Chinese.
 - Write only player-visible changes and behavior changes. Do not include numeric
   values, balance figures, seed values, hashes, or internal implementation details.
@@ -635,8 +662,15 @@ refreshes, then the final `build`.
   string in `README.md`.
 - Where Git shell hooks cannot run (some Windows sandboxes), run
   `node scripts/bump-version.mjs` by hand, then `git commit --no-verify`.
-- Day-to-day work may use a `dev` branch; `main` is the release branch. Never
-  release from `dev` unless asked.
+- `dev` is the working branch, `main` the release branch (only changed by
+  squash-merged PRs). The hook runs only on local commits, so the merge never
+  bumps again. After the PR merges, reset dev (it must hold no unmerged work):
+  `git fetch github && git switch dev && git reset --hard github/main && git push --force-with-lease github dev`.
+- Authority: the owner has delegated local tests, local git steps and plain
+  `git push github dev` (no force except the post-release reset above, which
+  needs a go-ahead). Never push `main`. Opening or merging the PR into `main`,
+  releasing, and changing GitHub settings stay with the owner and happen only
+  when the owner says so.
 
 ## Runtime URLs and storage
 
@@ -699,6 +733,9 @@ refreshes, then the final `build`.
 - The manual is now pure instructions plus the copyright/fan-work notice:
   Mode descriptions (Daily, Free), Gameplay descriptions (General, Standard,
   Audit, Timed), Multiplayer/Arbitration, then the legal notice.
+- The multiplayer manual does not restate the solo gameplays: one block lists
+  only how Standard/Audit/Timed rooms differ from solo, while Arbitration is
+  explained in full. Manual bodies with several lines render as a list.
 - Personal statistics, personal progress reset, language copy and display
   controls are not part of the manual.
 - Display controls (font face, font size, empty KB) live in the compact Topbar
@@ -765,7 +802,10 @@ test reads `dist/`.
 
 - Home: https://github.com/steven-cmy/fitdle. CI is
   `.github/workflows/ci.yml` with jobs `sde-check`, `build`, `image`, `release`,
-  `pages`. Pull requests run `sde-check` and `build` (all tests) only.
+  `pages`. Pull requests into `main` run `sde-check`, `build` (all tests) and
+  `release-check` (`scripts/check-release.mjs`: version newer than main, non-empty
+  CHANGELOG section) only. `image`, `release` and `pages` run only after a push to
+  `main` (or a manual run on `main`); pushes to `dev` trigger nothing.
 - `image` builds the all-in-one image with `docker buildx` and pushes it to
   `ghcr.io/steven-cmy/fitdle`. Tags: version, `v`-version, `latest`, short SHA;
   `buildcache` holds the layer cache.
@@ -773,8 +813,8 @@ test reads `dist/`.
   `CHANGELOG.md` section when that release does not exist yet; with no section
   it is skipped with a warning.
 - `.gitlab-ci.yml` is the former GitLab pipeline (Kaniko into
-  `registry.gitlab.com/cmy/fitdle`). It is kept only until the GitHub pipeline is
-  proven, then removed; tests check the GitHub workflow.
+  `registry.gitlab.com/cmy/fitdle`). The owner keeps it for now; do not delete it
+  unless asked. Tests check the GitHub workflow.
 - The published image is origin-neutral: Docker build uses
   `__FITDLE_PUBLIC_ORIGIN__`; the container entrypoint validates runtime
   `PUBLIC_ORIGIN` and renders it into static HTML before starting the service.
@@ -810,7 +850,7 @@ test reads `dist/`.
   no data requests and matches Pages. Other image builds fetch everything.
 - If `data/catalog.json` is missing, build first; weights need a catalog.
 - Daily scheduled pipeline is disabled: daily selection no longer depends on a
-  rebuild. Builds run on pushes to `main`, pull requests and manual runs.
+  rebuild. Builds run on pushes to `main`, pull requests into `main` and manual runs; only `main` publishes.
 - `pages` deploys `dist/` to GitHub Pages
   (https://steven-cmy.github.io/fitdle/; repository setting Pages → Source:
   GitHub Actions). Pages is practice/static-only; online login, scoring and rooms

@@ -2,6 +2,13 @@ import { esc } from './mp/clue-view.js';
 import { avatarHtml } from './avatar.js';
 import { icon } from './icons.js';
 
+/** One line renders as a paragraph; several lines render as a list. */
+function manualBody(text) {
+  const lines = String(text).split('\n').filter(Boolean);
+  if (lines.length < 2) return `<p>${esc(text)}</p>`;
+  return `<ul class="manual-mode-list">${lines.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>`;
+}
+
 const GAMEPLAY_KEYS = ['standard', 'audit', 'timed', 'arbitration'];
 const ERROR_CODES = new Set([
   'room-not-found',
@@ -9,6 +16,7 @@ const ERROR_CODES = new Set([
   'room-full',
   'login-required',
   'clue-required',
+  'clue-weight-required',
   'need-players',
   'rule-required',
   'target',
@@ -105,7 +113,6 @@ export class RoomSurface {
     this.playerId = '';
     this.room = null;
     this.dealerClues = null;
-    this.dealerScores = null;
     this.dealerTarget = null;
     this.decoyShipIds = [];
     this.arbitrationReveal = null;
@@ -262,6 +269,10 @@ export class RoomSurface {
       role: match?.dealerId === this.playerId ? 'dealer' : self?.spectator ? 'spectator' : 'player',
       clueCount: Number(match?.clueCount) || (this.dealerClues?.length || 0),
       clueMeta: match?.clueMeta || [],
+      share: Number(match?.share) || 0,
+      playerCount: Number(match?.playerCount) || 0,
+      scoring: match?.scoring || null,
+      dealerPoints: Number(match?.dealerPoints) || 0,
       dealerTarget: this.dealerTarget,
       decoyShipIds: match?.decoyShipIds || this.decoyShipIds,
       revealResult: match?.revealResult || this.arbitrationReveal || null,
@@ -347,10 +358,9 @@ export class RoomSurface {
     this.skeleton(panel, 'room', () => `
       ${region('head')}
       ${region('error')}
-      <section class="room-matchbar" data-matchbar>${region('settings')}</section>
       <div class="room-grid">
         <section class="arbitration-board">
-          ${this.renderRoomManual()}
+          <section class="room-matchbar" data-matchbar>${region('settings')}</section>
           ${region('board')}
         </section>
         ${this.localSkeleton()}
@@ -367,7 +377,7 @@ export class RoomSurface {
         </div>
         <div class="room-actions room-head-actions">
           <button type="button" class="button primary room-share" data-room-copy>${icon('share')} ${esc(this.t('room.share'))}</button>
-          <button type="button" class="button danger room-leave${room.phase === 'playing' ? ' hold-button' : ''}" data-room-leave>${icon('close')} ${esc(this.t('room.leave'))}</button>
+          <button type="button" class="button danger room-leave${room.phase === 'playing' ? ' hold-button' : ''}" data-room-leave>${esc(this.t('room.leave'))}</button>
         </div>
       </header>`);
     this.setRegion(panel, 'error', this.errorHtml());
@@ -375,11 +385,6 @@ export class RoomSurface {
     this.setRegion(panel, 'settings', idle ? this.renderSettings() : '');
     this.syncStartButton(panel, canStart);
     this.setRegion(panel, 'board', `
-      ${!this.matchResult && room.phase === 'lobby' ? `<div class="room-briefing">
-        <h3>${esc(this.t('room.rules'))}</h3>
-        <p>${esc(this.t('room.rulesBody'))}</p>
-        <p>${esc(this.t('room.arbitrationRule'))}</p>
-      </div>` : ''}
       ${this.matchResult ? this.renderResult(this.matchResult) : ''}`);
     this.paintLocal(panel);
   }
@@ -425,10 +430,9 @@ export class RoomSurface {
           <div class="mp-kicker">${esc(this.t('room.lobbyKicker'))}</div>
           <h2>${esc(this.t('room.title'))}</h2>
         </div>
-        <button type="button" class="button danger" data-room-close>${icon('close')} ${esc(this.t('room.close'))}</button>
       </header>
       ${region('error')}
-      <div class="room-grid">
+      <div class="room-grid room-grid-lobby">
         <section class="room-list room-lobby-forms">
           <div class="room-list-head">
             <h3>${esc(this.t('room.createRoom'))} / ${esc(this.t('room.joinRoom'))}</h3>
@@ -463,26 +467,19 @@ export class RoomSurface {
             </form>
           </div>
         </section>
-        <aside class="room-list room-rules">
-          <h3>${esc(this.t('room.rules'))}</h3>
-          <p>${esc(this.t('room.rulesBody'))}</p>
-          <p>${esc(this.t('room.arbitrationRule'))}</p>
-        </aside>
+        <aside>${this.renderRoomManual()}</aside>
       </div>`;
   }
 
   renderManualBlocks() {
     return [
       ['help.multiplayerFlowTitle', 'help.multiplayerFlow'],
-      ['help.multiplayerStandardTitle', 'help.multiplayerStandard'],
-      ['help.multiplayerAuditTitle', 'help.multiplayerAudit'],
-      ['help.multiplayerTimedTitle', 'help.multiplayerTimed'],
+      ['help.multiplayerRaceTitle', 'help.multiplayerRace'],
       ['help.multiplayerArbitrationTitle', 'help.multiplayerArbitration'],
-      ['help.multiplayerReadyTitle', 'help.multiplayerReady'],
     ].map(([title, body]) => `
       <div class="manual-mode-block">
         <h4>${esc(this.t(title))}</h4>
-        <p>${esc(this.t(body))}</p>
+        ${manualBody(this.t(body))}
       </div>`).join('');
   }
 
@@ -680,8 +677,7 @@ export class RoomSurface {
   onPanelClick(event) {
     const button = event.target.closest('button');
     if (!button || button.classList.contains('hold-button')) return;
-    if (button.matches('[data-room-close]')) this.closeLobby();
-    else if (button.matches('[data-room-copy]')) this.copyRoomLink(button);
+    if (button.matches('[data-room-copy]')) this.copyRoomLink(button);
     else if (button.matches('[data-room-reset]')) this.send({ t: 'reset' });
     else if (button.matches('[data-room-publish]')) this.publishSelected();
     else if (button.matches('[data-room-leave]')) this.leaveRoom();
@@ -813,16 +809,10 @@ export class RoomSurface {
     return this.send({ t: 'end' });
   }
 
+  /** Leave the seat and go back to the lobby; the page stays in multiplayer. */
   leaveRoom() {
     this.send({ t: 'leave' });
-    this.close();
-    this.onLeave?.();
-  }
-
-  /** Leaving the lobby restores the single-player page if a round replaced it. */
-  closeLobby() {
-    this.close();
-    if (this.usedBoard) this.onLeave?.();
+    this.exitToLobby('');
   }
 
   // Round guesses are delivered in order and kept until the server confirmed
@@ -952,6 +942,9 @@ export class RoomSurface {
     return `
       <h3>${esc(this.t('room.matchResult'))}</h3>
       <p>${esc(result.rule === 'arbitration' ? this.t('room.targetRevealed') : this.t('room.raceFinished'))}</p>
+      ${result.rule === 'arbitration' && Number(result.endBonus) > 0
+    ? `<p class="room-note">${esc(this.t('room.arbitration.endBonusResult', { points: this.int(result.endBonus) }))}</p>`
+    : ''}
       <table class="room-score-table">
         <thead><tr><th>${esc(this.t('room.pilot'))}</th><th>${esc(this.t('room.score'))}</th></tr></thead>
         <tbody>
@@ -1158,7 +1151,6 @@ export class RoomSurface {
 
   clearArbitration() {
     this.dealerClues = null;
-    this.dealerScores = null;
     this.dealerTarget = null;
     this.decoyShipIds = [];
     this.arbitrationReveal = null;
@@ -1181,7 +1173,6 @@ export class RoomSurface {
         break;
       case 'dealerClues':
         this.dealerClues = message.clues || [];
-        this.dealerScores = message.scores || null;
         this.dealerTarget = message.dealerTarget || null;
         this.arbitrationReveal = null;
         this.decoyShipIds = message.decoyShipIds || this.decoyShipIds || [];
@@ -1228,7 +1219,10 @@ export class RoomSurface {
         this.pushFeed({ key: 'room.feed.intelBatch', vars: { count: Number(message.count) || 0 } });
         break;
       case 'solved':
-        this.pushFeed({ key: 'room.feed.solved', vars: { name: this.playerName(message.playerId) } });
+        this.pushFeed({
+          key: 'room.feed.arbSolved',
+          vars: { name: this.playerName(message.playerId), points: this.int(message.points || 0) },
+        });
         break;
       case 'miss':
         this.pushFeed({ key: 'room.feed.miss', vars: { name: this.playerName(message.playerId) } });

@@ -262,7 +262,7 @@ export default {
 
   'mode.timed': '타임',
   'mode.timedHint': '시도 횟수는 무제한, 시간과의 승부입니다. 증거는 시간에 따라 도착합니다.',
-  'mode.helpTimed': '타임 모드.\n타이머를 시작하면 게임이 시작됩니다.\n정보는 시간에 따라 공개되며, 추측으로는 추가되지 않습니다.\n선체 이름을 맞히면 타이머가 멈춥니다.',
+  'mode.helpTimed': '타임 모드.\n타이머를 시작하면 게임이 시작됩니다.\n정보는 시간에 따라 공개되며, 추측으로는 추가되지 않습니다.\n선체 이름을 맞히면 타이머가 멈춥니다.\n추측할 때마다 몇 초 동안 다시 제출할 수 없습니다.',
 
   'timed.start': '타이머 시작',
   'timed.startHint': '시작 전에는 증거가 없습니다. 시도는 무제한이며 선체를 확인할 때까지 시간이 흐릅니다.',
@@ -349,7 +349,6 @@ export default {
 
   'room.lobbyKicker': '멀티플레이어 // 로비',
   'room.title': '멀티플레이어',
-  'room.close': '닫기',
   'room.createRoom': '룸 만들기',
   'room.capacity': '최대 {max}',
   'room.passwordOptional': '선택 비밀번호',
@@ -358,14 +357,11 @@ export default {
   'room.codePlaceholder': '룸 코드',
   'room.password': '비밀번호',
   'room.join': '참가',
-  'room.rules': '규칙',
-  'room.rulesBody': '룸 생성 후 호스트가 게임플레이를 선택합니다. 기본 모드는 없습니다.',
-  'room.arbitrationRule': '중재에서는 딜러가 잔해 평가를 이끕니다. 다른 모드는 같은 청구건을 두고 겨룹니다.',
   'room.roomKicker': 'LOCAL // {code}',
   'room.noGameplay': '게임플레이 미선택',
   'room.roomStatus': '파일럿 {active} / {max}',
   'room.share': '룸 공유',
-  'room.leave': '나가기',
+  'room.leave': '로비로 돌아가기',
   'room.round': '{round} / {total} 라운드',
   'room.dealerLine': '딜러: {name}',
   'room.fullIntel': '전체 정보',
@@ -394,7 +390,8 @@ export default {
   'room.pilot': '파일럿',
   'room.score': '점수',
   'room.feed.solved': '{name} 님이 라운드를 맞혔습니다.',
-  'room.feed.miss': '{name} 님이 틀렸습니다. 딜러 득점.',
+  'room.feed.miss': '{name} 님이 틀렸습니다.',
+  'room.feed.arbSolved': '{name} 님 정답, {points}점.',
   'room.feed.forfeit': '{name} 님이 라운드 도중 나가 패배 처리되었습니다.',
   'room.chatTitle': '아공간 통신 비컨',
   'room.chatUnavailable': '아공간 통신 비컨에 연결할 수 없습니다. 채널 목록을 사용할 수 없습니다.',
@@ -415,6 +412,7 @@ export default {
   'room.error.room-full': '룸이 가득 찼습니다.',
   'room.error.login-required': '룸을 사용하려면 EVE로 로그인하세요.',
   'room.error.clue-required': '공개되지 않은 단서를 하나 이상 선택하세요.',
+  'room.error.clue-weight-required': '가중치가 있는 단서를 하나 이상 공개하세요.',
   'room.error.need-players': '활성 파일럿이 최소 두 명 필요합니다.',
   'room.error.rule-required': '먼저 게임플레이를 선택하세요.',
   'room.error.target': '목표를 불러오지 못했습니다.',
@@ -448,7 +446,7 @@ export default {
 
   'clue.kbValueToggle': '킬 기록 가치 형식 전환',
 
-  'help.multiplayerBody': '멀티플레이어 룸은 같은 손실 파일을 공유합니다. 호스트가 모드를 고르고, 모두 같은 KB를 미리 불러온 뒤 같은 단서 순서로 동시에 시작하며 다음 라운드를 준비합니다.',
+  'help.multiplayerBody': '룸에서는 모두가 같은 사건 파일을 사정합니다. 호스트가 모드를 고릅니다. 표준·피팅 감사·타임은 같은 파일로 겨루는 경주이고, 중재는 딜러가 진행합니다.',
 
   'end.insurancePayout': '보험금',
 
@@ -457,17 +455,11 @@ export default {
   'mode.dailyRefresh': '새로고침',
 
   'help.multiplayerFlowTitle': '룸 진행',
-  'help.multiplayerFlow': '호스트가 방을 만들고 모드와 설정을 고릅니다. 최소 두 명이 필요합니다. 플레이어는 목록에서 참가하고 목표를 미리 불러온 뒤 함께 시작합니다. 끝나면 준비합니다. 다음 라운드는 새 공유 목표를 사용하며, 호스트가 경기를 끝낼 때까지 방 점수가 누적됩니다. 라운드 도중 나가거나 연결이 끊긴 채로 있으면 그 라운드는 패배입니다.',
-  'help.multiplayerStandardTitle': '표준',
-  'help.multiplayerStandard': '6회 감정. 틀리면 증거가 더 나오고, 맞히면 내 라운드가 끝납니다. 시도가 적을수록 점수가 높습니다. 모두 같은 단서를 같은 순서로 봅니다.',
-  'help.multiplayerAuditTitle': '피팅 감사',
-  'help.multiplayerAudit': '피팅 값은 시뮬레이션됩니다. 틀리면 증거가 나오고, 맞히면 내 라운드가 끝납니다. 시도가 적을수록 점수가 높습니다. 준비 흐름은 같습니다.',
-  'help.multiplayerTimedTitle': '타임',
-  'help.multiplayerTimed': '공유 타이머. 맞히면 내 라운드가 끝나고, 오답은 시간을 소모합니다. 완료 순서가 라운드 점수를 정합니다. 먼저 끝낸 사람은 결과를 볼 수 있습니다. 모두 끝나고 준비하면 다음 라운드가 시작됩니다.',
+  'help.multiplayerFlow': '호스트가 방을 만들고 모드와 설정을 고릅니다. 최소 두 명이 필요합니다. 플레이어는 목록에서 참가하고 목표를 미리 불러온 뒤 함께 시작합니다. 라운드가 끝날 때마다 모두 다시 준비하며, 전원이 준비되면 새 공유 목표로 다음 라운드가 시작됩니다. 방 점수는 호스트가 경기를 끝내거나 초기화할 때까지 누적됩니다. 라운드 도중 나가거나 재접속 대기 시간이 지나도록 연결이 끊겨 있으면 그 라운드는 패배입니다. 호스트에게 추방된 경우는 패배가 아닙니다.',
+  'help.multiplayerRaceTitle': '표준 / 피팅 감사 / 타임',
+  'help.multiplayerRace': '규칙은 싱글 플레이와 같습니다(핸드북의 \'게임 모드\' 참고). 여기에는 차이점만 적습니다.\n모두 같은 파일, 같은 증거 순서로 동시에 시작합니다.\n표준과 피팅 감사: 선체를 맞히면 자신의 라운드가 끝납니다. 사용한 검토 횟수가 적을수록 점수가 높고, 여섯 번 모두 틀리면 점수가 없습니다.\n타임: 방 전체가 하나의 카운트다운을 공유하며, 시간은 호스트가 정합니다. 선체를 맞힌 순서대로 점수를 받고, 시간이 끝날 때까지 맞히지 못하면 점수가 없습니다.\n먼저 끝낸 플레이어는 다른 사람을 기다리는 동안 결과를 볼 수 있습니다.',
   'help.multiplayerArbitrationTitle': '중재',
-  'help.multiplayerArbitration': '딜러가 순환합니다. 딜러는 정답을 보고 단서를 공개하며, 활성 플레이어는 작은 라운드마다 한 번 추측합니다. 틀리면 공개된 단서의 값이 딜러에게 갑니다. 맞힌 플레이어는 활성에서 빠집니다. 작은 라운드 6회 또는 모든 추측이 끝나면 턴이 종료되고 정답이 공개된 뒤 다음 딜러로 넘어갑니다. 큰 라운드가 순환 전체를 묶습니다.',
-  'help.multiplayerReadyTitle': '준비 확인',
-  'help.multiplayerReady': '준비는 현재 확인에만 유효합니다. 라운드 시작, 완료, 퇴장 시 지워집니다. 다음 라운드에는 모두 다시 준비해야 합니다.',
+  'help.multiplayerArbitration': '제한 시간이 없습니다. 플레이어가 돌아가며 딜러를 맡고, 모두 한 번씩 맡으면 큰 라운드 하나가 끝납니다. 큰 라운드 수는 호스트가 정합니다.\n딜러는 정답, 모든 증거, 그리고 각 증거가 전체 증거 가중치에서 차지하는 비율을 볼 수 있습니다.\n작은 라운드마다 딜러는 가중치가 있는 새 증거를 최소 하나 공개합니다. 장비와 화물 증거는 정해진 순서로 자동 추가되고, 나머지는 딜러가 고릅니다. 모든 증거가 공개된 뒤에는 그대로 추측을 이어 갑니다.\n공개 후 딜러를 제외한 각 플레이어가 선체 전체 이름을 입력해 한 번 추측합니다(약칭은 먼저 완성됩니다). 모두 추측하면 다음 작은 라운드로 넘어갑니다.\n플레이어: 일찍 맞힐수록, 공개된 증거가 적을수록 점수가 높습니다. 맞히는 즉시 점수를 받고, 이후에는 이번 턴의 나머지를 관전합니다. 도중에 나가면 못 맞힌 것으로 처리되며, 이미 얻은 점수는 유지됩니다.\n딜러: 작은 라운드가 끝날 때마다 아직 못 맞힌 플레이어 한 명당 지금까지 공개된 증거의 가중치만큼 딜러에게 점수가 갑니다. 턴이 끝나면 많이 공개했을수록 큰 보너스를 받습니다. 딜러 점수는 플레이어 수에 맞게 환산되어 인원과 관계없이 공정합니다.\n작은 라운드 여섯 번이 끝나거나 모두 맞히면 턴이 끝나고 정답이 공개됩니다. 모두 준비하면 다음 딜러로 넘어갑니다.\n점수는 이 방 안에서만 누적되며 계정에는 기록되지 않습니다. 딜러의 연결이 끊기면 방은 재접속 대기 시간만큼 기다리고, 그 뒤에는 정산 후 경기가 끝납니다.\n한마디로: 딜러는 많이 공개하면서도 플레이어가 최대한 오래 버티게 하고 싶고, 플레이어는 적은 증거로 더 일찍 맞히고 싶습니다.',
 
   'room.reconnecting': '재연결 중',
   'room.kick': '추방',
@@ -502,5 +494,8 @@ export default {
   'room.dealerAnswer': '딜러 // 정답',
   'room.roundAnswer': '라운드 정답',
   'room.holdToKick': '길게 눌러 추방',
-  'room.roundScore': '이번 라운드 단서 점수',
+  'room.roundScore': '이번 라운드 예상 점수',
+  'room.arbitration.solveNow': '지금 맞히면',
+  'room.arbitration.endBonus': '지금 끝나면 종료 보너스: +{points}',
+  'room.arbitration.endBonusResult': '딜러 공개 보너스: +{points}',
 };

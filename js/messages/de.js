@@ -262,7 +262,7 @@ export default {
 
   'mode.timed': 'ZEIT',
   'mode.timedHint': 'Unbegrenzte Versuche gegen die Uhr. Beweise treffen nach Zeitplan ein.',
-  'mode.helpTimed': 'Zeitmodus.\nDie Akte beginnt mit dem Start der Uhr.\nInformationen werden nach Zeitplan freigegeben; Tipps geben keine zusätzlichen Hinweise.\nNennen Sie den Rumpf, um die Uhr zu stoppen.',
+  'mode.helpTimed': 'Zeitmodus.\nDie Akte beginnt mit dem Start der Uhr.\nInformationen werden nach Zeitplan freigegeben; Tipps geben keine zusätzlichen Hinweise.\nNennen Sie den Rumpf, um die Uhr zu stoppen.\nNach jedem Tipp ist die Eingabe einige Sekunden gesperrt.',
 
   'timed.start': 'UHR STARTEN',
   'timed.startHint': 'Vor dem Start gibt es keine Beweise. Unbegrenzte Versuche; die Uhr läuft, bis der Rumpf bestätigt ist.',
@@ -349,7 +349,6 @@ export default {
 
   'room.lobbyKicker': 'MEHRSPIELER // LOBBY',
   'room.title': 'MEHRSPIELER',
-  'room.close': 'SCHLIESSEN',
   'room.createRoom': 'RAUM ERSTELLEN',
   'room.capacity': 'LIMIT {max}',
   'room.passwordOptional': 'Optionales Passwort',
@@ -358,14 +357,11 @@ export default {
   'room.codePlaceholder': 'Raumcode',
   'room.password': 'Passwort',
   'room.join': 'BEITRETEN',
-  'room.rules': 'REGELN',
-  'room.rulesBody': 'Der Host wählt den Modus, nachdem der Raum erstellt ist. Es gibt keinen Standardmodus.',
-  'room.arbitrationRule': 'Im Schiedsverfahren führt der Geber die Wrackbewertung; die anderen Modi sind Rennen um dieselbe Akte.',
   'room.roomKicker': 'LOCAL // {code}',
   'room.noGameplay': 'KEIN MODUS GEWÄHLT',
   'room.roomStatus': 'PILOTEN {active} / {max}',
   'room.share': 'RAUM TEILEN',
-  'room.leave': 'VERLASSEN',
+  'room.leave': 'ZURÜCK ZUR LOBBY',
   'room.round': 'RUNDE {round} / {total}',
   'room.dealerLine': 'GEBER: {name}',
   'room.fullIntel': 'VOLLSTÄNDIGE INFOS',
@@ -394,7 +390,8 @@ export default {
   'room.pilot': 'PILOT',
   'room.score': 'PUNKTE',
   'room.feed.solved': '{name} hat die Runde gelöst.',
-  'room.feed.miss': '{name} hat danebengetippt. Geber punktet.',
+  'room.feed.miss': '{name} hat danebengetippt.',
+  'room.feed.arbSolved': '{name} hat gelöst: {points} Punkte.',
   'room.feed.forfeit': '{name} hat die Runde verlassen: Niederlage.',
   'room.chatTitle': 'SUBRAUM-KOMMUNIKATIONSBAKE',
   'room.chatUnavailable': 'Subraum-Kommunikationsbake nicht erreichbar. Kanalliste nicht verfügbar.',
@@ -415,6 +412,7 @@ export default {
   'room.error.room-full': 'Der Raum ist voll.',
   'room.error.login-required': 'Melden Sie sich mit EVE an, um Räume zu nutzen.',
   'room.error.clue-required': 'Wählen Sie mindestens einen unveröffentlichten Hinweis.',
+  'room.error.clue-weight-required': 'Veröffentlichen Sie mindestens einen Hinweis mit Gewicht.',
   'room.error.need-players': 'Mindestens zwei aktive Piloten sind erforderlich.',
   'room.error.rule-required': 'Wählen Sie zuerst einen Modus.',
   'room.error.target': 'Das Ziel konnte nicht geladen werden.',
@@ -448,7 +446,7 @@ export default {
 
   'clue.kbValueToggle': 'Wertformat des Abschussberichts umschalten',
 
-  'help.multiplayerBody': 'Mehrspieler-Räume teilen dieselbe Verlustakte. Der Host wählt den Modus; alle laden denselben KB vor, starten mit derselben Hinweisreihenfolge und machen sich für die nächste Runde bereit.',
+  'help.multiplayerBody': 'Im Raum bearbeiten alle dieselbe Schadensakte. Der Host wählt die Spielweise: Standard, Ausrüstungsaudit und Zeitmodus sind Rennen um dieselbe Akte; das Schiedsverfahren leitet ein Geber.',
 
   'end.insurancePayout': 'VERSICHERUNGSZAHLUNG',
 
@@ -457,17 +455,11 @@ export default {
   'mode.dailyRefresh': 'AKTUALISIEREN',
 
   'help.multiplayerFlowTitle': 'RAUMABLAUF',
-  'help.multiplayerFlow': 'Der Host erstellt den Raum und wählt Modus und Einstellungen. Mindestens zwei Spieler sind nötig. Spieler treten über die Raumliste bei, laden das Ziel vor und starten gemeinsam. Wer fertig ist, macht sich bereit. Die nächste Runde nutzt ein neues gemeinsames Ziel; die Raumpunkte summieren sich, bis der Host die Partie beendet. Wer eine laufende Runde verlässt oder getrennt bleibt, verliert sie.',
-  'help.multiplayerStandardTitle': 'STANDARD',
-  'help.multiplayerStandard': 'Sechs Prüfungen. Ein falscher Rumpf deckt weitere Beweise auf; ein richtiger Rumpf beendet Ihre Runde. Weniger Versuche bringen mehr Punkte. Alle sehen dieselben Hinweise in derselben Reihenfolge.',
-  'help.multiplayerAuditTitle': 'AUSRÜSTUNGSAUDIT',
-  'help.multiplayerAudit': 'Die Werte der Ausrüstung werden simuliert. Falsche Tipps decken Beweise auf; ein richtiger Rumpf beendet Ihre Runde. Weniger Versuche bringen mehr Punkte. Es gilt derselbe Ablauf.',
-  'help.multiplayerTimedTitle': 'ZEITMODUS',
-  'help.multiplayerTimed': 'Ein gemeinsamer Countdown. Ein richtiger Rumpf beendet Ihre Runde; falsche Tipps kosten Zeit. Die Reihenfolge entscheidet über die Rundenpunkte. Wer früher fertig ist, kann das Ergebnis ansehen. Die nächste Runde startet, wenn alle fertig und bereit sind.',
+  'help.multiplayerFlow': 'Der Host erstellt den Raum und wählt Spielweise und Einstellungen. Mindestens zwei Spieler sind nötig. Spieler treten über die Raumliste bei, laden das Ziel vor und starten gemeinsam. Nach jeder Runde machen sich alle erneut bereit; die nächste Runde beginnt, wenn alle bereit sind, mit einem neuen gemeinsamen Ziel. Die Raumpunkte summieren sich, bis der Host die Partie beendet oder sie zurücksetzt. Wer eine laufende Runde verlässt oder länger als die Wiederverbindungsfrist getrennt bleibt, verliert sie; wer vom Host entfernt wird, nicht.',
+  'help.multiplayerRaceTitle': 'STANDARD / AUDIT / ZEITMODUS',
+  'help.multiplayerRace': 'Es gelten die Regeln des Einzelspiels (siehe SPIELWEISEN im Handbuch); hier stehen nur die Unterschiede.\nAlle erhalten dieselbe Akte, dieselbe Beweisreihenfolge und denselben Start.\nStandard und Ausrüstungsaudit: Wer den Rumpf nennt, beendet seine Runde. Weniger Prüfdurchgänge bringen mehr Punkte; wer alle sechs verfehlt, erhält nichts.\nZeitmodus: ein gemeinsamer Countdown für den ganzen Raum, die Dauer legt der Host fest. Punkte gibt es nach der Reihenfolge, in der der Rumpf genannt wird; wer bei Ablauf keinen Treffer hat, erhält nichts.\nWer früher fertig ist, kann das Ergebnis ansehen, während die anderen weiterspielen.',
   'help.multiplayerArbitrationTitle': 'SCHIEDSVERFAHREN',
-  'help.multiplayerArbitration': 'Der Geber wechselt. Er sieht die Antwort und veröffentlicht Hinweise; aktive Spieler raten einmal pro kleiner Runde. Ein Fehler gibt dem Geber den Wert der veröffentlichten Hinweise. Wer richtig liegt, scheidet aus dem aktiven Kreis aus. Nach sechs kleinen Runden oder wenn alle geraten haben, wird die Antwort aufgedeckt und der nächste Geber übernimmt. Eine Hauptrunde umfasst alle Geber.',
-  'help.multiplayerReadyTitle': 'BEREITSCHAFT',
-  'help.multiplayerReady': 'Bereit gilt nur für die aktuelle Prüfung. Es wird beim Rundenstart, beim Abschluss oder beim Verlassen gelöscht. Für die nächste Runde müssen sich alle erneut bereit melden.',
+  'help.multiplayerArbitration': 'Ohne Zeitlimit. Die Spieler sind reihum Geber; wenn jeder einmal gegeben hat, ist eine Hauptrunde vorbei. Die Zahl der Hauptrunden legt der Host fest.\nDer Geber sieht die Antwort, alle Beweise und welchen Anteil am Gesamtgewicht jeder Beweis hat.\nIn jeder kleinen Runde veröffentlicht der Geber mindestens einen neuen Beweis mit Gewicht. Ausrüstungs- und Frachtbeweise kommen automatisch in fester Reihenfolge hinzu; den Rest wählt der Geber. Sind alle Beweise veröffentlicht, wird einfach weiter geraten.\nDanach rät jeder andere Spieler einmal und gibt den vollständigen Rumpfnamen ein (Abkürzungen werden vorher ergänzt). Die nächste kleine Runde beginnt, wenn alle geraten haben.\nSpieler: Je früher Sie den Rumpf nennen und je weniger Beweise offen sind, desto mehr Punkte. Die Punkte gibt es sofort, danach sieht man dem Rest der Runde zu. Wer geht, gilt als nicht gelöst; bereits erzielte Punkte bleiben.\nGeber: Am Ende jeder kleinen Runde bringt jeder Spieler, der noch rät, dem Geber Punkte entsprechend den bisher veröffentlichten Beweisen. Endet die Runde, gibt es einen Bonus, der umso größer ist, je mehr veröffentlicht wurde. Die Punkte des Gebers werden auf die Spielerzahl umgerechnet, damit kleine und große Tische gleich fair sind.\nNach sechs kleinen Runden oder wenn alle gelöst haben, endet die Runde des Gebers und die Antwort wird aufgedeckt; sobald alle bereit sind, übernimmt der nächste Geber.\nDie Punkte zählen nur in diesem Raum und nicht für Ihr Konto. Trennt sich der Geber, wartet der Raum die Wiederverbindungsfrist ab; danach wird abgerechnet und die Partie endet.\nKurz: Der Geber will viel veröffentlichen und die Spieler trotzdem möglichst lange raten lassen; die Spieler wollen mit weniger Beweisen früher lösen.',
 
   'room.reconnecting': 'VERBINDUNG WIRD WIEDERHERGESTELLT',
   'room.kick': 'ENTFERNEN',
@@ -502,5 +494,8 @@ export default {
   'room.dealerAnswer': 'GEBER // ANTWORT',
   'room.roundAnswer': 'RUNDENANTWORT',
   'room.holdToKick': 'Zum Kicken halten',
-  'room.roundScore': 'HINWEISWERT DIESER RUNDE',
+  'room.roundScore': 'ERWARTETE RUNDENPUNKTE',
+  'room.arbitration.solveNow': 'JETZT LÖSEN FÜR',
+  'room.arbitration.endBonus': 'Endbonus, wenn die Runde jetzt endet: +{points}',
+  'room.arbitration.endBonusResult': 'Veröffentlichungsbonus des Gebers: +{points}',
 };

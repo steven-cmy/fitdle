@@ -262,7 +262,7 @@ export default {
 
   'mode.timed': 'TIMED',
   'mode.timedHint': 'Unlimited attempts against the clock. Evidence arrives on a schedule.',
-  'mode.helpTimed': 'Timed mode.\nThe run starts when you start the timer.\nIntel unfolds on a schedule; guesses do not reveal extra intel.\nName the hull to stop the clock.',
+  'mode.helpTimed': 'Timed mode.\nThe run starts when you start the timer.\nIntel unfolds on a schedule; guesses do not reveal extra intel.\nName the hull to stop the clock.\nAfter each guess, submitting is locked for a few seconds.',
 
   'timed.start': 'START THE CLOCK',
   'timed.startHint': 'No evidence until you start. Unlimited attempts; the clock runs until the hull is confirmed.',
@@ -349,7 +349,6 @@ export default {
 
   'room.lobbyKicker': 'MULTIPLAYER // LOBBY',
   'room.title': 'MULTIPLAYER',
-  'room.close': 'CLOSE',
   'room.createRoom': 'CREATE ROOM',
   'room.capacity': 'LIMIT {max}',
   'room.passwordOptional': 'Optional password',
@@ -358,14 +357,11 @@ export default {
   'room.codePlaceholder': 'Room code',
   'room.password': 'Password',
   'room.join': 'JOIN',
-  'room.rules': 'RULES',
-  'room.rulesBody': 'The host chooses the gameplay after creating the room. No default is applied.',
-  'room.arbitrationRule': 'Arbitration uses dealer-led salvage review; other gameplays are same-claim races.',
   'room.roomKicker': 'LOCAL // {code}',
   'room.noGameplay': 'NO GAMEPLAY SELECTED',
   'room.roomStatus': 'PILOTS {active} / {max}',
   'room.share': 'SHARE ROOM',
-  'room.leave': 'LEAVE',
+  'room.leave': 'BACK TO LOBBY',
   'room.round': 'ROUND {round} / {total}',
   'room.dealerLine': 'DEALER: {name}',
   'room.fullIntel': 'FULL INTEL',
@@ -394,7 +390,8 @@ export default {
   'room.pilot': 'PILOT',
   'room.score': 'SCORE',
   'room.feed.solved': '{name} solved the round.',
-  'room.feed.miss': '{name} missed. Dealer scores.',
+  'room.feed.miss': '{name} missed.',
+  'room.feed.arbSolved': '{name} solved for {points}.',
   'room.feed.forfeit': '{name} left during the round: loss.',
   'room.chatTitle': 'SUBSPACE COMMUNICATION BEACON',
   'room.chatUnavailable': 'Subspace communication beacon unreachable. Channel list unavailable.',
@@ -415,6 +412,7 @@ export default {
   'room.error.room-full': 'The room is full.',
   'room.error.login-required': 'Sign in with EVE to use rooms.',
   'room.error.clue-required': 'Select at least one unpublished clue.',
+  'room.error.clue-weight-required': 'Publish at least one clue that carries weight.',
   'room.error.need-players': 'At least two active pilots are required.',
   'room.error.rule-required': 'Choose a gameplay first.',
   'room.error.target': 'The target could not be loaded.',
@@ -448,7 +446,7 @@ export default {
 
   'clue.kbValueToggle': 'Toggle the killmail value format',
 
-  'help.multiplayerBody': 'Multiplayer rooms share one loss file. The host selects a gameplay; every player preloads the same KB, starts with the same clue order, and readies up for the next round.',
+  'help.multiplayerBody': 'In a room everyone assesses the same claim file. The host picks the gameplay: Standard, Fitting Audit and Timed are same-claim races; Arbitration is led by a dealer.',
 
   'end.insurancePayout': 'INSURANCE PAYOUT',
 
@@ -457,17 +455,11 @@ export default {
   'mode.dailyRefresh': 'REFRESH',
 
   'help.multiplayerFlowTitle': 'ROOM FLOW',
-  'help.multiplayerFlow': 'The host creates the room and chooses the gameplay and settings. At least two players are needed. Players join from the room list, preload the target, then start together. Finished players ready up. The next round uses a new shared target; room scores accumulate until the host ends the match. Leaving or staying disconnected during a round loses that round.',
-  'help.multiplayerStandardTitle': 'STANDARD',
-  'help.multiplayerStandard': 'Six review passes. A wrong hull recovers more evidence; a correct hull ends your round. Fewer passes score more. Every player sees the same clues in the same order.',
-  'help.multiplayerAuditTitle': 'FITTING AUDIT',
-  'help.multiplayerAudit': 'Fitted values are simulated for the target. Wrong guesses recover evidence; a correct hull ends your round. Fewer passes score more. The same ready flow applies.',
-  'help.multiplayerTimedTitle': 'TIMED',
-  'help.multiplayerTimed': 'A shared countdown. A correct hull ends your round; wrong guesses cost time. Finish order decides the round points. Early finishers can review the result. The next round starts after everyone finishes and readies up.',
+  'help.multiplayerFlow': 'The host creates the room and chooses the gameplay and settings. At least two players are needed. Players join from the room list, preload the target and start together. After each round everyone readies up again; the next round starts when all are ready and uses a new shared target. Room scores accumulate until the host ends the match or resets them. Leaving during a round, or staying disconnected past the reconnect window, loses that round; being kicked by the host does not.',
+  'help.multiplayerRaceTitle': 'STANDARD / AUDIT / TIMED',
+  'help.multiplayerRace': 'The rules are the same as solo play (see GAMEPLAY in the manual); only the differences are listed here.\nEveryone gets the same claim, the same evidence order and the same start.\nStandard and Fitting Audit: naming the hull ends your round. Fewer review passes score more; missing all six scores nothing.\nTimed: one countdown for the whole room, its length set by the host. Points follow the order in which players name the hull; anyone without a match when time runs out scores nothing.\nPlayers who finish early can look at the result while the others continue.',
   'help.multiplayerArbitrationTitle': 'ARBITRATION',
-  'help.multiplayerArbitration': 'The dealer rotates. The dealer sees the answer and publishes clues; active players get one guess per small round. A miss awards the dealer the value of the published clues. A correct player leaves the active pool. Six small rounds or all guesses end the stint; the answer is revealed, then the next dealer takes over. Big rounds wrap the dealer rotation.',
-  'help.multiplayerReadyTitle': 'READY CHECK',
-  'help.multiplayerReady': 'Ready only applies to the current check. It clears when the round starts, when you finish, or when you leave. Everyone must ready again for the next round.',
+  'help.multiplayerArbitration': 'No timer. Players take turns as the dealer; once everyone has dealt, one big round is complete. The host sets the number of big rounds.\nThe dealer sees the answer, all evidence, and what share of the total evidence weight each piece carries.\nEach small round the dealer publishes at least one new piece of evidence that carries weight. Equipment and cargo evidence is added automatically in a fixed order; the dealer picks the rest. Once everything is published, players simply keep guessing.\nAfter the dealer publishes, every other player guesses once by entering the full hull name (abbreviations are completed first). The next small round starts when everyone has guessed.\nPlayers: the earlier you name the hull and the less evidence is public, the more you score. You score on the spot and then watch the rest of the stint. Leaving counts as not solved; points already earned stay.\nDealer: at the end of each small round, every player still guessing earns the dealer points in line with the evidence published so far. When the stint ends, the more that has been published, the bigger the dealer\'s extra bonus. The dealer\'s score is scaled to the number of players, so small and large tables are equally fair.\nThe stint ends after six small rounds or when everyone has solved it. The answer is revealed, everyone readies up, and the next dealer takes over.\nScores count only inside this room and never go to your account. If the dealer disconnects, the room waits for the reconnect window; after that the stint is settled and the match ends.\nIn short: the dealer wants to publish a lot yet keep players guessing as long as possible; players want to name the hull earlier with less evidence.',
 
   'room.reconnecting': 'RECONNECTING',
   'room.kick': 'KICK',
@@ -502,5 +494,8 @@ export default {
   'room.dealerAnswer': 'DEALER // ANSWER',
   'room.roundAnswer': 'ROUND ANSWER',
   'room.holdToKick': 'Hold to kick',
-  'room.roundScore': 'ROUND CLUE SCORE',
+  'room.roundScore': 'EXPECTED ROUND SCORE',
+  'room.arbitration.solveNow': 'SOLVE NOW FOR',
+  'room.arbitration.endBonus': 'End bonus if the stint ended now: +{points}',
+  'room.arbitration.endBonusResult': 'Dealer publication bonus: +{points}',
 };
