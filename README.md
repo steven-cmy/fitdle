@@ -88,7 +88,7 @@ UI strings for all 8 languages are in `js/messages/` and must keep the same keys
 
 ## CI
 
-GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests into `main` build, test and check the version/CHANGELOG only (day-to-day pushes to `dev` run nothing). Merged changes on `main` publish the image to GHCR, deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static practice build), and create a Release when the version changes and CHANGELOG has a matching section. After a `dev` pull request is merged, [reset-dev.yml](.github/workflows/reset-dev.yml) resets `dev` to the merged `main`; if `dev` has moved since, it leaves the branch alone and comments on the pull request.
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests into `main` only build and test, and require a new version and CHANGELOG section when the program changes, not for documentation or `.github/` changes (day-to-day pushes to `dev` run nothing). Merged changes on `main` publish the image to GHCR, deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static practice build), and create a Release when the version changes and CHANGELOG has a matching section. After a `dev` pull request is merged, [reset-dev.yml](.github/workflows/reset-dev.yml) resets `dev` to the merged `main`; if `dev` has moved since, it leaves the branch alone and comments on the pull request.
 
 ## License
 

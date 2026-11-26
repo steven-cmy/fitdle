@@ -36,6 +36,8 @@ translation [README.zh-CN.md](README.zh-CN.md).
   publish Pages or images only on an explicit request. Never commit on `main`.
 - `CHANGELOG.md` is written (in Chinese) only at a release, which squashes the
   pending local commits into one release commit. See *Release notes*.
+- A merge with no program change (documentation or GitHub configuration only)
+  needs no new version and no CHANGELOG section. See *Release notes*.
 
 **Product scope**
 - Keep the puzzle deterministic for every player: fixed online Daily target,
@@ -553,6 +555,23 @@ translation [README.zh-CN.md](README.zh-CN.md).
 
 - Only start a release when the user explicitly asks for one. Ordinary dev
   commits must not write a changelog.
+- A `dev` -> `main` PR with no program change is merged without a release: keep
+  the version, write no changelog, and do not title it `Release ...`.
+  `scripts/check-release.mjs` decides from the files changed since `main`. Only
+  these are not program files:
+  - `*.md` in the repository root (README, AGENTS, NOTICE, CHANGELOG),
+  - `docs/` and `.github/`,
+  - `LICENSE`,
+  - `scripts/check-release.mjs` itself.
+- Everything else is a program change and needs a newer version and a changelog
+  section, including `js/`, `server/`, all other `scripts/`, `vendor/` (its
+  Markdown too), `tests/`, `styles/`, `assets/`, `data/`, `index.html`, package
+  files, `Dockerfile`, `docker/`, compose and env examples, `.githooks/`, Git and
+  Docker ignore files and `.gitlab-ci.yml`. One such file in a PR is enough, and
+  so is moving or deleting one. Extend the list only when the owner asks.
+- A merge without a new version still runs the publish jobs: `pages` deploys,
+  `release` skips an existing Release, and `image` rebuilds and **overwrites** the
+  current version's image tags and `latest`.
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
 - At release, add the CHANGELOG section (and the final version) on `dev`, open a
@@ -812,8 +831,8 @@ test reads `dist/`.
 - Home: https://github.com/steven-cmy/fitdle. CI is
   `.github/workflows/ci.yml` with jobs `sde-check`, `build`, `image`, `release`,
   `pages`. Pull requests into `main` run `sde-check`, `build` (all tests) and
-  `release-check` (`scripts/check-release.mjs`: version newer than main, non-empty
-  CHANGELOG section) only. `image`, `release` and `pages` run only after a push to
+  `release-check` (`scripts/check-release.mjs`: for program changes, version newer
+  than main and non-empty CHANGELOG section; see *Release notes*) only. `image`, `release` and `pages` run only after a push to
   `main` (or a manual run on `main`); pushes to `dev` trigger nothing.
   `.github/workflows/reset-dev.yml` runs when a PR into `main` closes and resets
   `dev` after a merged `dev` PR (see *Version bump*).

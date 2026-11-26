@@ -106,7 +106,8 @@ jobs:
             .cache/ship-weights.json
             .cache/zkill-version.json
 
-  # Pull requests only: the version must grow and CHANGELOG.md must describe it.
+  # Pull requests only: when the program changes, the version must grow and
+  # CHANGELOG.md must describe it. Documentation and .github changes pass as is.
   release-check:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'

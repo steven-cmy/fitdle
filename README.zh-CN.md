@@ -88,7 +88,7 @@ npm run server:start      # http://127.0.0.1:8787
 
 ## CI
 
-GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：向 `main` 的 PR 只构建、测试并检查版本号和 CHANGELOG（日常推送到 `dev` 不触发任何流程）；合并到 `main` 后才会推送镜像到 GHCR、部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态练习版），并在版本号变化且 CHANGELOG 有对应章节时创建 Release。`dev` 的 PR 合并后，[reset-dev.yml](.github/workflows/reset-dev.yml) 会把 `dev` 重置到合并后的 `main`；如果 `dev` 之后又有变动，则保持原样，只在 PR 下留言说明。
+GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：向 `main` 的 PR 只构建和测试；改动了程序时要求新版本号和 CHANGELOG 章节，只改文档或 `.github/` 时不要求（日常推送到 `dev` 不触发任何流程）；合并到 `main` 后才会推送镜像到 GHCR、部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态练习版），并在版本号变化且 CHANGELOG 有对应章节时创建 Release。`dev` 的 PR 合并后，[reset-dev.yml](.github/workflows/reset-dev.yml) 会把 `dev` 重置到合并后的 `main`；如果 `dev` 之后又有变动，则保持原样，只在 PR 下留言说明。
 
 ## License
 
