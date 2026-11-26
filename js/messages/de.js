@@ -101,7 +101,7 @@ export default {
   'end.shareLoss': 'FITDLE {date} — Akte nach X/6 Prüfungen eskaliert',
 
   'help.title': 'SACHBEARBEITER-HANDBUCH',
-  'help.intro': 'FITDLE ist das Schadensbewertungsterminal der Pend Insurance. Ein Schadensbericht kommt mit Wrack-Manifest; Ihre Aufgabe ist die Rumpfidentifikation und die Prüfung, ob die Akte zum Wrack passt.',
+  'help.intro': 'FITDLE ist das Schadensbewertungsterminal der Pend Insurance. Ein Schadensbericht kommt mit Wrack-Manifest; Ihre Aufgabe ist, anhand der Beweise den verlorenen Rumpf zu bestätigen.',
   'help.sourceBody': 'Schiffsdaten: EVE Static Data Export. Verlust-, Ausrüstungs- und ISK-Daten: zKillboard. Pend Insurance ist eine NPC-Corporation in EVE Online. FITDLE ist eine inoffizielle Fan-Simulation und nicht mit Fenris Creations verbunden.',
   'help.statsTitle': 'AKTE DES SACHBEARBEITERS',
   'help.statStreak': 'Aktuelle Serie',
@@ -190,8 +190,8 @@ export default {
   'oneShot.title': 'KEINE WEITEREN FRAGEN',
   'oneShot.body': 'Ein Durchgang. Rumpf, Wrack und Bericht stimmen überein. Das Büro ist das nicht gewohnt.',
 
-  'mode.helpNormal': 'Standardmodus.\nFalsche Tipps decken nach und nach Informationen auf.\nEin Tipp zeigt, was er mit dem Ziel gemeinsam hat.',
-  'mode.helpAudit': 'Audit-Modus.\nDas Wrack-Manifest simuliert die vollständige Ausrüstung und birgt tiefere Beweise.\nSeltene Rümpfe und Ausrüstungsdetails haben das höchste Beweisgewicht.\nSechs Prüfungen; kein Abgleich gemeinsamer Hinweise.',
+  'mode.helpNormal': 'Standardmodus.\nFalsche Tipps decken nach und nach Informationen auf.\nJeder Tipp zeigt, welche Werte der getippte Rumpf mit dem Ziel teilt.',
+  'mode.helpAudit': 'Ausrüstungsaudit.\nDas Wrack-Manifest simuliert die vollständige Ausrüstung und birgt tiefere Beweise.\nSeltene Rümpfe und Ausrüstungsdetails haben das höchste Beweisgewicht.\nSechs Prüfungen; kein Abgleich gemeinsamer Hinweise.',
 
   'dossier.equipmentSealed': 'Ungeborgene Module',
   'dossier.traitsSealed': 'Ungeborgene Boni',
@@ -216,7 +216,7 @@ export default {
 
   'toast.noMatch': 'KEINE GEMEINSAMEN FELDER',
 
-  'help.sharedRules': 'Ein Rumpf. Sechs Versuche.\nHinweise werden im Spielverlauf geborgen.\nEin Tipp deckt Informationen auf, die mit dem Ziel übereinstimmen.\nDie Spielweisen geben Hinweise unterschiedlich frei.\nEine Online-Akte zählt ab Ihrem ersten Tipp, im Zeitmodus ab dem Start der Uhr. Eine andere Akte zu nehmen oder sie zu lange offen zu lassen ist eine Niederlage; nach dem Neuladen geht dieselbe Akte weiter.\nAbkürzungen gelten, wenn sie genau einen Rumpf bezeichnen.',
+  'help.sharedRules': 'Sechs Versuche in Standard und Ausrüstungsaudit, unbegrenzt im Zeitmodus.\nHinweise werden im Spielverlauf geborgen.\nNur der Standardmodus zeigt, was ein getippter Rumpf mit dem Ziel gemeinsam hat.\nDie Spielweisen geben Hinweise unterschiedlich frei.\nEine Online-Akte zählt ab Ihrem ersten Tipp, im Zeitmodus ab dem Start der Uhr. Eine andere Akte zu nehmen oder sie zu lange offen zu lassen ist eine Niederlage; nach dem Neuladen geht dieselbe Akte weiter.\nAbkürzungen gelten, wenn sie genau einen Rumpf bezeichnen.',
 
   'dossier.limitedHint': 'Passt auf einige Rümpfe; ein starker, aber kein endgültiger Hinweis.',
   'dossier.uniqueHint': 'Passt nur auf einen Rumpftyp; der stärkste Ausrüstungshinweis.',
@@ -280,8 +280,9 @@ export default {
   'timed.giveUpTitle': 'AKTE ZURÜCKGEGEBEN',
   'timed.giveUpBody': 'Sie haben die Akte zurückgegeben, bevor der Rumpf bestätigt war. Es war {name}.',
 
-  'mode.freeHint': 'Prüfen Sie einen gewählten oder zufälligen Abschussbericht. Praktikumsprüfungen werden nicht gewertet.',
-  'mode.helpFree': 'Praktikum.\nÖffnen Sie einen geteilten Killboard-Link oder ziehen Sie eine zufällige Akte.\nPraktikumsprüfungen beeinflussen weder Tagesstatistik noch Tagesfortschritt.\nEin geteilter Abschussbericht wird nie gewertet, auch nicht angemeldet.',
+  'mode.freeHint': 'Üben ohne Anmeldung oder einen gewählten Abschussbericht prüfen. Beides wird nicht gewertet.',
+  'mode.helpFree': 'Praktikum.\nGäste ziehen in jeder Spielweise zufällige Akten; nichts wird gespeichert.\nEin geteilter Killboard-Link öffnet genau diesen Abschussbericht.\nEin geteilter Abschussbericht wird nie gewertet, auch nicht angemeldet.',
+  'help.onlineBody': 'Angemeldet werden zufällige Akten in jeder Spielweise gewertet. Jedes Ergebnis kommt in Ihre Akte und Statistik. Siege an aufeinanderfolgenden Spieltagen, täglich oder online, bilden Ihre Serie.',
 
   'help.modesTitle': 'MODI',
   'help.gameplayTitle': 'SPIELWEISEN',
@@ -455,17 +456,17 @@ export default {
   'mode.dailyRefresh': 'AKTUALISIEREN',
 
   'help.multiplayerFlowTitle': 'RAUMABLAUF',
-  'help.multiplayerFlow': 'Der Host erstellt den Raum und wählt Spielweise und Einstellungen. Mindestens zwei Spieler sind nötig. Spieler treten über die Raumliste bei, laden das Ziel vor und starten gemeinsam. Nach jeder Runde machen sich alle erneut bereit; die nächste Runde beginnt, wenn alle bereit sind, mit einem neuen gemeinsamen Ziel. Die Raumpunkte summieren sich, bis der Host die Partie beendet oder sie zurücksetzt. Wer eine laufende Runde verlässt oder länger als die Wiederverbindungsfrist getrennt bleibt, verliert sie; wer vom Host entfernt wird, nicht.',
+  'help.multiplayerFlow': 'Der Host erstellt den Raum und wählt Spielweise und Einstellungen. Mindestens zwei Spieler sind nötig. Spieler treten über die Raumliste bei. In Standard, Ausrüstungsaudit und Zeitmodus laden alle das Ziel vor und starten gemeinsam; nach jeder Runde machen sich alle erneut bereit, und die nächste Runde nutzt ein neues gemeinsames Ziel. Die Raumpunkte summieren sich über Partien hinweg; nur der Host kann sie in der Lobby oder zwischen Partien zurücksetzen. Wer den Raum verlässt, verliert seine Raumpunkte. Wer eine laufende Runde verlässt oder länger als die Wiederverbindungsfrist getrennt bleibt, verliert sie; wer vom Host entfernt wird, nicht.',
   'help.multiplayerRaceTitle': 'STANDARD / AUDIT / ZEITMODUS',
-  'help.multiplayerRace': 'Es gelten die Regeln des Einzelspiels (siehe SPIELWEISEN im Handbuch); hier stehen nur die Unterschiede.\nAlle erhalten dieselbe Akte, dieselbe Beweisreihenfolge und denselben Start.\nStandard und Ausrüstungsaudit: Wer den Rumpf nennt, beendet seine Runde. Weniger Prüfdurchgänge bringen mehr Punkte; wer alle sechs verfehlt, erhält nichts.\nZeitmodus: ein gemeinsamer Countdown für den ganzen Raum, die Dauer legt der Host fest. Punkte gibt es nach der Reihenfolge, in der der Rumpf genannt wird; wer bei Ablauf keinen Treffer hat, erhält nichts.\nWer früher fertig ist, kann das Ergebnis ansehen, während die anderen weiterspielen.',
+  'help.multiplayerRace': 'Es gelten die Regeln des Einzelspiels (siehe SPIELWEISEN im Handbuch); hier stehen nur die Unterschiede.\nAlle erhalten dieselbe Akte, dieselbe Beweisreihenfolge und denselben Start.\nStandard und Ausrüstungsaudit: Wer den Rumpf nennt, beendet seine Runde. Weniger Prüfdurchgänge bringen mehr Punkte; wer alle sechs verfehlt, erhält nichts.\nZeitmodus: pro Runde ein gemeinsamer Countdown für den ganzen Raum, die Dauer legt der Host fest. Punkte gibt es nach der Reihenfolge, in der der Rumpf genannt wird; wer bei Ablauf keinen Treffer hat, erhält nichts.\nWer früher fertig ist, kann das Ergebnis ansehen, während die anderen weiterspielen.',
   'help.multiplayerArbitrationTitle': 'SCHIEDSVERFAHREN',
-  'help.multiplayerArbitration': 'Ohne Zeitlimit. Die Spieler sind reihum Geber; wenn jeder einmal gegeben hat, ist eine Hauptrunde vorbei. Die Zahl der Hauptrunden legt der Host fest.\nDer Geber sieht die Antwort, alle Beweise und welchen Anteil am Gesamtgewicht jeder Beweis hat.\nIn jeder kleinen Runde veröffentlicht der Geber mindestens einen neuen Beweis mit Gewicht. Ausrüstungs- und Frachtbeweise kommen automatisch in fester Reihenfolge hinzu; den Rest wählt der Geber. Sind alle Beweise veröffentlicht, wird einfach weiter geraten.\nDanach rät jeder andere Spieler einmal und gibt den vollständigen Rumpfnamen ein (Abkürzungen werden vorher ergänzt). Die nächste kleine Runde beginnt, wenn alle geraten haben.\nSpieler: Je früher Sie den Rumpf nennen und je weniger Beweise offen sind, desto mehr Punkte. Die Punkte gibt es sofort, danach sieht man dem Rest der Runde zu. Wer geht, gilt als nicht gelöst; bereits erzielte Punkte bleiben.\nGeber: Am Ende jeder kleinen Runde bringt jeder Spieler, der noch rät, dem Geber Punkte entsprechend den bisher veröffentlichten Beweisen. Endet die Runde, gibt es einen Bonus, der umso größer ist, je mehr veröffentlicht wurde. Die Punkte des Gebers werden auf die Spielerzahl umgerechnet, damit kleine und große Tische gleich fair sind.\nNach sechs kleinen Runden oder wenn alle gelöst haben, endet die Runde des Gebers und die Antwort wird aufgedeckt; sobald alle bereit sind, übernimmt der nächste Geber.\nDie Punkte zählen nur in diesem Raum und nicht für Ihr Konto. Trennt sich der Geber, wartet der Raum die Wiederverbindungsfrist ab; danach wird abgerechnet und die Partie endet.\nKurz: Der Geber will viel veröffentlichen und die Spieler trotzdem möglichst lange raten lassen; die Spieler wollen mit weniger Beweisen früher lösen.',
+  'help.multiplayerArbitration': 'Ohne Zeitlimit. Die Spieler sind reihum Geber; wenn jeder einmal gegeben hat, ist eine Hauptrunde vorbei. Die Zahl der Hauptrunden legt der Host fest.\nDer Geber sieht die Antwort, alle Beweise und welchen Anteil am Gesamtgewicht jeder Beweis hat.\nIn jeder kleinen Runde veröffentlicht der Geber mindestens einen neuen Beweis mit Gewicht. Ausrüstungs- und Frachtbeweise kommen automatisch in fester Reihenfolge hinzu; den Rest wählt der Geber. Sind alle Beweise veröffentlicht, wird einfach weiter geraten.\nDanach rät jeder andere Spieler einmal und gibt den vollständigen Rumpfnamen ein (Abkürzungen werden vorher ergänzt). Die nächste kleine Runde beginnt, wenn alle geraten haben.\nSpieler: Je früher Sie den Rumpf nennen und je weniger Beweise offen sind, desto mehr Punkte. Die Punkte gibt es sofort, danach sieht man dem Rest der Runde zu. Wer geht, gilt als nicht gelöst; bereits erzielte Punkte bleiben.\nGeber: Am Ende jeder kleinen Runde bringt jeder Spieler, der noch rät, dem Geber Punkte entsprechend den bisher veröffentlichten Beweisen. Endet die Runde, gibt es einen Bonus, der umso größer ist, je mehr veröffentlicht wurde. Die Punkte des Gebers werden auf die Spielerzahl umgerechnet, damit kleine und große Tische gleich fair sind.\nNach sechs kleinen Runden oder wenn alle gelöst haben, endet die Runde des Gebers und die Antwort wird aufgedeckt; sobald alle bereit sind, übernimmt der nächste Geber.\nDie Punkte zählen nur in diesem Raum und nicht für Ihr Konto. Trennt sich der Geber, wartet der Raum die Wiederverbindungsfrist ab; danach wird abgerechnet und die Partie endet.\nWer während einer Partie beitritt, schaut bis zum Ende der ganzen Partie zu und spielt ab der nächsten mit.\nHat der nächste Geber den Raum verlassen, gibt stattdessen der Folgende in der Geberreihenfolge.\nKurz: Der Geber will viel veröffentlichen und die Spieler trotzdem möglichst lange raten lassen; die Spieler wollen mit weniger Beweisen früher lösen.',
 
   'room.reconnecting': 'VERBINDUNG WIRD WIEDERHERGESTELLT',
   'room.kick': 'ENTFERNEN',
   'room.kicked': 'Sie wurden vom Host aus dem Raum entfernt.',
   'room.arbitration.waiting': 'Warten auf den Rundenstart.',
-  'room.arbitration.dealerPublish': 'Veröffentlichen Sie mindestens einen Hinweis, um die Runde zu starten.',
+  'room.arbitration.dealerPublish': 'Veröffentlichen Sie mindestens einen Hinweis mit Gewicht, um die Runde zu starten.',
 
   'help.dailyWins': 'Genehmigte Tagesakten',
 

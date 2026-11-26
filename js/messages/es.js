@@ -101,7 +101,7 @@ export default {
   'end.shareLoss': 'FITDLE {date} — expediente elevado tras X/6 revisiones',
 
   'help.title': 'MANUAL DEL PERITO',
-  'help.intro': 'FITDLE es el terminal de evaluación de siniestros de Pend Insurance. Llega un informe de pérdida con un manifiesto de los restos; tu tarea es identificar el casco y decidir si el expediente concuerda con los restos.',
+  'help.intro': 'FITDLE es el terminal de evaluación de siniestros de Pend Insurance. Llega un informe de pérdida con un manifiesto de los restos; tu tarea es leer la evidencia y confirmar qué casco se perdió.',
   'help.sourceBody': 'Datos de naves: EVE Static Data Export. Pérdidas, equipamiento e ISK: zKillboard. Pend Insurance es una corporación NPC de EVE Online. FITDLE es una simulación de fans no oficial y no está afiliada a Fenris Creations.',
   'help.statsTitle': 'HISTORIAL DEL PERITO',
   'help.statStreak': 'Racha actual',
@@ -190,8 +190,8 @@ export default {
   'oneShot.title': 'NO HAY MÁS PREGUNTAS',
   'oneShot.body': 'Una revisión. Casco, restos e informe coinciden. La oficina no está acostumbrada.',
 
-  'mode.helpNormal': 'Modo estándar.\nLos fallos revelan información poco a poco.\nUn acierto revela información compartida con el objetivo.',
-  'mode.helpAudit': 'Modo auditoría.\nEl manifiesto simula el equipamiento completo y recupera evidencia más profunda.\nLos cascos raros y los detalles de equipamiento tienen el mayor peso probatorio.\nSeis revisiones; sin coincidencia de pistas compartidas.',
+  'mode.helpNormal': 'Modo estándar.\nLos fallos revelan información poco a poco.\nCada respuesta muestra qué atributos comparte el casco propuesto con el objetivo.',
+  'mode.helpAudit': 'Auditoría de equipamiento.\nEl manifiesto simula el equipamiento completo y recupera evidencia más profunda.\nLos cascos raros y los detalles de equipamiento tienen el mayor peso probatorio.\nSeis revisiones; sin coincidencia de pistas compartidas.',
 
   'dossier.equipmentSealed': 'Módulos sin recuperar',
   'dossier.traitsSealed': 'Bonificaciones sin recuperar',
@@ -216,7 +216,7 @@ export default {
 
   'toast.noMatch': 'SIN CAMPOS EN COMÚN',
 
-  'help.sharedRules': 'Un casco. Seis intentos.\nLa evidencia se recupera mientras juegas.\nLas respuestas revelan información compartida con el objetivo.\nCada modalidad libera información a su manera.\nUn expediente en línea cuenta desde tu primer intento; el cronometrado, desde que arranca el reloj. Tomar otro o dejarlo demasiado tiempo sin terminar es una derrota; al recargar continúa el mismo.\nLas abreviaturas valen si designan un único casco.',
+  'help.sharedRules': 'Seis intentos en Estándar y Auditoría de equipamiento; ilimitados en Contrarreloj.\nLa evidencia se recupera mientras juegas.\nSolo el modo estándar muestra lo que el casco propuesto comparte con el objetivo.\nCada modalidad libera información a su manera.\nUn expediente en línea cuenta desde tu primer intento; el cronometrado, desde que arranca el reloj. Tomar otro o dejarlo demasiado tiempo sin terminar es una derrota; al recargar continúa el mismo.\nLas abreviaturas valen si designan un único casco.',
 
   'dossier.limitedHint': 'Encaja en algunos cascos; una pista fuerte, pero no definitiva.',
   'dossier.uniqueHint': 'Solo encaja en un tipo de casco; la pista de equipo más fuerte.',
@@ -280,8 +280,9 @@ export default {
   'timed.giveUpTitle': 'EXPEDIENTE DEVUELTO',
   'timed.giveUpBody': 'Devolviste el expediente antes de confirmar el casco. Era {name}.',
 
-  'mode.freeHint': 'Evalúa un informe de muertes elegido o uno aleatorio. Las prácticas no puntúan.',
-  'mode.helpFree': 'Prácticas.\nAbre un enlace de killboard compartido o saca un expediente al azar.\nLas prácticas no afectan a las estadísticas ni al progreso diario.\nUn informe compartido nunca puntúa, tampoco con la sesión iniciada.',
+  'mode.freeHint': 'Practica sin iniciar sesión o evalúa un informe elegido. Ninguno puntúa.',
+  'mode.helpFree': 'Prácticas.\nSin sesión, sacas expedientes al azar en cualquier modalidad; no se registra nada.\nUn enlace de killboard compartido abre exactamente ese informe.\nUn informe compartido nunca puntúa, tampoco con la sesión iniciada.',
+  'help.onlineBody': 'Con la sesión iniciada, los expedientes aleatorios de cualquier modalidad puntúan. Cada resultado entra en tu historial y tus estadísticas. Ganar en días de juego consecutivos, en el diario o en línea, forma tu racha.',
 
   'help.modesTitle': 'MODOS',
   'help.gameplayTitle': 'MODALIDADES',
@@ -455,17 +456,17 @@ export default {
   'mode.dailyRefresh': 'ACTUALIZAR',
 
   'help.multiplayerFlowTitle': 'FLUJO DE SALA',
-  'help.multiplayerFlow': 'El anfitrión crea la sala y elige modalidad y ajustes. Hacen falta al menos dos jugadores. Se unen desde la lista de salas, precargan el objetivo y empiezan a la vez. Tras cada ronda todos vuelven a prepararse; la siguiente empieza cuando todos están listos y usa un nuevo objetivo compartido. Los puntos de sala se acumulan hasta que el anfitrión termina la partida o los reinicia. Salir durante una ronda, o seguir desconectado más allá del margen de reconexión, la da por perdida; ser expulsado por el anfitrión no.',
+  'help.multiplayerFlow': 'El anfitrión crea la sala y elige modalidad y ajustes. Hacen falta al menos dos jugadores. Se unen desde la lista de salas. En Estándar, Auditoría de equipamiento y Contrarreloj todos precargan el objetivo y empiezan a la vez; tras cada ronda todos vuelven a prepararse y la siguiente usa un nuevo objetivo compartido. Los puntos de sala se acumulan entre partidas; solo el anfitrión puede reiniciarlos, en el vestíbulo o entre partidas. Quien sale de la sala pierde sus puntos de sala. Salir durante una ronda, o seguir desconectado más allá del margen de reconexión, la da por perdida; ser expulsado por el anfitrión no.',
   'help.multiplayerRaceTitle': 'ESTÁNDAR / AUDITORÍA / CONTRARRELOJ',
-  'help.multiplayerRace': 'Las reglas son las del juego individual (ver MODALIDADES en el manual); aquí solo se indican las diferencias.\nTodos reciben el mismo expediente, el mismo orden de pruebas y la misma salida.\nEstándar y Auditoría de equipamiento: acertar el casco termina tu ronda. Cuantas menos revisiones uses, más puntos; si fallas las seis, no puntúas.\nContrarreloj: una cuenta atrás común para toda la sala, con la duración que fija el anfitrión. Los puntos siguen el orden en que se acierta el casco; quien no acierta antes de que acabe el tiempo no puntúa.\nQuien termina antes puede ver el resultado mientras los demás siguen.',
+  'help.multiplayerRace': 'Las reglas son las del juego individual (ver MODALIDADES en el manual); aquí solo se indican las diferencias.\nTodos reciben el mismo expediente, el mismo orden de pruebas y la misma salida.\nEstándar y Auditoría de equipamiento: acertar el casco termina tu ronda. Cuantas menos revisiones uses, más puntos; si fallas las seis, no puntúas.\nContrarreloj: en cada ronda, una cuenta atrás común para toda la sala, con la duración que fija el anfitrión. Los puntos siguen el orden en que se acierta el casco; quien no acierta antes de que acabe el tiempo no puntúa.\nQuien termina antes puede ver el resultado mientras los demás siguen.',
   'help.multiplayerArbitrationTitle': 'ARBITRAJE',
-  'help.multiplayerArbitration': 'Sin cronómetro. Los jugadores son repartidor por turnos; cuando todos lo han sido, termina una ronda grande. El anfitrión fija el número de rondas grandes.\nEl repartidor ve la respuesta, todas las pruebas y qué parte del peso total tiene cada prueba.\nEn cada ronda corta el repartidor publica al menos una prueba nueva que tenga peso. Las pruebas de equipamiento y carga se añaden solas en un orden fijo; el resto lo elige el repartidor. Cuando ya está todo publicado, simplemente se sigue adivinando.\nDespués, cada uno de los demás jugadores adivina una vez escribiendo el nombre completo del casco (las abreviaturas se completan antes). La siguiente ronda corta empieza cuando todos han adivinado.\nJugadores: cuanto antes aciertes el casco y menos pruebas haya publicadas, más puntos. Puntúas en el acto y después observas el resto del turno. Salir cuenta como no acertado; los puntos ya ganados se conservan.\nRepartidor: al final de cada ronda corta, cada jugador que sigue adivinando le da puntos según las pruebas publicadas hasta ese momento. Al terminar el turno recibe un bono mayor cuanto más haya publicado. Su puntuación se ajusta al número de jugadores, para que mesas pequeñas y grandes sean igual de justas.\nEl turno termina tras seis rondas cortas o cuando todos han acertado; se revela la respuesta y, cuando todos están listos, entra el siguiente repartidor.\nLos puntos solo cuentan en esta sala y no pasan a tu cuenta. Si el repartidor se desconecta, la sala espera el margen de reconexión; después se liquida el turno y la partida termina.\nEn resumen: el repartidor quiere publicar mucho y aun así que los jugadores aguanten lo máximo; los jugadores quieren acertar antes y con menos pruebas.',
+  'help.multiplayerArbitration': 'Sin cronómetro. Los jugadores son repartidor por turnos; cuando todos lo han sido, termina una ronda grande. El anfitrión fija el número de rondas grandes.\nEl repartidor ve la respuesta, todas las pruebas y qué parte del peso total tiene cada prueba.\nEn cada ronda corta el repartidor publica al menos una prueba nueva que tenga peso. Las pruebas de equipamiento y carga se añaden solas en un orden fijo; el resto lo elige el repartidor. Cuando ya está todo publicado, simplemente se sigue adivinando.\nDespués, cada uno de los demás jugadores adivina una vez escribiendo el nombre completo del casco (las abreviaturas se completan antes). La siguiente ronda corta empieza cuando todos han adivinado.\nJugadores: cuanto antes aciertes el casco y menos pruebas haya publicadas, más puntos. Puntúas en el acto y después observas el resto del turno. Salir cuenta como no acertado; los puntos ya ganados se conservan.\nRepartidor: al final de cada ronda corta, cada jugador que sigue adivinando le da puntos según las pruebas publicadas hasta ese momento. Al terminar el turno recibe un bono mayor cuanto más haya publicado. Su puntuación se ajusta al número de jugadores, para que mesas pequeñas y grandes sean igual de justas.\nEl turno termina tras seis rondas cortas o cuando todos han acertado; se revela la respuesta y, cuando todos están listos, entra el siguiente repartidor.\nLos puntos solo cuentan en esta sala y no pasan a tu cuenta. Si el repartidor se desconecta, la sala espera el margen de reconexión; después se liquida el turno y la partida termina.\nQuien se une durante una partida mira hasta que termina la partida entera y juega desde la siguiente.\nSi el siguiente repartidor ha salido de la sala, reparte en su lugar el siguiente jugador del orden.\nEn resumen: el repartidor quiere publicar mucho y aun así que los jugadores aguanten lo máximo; los jugadores quieren acertar antes y con menos pruebas.',
 
   'room.reconnecting': 'RECONECTANDO',
   'room.kick': 'EXPULSAR',
   'room.kicked': 'El anfitrión te ha expulsado de la sala.',
   'room.arbitration.waiting': 'Esperando a que se abra la ronda.',
-  'room.arbitration.dealerPublish': 'Publica al menos una pista para abrir la ronda.',
+  'room.arbitration.dealerPublish': 'Publica al menos una pista con peso para abrir la ronda.',
 
   'help.dailyWins': 'Expedientes diarios aprobados',
 

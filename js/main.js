@@ -4435,6 +4435,10 @@ function renderManual() {
               <p>${esc(t('help.dailyBody'))}</p>
             </div>
             <div class="manual-mode-block">
+              <h4>${esc(t('online.label'))}</h4>
+              <p>${esc(t('help.onlineBody'))}</p>
+            </div>
+            <div class="manual-mode-block">
               <h4>${esc(t('mode.free'))}</h4>
               <p>${esc(t('mode.freeHint'))}</p>
               <ul class="manual-mode-list">${t('mode.helpFree').split('\n').filter(Boolean).map((line) => `<li>${esc(line)}</li>`).join('')}</ul>

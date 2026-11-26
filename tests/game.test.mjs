@@ -1567,6 +1567,13 @@ test('field manual stays abstract and does not expose reveal mechanics', () => {
   assert.doesNotMatch(MESSAGES.en['mode.helpTimed'], /30 seconds|batch/i);
   assert.match(MESSAGES.en['help.sharedRules'], /Six attempts/);
   assert.doesNotMatch(MESSAGES.en['help.sharedRules'], /candidate hulls|weight|queue/i);
+  assert.match(MESSAGES.en['help.sharedRules'], /unlimited attempts in Timed/);
+  assert.match(MESSAGES.en['help.sharedRules'], /Only Standard shows/);
+  for (const lang of Object.keys(MESSAGES)) {
+    assert.ok(MESSAGES[lang]['help.onlineBody']?.length > 20, `${lang} manual misses online runs`);
+  }
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.match(main, /t\('help\.onlineBody'\)/);
 });
 
 test('catalog is SDE-only, complete, and references official data lazily', () => {

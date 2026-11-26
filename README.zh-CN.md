@@ -11,12 +11,12 @@ EVE Online 猜船小游戏。给你一份 zKillboard 上真实的击毁报告，
 ## 玩法
 
 - **标准**：猜错后揭示更多装备和货柜；你猜的船和答案相同的属性会直接亮出来。
-- **装配核验**：属性按实际装配、全 V 技能算出来（用 [dogma-engine](https://github.com/EVEShipFit/dogma-engine)），难一些。
+- **装配审计**：属性按实际装配、全 V 技能算出来（用 [dogma-engine](https://github.com/EVEShipFit/dogma-engine)），猜测不显示相同属性，冷门船出现得更多，难一些。
 - **计时**：线索按时间放出，跟猜了几次无关。
 
-用 EVE SSO 登录后可以玩每日题（所有人同一题），并记录战绩和连胜。不登录就是练习模式，随便玩，不计分。
+用 EVE SSO 登录后可以玩每日题（所有人同一题）；登录时玩的随机题也会计入战绩、统计和连胜。不登录就是见习模式，随便玩，不计分。从共享 KB 链接打开的击毁报告始终不计分。
 
-联机房间支持上面三种玩法，外加一个轮流坐庄的「仲裁」玩法。
+联机房间支持上面三种玩法，外加一个轮流坐庄的「仲裁复核」玩法。
 
 ## 部署
 
@@ -29,14 +29,14 @@ docker run -d --name fitdle --restart unless-stopped \
   ghcr.io/steven-cmy/fitdle:latest
 ```
 
-或者用 [compose.example.yml](compose.example.yml)。镜像 tag 有 `latest`、版本号（如 `1.0.55`）、`v` 加版本号和 commit sha，想固定版本就把 `latest` 换掉。
+或者用 [compose.example.yml](compose.example.yml)。镜像 tag 有 `latest`、版本号（与 `package.json` 一致）、`v` 加版本号和 commit sha，想固定版本就把 `latest` 换掉。
 
 > 镜像以前发布在 `registry.gitlab.com/cmy/fitdle`，现在改到 GHCR。旧地址不再更新，把镜像地址改成上面的即可，数据卷不用动。
 
 几点说明：
 
 - `SESSION_SECRET` 随便生成一个长随机串即可，例如 `openssl rand -base64 32`。
-- 不填 SSO 也能跑，只是只有练习模式。
+- 不填 SSO 也能跑，只是只有见习模式。
 - 数据库是 `/data/fitdle.sqlite`，记得挂卷。
 - Unraid 上设 `PUID=99`、`PGID=100`。
 - 改了 `PUBLIC_ORIGIN` 要重建容器，光 restart 不行。
@@ -62,7 +62,7 @@ location / {
 }
 ```
 
-健康检查：`GET /api/v1/health`。只显示练习模式的话，先看 `/api/v1/meta` 和容器日志。
+健康检查：`GET /api/v1/health`。只显示见习模式的话，先看 `/api/v1/meta` 和容器日志。
 
 ## 开发
 
@@ -82,13 +82,13 @@ npm run test:server
 npm run server:start      # http://127.0.0.1:8787
 ```
 
-只看前端的话 `npm start`，打开 http://127.0.0.1:4173 （练习模式）。
+只看前端的话 `npm start`，打开 http://127.0.0.1:4173 （见习模式）。
 
 改界面文字的话，8 种语言在 `js/messages/` 下，键名要保持一致，EVE 名词用官方译名（见 [docs/i18n-glossary.md](docs/i18n-glossary.md)）。更细的约定写在 [AGENTS.md](AGENTS.md)。
 
 ## CI
 
-GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：向 `main` 的 PR 只构建和测试；改动了程序时要求新版本号和 CHANGELOG 章节，只改文档或 `.github/` 时不要求（日常推送到 `dev` 不触发任何流程）；合并到 `main` 后部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态练习版）；当前版本还没有 Release 时，同时推送镜像到 GHCR，并在 CHANGELOG 有对应章节时创建 Release；已发布过的版本不会重复推送镜像，除非手动运行工作流。`dev` 的 PR 合并后，[reset-dev.yml](.github/workflows/reset-dev.yml) 会把 `dev` 重置到合并后的 `main`；如果 `dev` 之后又有变动，则保持原样，只在 PR 下留言说明。
+GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：向 `main` 的 PR 只构建和测试；改动了程序时要求新版本号和 CHANGELOG 章节，只改文档或 `.github/` 时不要求（日常推送到 `dev` 不触发任何流程）；合并到 `main` 后部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态见习版）；当前版本还没有 Release 时，同时推送镜像到 GHCR，并在 CHANGELOG 有对应章节时创建 Release；已发布过的版本不会重复推送镜像，除非手动运行工作流。`dev` 的 PR 合并后，[reset-dev.yml](.github/workflows/reset-dev.yml) 会把 `dev` 重置到合并后的 `main`；如果 `dev` 之后又有变动，则保持原样，只在 PR 下留言说明。
 
 ## License
 
