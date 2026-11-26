@@ -5,6 +5,7 @@ import {
   claimCaseNumber,
   ycDateLabel,
   freeKillIdFromToken,
+  formatGameDayStart,
   formatMass,
   freeKillToken,
   gameDateKey,
@@ -1366,6 +1367,9 @@ function isZkillUnavailable(error) {
 
 
 function gameDayStartMinutes() {
+  // The server's value wins: it is what decides the game day of a run.
+  const fromServer = state.meta?.gameDayStartMinutes;
+  if (Number.isInteger(fromServer)) return fromServer;
   return Number(state.manifest?.gameDayStartMinutes ?? state.gameDayStartMinutes ?? 11 * 60);
 }
 
@@ -4432,7 +4436,7 @@ function renderManual() {
             <h3>${icon('calendar')} ${esc(t('help.modesTitle'))}</h3>
             <div class="manual-mode-block">
               <h4>${esc(t('mode.daily'))}</h4>
-              <p>${esc(t('help.dailyBody'))}</p>
+              <p>${esc(t('help.dailyBody', { time: formatGameDayStart(gameDayStartMinutes()) }))}</p>
             </div>
             <div class="manual-mode-block">
               <h4>${esc(t('online.label'))}</h4>
@@ -5120,6 +5124,7 @@ async function resolveSession() {
   if (meta?.gameDay) {
     state.meta = meta;
     state.today = meta.gameDay;
+    if (Number.isInteger(meta.gameDayStartMinutes)) state.gameDayStartMinutes = meta.gameDayStartMinutes;
   }
 }
 

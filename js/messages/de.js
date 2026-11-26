@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODI',
   'help.gameplayTitle': 'SPIELWEISEN',
   'help.generalTitle': 'ALLGEMEIN',
-  'help.dailyBody': 'Eine Akte pro Spieltag, für alle dieselbe, Reset um 11:00 UTC. Es gelten die Standardregeln. Melden Sie sich mit EVE an; das Ergebnis kommt in Ihre Akte.',
+  'help.dailyBody': 'Eine Akte pro Spieltag, für alle dieselbe, Reset um {time} UTC. Es gelten die Standardregeln. Melden Sie sich mit EVE an; das Ergebnis kommt in Ihre Akte.',
 
   'error.dailyUnavailableTitle': 'Tägliche Akte nicht verfügbar',
   'error.dailyUnavailableBody': 'Die maßgebliche Zeit oder der Abschussbericht konnte nicht verifiziert werden. Öffnen Sie das Praktikum, um eine andere Akte zu nehmen.',

@@ -368,8 +368,12 @@ translation [README.zh-CN.md](README.zh-CN.md).
 
 ## KB selection
 
-- The game day boundary is build-configurable (`FITDLE_GAME_DAY_START_UTC`);
-  default `11:00` UTC.
+- The game day boundary is `FITDLE_GAME_DAY_START_UTC` (`HH:MM` UTC or minutes
+  0-1439; default `11:00`). The build writes it into the manifest; the server
+  reads it at startup and publishes it in `/api/v1/meta`; the container
+  entrypoint (`render-runtime-origin.mjs`) writes it into `dist/data/manifest.json`
+  and its .br/.gz copies; the page prefers the meta value. So a runtime change
+  needs no rebuild. Invalid values are logged and fall back to the build value.
 - Daily target times are sampled from `FITDLE_KB_SELECTION_START_DATE` to the last
   day of the most recent complete month. The sample uses a truncated exponential
   recency distribution with `FITDLE_KB_RECENCY_HALF_LIFE_DAYS`.

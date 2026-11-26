@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODES',
   'help.gameplayTitle': 'GAMEPLAY',
   'help.generalTitle': 'GENERAL',
-  'help.dailyBody': 'One claim per game day, the same for everyone, reset at 11:00 UTC. It follows Standard rules. Sign in with EVE to play; the result enters your assessor record.',
+  'help.dailyBody': 'One claim per game day, the same for everyone, reset at {time} UTC. It follows Standard rules. Sign in with EVE to play; the result enters your assessor record.',
 
   'error.dailyUnavailableTitle': 'Daily claim unavailable',
   'error.dailyUnavailableBody': 'The authoritative time or killmail record could not be verified. Open a trainee review to take another claim.',

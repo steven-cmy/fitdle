@@ -7,6 +7,39 @@ export const INITIAL_REVEAL = 3;
 export const REVEAL_PER_MISS = 6;
 export const CLUE_REVEAL_STOPS = [3, 9, 15, 21, 27, 33];
 export const DOWNTIME_HOUR_UTC = 11;
+export const MINUTES_PER_DAY = 24 * 60;
+
+/**
+ * Reads a game day start: "HH:MM" in UTC, or whole minutes after 00:00 UTC
+ * (0-1439). Returns the minutes, or null when the value is not one of those.
+ */
+export function parseGameDayStartMinutes(value) {
+  const raw = String(value ?? '').trim();
+  const clock = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(raw);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  if (/^\d+$/.test(raw) && Number(raw) < MINUTES_PER_DAY) return Number(raw);
+  return null;
+}
+
+/** Minutes after 00:00 UTC as "HH:MM". */
+export function formatGameDayStart(minutes) {
+  const value = Number(minutes);
+  return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+}
+
+/**
+ * The game day start the server uses: the environment value when it is valid,
+ * otherwise the fallback, with a warning that names the rejected value.
+ */
+export function resolveGameDayStart(value, fallback = DOWNTIME_HOUR_UTC * 60) {
+  if (value == null || String(value).trim() === '') return { minutes: fallback, warning: null };
+  const minutes = parseGameDayStartMinutes(value);
+  if (minutes != null) return { minutes, warning: null };
+  return {
+    minutes: fallback,
+    warning: `FITDLE_GAME_DAY_START_UTC="${String(value).trim()}" is not HH:MM (UTC) or minutes 0-1439; using ${formatGameDayStart(fallback)} UTC`,
+  };
+}
 
 /** Number of dossier fragments visible after N incorrect acquisitions. */
 export function revealCountFor(misses, totalClues, mode = 'normal') {

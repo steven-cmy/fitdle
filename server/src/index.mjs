@@ -83,6 +83,7 @@ export async function buildApp({ logStream = null } = {}) {
     return {
       serverTime: now.toISOString(),
       gameDay: day,
+      gameDayStartMinutes: config.gameDayStartMinutes,
       nextReset: new Date(now.getTime() + msUntilNextDowntime(now, config.gameDayStartMinutes)).toISOString(),
       dataVersion: String(config.manifest?.dataVersion || ''),
       algorithmVersion: config.algorithmVersion,

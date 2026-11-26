@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': '模式说明',
   'help.gameplayTitle': '玩法说明',
   'help.generalTitle': '通用',
-  'help.dailyBody': '每个游戏日一份案卷，所有人相同，11:00 UTC 重置，按标准玩法进行。登录 EVE 后才能进行，结果记入评估员记录。',
+  'help.dailyBody': '每个游戏日一份案卷，所有人相同，{time} UTC 重置，按标准玩法进行。登录 EVE 后才能进行，结果记入评估员记录。',
 
   'error.dailyUnavailableTitle': '每日案卷暂不可用',
   'error.dailyUnavailableBody': '无法验证权威时间或击毁报告。请进入见习评估另取一份案卷。',

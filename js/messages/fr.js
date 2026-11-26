@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODES',
   'help.gameplayTitle': 'MODES DE JEU',
   'help.generalTitle': 'GÉNÉRAL',
-  'help.dailyBody': 'Un dossier par jour de jeu, le même pour tous, réinitialisé à 11:00 UTC, aux règles standard. Connectez-vous avec EVE pour jouer ; le résultat entre dans votre dossier.',
+  'help.dailyBody': 'Un dossier par jour de jeu, le même pour tous, réinitialisé à {time} UTC, aux règles standard. Connectez-vous avec EVE pour jouer ; le résultat entre dans votre dossier.',
 
   'error.dailyUnavailableTitle': 'Dossier du jour indisponible',
   'error.dailyUnavailableBody': 'L’heure de référence ou le rapport de victime n’a pas pu être vérifié. Ouvrez l’entraînement pour prendre un autre dossier.',

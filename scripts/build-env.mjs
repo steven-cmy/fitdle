@@ -6,6 +6,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { formatGameDayStart, parseGameDayStartMinutes } from '../js/game.js';
 
 export const DEFAULT_GAME_DAY_START_UTC = '11:00';
 export const DEFAULT_KB_SELECTION_START_DATE = '2012-05-22';
@@ -54,16 +55,11 @@ export function loadBuildEnv(root) {
 
 export function parseGameDayStart(value) {
   const raw = String(value ?? DEFAULT_GAME_DAY_START_UTC).trim();
-  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(raw);
-  if (!match) {
-    throw new Error(`FITDLE_GAME_DAY_START_UTC must be HH:MM in UTC, got "${raw}"`);
+  const minutes = parseGameDayStartMinutes(raw);
+  if (minutes == null) {
+    throw new Error(`FITDLE_GAME_DAY_START_UTC must be HH:MM in UTC or minutes 0-1439, got "${raw}"`);
   }
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  return {
-    text: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
-    minutes: hour * 60 + minute,
-  };
+  return { text: formatGameDayStart(minutes), minutes };
 }
 
 export function parseDateOnly(value) {

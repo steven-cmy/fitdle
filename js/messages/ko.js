@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': '모드',
   'help.gameplayTitle': '게임 모드',
   'help.generalTitle': '공통',
-  'help.dailyBody': '게임 일자마다 모두에게 같은 청구건 하나가 배정되며 11:00 UTC에 초기화됩니다. 표준 규칙을 따릅니다. EVE로 로그인하면 플레이할 수 있고 결과는 평가 기록에 남습니다.',
+  'help.dailyBody': '게임 일자마다 모두에게 같은 청구건 하나가 배정되며 {time} UTC에 초기화됩니다. 표준 규칙을 따릅니다. EVE로 로그인하면 플레이할 수 있고 결과는 평가 기록에 남습니다.',
 
   'error.dailyUnavailableTitle': '일일 청구건을 사용할 수 없습니다',
   'error.dailyUnavailableBody': '기준 시각 또는 킬 기록을 확인할 수 없습니다. 수습 검토에서 다른 청구건을 받으십시오.',

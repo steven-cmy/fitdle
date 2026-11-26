@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildUserAgent, parseContact } from '../../js/user-agent.js';
+import { resolveGameDayStart } from '../../js/game.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 try {
@@ -67,6 +68,13 @@ if (production && devAuth && !loopback) {
 if (production && !String(process.env.SESSION_SECRET || '').trim()) {
   warnings.push('SESSION_SECRET is not set: Daily targets can be predicted from the public default');
 }
+// Runtime setting: the served manifest and /api/v1/meta carry this value, so it
+// takes effect on restart without rebuilding the image.
+const gameDayStart = resolveGameDayStart(
+  process.env.FITDLE_GAME_DAY_START_UTC,
+  Number.isInteger(manifest.gameDayStartMinutes) ? manifest.gameDayStartMinutes : 11 * 60,
+);
+if (gameDayStart.warning) warnings.push(gameDayStart.warning);
 const apiContact = parseContact(process.env.API_CONTACT);
 const roomArbitrationBigRounds = boundedIntEnv('ROOM_ARBITRATION_BIG_ROUNDS', 1, 1, 32);
 const roomArbitrationMaxBigRounds = boundedIntEnv('ROOM_ARBITRATION_MAX_BIG_ROUNDS', 5, 1, 32);
@@ -92,10 +100,7 @@ export const config = {
   cookieSecure: apiOrigin.startsWith('https://'),
   devAuth: devAuth && (!production || loopback),
   warnings,
-  gameDayStartMinutes: intEnv(
-    'FITDLE_GAME_DAY_START_UTC',
-    Number.isInteger(manifest.gameDayStartMinutes) ? manifest.gameDayStartMinutes : 11 * 60,
-  ),
+  gameDayStartMinutes: gameDayStart.minutes,
   algorithmVersion: 'online-v1',
   eve: {
     clientId: process.env.EVE_CLIENT_ID || '',

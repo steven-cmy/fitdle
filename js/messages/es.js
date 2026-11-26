@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODOS',
   'help.gameplayTitle': 'MODALIDADES',
   'help.generalTitle': 'GENERAL',
-  'help.dailyBody': 'Un expediente por día de juego, el mismo para todos, con reinicio a las 11:00 UTC y reglas estándar. Inicia sesión con EVE para jugar; el resultado entra en tu historial.',
+  'help.dailyBody': 'Un expediente por día de juego, el mismo para todos, con reinicio a las {time} UTC y reglas estándar. Inicia sesión con EVE para jugar; el resultado entra en tu historial.',
 
   'error.dailyUnavailableTitle': 'Expediente diario no disponible',
   'error.dailyUnavailableBody': 'No se pudo verificar la hora de referencia o el informe de muertes. Abre las prácticas para tomar otro expediente.',
