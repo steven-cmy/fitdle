@@ -666,6 +666,11 @@ refreshes, then the final `build`.
   squash-merged PRs). The hook runs only on local commits, so the merge never
   bumps again. After the PR merges, reset dev (it must hold no unmerged work):
   `git fetch github && git switch dev && git reset --hard github/main && git push --force-with-lease github dev`.
+- Authority: the owner has delegated local tests, local git steps and plain
+  `git push github dev` (no force except the post-release reset above, which
+  needs a go-ahead). Never push `main`. Opening or merging the PR into `main`,
+  releasing, and changing GitHub settings stay with the owner and happen only
+  when the owner says so.
 
 ## Runtime URLs and storage
 
