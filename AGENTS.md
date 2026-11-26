@@ -836,9 +836,9 @@ test reads `dist/`.
 
 - Home: https://github.com/steven-cmy/fitdle. CI is
   `.github/workflows/ci.yml` with jobs `sde-check`, `build`, `image`, `release`,
-  `pages`. Pull requests into `main` run `sde-check`, `build` (all tests) and
+  `pages-build` (uploads the Pages artifact), `pages` (deploys it). Pull requests into `main` run `sde-check`, `build` (all tests) and
   `release-check` (`scripts/check-release.mjs`: for program changes, version newer
-  than main and non-empty CHANGELOG section; see *Release notes*) only. `image`, `release` and `pages` run only after a push to
+  than main and non-empty CHANGELOG section; see *Release notes*) only. `image`, `release`, `pages-build` and `pages` run only after a push to
   `main` (or a manual run on `main`); pushes to `dev` trigger nothing.
   `.github/workflows/reset-dev.yml` runs when a PR into `main` closes and resets
   `dev` after a merged `dev` PR (see *Version bump*).
