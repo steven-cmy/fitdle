@@ -664,11 +664,20 @@ refreshes, then the final `build`.
   `node scripts/bump-version.mjs` by hand, then `git commit --no-verify`.
 - `dev` is the working branch, `main` the release branch (only changed by
   squash-merged PRs). The hook runs only on local commits, so the merge never
-  bumps again. After the PR merges, reset dev (it must hold no unmerged work):
+  bumps again.
+- After a `dev` -> `main` PR merges, `.github/workflows/reset-dev.yml` resets
+  `github/dev` to the merge commit with a lease. Then sync the local branch,
+  which must hold no unpushed work:
+  `git fetch github && git switch dev && git reset --hard github/dev`.
+- The workflow leaves `dev` alone, and comments on the PR, when `dev` is no
+  longer at the merged PR head (something was pushed since), the branch is gone,
+  or GitHub rejects the push. It does nothing for PRs closed without merging or
+  from another branch. In those cases keep the unmerged commits, then reset by
+  hand (it must hold no unmerged work):
   `git fetch github && git switch dev && git reset --hard github/main && git push --force-with-lease github dev`.
 - Authority: the owner has delegated local tests, local git steps and plain
-  `git push github dev` (no force except the post-release reset above, which
-  needs a go-ahead). Never push `main`. Opening or merging the PR into `main`,
+  `git push github dev` (no force by hand except the manual post-release reset
+  above, which needs a go-ahead). Never push `main`. Opening or merging the PR into `main`,
   releasing, and changing GitHub settings stay with the owner and happen only
   when the owner says so.
 
@@ -806,6 +815,8 @@ test reads `dist/`.
   `release-check` (`scripts/check-release.mjs`: version newer than main, non-empty
   CHANGELOG section) only. `image`, `release` and `pages` run only after a push to
   `main` (or a manual run on `main`); pushes to `dev` trigger nothing.
+  `.github/workflows/reset-dev.yml` runs when a PR into `main` closes and resets
+  `dev` after a merged `dev` PR (see *Version bump*).
 - `image` builds the all-in-one image with `docker buildx` and pushes it to
   `ghcr.io/steven-cmy/fitdle`. Tags: version, `v`-version, `latest`, short SHA;
   `buildcache` holds the layer cache.
