@@ -73,9 +73,9 @@ Node 24+. The front end is plain ES modules with no bundler; the back end in `se
 ```bash
 npm install
 npm run prepare:sde       # download the official SDE
+npm run fetch:usage       # ship usage from the data branch
 npm run build:catalog
 npm run build:killpool
-npm run build:weights
 npm run build             # writes data/ and dist/
 npm test
 

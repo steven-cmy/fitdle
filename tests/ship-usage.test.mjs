@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { mergeUsage, monthKeyOf, parseStats, planUsage } from '../scripts/ship-usage.mjs';
+import { practicePools } from '../scripts/practice-pools.mjs';
 
 test('stats months become [destroyed, lost] per YYYYMM', () => {
   const parsed = parseStats({
@@ -77,4 +78,48 @@ test('the usage script uses the documented path and stops at the first access bl
     server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+const poolShips = [
+  { id: 1, groupID: 25 }, { id: 2, groupID: 25 }, { id: 3, groupID: 25 },
+  { id: 4, groupID: 25 }, { id: 5, groupID: 29 },
+];
+const countsOf = (pool) => poolShips.map((ship) => pool.filter((id) => id === ship.id).length);
+
+test('practice pools follow the usage file: used hulls in Standard, the others in Audit', () => {
+  const usage = {
+    version: 1,
+    generatedAt: '2026-11-02T03:00:00Z',
+    ships: {
+      1: { at: Date.parse('2026-11-02T03:00:00Z'), m: { 202610: [1000, 50], 202611: [99999, 1] } },
+      2: { m: { 202401: [500, 20] } },
+      3: { m: { 202609: [40, 0] } },
+      4: { m: {} },
+      5: { m: { 202610: [800000, 900] } },
+    },
+  };
+  const pools = practicePools({ ships: poolShips, usage });
+  assert.equal(pools.source, 'usage');
+  assert.deepEqual(pools.eligible, [1, 2, 4, 5], 'a hull never lost is left out; one without months stays');
+  // The running month is ignored, old months do not count, capsules are turned down.
+  assert.deepEqual(countsOf(pools.normal), [32, 10, 0, 10, 6]);
+  assert.deepEqual(countsOf(pools.audit), [10, 28, 0, 28, 2]);
+});
+
+test('without usable usage data every hull weighs 1', () => {
+  const empty = { version: 1, ships: {} };
+  const stale = { version: 1, generatedAt: '2026-11-02T03:00:00Z', ships: { 1: { m: { 202001: [9, 9] } } } };
+  for (const usage of [null, empty, stale, { version: 2 }]) {
+    const pools = practicePools({ ships: poolShips, usage });
+    assert.equal(pools.source, 'none');
+    assert.ok(pools.reason);
+    for (const pool of [pools.eligible, pools.normal, pools.audit]) assert.deepEqual(pool, [1, 2, 3, 4, 5]);
+  }
+});
+
+test('the catalog build only reads the usage file for hull weights', () => {
+  const source = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'scripts', 'build-catalog.mjs'), 'utf8');
+  assert.match(source, /'\.cache', 'ship-usage\.json'/);
+  assert.match(source, /every hull gets weight 1/);
+  assert.doesNotMatch(source, /api\/stats/);
 });

@@ -29,22 +29,17 @@ RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && node scripts/build-cache.mjs; then \
   else \
     rm -rf .cache && npm run prepare:sde; \
   fi
+# Monthly zKill usage per hull from the data branch; without it every hull keeps
+# the same weight. CI hands over the file it already downloaded. It stays in
+# .cache because the catalog build recreates data/.
+RUN if [ "$REUSE_BUILD_CACHE" != "1" ] || [ ! -f .cache/ship-usage.json ]; then npm run fetch:usage; fi \
+  && { [ -f .cache/ship-usage.json ] || echo '{"version":1,"ships":{}}' > .cache/ship-usage.json; }
 RUN npm run build:catalog
 RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && [ -f .cache/killpool.json ]; then \
     echo "Reusing CI kill pool"; \
   else \
     npm run build:killpool; \
   fi
-RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && [ -f .cache/ship-weights.json ]; then \
-    echo "Reusing CI ship weights"; \
-  else \
-    npm run build:weights; \
-  fi
-# Monthly zKill usage per hull from the data branch; without it every hull keeps
-# the start weight. CI hands over the file it already downloaded. It stays in
-# .cache because the catalog build of `npm run build` recreates data/.
-RUN if [ "$REUSE_BUILD_CACHE" != "1" ] || [ ! -f .cache/ship-usage.json ]; then npm run fetch:usage; fi \
-  && { [ -f .cache/ship-usage.json ] || echo '{"version":1,"ships":{}}' > .cache/ship-usage.json; }
 RUN npm run build
 RUN npm test
 RUN npm test --prefix server

@@ -12,6 +12,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadBuildConfig, loadBuildEnv } from './build-env.mjs';
+import { practicePools } from './practice-pools.mjs';
 import { fetchLatestRelease, sdeBase } from './sde-api.mjs';
 import { getZkillVersion } from './zkill-version.mjs';
 
@@ -92,6 +93,11 @@ function cleanText(value) {
 }
 
 const ships = [...sde.ships].sort((a, b) => a.id - b.id);
+function poolCounts(pool) {
+  const counts = new Map();
+  for (const id of pool) counts.set(id, (counts.get(id) || 0) + 1);
+  return [...counts].map(([id, count]) => `${id}:${count}`).join(',');
+}
 function resistPercent(resonance) {
   const value = Number(resonance);
   if (!Number.isFinite(value)) return 0;
@@ -198,22 +204,21 @@ const auditAnswerPool = catalog
   .flatMap((ship) => Array.from({ length: auditWeight(ship) }, () => ship.id))
   .sort((a, b) => a - b);
 
-const weightsFile = path.join(ROOT, '.cache', 'ship-weights.json');
-const shipWeightsData = fs.existsSync(weightsFile)
-  ? JSON.parse(fs.readFileSync(weightsFile, 'utf8'))
-  : {};
-const shipWeights = shipWeightsData.usage || {};
-const usageOf = (id) => Math.max(0, Number(shipWeights[String(id)]?.recent || 0));
-const allUsageOf = (id) => Math.max(0, Number(shipWeights[String(id)]?.all || 0));
-const maxUsage = Math.max(1, ...catalog.map((ship) => usageOf(ship.id)));
-const logMax = Math.log1p(maxUsage);
-const usageScore = (ship) => (logMax ? Math.log1p(usageOf(ship.id)) / logMax : 0);
-const eligibleShips = catalog.filter((ship) => {
-  const usage = shipWeights[String(ship.id)];
-  // A ship with no recorded zKill loss has no KB, so it cannot be a puzzle target.
-  return !usage || Number(usage.all) > 0;
-});
-const killShipPool = eligibleShips.map((ship) => ship.id).sort((a, b) => a - b);
+// Monthly hull usage of the data branch (npm run fetch:usage). A build never
+// requests zKillboard for it and never fails without it.
+let usageData = null;
+try {
+  usageData = JSON.parse(fs.readFileSync(path.join(ROOT, '.cache', 'ship-usage.json'), 'utf8'));
+} catch {
+  // Missing or unreadable: reported below.
+}
+const pools = practicePools({ ships: catalog, usage: usageData });
+if (pools.source === 'usage') {
+  console.log(`Practice hull pools: ship usage generated ${pools.generatedAt}`);
+} else {
+  console.warn(`WARNING: ship usage not available (${pools.reason}); every hull gets weight 1 in the practice pools. Run npm run fetch:usage before the build.`);
+}
+const killShipPool = pools.eligible;
 const killPoolPath = [
   path.join(ROOT, '.cache', 'killpool.json'),
   path.join(ROOT, 'data', 'killpool.json'),
@@ -243,18 +248,8 @@ for (const entry of killPool) {
 }
 for (const ids of Object.values(killPoolsByShip)) ids.sort((a, b) => a - b);
 
-const normalShipPool = eligibleShips
-  .flatMap((ship) => {
-    const weight = 1 + 2.2 * usageScore(ship);
-    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
-  })
-  .sort((a, b) => a - b);
-const auditKillShipPool = eligibleShips
-  .flatMap((ship) => {
-    const weight = 1 + 1.8 * (1 - usageScore(ship));
-    return Array.from({ length: Math.max(1, Math.round(weight * 10)) }, () => ship.id);
-  })
-  .sort((a, b) => a - b);
+const normalShipPool = pools.normal;
+const auditKillShipPool = pools.audit;
 
 const moduleTypes = sde.moduleTypes || [];
 const moduleIDs = new Set(moduleTypes.map((module) => module.id));
@@ -389,7 +384,8 @@ const moduleFallbacks = {};
 }
 
 const RULESET_VERSION = 'v60';
-const usageStamp = catalog.map((ship) => `${ship.id}:${usageOf(ship.id)}:${allUsageOf(ship.id)}`).join(',');
+// How often each hull appears in the two practice pools.
+const usageStamp = [normalShipPool, auditKillShipPool].map(poolCounts).join(';');
 const configStamp = [
   BUILD_CONFIG.gameDayStartUtc,
   BUILD_CONFIG.kbSelectionStartDate,
@@ -478,11 +474,11 @@ const manifest = {
   normalShipPool,
   auditKillShipPool,
   killPoolsByShip,
-  shipWeights: {
-    source: 'zKillboard recent ship losses (90-day window)',
-    generatedAt: shipWeightsData.generatedAt || null,
-    eligible: eligibleShips.length,
-    excludedNoKb: catalog.length - eligibleShips.length,
+  shipUsage: {
+    source: pools.source,
+    generatedAt: pools.generatedAt,
+    eligible: killShipPool.length,
+    excludedNoKb: catalog.length - killShipPool.length,
   },
   killPoolGeneratedAt: killPoolSource.generatedAt || null,
   moduleFallbacks,
