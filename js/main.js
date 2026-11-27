@@ -106,6 +106,10 @@ const state = {
   onlineRun: null,
   // Online runs: the shipId of a guess the service has not answered yet.
   pendingGuess: null,
+  // A masked Timed run given up, until the service confirms it.
+  pendingEnd: false,
+  // The last Timed release a masked run asked the service for.
+  timedPolled: 0,
   onlineFinished: false,
   newTargetBusy: false,
   roomRequest: null,
@@ -837,6 +841,15 @@ function updateTimedClock() {
   const hero = $('#hero-timed');
   if (hero) hero.textContent = text;
   updateTimedOrb();
+  if (isMasked()) {
+    // The service's clock decides the releases and the end; ask it shortly after each one.
+    const releases = Math.floor(currentElapsed() / 30000);
+    if (state.timerStarted && state.status === 'playing' && releases > state.timedPolled) {
+      state.timedPolled = releases;
+      setTimeout(() => { void pollMaskedRun(); }, 1000);
+    }
+    return;
+  }
   if (state.timerStarted && state.status === 'playing' && state.answerData) {
     const releases = Math.floor(currentElapsed() / 30000);
     if (releases > state.timedClueCount) {
@@ -932,10 +945,34 @@ function startLockCooldown() {
   state.cooldownHandle = setInterval(updateLockCooldown, 100);
 }
 
+/** A masked Timed run: fetch the board the service's clock has reached. */
+async function pollMaskedRun() {
+  const runId = state.onlineRun?.runId;
+  if (!runId || !isMasked() || state.status !== 'playing') return;
+  try {
+    const run = await api.run(runId);
+    if (state.onlineRun?.runId === runId) applyServerRun(run);
+  } catch (error) {
+    debugLog('timed poll', error);
+    if (isOutdatedPage(error)) showFatal(error);
+  }
+}
+
 function startTimedRun() {
   if (!isTimed() || state.timerStarted || state.status !== 'playing') return;
   dropCurrentTargetCache();
   startTimedClock();
+  if (isMasked()) {
+    // The service starts its clock and answers with the opening clues.
+    state.timedPolled = 0;
+    state.timerHoldStart = 0;
+    state.gaveUp = false;
+    state.timedExpired = false;
+    void runSync?.begin(state.onlineRun.runId, state.timerStartAt);
+    renderAll();
+    setTimeout(() => $('#ship-input')?.focus(), 80);
+    return;
+  }
   if (state.onlineRun?.runId) void runSync?.begin(state.onlineRun.runId, state.timerStartAt);
   state.timerHoldStart = 0;
   state.gaveUp = false;
@@ -968,6 +1005,18 @@ function failTimedRun() {
 
 function giveUpTimed() {
   if (!isTimed() || !state.timerStarted || state.status !== 'playing') return;
+  if (isMasked()) {
+    const holdMs = state.timerHoldStart ? Math.max(0, Date.now() - state.timerHoldStart) : 0;
+    const elapsed = Math.max(0, currentElapsed() - holdMs);
+    state.timerHoldStart = 0;
+    stopTimedClock();
+    state.timerElapsedMs = elapsed;
+    state.pendingEnd = true;
+    // The service names the answer once it has recorded the loss.
+    void runSync?.lose(state.onlineRun.runId, elapsed);
+    renderAll();
+    return;
+  }
   const holdMs = state.timerHoldStart ? Math.max(0, Date.now() - state.timerHoldStart) : 0;
   state.timerElapsedMs = Math.max(0, currentElapsed() - holdMs);
   state.timerHoldStart = 0;
@@ -2937,7 +2986,7 @@ function renderAttempts() {
     renderArbitrationAttempts(list);
     return;
   }
-  if (isTimed() && !state.timerStarted && state.status === 'playing') {
+  if (isTimed() && !state.timerStarted && state.status === 'playing' && !state.pendingEnd) {
     list.innerHTML = '';
     const boardCount = $('#board-count-text');
     if (boardCount) boardCount.textContent = '00:00';
@@ -3121,6 +3170,10 @@ function renderAcquire() {
         <button type="button" class="link-button" data-action="debrief">${icon('target')} ${esc(t('end.review'))}</button>
       </div>
     `);
+    return;
+  }
+  if (state.pendingEnd && isMasked()) {
+    paintAcquire(slot, `<div class="acquire"><p class="room-note">${esc(t('board.awaiting'))}</p></div>`);
     return;
   }
   if (isTimed() && !state.timerStarted) {
@@ -3742,7 +3795,7 @@ function renderDossier() {
   arbBody?.classList.remove('is-turn-locked');
   arbBody?.querySelector('.dossier-turn-lock')?.remove();
   if (!state.answerData) return;
-  if (isTimed() && !state.timerStarted && state.status === 'playing') {
+  if (isTimed() && !state.timerStarted && state.status === 'playing' && !state.pendingEnd) {
     const countText = $('#dossier-count-text');
     if (countText) countText.textContent = '0 / ?';
     const progressBar = $('#dossier-progress');
@@ -4225,6 +4278,7 @@ function applyMaskedRun(run) {
   if (!changed) return false;
   state.guesses = guesses;
   if (state.pendingGuess != null && (guesses.includes(state.pendingGuess) || run.completed)) state.pendingGuess = null;
+  if (run.completed) state.pendingEnd = false;
   if (ended) {
     if (isTimed()) {
       stopTimedClock();
@@ -5481,9 +5535,10 @@ function isOutdatedPage(error) {
 /** A new board of a masked run: show what the service released and judged. */
 function showMaskedRun(run) {
   const guessesBefore = state.guesses.length;
+  const shownBefore = state.revealed.size;
   if (!applyMaskedRun(run)) return;
   const guessed = state.guesses.length > guessesBefore;
-  if (state.status === 'playing') {
+  if (state.status === 'playing' && (guessed || shownBefore > 0)) {
     if (state.fresh.size > 0) showToast(t('toast.intel'), t('toast.clue', { n: state.fresh.size }), 'info');
     else if (guessed) showToast(t('toast.noMatch'), '', 'warn');
   }
@@ -5536,7 +5591,20 @@ function mergeOnlineRun(restored) {
     // A guess sent before a reload that the service has not answered yet.
     const waiting = runSync?.runs.get(run.runId)?.guesses?.[0]?.shipId;
     if (!run.completed && waiting && !guesses.includes(Number(waiting))) state.pendingGuess = Number(waiting);
-    return { guesses, status: run.status, invalidated: false };
+    const merged = { guesses, status: run.status, invalidated: false };
+    if (isTimed()) {
+      const running = run.status === 'playing' && run.begun;
+      const elapsed = Math.max(0, Number(run.now) - Number(run.startedAt) || 0);
+      merged.timerStarted = running;
+      merged.timerStartAt = running ? Date.now() - elapsed : 0;
+      merged.timerElapsedMs = running ? elapsed : Number(run.elapsedMs) || 0;
+      merged.gaveUp = run.status === 'lost' && run.endReason === 'gave-up';
+      merged.timedExpired = run.status === 'lost' && run.endReason === 'exhausted';
+      state.timedPolled = running ? Math.floor(elapsed / 30000) : 0;
+      // A give-up sent before a reload that the service has not answered yet.
+      if (running && runSync?.runs.get(run.runId)?.lost) state.pendingEnd = true;
+    }
+    return merged;
   }
   const known = (id) => state.catalogMap.has(Number(id));
   const confirmed = (run.guesses || []).map(Number).filter(known);

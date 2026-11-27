@@ -21,7 +21,7 @@ const START_WINDOW_MS = 60 * 1000;
 const ELAPSED_TOLERANCE_MS = 2000;
 const shipIds = new Set(config.catalogShips.map((ship) => Number(ship.id)));
 // Gameplays whose answer and clues stay on the service until the run ends.
-const MASKED_GAMEPLAYS = new Set(['daily', 'standard']);
+const MASKED_GAMEPLAYS = new Set(['daily', 'standard', 'audit', 'timed']);
 // A finished run keeps its puzzle this long for the review; later it is rebuilt on demand.
 const PUZZLE_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
 

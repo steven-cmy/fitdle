@@ -3022,4 +3022,9 @@ test('an online run keeps its answer on the service until it ends', () => {
   assert.ok(slice('function cacheCurrentTarget()', '\n}\n').includes('if (isMasked()) return;'));
   // The claim file number comes from the service, not from the killmail.
   assert.ok(slice('function claimFileId()', '\n}\n').includes('onlineBoard()?.caseId'));
+  // Timed: the service's clock releases clues and ends the run; giving up waits for it.
+  assert.ok(slice('function updateTimedClock()', '\n}\n').includes('void pollMaskedRun();'));
+  const giveUp = slice('function giveUpTimed()', '\n}\n');
+  assert.ok(giveUp.includes('void runSync?.lose(state.onlineRun.runId, elapsed);'));
+  assert.ok(giveUp.indexOf('state.pendingEnd = true;') < giveUp.indexOf("state.status = 'lost';"));
 });

@@ -805,6 +805,44 @@ test('an open run sends only released clues; the answer follows the end', async 
   });
 });
 
+test('Audit and Timed keep their answer on the service as well', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Sealed Audit Pilot');
+    const audit = await pilot.start('audit');
+    const { puzzle } = assertSealed(audit, 'audit');
+    assert.equal(puzzle.revealMode, 'audit');
+    const miss = (await pilot.guess(audit.runId, OTHER_SHIPS[0])).body;
+    assertSealed(miss, 'audit miss');
+    assert.ok(miss.board.revealed.length > audit.board.revealed.length, 'an audit miss releases more');
+
+    const timed = await pilot.start('timed');
+    assertSealed(timed, 'timed before the clock');
+    assert.deepEqual(timed.board.revealed, [], 'nothing before the clock starts');
+    const begun = (await pilot.begin(timed.runId)).body;
+    assertSealed(begun, 'timed opening');
+    assert.ok(begun.board.revealed.length > 0);
+    const wrong = (await pilot.guess(timed.runId, OTHER_SHIPS[0], { elapsedMs: 1000 })).body;
+    assert.deepEqual(wrong.board.revealed, begun.board.revealed, 'Timed guesses release nothing');
+    // Two releases later the service's clock shows more.
+    db.prepare('UPDATE online_runs SET started_at = started_at - 61000 WHERE id = ?').run(timed.runId);
+    const later = (await pilot.run(timed.runId)).body;
+    assertSealed(later, 'timed later');
+    assert.ok(later.board.revealed.length > begun.board.revealed.length);
+    const gaveUp = (await pilot.finish(timed.runId, { status: 'lost', elapsedMs: 62000 })).body;
+    assert.deepEqual([gaveUp.status, gaveUp.endReason, gaveUp.target.shipId], ['lost', 'gave-up', REAL_SHIP]);
+
+    // A clock that has released everything ends the run at the next release.
+    const exhausted = await pilot.start('timed');
+    await pilot.begin(exhausted.runId);
+    db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 3 * 3600e3, exhausted.runId);
+    const over = (await pilot.run(exhausted.runId)).body;
+    assert.deepEqual([over.status, over.endReason, over.target.shipId], ['lost', 'exhausted', REAL_SHIP]);
+    assert.equal(over.elapsedMs % 30000, 0);
+    assert.ok(over.elapsedMs < 3 * 3600e3);
+    assert.equal((await pilot.guess(exhausted.runId, REAL_SHIP)).status, 409, 'no guess after the end');
+  });
+});
+
 test('Daily shows every player the same clues in the same order', async () => {
   const day = JSON.parse((await app.inject({ method: 'GET', url: '/api/v1/meta' })).body).gameDay;
   db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
@@ -1181,8 +1219,9 @@ test('a killmail this service knows opens although zKillboard finds nothing', as
     const before = requests.length;
     const other = await soloPilot('Solo Stored Friend');
     const custom = await other.custom('audit', killId);
-    assert.deepEqual([custom.status, custom.body.kind, custom.body.target?.killId], [200, 'custom', killId]);
-    assert.equal(requests.length, before);
+    assert.deepEqual([custom.status, custom.body.kind, custom.body.target], [200, 'custom', null]);
+    assert.equal(truthOf(custom.body.runId).killId, killId);
+    assert.deepEqual(requests.slice(before).filter((url) => !url.startsWith('/api/stats/')), [], 'no killmail request');
     assert.equal((await other.custom('audit', 123456789)).status, 503);
   });
 });
