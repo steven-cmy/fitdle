@@ -246,7 +246,7 @@ export default {
   'settings.sizeNormal': 'NORMAL',
 
   'manual.emptyKb': 'Abschüsse ohne Ausrüstung erlauben',
-  'manual.emptyKbHelp': 'Gilt ab der nächsten Akte.',
+  'manual.emptyKbHelp': 'Gilt nur für zufällige Einzelakten; die Tagesakte, Mehrspielerräume und geteilte KB-Links sind nicht betroffen. Gilt ab der nächsten Akte.',
   'manual.emptyKbOn': 'Abschüsse ohne Ausrüstung aktiviert',
   'manual.emptyKbOff': 'Abschüsse ohne Ausrüstung deaktiviert',
 
@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODI',
   'help.gameplayTitle': 'SPIELWEISEN',
   'help.generalTitle': 'ALLGEMEIN',
-  'help.dailyBody': 'Eine Akte pro Spieltag, für alle dieselbe, Reset um {time} UTC. Es gelten die Standardregeln. Melden Sie sich mit EVE an; das Ergebnis kommt in Ihre Akte.',
+  'help.dailyBody': 'Eine Akte pro Spieltag, für alle dieselbe, Reset um {time} UTC. Es gelten die Standardregeln. Melden Sie sich mit EVE an; das Ergebnis kommt in Ihre Akte. Die Tagesakte ignoriert die Einstellung „Abschüsse ohne Ausrüstung erlauben“.',
 
   'error.dailyUnavailableTitle': 'Tägliche Akte nicht verfügbar',
   'error.dailyUnavailableBody': 'Die maßgebliche Zeit oder der Abschussbericht konnte nicht verifiziert werden. Öffnen Sie das Praktikum, um eine andere Akte zu nehmen.',
@@ -407,6 +407,10 @@ export default {
   'room.bigRoundsHelp': 'Vollständige Geber-Runden, 1–{max}.',
   'room.duration': 'ZEITLIMIT (MINUTEN)',
   'room.durationHelp': 'Nur Zeitmodus, 1–{max} Minuten.',
+  'room.allowEmpty': 'Abschüsse ohne Ausrüstung erlauben',
+  'room.allowEmptyHelp': 'Ohne Haken verwendet jede Runde nur Abschüsse mit Ausrüstung.',
+  'room.allowEmptyOn': 'Dieser Raum erlaubt Abschüsse ohne Ausrüstung.',
+  'room.allowEmptyOff': 'Dieser Raum verwendet nur Abschüsse mit Ausrüstung.',
   'room.error.reconnecting': 'Verbindung verloren. Wiederverbindung…',
   'room.error.room-not-found': 'Raum nicht gefunden.',
   'room.error.wrong-password': 'Falsches Raumpasswort.',
@@ -456,7 +460,7 @@ export default {
   'mode.dailyRefresh': 'AKTUALISIEREN',
 
   'help.multiplayerFlowTitle': 'RAUMABLAUF',
-  'help.multiplayerFlow': 'Der Host erstellt den Raum und wählt Spielweise und Einstellungen. Mindestens zwei Spieler sind nötig. Spieler treten über die Raumliste bei. In Standard, Ausrüstungsaudit und Zeitmodus laden alle das Ziel vor und starten gemeinsam; nach jeder Runde machen sich alle erneut bereit, und die nächste Runde nutzt ein neues gemeinsames Ziel. Die Raumpunkte summieren sich über Partien hinweg; nur der Host kann sie in der Lobby oder zwischen Partien zurücksetzen. Wer den Raum verlässt, verliert seine Raumpunkte. Wer eine laufende Runde verlässt oder länger als die Wiederverbindungsfrist getrennt bleibt, verliert sie; wer vom Host entfernt wird, nicht.',
+  'help.multiplayerFlow': 'Der Host erstellt den Raum und wählt Spielweise und Einstellungen. Mindestens zwei Spieler sind nötig. Spieler treten über die Raumliste bei. In Standard, Ausrüstungsaudit und Zeitmodus laden alle das Ziel vor und starten gemeinsam; nach jeder Runde machen sich alle erneut bereit, und die nächste Runde nutzt ein neues gemeinsames Ziel. Die Raumpunkte summieren sich über Partien hinweg; nur der Host kann sie in der Lobby oder zwischen Partien zurücksetzen. Wer den Raum verlässt, verliert seine Raumpunkte. Wer eine laufende Runde verlässt oder länger als die Wiederverbindungsfrist getrennt bleibt, verliert sie; wer vom Host entfernt wird, nicht. Der Host legt in den Raumeinstellungen fest, ob Abschüsse ohne Ausrüstung erlaubt sind; der ganze Raum folgt dieser Wahl, nicht den persönlichen Einstellungen.',
   'help.multiplayerRaceTitle': 'STANDARD / AUDIT / ZEITMODUS',
   'help.multiplayerRace': 'Es gelten die Regeln des Einzelspiels (siehe SPIELWEISEN im Handbuch); hier stehen nur die Unterschiede.\nAlle erhalten dieselbe Akte, dieselbe Beweisreihenfolge und denselben Start.\nStandard und Ausrüstungsaudit: Wer den Rumpf nennt, beendet seine Runde. Weniger Prüfdurchgänge bringen mehr Punkte; wer alle sechs verfehlt, erhält nichts.\nZeitmodus: pro Runde ein gemeinsamer Countdown für den ganzen Raum, die Dauer legt der Host fest. Punkte gibt es nach der Reihenfolge, in der der Rumpf genannt wird; wer bei Ablauf keinen Treffer hat, erhält nichts.\nWer früher fertig ist, kann das Ergebnis ansehen, während die anderen weiterspielen.',
   'help.multiplayerArbitrationTitle': 'SCHIEDSVERFAHREN',

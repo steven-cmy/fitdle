@@ -95,7 +95,8 @@ async function shipLosses(manifest, shipId, options = {}) {
 
 /**
  * Pick a real killmail the whole room can fetch. Prefers kills with fitted
- * modules, but a valid empty hull is still a real KB target (not a fallback).
+ * modules. A valid empty hull is still a real KB target unless the room
+ * turned empty hulls off, in which case it is never used.
  */
 export async function pickRaceTarget({
   manifest,
@@ -104,6 +105,7 @@ export async function pickRaceTarget({
   usedShipIds = new Set(),
   fetchImpl = fetch,
   random = randomIndex,
+  allowEmpty = true,
 } = {}) {
   let fallback = null;
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -118,6 +120,8 @@ export async function pickRaceTarget({
     const candidates = losses.filter((kill) => (
       Number(kill?.victim?.ship_type_id) === Number(shipId)
       && !usedKillIds.has(Number(kill?.killmail_id))
+      // A page killmail without items is checked after it is fetched below.
+      && (allowEmpty || !Array.isArray(kill?.victim?.items) || killHasFittedModules(kill))
     ));
     if (!candidates.length) {
       usedShipIds.add(shipId);
@@ -140,7 +144,7 @@ export async function pickRaceTarget({
         if (killHasFittedModules(killmail)) {
           return { killId, shipId, killmail };
         }
-        if (!fallback) fallback = { killId, shipId, killmail };
+        if (allowEmpty && !fallback) fallback = { killId, shipId, killmail };
       } catch {
         // Try the next candidate; the room reports failure only after all ships.
       }
@@ -162,6 +166,7 @@ export async function pickDealerRound({
   usedKillIds = new Set(),
   usedShipIds = new Set(),
   fetchImpl = fetch,
+  allowEmpty = true,
   mode = 'normal',
   simulate = null,
   moduleFallbacks = {},
@@ -169,7 +174,7 @@ export async function pickDealerRound({
   weaponGroups = null,
 } = {}) {
   const target = await pickRaceTarget({
-    manifest, mode: mode === 'audit' ? 'audit' : 'standard', usedKillIds, usedShipIds, fetchImpl,
+    manifest, mode: mode === 'audit' ? 'audit' : 'standard', usedKillIds, usedShipIds, fetchImpl, allowEmpty,
   });
   const ship = (catalog || []).find((entry) => Number(entry.id) === Number(target.shipId));
   if (!ship) throw new KbUnavailableError('target hull missing from catalog');

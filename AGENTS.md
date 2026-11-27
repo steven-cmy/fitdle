@@ -392,8 +392,15 @@ translation [README.zh-CN.md](README.zh-CN.md).
   all already-loaded pages are combined and one kill is chosen with a deterministic
   recency-weighted draw.
 - The personal `allowEmptyKb` setting applies to random targets: practice filters
-  in the browser and online runs send `allowEmpty` to `/online/start`. Daily,
-  rooms and explicit `kb` targets are shared or chosen, so they ignore it.
+  in the browser and online runs send `allowEmpty` to `/online/start`. Daily
+  (static and service) always allows empty hulls and explicit `kb` targets are
+  chosen, so both ignore it.
+- Rooms use the host's room setting `settings.allowEmpty` (default true, bool
+  only, host-only, changeable between matches) instead of any personal setting.
+  Race rounds pass it to `getRandomTarget`; arbitration passes it to
+  `pickDealerRound`. Off means an empty hull is never used and the round fails
+  with `target` if no fitted loss can be found. On keeps the old arbitration
+  preference for fitted hulls.
 - Service random targets use the complete killmail from the loss page (no
   `killID` request) and keep five ready killmails per hull. The compressed page
   stays cached for its upstream lifetime and is never requested again before; the

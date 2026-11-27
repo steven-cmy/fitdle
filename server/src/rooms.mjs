@@ -54,6 +54,7 @@ export function normalizeRoomSettings(current = {}, incoming = {}) {
       next.bigRounds = bigRounds;
     }
   }
+  if (typeof incoming.allowEmpty === 'boolean') next.allowEmpty = incoming.allowEmpty;
   if (incoming.raceDurationMs != null) {
     const duration = Number(incoming.raceDurationMs);
     if (Number.isFinite(duration)) {
@@ -657,7 +658,7 @@ async function prepareEndlessRound(room, roundNo, current) {
   if (!match || match.rule !== 'endless') return;
   clearTimeout(match.startTimer);
   clearTimeout(match.roundTimer);
-  const target = await getRandomTarget(match.gameplay);
+  const target = await getRandomTarget(match.gameplay, { allowEmpty: room.settings?.allowEmpty !== false });
   const built = await buildEndlessClues(room, target, roundNo);
   if (!current() || room.match !== match) return;
   recordExposure({
@@ -985,6 +986,7 @@ async function startArbitration(room, wantedDealerId, current) {
     catalog: config.catalogShips,
     refsEn,
     fetchImpl: zkillFetch,
+    allowEmpty: room.settings?.allowEmpty !== false,
     mode: 'audit',
     moduleFallbacks,
     weaponUpgradeGroups: config.manifest?.weaponUpgradeGroups || null,
@@ -1597,6 +1599,7 @@ export function registerRoomRoutes(app) {
       settings: {
         bigRounds: config.roomArbitrationBigRounds,
         raceDurationMs: config.roomTimedDurationMinutes * 60 * 1000,
+        allowEmpty: true,
       },
       match: null,
       bigRound: null,

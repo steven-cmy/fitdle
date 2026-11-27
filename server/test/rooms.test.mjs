@@ -34,6 +34,8 @@ config.roomHeartbeatMs = 60;
 const realFetch = globalThis.fetch;
 let gate = null;
 let failNext = false;
+// null: every loss is fitted; 'mixed': one fitted among empty hulls; 'empty': all empty.
+let upstreamEmpty = null;
 let pageRequests = 0;
 let killSerial = 5000;
 const items = [[27, 2048], [19, 5973], [11, 519]].map(([flag, item_type_id]) => ({
@@ -46,11 +48,15 @@ globalThis.fetch = async (url, options) => {
   pageRequests += 1;
   if (gate) await gate;
   if (failNext) return new Response('{}', { status: 404 });
-  return new Response(JSON.stringify(Array.from({ length: 12 }, () => ({
+  const cargo = [{ flag: 5, item_type_id: 34, quantity_destroyed: 1, quantity_dropped: 0 }];
+  return new Response(JSON.stringify(Array.from({ length: 12 }, (_, index) => ({
     killmail_id: killSerial += 1,
     killmail_time: '2026-06-01T00:00:00Z',
     zkb: { totalValue: 1000 },
-    victim: { ship_type_id: ship, items },
+    victim: {
+      ship_type_id: ship,
+      items: upstreamEmpty === 'empty' || (upstreamEmpty === 'mixed' && index > 0) ? cargo : items,
+    },
   }))), { status: 200 });
 };
 function holdUpstream() {
@@ -768,6 +774,73 @@ test('a failed target returns the room to the lobby phase', async () => {
   failNext = false;
   config.manifest.auditKillShipPool = config.manifest.savedPool;
   delete config.manifest.savedPool;
+  await closeAll(pilots, code);
+});
+
+const fitted = (killmail) => killmail.victim.items.some((item) => item.flag !== 5);
+
+test('the host room setting keeps empty hulls out of race rounds', async () => {
+  const { pilots, room, code } = await makeRoom(2);
+  assert.equal(room.settings.allowEmpty, true, 'empty hulls are allowed by default');
+  upstreamEmpty = 'mixed';
+  try {
+    for (let round = 0; round < 4; round += 1) {
+      clearHulls();
+      pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: false } });
+      await until(() => room.match?.target, 'target');
+      assert.equal(room.settings.allowEmpty, false);
+      assert.equal(pilots[1].last('room').room.settings.allowEmpty, false, 'the setting reaches everyone');
+      assert.equal(fitted(room.match.target.killmail), true);
+      pilots[0].send({ t: 'end' });
+      await until(() => room.match === null, 'ended');
+    }
+    // Only empty hulls: the round fails instead of using one.
+    upstreamEmpty = 'empty';
+    clearHulls();
+    pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: false } });
+    await until(() => pilots[0].last('error')?.code === 'target', 'target error', 15000);
+    assert.equal(room.phase, 'between_matches');
+    // Allowed again: empty hulls are valid targets.
+    clearHulls();
+    pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: true } });
+    await until(() => room.match?.target, 'empty target');
+    assert.equal(fitted(room.match.target.killmail), false);
+    // A non-boolean value cannot change the setting.
+    pilots[0].send({ t: 'end' });
+    await until(() => room.match === null, 'ended again');
+    pilots[0].send({ t: 'settings', gameplay: 'standard', settings: { allowEmpty: 'no' } });
+    await wait(60);
+    assert.equal(room.settings.allowEmpty, true);
+  } finally {
+    upstreamEmpty = null;
+    clearHulls();
+  }
+  await closeAll(pilots, code);
+});
+
+test('only the host can change the empty hull setting', async () => {
+  const { pilots, room, code } = await makeRoom(2);
+  pilots[1].send({ t: 'settings', gameplay: 'standard', settings: { allowEmpty: false } });
+  await wait(80);
+  assert.equal(room.settings.allowEmpty, true);
+  await closeAll(pilots, code);
+});
+
+test('arbitration never deals an empty hull when the room turned them off', async () => {
+  const { pilots, room, code } = await makeRoom(2);
+  upstreamEmpty = 'empty';
+  try {
+    clearHulls();
+    pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: { allowEmpty: false } });
+    await until(() => pilots[0].last('error')?.code === 'target', 'target error', 15000);
+    assert.equal(room.match, null);
+    clearHulls();
+    pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: { allowEmpty: true } });
+    await until(() => room.match?.target, 'empty hull allowed', 15000);
+  } finally {
+    upstreamEmpty = null;
+    clearHulls();
+  }
   await closeAll(pilots, code);
 });
 

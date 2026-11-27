@@ -156,6 +156,10 @@ test('room settings allow only bounded big rounds and timed duration', () => {
   assert.equal(normalizeRoomSettings(base, { raceDurationMs: 60_000 }).raceDurationMs, 60_000);
   assert.equal(normalizeRoomSettings(base, { raceDurationMs: 30 * 60 * 1000 }).raceDurationMs, 30 * 60 * 1000);
   assert.equal(normalizeRoomSettings(base, { raceDurationMs: 31 * 60 * 1000 }).raceDurationMs, 30 * 60 * 1000);
+  assert.equal(normalizeRoomSettings(base, { allowEmpty: false }).allowEmpty, false);
+  assert.equal(normalizeRoomSettings({ ...base, allowEmpty: false }, { allowEmpty: true }).allowEmpty, true);
+  assert.equal(normalizeRoomSettings({ ...base, allowEmpty: false }, { allowEmpty: 'yes' }).allowEmpty, false);
+  assert.equal('allowEmpty' in normalizeRoomSettings(base, { allowEmpty: 1 }), false);
   const round = { order: ['a', 'b'], index: 0, number: 1, total: 2 };
   assert.deepEqual(nextBigRoundStep(round), { kind: 'dealer', index: 1, number: 1 });
   assert.deepEqual(nextBigRoundStep({ ...round, index: 1 }), { kind: 'big', index: 0, number: 2 });

@@ -881,6 +881,7 @@ export class RoomSurface {
     const settings = {};
     if (gameplay === 'arbitration') settings.bigRounds = Number(data.get('bigRounds'));
     if (gameplay === 'timed') settings.raceDurationMs = Number(data.get('durationMinutes')) * 60000;
+    settings.allowEmpty = data.get('allowEmpty') === 'on';
     return { gameplay, settings };
   }
 
@@ -890,8 +891,12 @@ export class RoomSurface {
   }
 
   renderSettings() {
-    if (!this.owner()) return `<p class="room-note">${esc(this.t('room.waitingHost'))}</p>`;
     const settings = this.room.settings || {};
+    const allowEmpty = settings.allowEmpty !== false;
+    if (!this.owner()) {
+      return `<p class="room-note">${esc(this.t('room.waitingHost'))}</p>
+      <p class="room-note">${esc(this.t(allowEmpty ? 'room.allowEmptyOn' : 'room.allowEmptyOff'))}</p>`;
+    }
     const arbitration = this.room.gameplay === 'arbitration';
     const timed = this.room.gameplay === 'timed';
     const maxBigRounds = Math.max(1, this.roomLimits.arbitrationBigRoundsMax);
@@ -927,6 +932,11 @@ export class RoomSurface {
               <span>${esc(this.t('room.duration'))}</span>
               <input name="durationMinutes" type="number" min="1" max="${maxDuration}" step="1" value="${durationMinutes}" inputmode="numeric">
               <small>${esc(this.t('room.durationHelp', { max: maxDuration }))}</small>
+            </label>
+            <label class="room-field room-field-check">
+              <span>${esc(this.t('room.allowEmpty'))}</span>
+              <input name="allowEmpty" type="checkbox"${allowEmpty ? ' checked' : ''}>
+              <small>${esc(this.t('room.allowEmptyHelp'))}</small>
             </label>
           </div>
           <div class="room-settings-actions">

@@ -246,7 +246,7 @@ export default {
   'settings.sizeNormal': 'NORMAL',
 
   'manual.emptyKb': 'Allow killmails without a fit',
-  'manual.emptyKbHelp': 'Applies when the next claim is selected.',
+  'manual.emptyKbHelp': 'Applies to random solo claims only; the daily claim, multiplayer rooms and shared kb links are not affected. Takes effect when the next claim is selected.',
   'manual.emptyKbOn': 'Killmails without a fit enabled',
   'manual.emptyKbOff': 'Killmails without a fit disabled',
 
@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODES',
   'help.gameplayTitle': 'GAMEPLAY',
   'help.generalTitle': 'GENERAL',
-  'help.dailyBody': 'One claim per game day, the same for everyone, reset at {time} UTC. It follows Standard rules. Sign in with EVE to play; the result enters your assessor record.',
+  'help.dailyBody': 'One claim per game day, the same for everyone, reset at {time} UTC. It follows Standard rules. Sign in with EVE to play; the result enters your assessor record. The daily claim ignores the “Allow killmails without a fit” setting.',
 
   'error.dailyUnavailableTitle': 'Daily claim unavailable',
   'error.dailyUnavailableBody': 'The authoritative time or killmail record could not be verified. Open a trainee review to take another claim.',
@@ -407,6 +407,10 @@ export default {
   'room.bigRoundsHelp': 'Full dealer rotations, 1-{max}.',
   'room.duration': 'TIME LIMIT (MINUTES)',
   'room.durationHelp': 'Timed mode only, 1-{max} minutes.',
+  'room.allowEmpty': 'Allow killmails without a fit',
+  'room.allowEmptyHelp': 'When unchecked, every round uses only killmails that have a fit.',
+  'room.allowEmptyOn': 'This room allows killmails without a fit.',
+  'room.allowEmptyOff': 'This room only uses killmails that have a fit.',
   'room.error.reconnecting': 'Connection lost. Reconnecting…',
   'room.error.room-not-found': 'Room not found.',
   'room.error.wrong-password': 'Wrong room password.',
@@ -456,7 +460,7 @@ export default {
   'mode.dailyRefresh': 'REFRESH',
 
   'help.multiplayerFlowTitle': 'ROOM FLOW',
-  'help.multiplayerFlow': 'The host creates the room and chooses the gameplay and settings. At least two players are needed. Players join from the room list. In Standard, Fitting Audit and Timed, everyone preloads the target and starts together; after each round everyone readies up again and the next round uses a new shared target. Room scores keep adding up across matches; only the host can reset them, in the lobby or between matches. Leaving the room removes your room score. Leaving during a round, or staying disconnected past the reconnect window, loses that round; being kicked by the host does not.',
+  'help.multiplayerFlow': 'The host creates the room and chooses the gameplay and settings. At least two players are needed. Players join from the room list. In Standard, Fitting Audit and Timed, everyone preloads the target and starts together; after each round everyone readies up again and the next round uses a new shared target. Room scores keep adding up across matches; only the host can reset them, in the lobby or between matches. Leaving the room removes your room score. Leaving during a round, or staying disconnected past the reconnect window, loses that round; being kicked by the host does not. The host decides in the room settings whether killmails without a fit are allowed; the whole room follows that choice, not anyone’s personal setting.',
   'help.multiplayerRaceTitle': 'STANDARD / AUDIT / TIMED',
   'help.multiplayerRace': 'The rules are the same as solo play (see GAMEPLAY in the manual); only the differences are listed here.\nEveryone gets the same claim, the same evidence order and the same start.\nStandard and Fitting Audit: naming the hull ends your round. Fewer review passes score more; missing all six scores nothing.\nTimed: each round has one countdown shared by the whole room, its length set by the host. Points follow the order in which players name the hull; anyone without a match when time runs out scores nothing.\nPlayers who finish early can look at the result while the others continue.',
   'help.multiplayerArbitrationTitle': 'ARBITRATION',

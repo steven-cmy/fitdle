@@ -282,6 +282,34 @@ test('race target acquisition fetches a real fitted killmail and never falls bac
   assert.equal(bare.killmail.victim.items.length, 2);
 });
 
+test('race targets skip empty hulls when they are turned off', async () => {
+  const empty = (id) => {
+    const kill = fittedKill(id);
+    kill.victim.items = [{ flag: 5, item_type_id: 34, quantity_destroyed: 1, quantity_dropped: 0 }];
+    return kill;
+  };
+  const feed = (kills) => async (url) => {
+    if (String(url).includes('/api/losses/shipTypeID/')) return { ok: true, json: async () => kills };
+    throw new Error(`unexpected URL ${url}`);
+  };
+  const mixed = [...Array.from({ length: 20 }, (_, index) => empty(100 + index)), fittedKill(4242)];
+  for (let i = 0; i < 12; i += 1) {
+    const picked = await pickRaceTarget({ manifest, mode: 'standard', allowEmpty: false, fetchImpl: feed(mixed) });
+    assert.equal(picked.killId, 4242);
+  }
+  const onlyEmpty = feed([empty(100), empty(101)]);
+  await assert.rejects(
+    () => pickRaceTarget({ manifest, mode: 'standard', allowEmpty: false, fetchImpl: onlyEmpty }),
+    (error) => error instanceof KbUnavailableError,
+  );
+  await assert.rejects(
+    () => pickDealerRound({ manifest, catalog, refsEn, allowEmpty: false, fetchImpl: onlyEmpty }),
+    (error) => error instanceof KbUnavailableError,
+  );
+  const allowed = await pickRaceTarget({ manifest, mode: 'standard', fetchImpl: onlyEmpty });
+  assert.ok([100, 101].includes(allowed.killId), 'empty hulls stay valid by default');
+});
+
 test('dealer round builds clues locally and exposes only wire clues', async () => {
   const round = await pickDealerRound({
     manifest,

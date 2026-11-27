@@ -1569,6 +1569,19 @@ test('the empty-hull setting is read, sent to the service and not overridden', (
   assert.ok(main.includes('cached target is an empty hull'));
 });
 
+test('the daily claim and rooms ignore the personal empty-hull setting', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const start = main.indexOf('async function fetchDailyKill');
+  const daily = main.slice(start, main.indexOf('async function pickRandomFreeKill'));
+  assert.equal(daily.includes('allowEmptyKb'), false, 'static daily must match the service daily');
+  assert.ok(daily.includes('allowEmpty: true'));
+  const targets = fs.readFileSync(path.join(ROOT, 'server', 'src', 'targets.mjs'), 'utf8');
+  assert.ok(targets.includes('allowEmpty: true'), 'the service daily allows empty hulls for everyone');
+  const rooms = fs.readFileSync(path.join(ROOT, 'server', 'src', 'rooms.mjs'), 'utf8');
+  assert.ok(rooms.includes('getRandomTarget(match.gameplay, { allowEmpty: room.settings?.allowEmpty !== false })'));
+  assert.ok(rooms.includes('allowEmpty: room.settings?.allowEmpty !== false,'));
+});
+
 test('API caching and builder cache policies are wired', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   assert.match(main, /statsCacheEntry/);

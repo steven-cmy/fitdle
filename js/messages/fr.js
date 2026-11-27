@@ -246,7 +246,7 @@ export default {
   'settings.sizeNormal': 'NORMALE',
 
   'manual.emptyKb': 'Autoriser les pertes sans équipement',
-  'manual.emptyKbHelp': 'S’applique au prochain dossier.',
+  'manual.emptyKbHelp': 'Ne concerne que les dossiers aléatoires en solo ; le dossier quotidien, les salles multijoueur et les liens kb partagés ne sont pas concernés. S’applique au prochain dossier.',
   'manual.emptyKbOn': 'Pertes sans équipement activées',
   'manual.emptyKbOff': 'Pertes sans équipement désactivées',
 
@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODES',
   'help.gameplayTitle': 'MODES DE JEU',
   'help.generalTitle': 'GÉNÉRAL',
-  'help.dailyBody': 'Un dossier par jour de jeu, le même pour tous, réinitialisé à {time} UTC, aux règles standard. Connectez-vous avec EVE pour jouer ; le résultat entre dans votre dossier.',
+  'help.dailyBody': 'Un dossier par jour de jeu, le même pour tous, réinitialisé à {time} UTC, aux règles standard. Connectez-vous avec EVE pour jouer ; le résultat entre dans votre dossier. Le dossier quotidien ignore le réglage « Autoriser les pertes sans équipement ».',
 
   'error.dailyUnavailableTitle': 'Dossier du jour indisponible',
   'error.dailyUnavailableBody': 'L’heure de référence ou le rapport de victime n’a pas pu être vérifié. Ouvrez l’entraînement pour prendre un autre dossier.',
@@ -407,6 +407,10 @@ export default {
   'room.bigRoundsHelp': 'Rotations complètes des donneurs, 1–{max}.',
   'room.duration': 'LIMITE DE TEMPS (MINUTES)',
   'room.durationHelp': 'Mode chrono uniquement, 1–{max} minutes.',
+  'room.allowEmpty': 'Autoriser les pertes sans équipement',
+  'room.allowEmptyHelp': 'Décoché, chaque manche n’utilise que des pertes équipées.',
+  'room.allowEmptyOn': 'Cette salle autorise les pertes sans équipement.',
+  'room.allowEmptyOff': 'Cette salle n’utilise que des pertes équipées.',
   'room.error.reconnecting': 'Connexion perdue. Reconnexion…',
   'room.error.room-not-found': 'Salle introuvable.',
   'room.error.wrong-password': 'Mot de passe de salle incorrect.',
@@ -456,7 +460,7 @@ export default {
   'mode.dailyRefresh': 'ACTUALISER',
 
   'help.multiplayerFlowTitle': 'DÉROULÉ DE SALLE',
-  'help.multiplayerFlow': 'L’hôte crée la salle et choisit le mode et les réglages. Deux joueurs minimum. On rejoint depuis la liste des salles. En Standard, Audit d’équipement et Chronométré, chacun précharge la cible et tous démarrent ensemble ; après chaque manche, tout le monde se prépare à nouveau et la suivante utilise une nouvelle cible partagée. Les points de salle s’accumulent d’une partie à l’autre ; seul l’hôte peut les remettre à zéro, dans le salon ou entre deux parties. Quitter la salle fait perdre ses points de salle. Quitter une manche en cours, ou rester déconnecté au-delà du délai de reconnexion, la fait perdre ; être exclu par l’hôte, non.',
+  'help.multiplayerFlow': 'L’hôte crée la salle et choisit le mode et les réglages. Deux joueurs minimum. On rejoint depuis la liste des salles. En Standard, Audit d’équipement et Chronométré, chacun précharge la cible et tous démarrent ensemble ; après chaque manche, tout le monde se prépare à nouveau et la suivante utilise une nouvelle cible partagée. Les points de salle s’accumulent d’une partie à l’autre ; seul l’hôte peut les remettre à zéro, dans le salon ou entre deux parties. Quitter la salle fait perdre ses points de salle. Quitter une manche en cours, ou rester déconnecté au-delà du délai de reconnexion, la fait perdre ; être exclu par l’hôte, non. L’hôte décide dans les réglages de la salle si les pertes sans équipement sont autorisées ; toute la salle suit ce choix, pas les réglages personnels.',
   'help.multiplayerRaceTitle': 'STANDARD / AUDIT / CHRONOMÉTRÉ',
   'help.multiplayerRace': 'Les règles sont celles du jeu en solo (voir MODES DE JEU dans le manuel) ; seules les différences sont indiquées ici.\nTout le monde reçoit le même dossier, le même ordre des preuves et le même départ.\nStandard et Audit d’équipement : trouver la coque termine votre manche. Moins vous utilisez de passes d’examen, plus vous marquez ; six erreurs ne rapportent rien.\nChronométré : à chaque manche, un compte à rebours commun à toute la salle, dont l’hôte fixe la durée. Les points suivent l’ordre dans lequel chacun trouve la coque ; qui n’a pas trouvé à la fin du temps ne marque rien.\nCeux qui finissent tôt peuvent consulter le résultat pendant que les autres continuent.',
   'help.multiplayerArbitrationTitle': 'ARBITRAGE',

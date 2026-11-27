@@ -1435,7 +1435,8 @@ async function fetchDailyKill(shipId, seed) {
 
   if (targetPage) {
     const kill = chooseClosestKill(targetPage, shipId, targetTime, earliestDate, latestDate, {
-      allowEmpty: state.allowEmptyKb,
+      // The daily claim is the same for everyone; the personal setting does not apply.
+      allowEmpty: true,
       seed,
     });
     if (kill) return kill;
@@ -1450,7 +1451,7 @@ async function fetchDailyKill(shipId, seed) {
     shipId,
     latestDate,
     halfLifeDays,
-    { allowEmpty: state.allowEmptyKb, earliestDate },
+    { allowEmpty: true, earliestDate },
   );
 }
 
