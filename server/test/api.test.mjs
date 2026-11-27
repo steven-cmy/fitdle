@@ -1141,6 +1141,26 @@ test('logs carry paths without query strings', async () => {
   assert.equal(/SECRET|ops@example/.test(text), false);
 });
 
+test('startup lines summarise settings without secrets', async () => {
+  const { startupLines } = await import('../src/startup.mjs');
+  const text = startupLines({
+    ...config,
+    sessionSecret: 'SECRETVALUE',
+    eve: { ...config.eve, clientSecret: 'SECRETCLIENT' },
+    publicOrigin: 'https://fitdle.example',
+  }).join('\n');
+  assert.match(text, /^FITDLE \S+ · API v1 · WebSocket protocol v1 · algorithm online-v2 · Node v/);
+  assert.ok(text.includes(config.version));
+  assert.match(text, /Origin https:\/\/fitdle\.example/);
+  assert.match(text, /session secret configured/);
+  assert.match(text, /group factors g29×0\.2 g31×0\.3 g237×0\.5/);
+  assert.equal(/SECRET/.test(text), false);
+  const bare = startupLines({ ...config, publicOrigin: '', sessionSecret: '', shipUsage: null }).join('\n');
+  assert.match(bare, /PUBLIC_ORIGIN not set/);
+  assert.match(bare, /session secret NOT SET/);
+  assert.match(bare, /every hull weighs 1/);
+});
+
 test('security headers are present on pages, assets and API answers', async () => {
   for (const url of ['/', '/api/v1/meta', '/data/manifest.json', '/api/v1/none']) {
     const { headers } = await app.inject({ method: 'GET', url });

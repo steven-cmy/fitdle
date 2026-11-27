@@ -224,7 +224,8 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - The room state API answers players of the room only. Scores reset only between
   matches. Seated players rejoin without the password; empty passwords are no guess.
 - Requests are limited per player (`server/src/limits.mjs`). Logs carry paths without
-  query strings, and the SSO state is bound to the browser by a short-lived cookie.
+  query strings, startup logs a few lines (`server/src/startup.mjs`): release, API and WebSocket protocol
+  versions, origin, data, sign-in flags, target and limit settings; yes/no for secrets, never values, and the SSO state is bound to the browser by a short-lived cookie.
 - `FITDLE_DEV_AUTH` is ignored in production unless `PUBLIC_ORIGIN` is loopback.
 - zKillboard killmails lose `attackers` on arrival (`js/killmail.js`); nothing uses it.
 - `multiplayer` is a separate room surface behind login. A room has no default

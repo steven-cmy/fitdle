@@ -135,6 +135,8 @@ export const config = {
   devAuth: devAuth && (!production || loopback),
   warnings,
   gameDayStartMinutes: gameDayStart.minutes,
+  gameDayStartSource: process.env.FITDLE_GAME_DAY_START_UTC && !gameDayStart.warning ? 'FITDLE_GAME_DAY_START_UTC' : 'data manifest',
+  version: String(readJson(path.join(ROOT, 'package.json'), {}).version || ''),
   algorithmVersion: 'online-v2',
   dailyAllowEmpty: dailyAllowEmpty ?? true,
   statsKillRetentionDays,
@@ -165,6 +167,7 @@ export const config = {
   groupFactors: parsedFactors.factors,
   usageWindowMonths: boundedIntEnv('FITDLE_USAGE_WINDOW_MONTHS', 3, 1, 12),
   // Monthly zKill usage and loss counts per hull; null means every hull weighs 1.
+  shipUsageFile: usageFile || '',
   shipUsage: shipUsage?.version === 1 && shipUsage.ships && typeof shipUsage.ships === 'object' ? shipUsage : null,
   noKillRetryMs: boundedIntEnv('FITDLE_NO_KILL_RETRY_HOURS', 24, 1, 720) * 60 * 60 * 1000,
   targetShelfSize: boundedIntEnv('TARGET_SHELF_SIZE', 150, 0, 1000),
