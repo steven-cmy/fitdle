@@ -69,10 +69,17 @@ globalThis.fetch = async (url, options) => {
     },
   }))), { status: 200 });
 };
-function holdUpstream() {
-  // A cached page would answer without reaching the held upstream.
+// The response cache outlives a change of the synthetic upstream, so it is
+// cleared together with the prepared targets.
+function resetUpstream() {
   zkill.reset();
   resetTargets();
+}
+test.beforeEach(resetUpstream);
+
+function holdUpstream() {
+  // A cached page would answer without reaching the held upstream.
+  resetUpstream();
   let release;
   gate = new Promise((resolve) => { release = resolve; });
   return () => { gate = null; release(); };
@@ -791,7 +798,7 @@ test('the host room setting keeps empty hulls out of race rounds', async () => {
   upstreamEmpty = 'mixed';
   try {
     for (let round = 0; round < 4; round += 1) {
-      resetTargets();
+      resetUpstream();
       pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: false } });
       await until(() => room.match?.target, 'target');
       assert.equal(room.settings.allowEmpty, false);
@@ -802,12 +809,12 @@ test('the host room setting keeps empty hulls out of race rounds', async () => {
     }
     // Only empty hulls: the round fails instead of using one.
     upstreamEmpty = 'empty';
-    resetTargets();
+    resetUpstream();
     pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: false } });
     await until(() => pilots[0].last('error')?.code === 'target', 'target error', 15000);
     assert.equal(room.phase, 'between_matches');
     // Allowed again: empty hulls are valid targets.
-    resetTargets();
+    resetUpstream();
     pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: true } });
     await until(() => room.match?.target, 'empty target');
     assert.equal(fitted(room.match.target.killmail), false);
@@ -819,7 +826,7 @@ test('the host room setting keeps empty hulls out of race rounds', async () => {
     assert.equal(room.settings.allowEmpty, true);
   } finally {
     upstreamEmpty = null;
-    resetTargets();
+    resetUpstream();
   }
   await closeAll(pilots, code);
 });
@@ -836,16 +843,16 @@ test('arbitration never deals an empty hull when the room turned them off', asyn
   const { pilots, room, code } = await makeRoom(2);
   upstreamEmpty = 'empty';
   try {
-    resetTargets();
+    resetUpstream();
     pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: { allowEmpty: false } });
     await until(() => pilots[0].last('error')?.code === 'target', 'target error', 15000);
     assert.equal(room.match, null);
-    resetTargets();
+    resetUpstream();
     pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: { allowEmpty: true } });
     await until(() => room.match?.target, 'empty hull allowed', 15000);
   } finally {
     upstreamEmpty = null;
-    resetTargets();
+    resetUpstream();
   }
   await closeAll(pilots, code);
 });
@@ -945,7 +952,7 @@ test('a room plays each killmail once, in race rounds and in arbitration', async
   config.catalogShips = [{ id: 587, groupID: 25 }];
   upstreamFixed = 3;
   try {
-    resetTargets();
+    resetUpstream();
     const seen = [];
     for (let round = 0; round < 3; round += 1) {
       pilots[0].send({ t: 'start', gameplay: 'standard', settings: {} });
@@ -960,7 +967,7 @@ test('a room plays each killmail once, in race rounds and in arbitration', async
     await until(() => pilots[0].last('error')?.code === 'target', 'no fourth killmail', 15000);
     assert.equal(room.phase, 'between_matches');
     // Arbitration draws from the same room history.
-    resetTargets();
+    resetUpstream();
     upstreamFixed = 4;
     pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: {} });
     await until(() => room.match?.target, 'arbitration target');
@@ -969,7 +976,7 @@ test('a room plays each killmail once, in race rounds and in arbitration', async
   } finally {
     upstreamFixed = 0;
     config.catalogShips = savedShips;
-    resetTargets();
+    resetUpstream();
   }
   await closeAll(pilots, code);
 });
