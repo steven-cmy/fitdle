@@ -15,7 +15,7 @@ import {
 import { buildDealerRound } from '../js/mp/target.js';
 import { renderClueList } from '../js/mp/clue-view.js';
 import { avatarInitials, avatarHtml, portraitUrl } from '../js/avatar.js';
-import { reconnectDelay, shortPilotId, sortLocalPlayers } from '../js/rooms.js';
+import { reconnectDelay, RoomSurface, roomRouteUrl, shortPilotId, sortLocalPlayers } from '../js/rooms.js';
 import { MESSAGES } from '../js/i18n.js';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -342,6 +342,47 @@ test('character portraits and initials fall back safely', () => {
   assert.equal(avatarInitials('Single'), 'SI');
   assert.match(avatarHtml('Avatar Pilot', 90000001, 64, '', imagesBase), /portrait\?size=64/);
   assert.match(avatarHtml('Avatar Pilot', null, 64, '', imagesBase), /avatar-fallback/);
+});
+
+test('the address keeps the room while seated, so a reload returns to it', () => {
+  const page = 'https://fitdle.test/?claim=audit&mode=online';
+  const seated = roomRouteUrl(page, 'AB12CD');
+  assert.equal(seated, 'https://fitdle.test/?claim=audit&mode=multiplayer&room=AB12CD');
+  assert.equal(roomRouteUrl(seated, 'AB12CD'), seated);
+  assert.equal(roomRouteUrl(seated, ''), 'https://fitdle.test/?claim=audit&mode=multiplayer');
+  assert.equal(roomRouteUrl(page, ''), page, 'a page without a room is left alone');
+
+  const saved = { location: globalThis.location, history: globalThis.history };
+  globalThis.location = { href: 'https://fitdle.test/?claim=standard' };
+  globalThis.history = { replaceState: (state, title, url) => { globalThis.location.href = url; } };
+  try {
+    const surface = new RoomSurface({});
+    surface.connect = () => {};
+    surface.update = () => {};
+    const join = () => surface.applyJoin({ code: 'AB12CD', playerId: 'p1', room: { players: [] } });
+    join();
+    assert.equal(new URL(location.href).searchParams.get('room'), 'AB12CD');
+    // A lost connection that is retried keeps the room.
+    surface.onSocketClosed(1006);
+    clearTimeout(surface.reconnectTimer);
+    assert.equal(new URL(location.href).searchParams.get('room'), 'AB12CD');
+    // Leaving, a kick and a refused or replaced seat drop it.
+    for (const exit of [
+      () => surface.leaveRoom(),
+      () => surface.onMessage({ t: 'kicked' }),
+      () => surface.onSocketClosed(1008),
+      () => surface.onSocketClosed(4001),
+    ]) {
+      join();
+      exit();
+      assert.equal(new URL(location.href).searchParams.has('room'), false);
+    }
+  } finally {
+    Object.assign(globalThis, saved);
+  }
+  // Pages for another target must not carry the room along.
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  assert.equal(main.split("url.searchParams.delete('room');").length - 1, 4);
 });
 
 test('room lobby and match settings are compact and apply-free', () => {

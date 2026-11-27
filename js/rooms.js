@@ -54,6 +54,20 @@ export function sortLocalPlayers(players = [], ownerId = '') {
 }
 
 /** Delay before reconnect attempt `attempt` (0 = first). */
+/** `href` as the address of a seat in room `code`; without a code, of no room. */
+export function roomRouteUrl(href, code) {
+  const url = new URL(href);
+  if (code) {
+    url.searchParams.set('mode', 'multiplayer');
+    url.searchParams.set('room', code);
+  } else if (url.searchParams.has('room')) {
+    url.searchParams.delete('room');
+  } else {
+    return href;
+  }
+  return url.toString();
+}
+
 export function reconnectDelay(attempt) {
   return attempt <= 0 ? 0 : Math.min(10_000, 800 * attempt);
 }
@@ -1011,11 +1025,13 @@ export class RoomSurface {
     this.feed = [];
     this.connect();
     this.update();
-    const url = new URL(location.href);
-    if (url.searchParams.has('room')) {
-      url.searchParams.delete('room');
-      history.replaceState(null, '', url.toString());
-    }
+    this.syncRoute();
+  }
+
+  /** The address names the room while seated, so a reload returns to it. */
+  syncRoute() {
+    const next = roomRouteUrl(location.href, this.code);
+    if (next !== location.href) history.replaceState(null, '', next);
   }
 
   async copyRoomLink(button = null) {
@@ -1167,6 +1183,7 @@ export class RoomSurface {
     this.endless = null;
     this.feed = [];
     this.error = error;
+    this.syncRoute();
     this.update();
   }
 

@@ -4745,6 +4745,7 @@ function playToday() {
   dropCurrentTargetCache();
   const url = new URL(location.href);
   url.searchParams.delete('kb');
+  url.searchParams.delete('room');
   location.href = url.toString();
 }
 
@@ -5289,6 +5290,7 @@ function setGameplay(gameplay) {
   url.searchParams.delete('rule');
   url.searchParams.set('claim', next);
   url.searchParams.delete('mode');
+  url.searchParams.delete('room');
   if (state.appMode === 'online') url.searchParams.set('mode', 'online');
   location.assign(url.toString());
 }
@@ -5687,6 +5689,7 @@ async function takeNewTarget() {
   const url = new URL(location.href);
   url.searchParams.delete('kb');
   url.searchParams.delete('mode');
+  url.searchParams.delete('room');
   url.searchParams.delete('rule');
   url.searchParams.set('claim', state.gameplay);
   if (state.appMode === 'online') url.searchParams.set('mode', 'online');
@@ -5832,7 +5835,8 @@ function raceRun(message) {
   const status = ['won', 'lost'].includes(message.status) ? message.status : 'playing';
   return {
     ...state.onlineRun,
-    guesses: message.guesses || [],
+    // A resumed start carries the board only: the guesses it was judged with stay.
+    guesses: message.guesses || state.guesses,
     board: message.board,
     status,
     completed: status !== 'playing',

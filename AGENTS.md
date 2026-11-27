@@ -881,6 +881,9 @@ container follows the same order.
 - `?kb=<opaque-token>` opens Free mode; only the current `k...` token format is
   accepted.
 - `?mode=online` / `?mode=multiplayer` and `?room=<code>` are current app routes.
+  While a player is seated the address keeps `mode=multiplayer&room=<code>`, so a
+  reload rejoins (a seated player needs no password). Leaving, a kick and a lost
+  seat remove `room`; navigation to another target must remove it too.
   Old `?mode=audit`, `?mode=timed`, `?timer`, `?timed`, `?lang`, `?free`, `?d`,
   `?killmail` and `?kill` are not read or migrated.
 - Standard may omit `claim`; static share URLs still use `rule`.
