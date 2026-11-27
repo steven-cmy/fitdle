@@ -34,11 +34,12 @@ RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && node scripts/build-cache.mjs; then \
 # .cache because the catalog build recreates data/.
 RUN if [ "$REUSE_BUILD_CACHE" != "1" ] || [ ! -f .cache/ship-usage.json ]; then npm run fetch:usage; fi \
   && { [ -f .cache/ship-usage.json ] || echo '{"version":1,"ships":{}}' > .cache/ship-usage.json; }
-RUN npm run build:catalog
+# The kill pool reads the catalog, so a fresh pool needs a catalog build first.
+# `npm run build` below builds the final catalog either way.
 RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && [ -f .cache/killpool.json ]; then \
     echo "Reusing CI kill pool"; \
   else \
-    npm run build:killpool; \
+    npm run build:catalog && npm run build:killpool; \
   fi
 RUN npm run build
 RUN npm test
