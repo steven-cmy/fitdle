@@ -1161,6 +1161,17 @@ test('startup lines summarise settings without secrets', async () => {
   assert.match(bare, /every hull weighs 1/);
 });
 
+test('startup warns when the usage file is stale or undated', async () => {
+  const { startupWarnings } = await import('../src/startup.mjs');
+  const now = new Date('2026-11-27T00:00:00Z');
+  const usage = (generatedAt) => ({ ...config, usageStaleDays: 45, shipUsage: { version: 1, ships: {}, generatedAt } });
+  assert.deepEqual(startupWarnings(usage('2026-10-20T00:00:00Z'), { now }), []);
+  const [stale] = startupWarnings(usage('2026-09-01T00:00:00Z'), { now });
+  assert.match(stale, /87 days old \(generated 2026-09-01, limit 45 days\)/);
+  assert.match(startupWarnings(usage('nope'), { now })[0], /age is unknown/);
+  assert.deepEqual(startupWarnings({ ...config, shipUsage: null }, { now }), []);
+});
+
 test('security headers are present on pages, assets and API answers', async () => {
   for (const url of ['/', '/api/v1/meta', '/data/manifest.json', '/api/v1/none']) {
     const { headers } = await app.inject({ method: 'GET', url });

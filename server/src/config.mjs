@@ -165,6 +165,7 @@ export const config = {
   zkillMinIntervalMs: boundedIntEnv('ZKILL_MIN_INTERVAL_MS', 250, 0, 5000),
   usageMaxRatio,
   groupFactors: parsedFactors.factors,
+  usageStaleDays: boundedIntEnv('FITDLE_USAGE_STALE_DAYS', 45, 1, 365),
   usageWindowMonths: boundedIntEnv('FITDLE_USAGE_WINDOW_MONTHS', 3, 1, 12),
   // Monthly zKill usage and loss counts per hull; null means every hull weighs 1.
   shipUsageFile: usageFile || '',

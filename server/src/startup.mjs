@@ -6,6 +6,16 @@ export const API_VERSION = 1;
 
 const clock = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
+/** Warnings that depend on the clock; the settings warnings live in `config.warnings`. */
+export function startupWarnings(config = defaultConfig, { now = new Date() } = {}) {
+  if (!config.shipUsage) return [];
+  const generated = Date.parse(config.shipUsage.generatedAt);
+  if (!Number.isFinite(generated)) return ['Ship usage file has no valid generation date; its age is unknown'];
+  const age = Math.floor((now - generated) / 86400000);
+  if (age <= config.usageStaleDays) return [];
+  return [`Ship usage data is ${age} days old (generated ${new Date(generated).toISOString().slice(0, 10)}, limit ${config.usageStaleDays} days): the monthly usage workflow may have failed`];
+}
+
 /**
  * Startup summary, one short line per group. Only effective values and yes/no
  * flags: never secrets, tokens, sign-in codes, player ids or credentials.

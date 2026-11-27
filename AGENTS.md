@@ -454,6 +454,8 @@ scores; `scripts/build-catalog.mjs` keeps building those pools from
   entries kept for failed hulls, refuses to write if the format looks wrong) and
   commits the result straight to the `data` branch (`ship-usage.json`). Main is not
   touched and no pull request is involved; the workflow needs `contents: write`.
+  The server warns at start when the file is older than `FITDLE_USAGE_STALE_DAYS`
+  (45: one monthly cycle plus buffer; keep it in line with the workflow's cron).
 - The main CI downloads that file (`npm run fetch:usage`, never fails the build)
   into `.cache/ship-usage.json`; the Docker image copies it to
   `data/ship-usage.json` (or an empty placeholder). The server reads it at start
