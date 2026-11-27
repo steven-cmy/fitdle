@@ -465,7 +465,9 @@ async function withLossPages(makePage, run) {
 
 const fittedItem = { flag: 19, item_type_id: 5973, quantity_destroyed: 1, quantity_dropped: 0 };
 const cargoItem = { flag: 5, item_type_id: 34, quantity_destroyed: 10, quantity_dropped: 0 };
-let killSerial = 1000;
+// Long ids: sealed answers are searched for the id as text, and a short one can
+// turn up by chance inside a timestamp, a run id or a case number.
+let killSerial = 9_990_000_000_000;
 const lossPage = (ship, flags) => flags.map((fitted) => ({
   killmail_id: killSerial += 1,
   killmail_time: '2025-06-01T10:00:00Z',
@@ -593,9 +595,16 @@ test('the shelf hands out prepared targets once and refills below half', async (
       const stale = new Set(db.prepare('SELECT kill_id FROM target_shelf').all().map((row) => Number(row.kill_id)));
       assert.ok(stale.size > 0);
       db.prepare('UPDATE target_shelf SET created_at = 1').run();
+      // A live pick may draw any killmail of a page it reads. With the cached
+      // pages dropped, new pages carry new ids, so only the shelf could still
+      // yield an expired one.
+      zkill.reset();
+      requests.length = 0;
       const fresh = await getRandomTarget('standard');
-      assert.ok(fresh.killId);
+      assert.ok(requests.length > 0, 'the target is picked live');
       assert.equal(stale.has(fresh.killId), false, 'an expired shelf entry is not served');
+      const expired = db.prepare('SELECT COUNT(*) AS n FROM target_shelf WHERE created_at = 1').get().n;
+      assert.equal(expired, stale.size, 'expired entries are not taken off the shelf');
       await shelfIdle();
       assert.equal(count() >= 2, true);
       // The empty-hull flag decides what a switched-off pick may take.
