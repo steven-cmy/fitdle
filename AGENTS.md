@@ -204,7 +204,7 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Online Daily is pinned once per game day and cached in SQLite. Online
   Standard/Audit/Timed get a server-issued random target per run. A current KB
   entered from a share link becomes an online custom run when logged in; custom
-  runs can be played and resumed but never enter streaks, win days or target stats.
+  runs can be played and resumed but never enter streaks, win days or difficulty counters.
 - The service records solo guesses: `POST /online/runs/:id/guess {shipId}` counts,
   deduplicates and judges them; `finish` only accepts a Timed loss. A run counts
   from its first guess, a Timed run from starting the clock (`begin`). `start` returns the player's open run of that gameplay, so a
@@ -256,8 +256,9 @@ translation [README.zh-CN.md](README.zh-CN.md).
   `arbitration_rounds` stores `published_share` and `unsolved` per round for
   later coefficient tuning.
 - Room state, target selection, clue release, guessing, scoring and timers are
-  authoritative on the server. Clients never send scores. The server stores
-  target exposures/runs/rounds for future statistics; no leaderboard UI/API yet.
+  authoritative on the server. Clients never send scores. The server keeps
+  anonymous difficulty counters (see Difficulty counters) and per-round arbitration
+  rows for later tuning; no leaderboard UI/API yet.
 - `ROOM_MAX_PLAYERS` controls total room seats (default 8, allowed 2..32,
   including spectators/offline seats). Existing names rejoin without consuming
   a new seat.
@@ -295,6 +296,49 @@ translation [README.zh-CN.md](README.zh-CN.md).
   `room.chatUnavailable` system line and keep the chat input disabled.
 - The Daily reset CTA is enabled only after the local countdown has crossed into
   a new game day; clicking it reloads into the new Daily target.
+
+### Difficulty counters
+
+Two SQLite tables hold anonymous counters of how hard each target is; nothing
+in them says who or which room played, and no per-play row is written. They are
+written by `recordPlay` / `recordPlays` in `server/src/stats.mjs` and are not
+used for target selection yet.
+
+- `kill_difficulty(kill_id, gameplay, ship_id, won, lost, abandoned,
+  won_guesses_sum, won_ms_sum, first_at, last_at)`, one row per killmail and
+  gameplay. Rows whose `last_at` is older than `FITDLE_STATS_KILL_RETENTION_DAYS`
+  (default 60) are deleted by the 10-minute cleanup, so the table stays bounded
+  (about one row per distinct killmail played in the last 60 days; roughly 100
+  bytes each, so even 1000 daily players at 10 plays each stay near 60 MB).
+- `ship_difficulty(ship_id, gameplay, ...same counters..., updated_at)`, one row
+  per hull and gameplay, kept for good (a few hundred rows).
+- `gameplay` is `daily`, `standard`, `audit`, `timed` or `arbitration`. Solo
+  random runs and race rounds share the standard/audit/timed rows; the Daily has
+  its own. Custom killmails and offline/practice play are never recorded.
+- Outcomes: `won`; `lost` (six misses, a timed give-up, a race round timing out);
+  `abandoned` (the player took another target, the run expired after a day, or
+  they left the race room mid-round). A play counts from the first guess (timed:
+  from starting the clock); a race leaver with no guess is not counted at all.
+  Win rate is `won / (won + lost)`; abandoned plays are kept out of it and
+  reported separately.
+- `won_guesses_sum` adds the guesses of won plays only; `won_ms_sum` adds the
+  time of won plays in timed gameplay only (other gameplays measure no time).
+- Arbitration is recorded once per stint when at least one guess was made:
+  every player who started the stint counts, solvers as `won`, everyone else
+  (leavers included) as `lost`. It has no guess or time sums, and it is a
+  separate gameplay because the dealer chooses which clues are published, so it
+  measures the dealer as much as the target. Do not mix it with the others when
+  choosing targets. A race session that ends mid-round (room closed) records
+  nothing for that round.
+- The older `target_exposures` and `target_stats` tables are no longer written;
+  databases that have them keep them untouched.
+- Reading: `npm run stats:difficulty -- --by ship|kill --gameplay all|daily|
+  standard|audit|timed|arbitration --min 5 --limit 30 [--easiest] [--json]`
+  (`docker exec <container> node server/src/difficulty-report.mjs ...` on the
+  deployment). It opens the database read-only, lists rows with at least `--min`
+  won-or-lost plays, hardest first, and `all` sums the four player gameplays.
+  `difficultyReport(db, options)` in `server/src/difficulty-report.mjs` is the
+  same query for code. There is no public API or UI.
 
 ### Main modules
 

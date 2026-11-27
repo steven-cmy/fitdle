@@ -1,39 +1,68 @@
-import { now, statement } from './db.mjs';
+import { db, now, statement } from './db.mjs';
 import { shiftDateKey } from '../../js/game.js';
 
-function ensureStat(targetKillId, gameplay, mode) {
-  statement(`INSERT INTO target_stats(target_kill_id, gameplay, mode, exposures, runs, wins, losses, attempts_sum, duration_sum, rounds_sum, guesses, correct, updated_at)
-    VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, ?)
-    ON CONFLICT(target_kill_id, gameplay, mode) DO NOTHING`)
-    .run(Number(targetKillId), gameplay, mode, now());
+const DIFFICULTY_GAMEPLAYS = new Set(['daily', 'standard', 'audit', 'timed', 'arbitration']);
+const DIFFICULTY_OUTCOMES = new Set(['won', 'lost', 'abandoned']);
+
+/**
+ * Count one finished play of a killmail in the anonymous difficulty tables.
+ * outcome: won, lost (out of guesses, gave up or ran out of time) or abandoned
+ * (took another target, left the room, or let the run expire). Nothing says who
+ * played; guesses and time are only added up over won plays.
+ */
+export function recordPlay(play) {
+  recordPlays([play]);
 }
 
-export function recordExposure({ source, mode, gameplay, targetKillId, targetShipId, gameDay }) {
-  const t = now();
-  statement(`INSERT INTO target_exposures(source, mode, gameplay, target_kill_id, target_ship_id, game_day, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .run(source, mode, gameplay, Number(targetKillId), Number(targetShipId), gameDay, t);
-  ensureStat(targetKillId, gameplay, mode);
-  statement(`UPDATE target_stats SET exposures = exposures + 1, updated_at = ?
-    WHERE target_kill_id = ? AND gameplay = ? AND mode = ?`)
-    .run(t, Number(targetKillId), gameplay, mode);
+/** Several plays in one transaction: one disk sync instead of two per play. */
+export function recordPlays(list) {
+  const rows = list.map(normalizePlay).filter(Boolean);
+  if (!rows.length) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    for (const row of rows) addPlay(row);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
-export function recordRunFinish(run) {
+function normalizePlay({
+  killId, shipId, gameplay, outcome, attempts = 0, elapsedMs = 0, plays = 1,
+}) {
+  const kill = Number(killId);
+  const ship = Number(shipId);
+  const count = Math.floor(Number(plays));
+  if (!Number.isSafeInteger(kill) || kill <= 0 || !Number.isSafeInteger(ship) || ship <= 0) return null;
+  if (!DIFFICULTY_GAMEPLAYS.has(gameplay) || !DIFFICULTY_OUTCOMES.has(outcome) || !(count > 0)) return null;
+  const won = outcome === 'won' ? count : 0;
+  const lost = outcome === 'lost' ? count : 0;
+  const abandoned = outcome === 'abandoned' ? count : 0;
+  const guesses = won ? Math.max(0, Math.floor(Number(attempts) || 0)) * won : 0;
+  // Only a timed round measures time; elsewhere the figure would mean nothing.
+  const ms = won && gameplay === 'timed' ? Math.max(0, Math.floor(Number(elapsedMs) || 0)) * won : 0;
+  return { kill, ship, gameplay, won, lost, abandoned, guesses, ms };
+}
+
+function addPlay({
+  kill, ship, gameplay, won, lost, abandoned, guesses, ms,
+}) {
   const t = now();
-  const mode = 'online';
-  ensureStat(run.target_kill_id, run.gameplay, mode);
-  const won = run.status === 'won' ? 1 : 0;
-  statement(`UPDATE target_stats SET
-      runs = runs + 1,
-      wins = wins + ?,
-      losses = losses + ?,
-      attempts_sum = attempts_sum + ?,
-      duration_sum = duration_sum + ?,
-      updated_at = ?
-    WHERE target_kill_id = ? AND gameplay = ? AND mode = ?`)
-    .run(won, won ? 0 : 1, Number(run.attempts) || 0, Number(run.elapsed_ms) || 0, t,
-      Number(run.target_kill_id), run.gameplay, mode);
+  statement(`INSERT INTO kill_difficulty(kill_id, gameplay, ship_id, won, lost, abandoned, won_guesses_sum, won_ms_sum, first_at, last_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(kill_id, gameplay) DO UPDATE SET
+      won = won + excluded.won, lost = lost + excluded.lost, abandoned = abandoned + excluded.abandoned,
+      won_guesses_sum = won_guesses_sum + excluded.won_guesses_sum,
+      won_ms_sum = won_ms_sum + excluded.won_ms_sum, last_at = excluded.last_at`)
+    .run(kill, gameplay, ship, won, lost, abandoned, guesses, ms, t, t);
+  statement(`INSERT INTO ship_difficulty(ship_id, gameplay, won, lost, abandoned, won_guesses_sum, won_ms_sum, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(ship_id, gameplay) DO UPDATE SET
+      won = won + excluded.won, lost = lost + excluded.lost, abandoned = abandoned + excluded.abandoned,
+      won_guesses_sum = won_guesses_sum + excluded.won_guesses_sum,
+      won_ms_sum = won_ms_sum + excluded.won_ms_sum, updated_at = excluded.updated_at`)
+    .run(ship, gameplay, won, lost, abandoned, guesses, ms, t);
 }
 
 export function recordArbitrationRound({

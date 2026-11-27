@@ -5,7 +5,7 @@ import { getSessionUser } from './auth.mjs';
 import { now, statement } from './db.mjs';
 import { withinLimit } from './limits.mjs';
 import { getCustomTarget, getDailyTarget, getRandomTarget, TargetUnavailable } from './targets.mjs';
-import { recordExposure, recordRunFinish, profileStats } from './stats.mjs';
+import { recordPlay, profileStats } from './stats.mjs';
 
 const GAMEPLAYS = new Set(['standard', 'audit', 'timed']);
 const ATTEMPT_LIMIT = 6;
@@ -89,22 +89,21 @@ function dailyRun(nameKey, day) {
 }
 
 /** End a run once: later calls find it settled already and change nothing. */
-function settleRun(row, status, { elapsedMs = Number(row.elapsed_ms) || 0, finishedAt = now() } = {}) {
+function settleRun(row, status, { elapsedMs = Number(row.elapsed_ms) || 0, finishedAt = now(), abandoned = false } = {}) {
   const { changes } = statement(`UPDATE online_runs SET status = ?, elapsed_ms = ?, answer_id = ?, finished_at = ?
     WHERE id = ? AND status = 'playing'`)
     .run(status, elapsedMs, status === 'won' ? Number(row.target_ship_id) : null, finishedAt, row.id);
   const settled = runRow(row.id);
   // A custom killmail is chosen by the player, so it never enters any record.
-  if (changes && settled.kind !== 'custom') {
-    recordExposure({
-      source: settled.kind,
-      mode: 'online',
+  if (changes && settled.kind !== 'custom' && isStarted(settled)) {
+    recordPlay({
+      killId: settled.target_kill_id,
+      shipId: settled.target_ship_id,
       gameplay: settled.gameplay,
-      targetKillId: settled.target_kill_id,
-      targetShipId: settled.target_ship_id,
-      gameDay: settled.game_day,
+      outcome: status === 'won' ? 'won' : (abandoned ? 'abandoned' : 'lost'),
+      attempts: settled.attempts,
+      elapsedMs: settled.elapsed_ms,
     });
-    recordRunFinish(settled);
   }
   return settled;
 }
@@ -115,7 +114,7 @@ const isStarted = (row) => Number(row.attempts) > 0 || row.begun_at != null;
 function settleIfExpired(row) {
   const deadline = Number(row.started_at) + RUN_LIFETIME_MS;
   if (row.status !== 'playing' || !isStarted(row) || deadline > now()) return row;
-  return settleRun(row, 'lost', { finishedAt: deadline });
+  return settleRun(row, 'lost', { finishedAt: deadline, abandoned: true });
 }
 
 /** Lose every started run that was left unfinished for a day. */
@@ -387,6 +386,6 @@ export function registerRunRoutes(app) {
       statement('DELETE FROM online_runs WHERE id = ?').run(row.id);
       return { status: 'dropped' };
     }
-    return runResponse(settleRun(row, 'lost'));
+    return runResponse(settleRun(row, 'lost', { abandoned: true }));
   });
 }

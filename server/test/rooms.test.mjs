@@ -209,7 +209,7 @@ test('room guesses are counted, deduplicated and judged by the server', async ()
   // Nothing is accepted after the result.
   pilots[0].send({ t: 'raceGuess', roundId, shipId: wrongShips(room)[4] });
   loseRound(pilots[1], room);
-  await until(() => room.match.phase === 'finished', 'finished');
+  await until(() => pilots[0].last('endlessRoundResult'), 'round result');
   const result = pilots[0].last('endlessRoundResult').result;
   assert.deepEqual(result.results.map((item) => [item.status, item.attempts]), [['won', 3], ['lost', 6]]);
   assert.deepEqual([result.points[pilots[0].id], result.points[pilots[1].id]], [2000, 0]);
@@ -279,7 +279,7 @@ test('leaving or timing out during a round is a loss, being kicked is not', asyn
   left.pilots[1].ws.terminate();
   await until(() => left.room.match.results.length === 2, 'grace timeout');
   loseRound(left.pilots[0], left.room);
-  await until(() => left.room.match.phase === 'finished', 'finished');
+  await until(() => left.pilots[0].last('endlessRoundResult'), 'round result');
   const { results, points } = left.pilots[0].last('endlessRoundResult').result;
   assert.deepEqual(results.map((item) => [item.playerId, item.status, Boolean(item.forfeit)]), [
     [left.pilots[2].id, 'lost', true], [left.pilots[1].id, 'lost', true], [left.pilots[0].id, 'lost', false],
@@ -365,7 +365,7 @@ test('everyone solving ends the stint with only the end bonus for the dealer', a
   const share = shareOf(room.match);
   pilots[1].send({ t: 'guess', text: answerText(room.match) });
   pilots[2].send({ t: 'guess', text: answerText(room.match) });
-  await until(() => room.match?.phase === 'reveal', 'reveal');
+  await until(() => pilots[0].last('arbitrationReveal'), 'reveal');
   const bonus = Math.round(arbitrationEndBonusRaw({ share, players: 2 }) / 2);
   assert.equal(room.match.dealerPoints, bonus);
   assert.equal(pilots[0].last('arbitrationReveal').result.endBonus, bonus);
@@ -842,6 +842,86 @@ test('arbitration never deals an empty hull when the room turned them off', asyn
     clearHulls();
   }
   await closeAll(pilots, code);
+});
+
+const COUNTER_NAMES = ['won', 'lost', 'abandoned', 'won_guesses_sum', 'won_ms_sum'];
+
+function difficultyNow(match, gameplay) {
+  const row = db.prepare('SELECT * FROM kill_difficulty WHERE kill_id = ? AND gameplay = ?')
+    .get(Number(match.target.killId), gameplay) || {};
+  return Object.fromEntries(COUNTER_NAMES.map((name) => [name, Number(row[name]) || 0]));
+}
+
+const difficultyDelta = (before, after) => Object.fromEntries(COUNTER_NAMES.map((name) => [name, after[name] - before[name]]));
+
+test('race rounds add anonymous difficulty counters when the round ends', async () => {
+  const { pilots, room, code } = await playing(3, 'standard');
+  const { target } = room.match;
+  const before = difficultyNow(room.match, 'standard');
+  const [wrong] = wrongShips(room);
+  pilots[2].send({ t: 'raceGuess', roundId: room.match.roundId, shipId: wrong });
+  await until(() => pilots[2].last('raceGuesses')?.guesses?.length === 1, 'first guess');
+  pilots[2].send({ t: 'leave' });
+  await until(() => room.match.results.some((result) => result.forfeit), 'forfeit');
+  pilots[0].send({ t: 'raceGuess', roundId: room.match.roundId, shipId: wrong });
+  pilots[0].send({ t: 'raceGuess', roundId: room.match.roundId, shipId: target.shipId });
+  loseRound(pilots[1], room);
+  await until(() => room.match.phase === 'finished', 'finished');
+  assert.deepEqual(difficultyDelta(before, difficultyNow(room.match, 'standard')), {
+    won: 1, lost: 1, abandoned: 1, won_guesses_sum: 2, won_ms_sum: 0,
+  });
+  await closeAll(pilots, code);
+});
+
+test('a race player who never guessed or gave up a timed round is counted accordingly', async () => {
+  const standard = await playing(3, 'standard');
+  const standardBefore = difficultyNow(standard.room.match, 'standard');
+  standard.pilots[2].send({ t: 'leave' });
+  await until(() => standard.room.match.results.some((result) => result.forfeit), 'forfeit');
+  standard.pilots[0].send({ t: 'raceGuess', roundId: standard.room.match.roundId, shipId: standard.room.match.target.shipId });
+  loseRound(standard.pilots[1], standard.room);
+  await until(() => standard.room.match.phase === 'finished', 'finished');
+  assert.deepEqual(difficultyDelta(standardBefore, difficultyNow(standard.room.match, 'standard')), {
+    won: 1, lost: 1, abandoned: 0, won_guesses_sum: 1, won_ms_sum: 0,
+  }, 'a leaver without a guess tells nothing');
+  await closeAll(standard.pilots, standard.code);
+
+  const timed = await playing(2, 'timed');
+  const timedBefore = difficultyNow(timed.room.match, 'timed');
+  timed.pilots[1].send({ t: 'raceResult', roundId: timed.room.match.roundId, status: 'lost' });
+  await until(() => timed.room.match.results.length === 1, 'gave up');
+  timed.pilots[0].send({ t: 'raceResult', roundId: timed.room.match.roundId, status: 'lost' });
+  await until(() => timed.room.match.phase === 'finished', 'finished');
+  assert.deepEqual(difficultyDelta(timedBefore, difficultyNow(timed.room.match, 'timed')), {
+    won: 0, lost: 2, abandoned: 0, won_guesses_sum: 0, won_ms_sum: 0,
+  });
+  await closeAll(timed.pilots, timed.code);
+});
+
+test('an arbitration stint counts solvers and the rest as players, and only once guessing began', async () => {
+  const quiet = await startArbitration(2);
+  await publish(quiet);
+  const quietMatch = quiet.room.match;
+  const quietBefore = difficultyNow(quietMatch, 'arbitration');
+  quiet.pilots[0].send({ t: 'end' });
+  await until(() => quiet.room.match === null, 'ended');
+  assert.deepEqual(difficultyNow(quietMatch, 'arbitration'), quietBefore, 'nobody guessed');
+  await closeAll(quiet.pilots, quiet.code);
+
+  const setup = await startArbitration(3);
+  const { room, pilots } = setup;
+  await publish(setup);
+  const match = room.match;
+  const before = difficultyNow(match, 'arbitration');
+  pilots[1].send({ t: 'guess', text: answerText(match) });
+  pilots[2].send({ t: 'guess', text: 'definitely wrong' });
+  await until(() => room.match?.round === 2, 'round settled');
+  pilots[0].send({ t: 'end' });
+  await until(() => room.match === null, 'ended');
+  assert.deepEqual(difficultyDelta(before, difficultyNow(match, 'arbitration')), {
+    won: 1, lost: 1, abandoned: 0, won_guesses_sum: 0, won_ms_sum: 0,
+  });
+  await closeAll(pilots, setup.code);
 });
 
 test.after(async () => {

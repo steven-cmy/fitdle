@@ -38,8 +38,9 @@ const { zkill } = await import('../src/zkill.mjs');
 const { clearHulls, getDailyTarget, getRandomTarget } = await import('../src/targets.mjs');
 const { expireRuns = () => {} } = await import('../src/runs.mjs');
 const { buildApp } = await import('../src/index.mjs');
-const { db } = await import('../src/db.mjs');
-const { profileStats } = await import('../src/stats.mjs');
+const { db, cleanupExpired } = await import('../src/db.mjs');
+const { profileStats, recordPlay } = await import('../src/stats.mjs');
+const { difficultyReport } = await import('../src/difficulty-report.mjs');
 const app = await buildApp();
 await app.ready();
 
@@ -780,7 +781,7 @@ test('custom killmails are playable and resumable but never counted', async () =
       : pages(url));
     try {
       const pilot = await soloPilot('Solo Custom Pilot');
-      const statRows = () => db.prepare('SELECT COUNT(*) AS n FROM target_stats WHERE target_kill_id = 777001').get().n;
+      const statRows = () => db.prepare('SELECT COUNT(*) AS n FROM kill_difficulty WHERE kill_id = 777001').get().n;
       const run = (await pilot.custom('standard', 777001)).body;
       await pilot.guess(run.runId, OTHER_SHIPS[0]);
       const resumed = (await pilot.custom('standard', 777001)).body;
@@ -804,6 +805,136 @@ test('custom killmails are playable and resumable but never counted', async () =
       globalThis.fetch = pages;
     }
   });
+});
+
+/** The counters of one killmail and its hull in a gameplay, zero when nothing is recorded. */
+function difficultyOf(killId, shipId, gameplay) {
+  const zero = { won: 0, lost: 0, abandoned: 0, won_guesses_sum: 0, won_ms_sum: 0 };
+  return {
+    kill: db.prepare('SELECT * FROM kill_difficulty WHERE kill_id = ? AND gameplay = ?').get(killId, gameplay) || zero,
+    ship: db.prepare('SELECT * FROM ship_difficulty WHERE ship_id = ? AND gameplay = ?').get(shipId, gameplay) || zero,
+  };
+}
+
+const COUNTERS = ['won', 'lost', 'abandoned', 'won_guesses_sum', 'won_ms_sum'];
+
+/** What a run did to the counters of its killmail and hull. */
+async function difficultyChange(run, gameplay, act) {
+  const before = difficultyOf(run.target.killId, run.target.shipId, gameplay);
+  await act();
+  const after = difficultyOf(run.target.killId, run.target.shipId, gameplay);
+  const delta = (a, b) => Object.fromEntries(COUNTERS.map((name) => [name, Number(b[name]) - Number(a[name])]));
+  return { kill: delta(before.kill, after.kill), ship: delta(before.ship, after.ship) };
+}
+
+const only = (changes) => ({ won: 0, lost: 0, abandoned: 0, won_guesses_sum: 0, won_ms_sum: 0, ...changes });
+
+test('solo runs add anonymous difficulty counters once they end', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Difficulty Pilot');
+    const won = await pilot.start('standard');
+    const change = await difficultyChange(won, 'standard', async () => {
+      await pilot.guess(won.runId, OTHER_SHIPS[0]);
+      await pilot.guess(won.runId, REAL_SHIP);
+      await pilot.guess(won.runId, REAL_SHIP);
+    });
+    assert.deepEqual(change.kill, only({ won: 1, won_guesses_sum: 2 }), 'a retried last guess counts once');
+    assert.deepEqual(change.ship, change.kill);
+
+    const lost = await pilot.start('standard');
+    assert.deepEqual((await difficultyChange(lost, 'standard', async () => {
+      for (const ship of OTHER_SHIPS.slice(0, 6)) await pilot.guess(lost.runId, ship);
+    })).kill, only({ lost: 1 }));
+
+    // A started run that is given up is abandoned, not lost; an unguessed one leaves nothing.
+    const left = await pilot.start('audit');
+    assert.deepEqual((await difficultyChange(left, 'audit', async () => {
+      await pilot.guess(left.runId, OTHER_SHIPS[0]);
+      await pilot.abandon(left.runId);
+      await pilot.abandon(left.runId);
+    })).kill, only({ abandoned: 1 }));
+    const unguessed = await pilot.start('audit');
+    assert.deepEqual((await difficultyChange(unguessed, 'audit', async () => {
+      await pilot.abandon(unguessed.runId);
+    })).kill, only());
+
+    // Timed: time counts for a win, giving up is a loss, expiry is an abandonment.
+    const timed = await pilot.start('timed');
+    const timedChange = await difficultyChange(timed, 'timed', async () => {
+      db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 10_000, timed.runId);
+      await pilot.guess(timed.runId, REAL_SHIP, { elapsedMs: 4200 });
+    });
+    assert.deepEqual(timedChange.kill, only({ won: 1, won_guesses_sum: 1, won_ms_sum: 4200 }));
+    const gaveUp = await pilot.start('timed');
+    assert.deepEqual((await difficultyChange(gaveUp, 'timed', async () => {
+      await pilot.begin(gaveUp.runId);
+      await pilot.finish(gaveUp.runId, { status: 'lost' });
+    })).kill, only({ lost: 1 }));
+    const expired = await pilot.start('timed');
+    assert.deepEqual((await difficultyChange(expired, 'timed', async () => {
+      await pilot.begin(expired.runId);
+      db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 25 * 3600e3, expired.runId);
+      expireRuns();
+    })).kill, only({ abandoned: 1 }));
+  });
+});
+
+test('difficulty counters hold no player and ignore bad or custom input', () => {
+  for (const table of ['kill_difficulty', 'ship_difficulty']) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);
+    assert.equal(columns.some((name) => /name|player|user|room|run|session/i.test(name)), false, table);
+  }
+  const rows = () => db.prepare('SELECT COUNT(*) AS n FROM kill_difficulty WHERE kill_id IN (880001, 880002)').get().n;
+  const good = { killId: 880001, shipId: REAL_SHIP, gameplay: 'standard', outcome: 'won', attempts: 3 };
+  recordPlay({ ...good, gameplay: 'custom' });
+  recordPlay({ ...good, outcome: 'draw' });
+  recordPlay({ ...good, killId: 0 });
+  recordPlay({ ...good, shipId: 'x' });
+  recordPlay({ ...good, plays: 0 });
+  assert.equal(rows(), 0);
+  recordPlay(good);
+  recordPlay({ ...good, killId: 880002, gameplay: 'timed', attempts: 2, elapsedMs: 3000 });
+  recordPlay({ ...good, killId: 880002, outcome: 'lost' });
+  const standard = difficultyOf(880001, REAL_SHIP, 'standard').kill;
+  assert.deepEqual([standard.won, standard.won_guesses_sum, standard.won_ms_sum], [1, 3, 0], 'time is only kept for timed');
+  assert.equal(difficultyOf(880002, REAL_SHIP, 'timed').kill.won_ms_sum, 3000);
+});
+
+test('stale killmail counters are cleaned up, hull totals stay', () => {
+  const old = Date.now() - (config.statsKillRetentionDays + 1) * 86400e3;
+  db.prepare("INSERT INTO kill_difficulty(kill_id, gameplay, ship_id, won, first_at, last_at) VALUES (880010, 'standard', 1, 1, ?, ?)").run(old, old);
+  db.prepare("INSERT INTO kill_difficulty(kill_id, gameplay, ship_id, won, first_at, last_at) VALUES (880011, 'standard', 1, 1, ?, ?)").run(old, Date.now());
+  const ships = db.prepare('SELECT COUNT(*) AS n FROM ship_difficulty').get().n;
+  cleanupExpired();
+  const left = db.prepare('SELECT kill_id FROM kill_difficulty WHERE kill_id IN (880010, 880011)').all().map((row) => row.kill_id);
+  assert.deepEqual(left, [880011]);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ship_difficulty').get().n, ships);
+  db.prepare('DELETE FROM kill_difficulty WHERE kill_id = 880011').run();
+});
+
+test('the difficulty report ranks by win rate and keeps abandoned plays out of it', () => {
+  const t = Date.now();
+  db.exec('DELETE FROM ship_difficulty WHERE ship_id IN (990001, 990002, 990003)');
+  const insert = db.prepare('INSERT INTO ship_difficulty(ship_id, gameplay, won, lost, abandoned, won_guesses_sum, won_ms_sum, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  insert.run(990001, 'standard', 9, 1, 0, 27, 0, t);
+  insert.run(990002, 'standard', 2, 8, 30, 8, 0, t);
+  insert.run(990003, 'standard', 1, 0, 0, 1, 0, t);
+  insert.run(990003, 'arbitration', 0, 9, 0, 0, 0, t);
+  insert.run(990001, 'timed', 5, 0, 0, 10, 50000, t);
+  const rows = difficultyReport(db, { by: 'ship', gameplay: 'standard', minFinished: 5 }).filter((row) => row.shipId >= 990000);
+  assert.deepEqual(rows.map((row) => row.shipId), [990002, 990001], 'too few finished plays are left out');
+  assert.equal(rows[0].winRate, 0.2);
+  assert.equal(rows[0].abandonRate, 30 / 40);
+  assert.equal(rows[1].avgGuessesToWin, 3);
+  assert.equal(difficultyReport(db, { gameplay: 'standard', minFinished: 5, easiest: true }).find((row) => row.shipId >= 990000).shipId, 990001);
+  const all = difficultyReport(db, { gameplay: 'all', minFinished: 5 }).filter((row) => row.shipId >= 990000);
+  assert.equal(all.find((row) => row.shipId === 990001).won, 14, 'all is the sum of the player gameplays');
+  assert.equal(all.some((row) => row.shipId === 990003), false, 'arbitration stays out of all');
+  const timed = difficultyReport(db, { gameplay: 'timed', minFinished: 5 }).find((row) => row.shipId === 990001);
+  assert.equal(timed.avgSecondsToWin, 10);
+  assert.throws(() => difficultyReport(db, { by: 'player' }));
+  assert.throws(() => difficultyReport(db, { gameplay: 'custom' }));
+  db.exec('DELETE FROM ship_difficulty WHERE ship_id IN (990001, 990002, 990003)');
 });
 
 test('attackers never reach the cache, the database or a player', async () => {

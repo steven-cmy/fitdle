@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { buildSearchIndex, gameDateKey, normalizeText } from '../../js/game.js';
+import { buildSearchIndex, normalizeText } from '../../js/game.js';
 import { buildClues } from '../../js/clues.js';
 import { clueForWire, sanitizeChatText, sanitizeText } from '../../js/mp/protocol.js';
 import {
@@ -25,7 +25,7 @@ import { now, statement } from './db.mjs';
 import { withinLimit } from './limits.mjs';
 import { getRandomTarget, TargetUnavailable } from './targets.mjs';
 import { zkillFetch } from './zkill.mjs';
-import { recordExposure, recordArbitrationRound, recordRoomMatch } from './stats.mjs';
+import { recordPlays, recordArbitrationRound, recordRoomMatch } from './stats.mjs';
 
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const RULES = new Set(['standard', 'audit', 'timed', 'arbitration']);
@@ -661,14 +661,6 @@ async function prepareEndlessRound(room, roundNo, current) {
   const target = await getRandomTarget(match.gameplay, { allowEmpty: room.settings?.allowEmpty !== false });
   const built = await buildEndlessClues(room, target, roundNo);
   if (!current() || room.match !== match) return;
-  recordExposure({
-    source: 'room',
-    mode: 'multiplayer',
-    gameplay: match.gameplay,
-    targetKillId: target.killId,
-    targetShipId: target.shipId,
-    gameDay: gameDateKey(new Date(), config.gameDayStartMinutes),
-  });
   match.roundId = crypto.randomUUID();
   match.roundNo = roundNo;
   match.target = target;
@@ -793,6 +785,26 @@ function startEndlessRound(room) {
   match.startTimer.unref?.();
 }
 
+/**
+ * Add the round's results to the anonymous difficulty counters. A player counts
+ * from the first guess (a timed round from its start); one who left the room
+ * mid-round counts as abandoned, but only after a guess.
+ */
+function recordRacePlays(match) {
+  recordPlays(match.results.flatMap((result) => {
+    const guessed = Number(result.attempts) > 0;
+    if (result.forfeit ? !guessed : !guessed && match.gameplay !== 'timed') return [];
+    return [{
+      killId: match.target.killId,
+      shipId: match.target.shipId,
+      gameplay: match.gameplay,
+      outcome: result.status === 'won' ? 'won' : (result.forfeit ? 'abandoned' : 'lost'),
+      attempts: result.attempts,
+      elapsedMs: result.elapsedMs,
+    }];
+  }));
+}
+
 function finishEndlessRound(room, reason = 'complete') {
   const match = room.match;
   if (!match || match.rule !== 'endless' || match.phase === 'finished') return;
@@ -832,6 +844,7 @@ function finishEndlessRound(room, reason = 'complete') {
     scores: Object.fromEntries([...room.players.values()].map((player) => [player.id, player.score])),
     reason,
   };
+  recordRacePlays(match);
   match.history.push(result);
   match.phase = 'finished';
   match.ready.clear();
@@ -1002,14 +1015,6 @@ async function startArbitration(room, wantedDealerId, current) {
   if (active.length < 2) throw Object.assign(new Error('not enough players'), { code: 'need-players' });
   const dealerId = substituteDealerId(room, active, wantedDealerId);
   const accepted = acceptedNames(round.ship.id);
-  recordExposure({
-    source: 'room',
-    mode: 'multiplayer',
-    gameplay: 'arbitration',
-    targetKillId: round.killId,
-    targetShipId: round.shipId,
-    gameDay: gameDateKey(new Date(), config.gameDayStartMinutes),
-  });
   const match = {
     id: crypto.randomUUID(),
     rule: 'arbitration',
@@ -1100,6 +1105,17 @@ function recordArbitrationRoundOnce(room, match) {
 function recordArbitrationMatch(room, match, result) {
   if (match.recordedMatch) return;
   match.recordedMatch = true;
+  // Players who never got to guess tell nothing about the target. A leaver stays
+  // unsolved, as in the scoring. Only counts are kept: the clues were chosen by
+  // the dealer, so these rows must not be mixed with the other gameplays.
+  if (match.guesses > 0 || match.solved.size > 0) {
+    const solved = Math.min(match.solved.size, match.playerCount);
+    const base = { killId: match.target.killId, shipId: match.target.shipId, gameplay: 'arbitration' };
+    recordPlays([
+      { ...base, outcome: 'won', plays: solved },
+      { ...base, outcome: 'lost', plays: match.playerCount - solved },
+    ]);
+  }
   recordRoomMatch({
     id: match.id,
     roomCode: room.code,

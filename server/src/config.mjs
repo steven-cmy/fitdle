@@ -89,6 +89,8 @@ const dailyAllowEmpty = parseFlag(dailyAllowEmptyRaw);
 if (dailyAllowEmptyRaw && dailyAllowEmpty === null) {
   warnings.push(`FITDLE_DAILY_ALLOW_EMPTY="${dailyAllowEmptyRaw}" is not true/false/1/0/yes/no; empty hulls stay allowed`);
 }
+// Per-killmail difficulty counters not played for this long are deleted.
+const statsKillRetentionDays = boundedIntEnv('FITDLE_STATS_KILL_RETENTION_DAYS', 60, 1, 3650);
 const apiContact = parseContact(process.env.API_CONTACT);
 const roomArbitrationBigRounds = boundedIntEnv('ROOM_ARBITRATION_BIG_ROUNDS', 1, 1, 32);
 const roomArbitrationMaxBigRounds = boundedIntEnv('ROOM_ARBITRATION_MAX_BIG_ROUNDS', 5, 1, 32);
@@ -117,6 +119,7 @@ export const config = {
   gameDayStartMinutes: gameDayStart.minutes,
   algorithmVersion: 'online-v1',
   dailyAllowEmpty: dailyAllowEmpty ?? true,
+  statsKillRetentionDays,
   eve: {
     clientId: process.env.EVE_CLIENT_ID || '',
     clientSecret: process.env.EVE_CLIENT_SECRET || '',
