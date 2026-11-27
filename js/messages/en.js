@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODES',
   'help.gameplayTitle': 'GAMEPLAY',
   'help.generalTitle': 'GENERAL',
-  'help.dailyBody': 'One claim per game day, the same for everyone, reset at {time} UTC. It follows Standard rules. Sign in with EVE to play; the result enters your assessor record. The daily claim ignores the “Allow killmails without a fit” setting.',
+  'help.dailyBody': 'One claim per game day, the same for everyone, reset at {time} UTC. It follows Standard rules. Sign in with EVE to play; the result enters your assessor record. The server operator decides whether the daily claim allows killmails without a fit; your own setting does not affect it.',
 
   'error.dailyUnavailableTitle': 'Daily claim unavailable',
   'error.dailyUnavailableBody': 'The authoritative time or killmail record could not be verified. Open a trainee review to take another claim.',

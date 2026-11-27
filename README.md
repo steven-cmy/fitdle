@@ -41,6 +41,7 @@ A few notes:
 - On Unraid, set `PUID=99` and `PGID=100`.
 - After changing `PUBLIC_ORIGIN`, recreate the container; a restart is not enough.
 - The game day (the Daily target, streaks and the reset countdown) starts at 11:00 UTC by default. Set `FITDLE_GAME_DAY_START_UTC` to change it, either as `HH:MM` in UTC (e.g. `12:30`) or as minutes after 00:00 UTC (e.g. `750`), then recreate the container. An invalid value is logged at startup and 11:00 is used. Changing it moves the boundary of the current game day, so the Daily target may change once.
+- The Daily target may be a killmail without a fit. Set `FITDLE_DAILY_ALLOW_EMPTY=false` (`0` and `no` work too) to pick only fitted ones, then recreate the container. The default is `true`; an unrecognized value is logged at startup and counts as `true`. A target already picked for the current game day stays as it is.
 - All other options are documented in [.env.example](.env.example).
 
 Put a reverse proxy in front for HTTPS. Rooms use WebSockets, so `/api/v1/rooms/<code>/ws` needs the upgrade headers:

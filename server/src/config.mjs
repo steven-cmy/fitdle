@@ -31,6 +31,14 @@ function boolEnv(name, fallback = false) {
   return value === '1' || value.toLowerCase() === 'true';
 }
 
+/** true/false/1/0/yes/no in any case; null for anything else. */
+export function parseFlag(value) {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (['true', '1', 'yes'].includes(text)) return true;
+  if (['false', '0', 'no'].includes(text)) return false;
+  return null;
+}
+
 function boundedIntEnv(name, fallback, min, max) {
   const raw = process.env[name];
   if (raw == null || String(raw).trim() === '') return fallback;
@@ -75,6 +83,12 @@ const gameDayStart = resolveGameDayStart(
   Number.isInteger(manifest.gameDayStartMinutes) ? manifest.gameDayStartMinutes : 11 * 60,
 );
 if (gameDayStart.warning) warnings.push(gameDayStart.warning);
+// Applies to Daily targets picked from now on; a day already pinned keeps its target.
+const dailyAllowEmptyRaw = String(process.env.FITDLE_DAILY_ALLOW_EMPTY ?? '').trim();
+const dailyAllowEmpty = parseFlag(dailyAllowEmptyRaw);
+if (dailyAllowEmptyRaw && dailyAllowEmpty === null) {
+  warnings.push(`FITDLE_DAILY_ALLOW_EMPTY="${dailyAllowEmptyRaw}" is not true/false/1/0/yes/no; empty hulls stay allowed`);
+}
 const apiContact = parseContact(process.env.API_CONTACT);
 const roomArbitrationBigRounds = boundedIntEnv('ROOM_ARBITRATION_BIG_ROUNDS', 1, 1, 32);
 const roomArbitrationMaxBigRounds = boundedIntEnv('ROOM_ARBITRATION_MAX_BIG_ROUNDS', 5, 1, 32);
@@ -102,6 +116,7 @@ export const config = {
   warnings,
   gameDayStartMinutes: gameDayStart.minutes,
   algorithmVersion: 'online-v1',
+  dailyAllowEmpty: dailyAllowEmpty ?? true,
   eve: {
     clientId: process.env.EVE_CLIENT_ID || '',
     clientSecret: process.env.EVE_CLIENT_SECRET || '',

@@ -41,6 +41,7 @@ docker run -d --name fitdle --restart unless-stopped \
 - Unraid 上设 `PUID=99`、`PGID=100`。
 - 改了 `PUBLIC_ORIGIN` 要重建容器，光 restart 不行。
 - 游戏日（每日题、连胜和刷新倒计时）默认从 UTC 11:00 开始。想改就设置 `FITDLE_GAME_DAY_START_UTC`，可以写 UTC 的 `HH:MM`（如 `12:30`），也可以写 UTC 0 点之后的分钟数（如 `750`），然后重建容器。写错了会在启动日志里提示，并按 11:00 处理。改动会移动当天游戏日的边界，所以每日题可能会换一次。
+- 每日题默认可能抽到空船击毁报告。想只用带装配的，设置 `FITDLE_DAILY_ALLOW_EMPTY=false`（`0`、`no` 也可以），然后重建容器。默认是 `true`；无法识别的值会在启动日志里提示，并按 `true` 处理。当天已经选定的每日题不会改变。
 - 其他可选配置都在 [.env.example](.env.example) 里，有注释。
 
 前面需要一个反代提供 HTTPS。注意房间用 WebSocket，`/api/v1/rooms/<code>/ws` 要带上升级头：

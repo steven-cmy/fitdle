@@ -1436,6 +1436,8 @@ async function fetchDailyKill(shipId, seed) {
   if (targetPage) {
     const kill = chooseClosestKill(targetPage, shipId, targetTime, earliestDate, latestDate, {
       // The daily claim is the same for everyone; the personal setting does not apply.
+      // The static build has no server settings, so empty hulls are always allowed
+      // here, including by the fallback pick below.
       allowEmpty: true,
       seed,
     });

@@ -17,6 +17,7 @@ process.env.FITDLE_DEV_AUTH = '1';
 process.env.PUBLIC_ORIGIN = 'http://127.0.0.1:8790';
 process.env.ROOM_MAX_PLAYERS = '3';
 process.env.FITDLE_GAME_DAY_START_UTC = '11:00';
+process.env.FITDLE_DAILY_ALLOW_EMPTY = '';
 process.env.ROOM_ARBITRATION_BIG_ROUNDS = '2';
 process.env.ROOM_ARBITRATION_MAX_BIG_ROUNDS = '4';
 process.env.ROOM_TIMED_DURATION_MINUTES = '15';
@@ -28,13 +29,13 @@ process.env.API_CONTACT_PUBLIC = '0';
 process.env.ZKILL_MIN_INTERVAL_MS = '0';
 process.env.NODE_ENV = 'test';
 
-const { config } = await import('../src/config.mjs');
+const { config, parseFlag } = await import('../src/config.mjs');
 const { characterIdFromSubject } = await import('../src/auth.mjs');
 const {
   ROOMS, evictExpiredRooms, flushRooms, normalizeRoomSettings, nextBigRoundStep,
 } = await import('../src/rooms.mjs');
 const { zkill } = await import('../src/zkill.mjs');
-const { clearHulls, getRandomTarget } = await import('../src/targets.mjs');
+const { clearHulls, getDailyTarget, getRandomTarget } = await import('../src/targets.mjs');
 const { expireRuns = () => {} } = await import('../src/runs.mjs');
 const { buildApp } = await import('../src/index.mjs');
 const { db } = await import('../src/db.mjs');
@@ -870,6 +871,53 @@ test('opening Daily in two pages at once yields one run', async () => {
   } finally {
     config.manifest.normalShipPool = pool;
     db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
+  }
+});
+
+test('the daily empty-hull setting parses flags and defaults to allowed', () => {
+  assert.equal(config.dailyAllowEmpty, true);
+  for (const value of ['true', 'TRUE', '1', 'yes', ' Yes ']) assert.equal(parseFlag(value), true, value);
+  for (const value of ['false', 'False', '0', 'no', ' NO ']) assert.equal(parseFlag(value), false, value);
+  for (const value of [undefined, '', 'off', '2', 'nope']) assert.equal(parseFlag(value), null, String(value));
+  const script = "const { config } = await import('./server/src/config.mjs');"
+    + "console.log(JSON.stringify([config.dailyAllowEmpty, config.warnings.some((w) => w.includes('FITDLE_DAILY_ALLOW_EMPTY'))]));";
+  const read = (value) => spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: ROOT, encoding: 'utf8', env: { ...process.env, FITDLE_DAILY_ALLOW_EMPTY: value },
+  }).stdout.trim();
+  assert.equal(read('no'), '[false,false]');
+  assert.equal(read('1'), '[true,false]');
+  assert.equal(read('maybe'), '[true,true]');
+});
+
+test('the daily empty-hull setting decides which killmail is pinned', async () => {
+  const saved = [config.manifest.normalShipPool, config.manifest.kbMaxScanPages, config.dailyAllowEmpty];
+  const days = Array.from({ length: 5 }, (_, index) => `2031-0${index + 1}-15`);
+  const dated = (flags, time = '2025-06-01T00:00:00Z') => lossPage(REAL_SHIP, flags)
+    .map((kill) => ({ ...kill, killmail_time: time }));
+  const isEmpty = (target) => target.killmail.victim.items[0].flag === cargoItem.flag;
+  const pin = (day, kills) => withLossPages(() => kills, () => getDailyTarget(day));
+  config.manifest.normalShipPool = [REAL_SHIP];
+  try {
+    // One fitted loss among many empty hulls.
+    config.dailyAllowEmpty = false;
+    const oneFitted = [true, ...Array(60).fill(false)];
+    for (const day of days.slice(0, 2)) assert.equal(isEmpty(await pin(day, dated(oneFitted))), false, day);
+    await assert.rejects(pin(days[2], dated(Array(8).fill(false))), /no daily target/);
+    // The scan cap leaves the target time unreached, so the fallback pick chooses.
+    config.manifest.kbMaxScanPages = 1;
+    const capped = dated([true, ...Array(199).fill(false)], '2030-12-31T23:00:00Z');
+    assert.equal(isEmpty(await pin(days[3], capped)), false);
+    config.manifest.kbMaxScanPages = saved[1];
+
+    config.dailyAllowEmpty = true;
+    const allowed = await pin(days[4], dated(Array(8).fill(false)));
+    assert.equal(isEmpty(allowed), true);
+    // A stored day keeps its target after the setting changes.
+    config.dailyAllowEmpty = false;
+    assert.equal((await pin(days[4], dated([true]))).killId, allowed.killId);
+  } finally {
+    [config.manifest.normalShipPool, config.manifest.kbMaxScanPages, config.dailyAllowEmpty] = saved;
+    for (const day of days) db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
   }
 });
 

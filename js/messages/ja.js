@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'モード',
   'help.gameplayTitle': 'ゲームモード',
   'help.generalTitle': '共通',
-  'help.dailyBody': 'ゲーム内の1日に1件、全員同じ案件です。{time} UTC にリセットされ、標準ルールで行います。EVE でログインするとプレイでき、結果は査定記録に残ります。デイリー案件は「未装備のキルレポートを許可」の設定の影響を受けません。',
+  'help.dailyBody': 'ゲーム内の1日に1件、全員同じ案件です。{time} UTC にリセットされ、標準ルールで行います。EVE でログインするとプレイでき、結果は査定記録に残ります。デイリー案件で未装備のキルレポートを許可するかはサーバー運営者が設定し、個人の設定の影響は受けません。',
 
   'error.dailyUnavailableTitle': 'デイリー案件を取得できません',
   'error.dailyUnavailableBody': '基準時刻またはキルレポートを検証できませんでした。研修査定を開き、別の案件を受け取ってください。',

@@ -170,13 +170,13 @@ async function dailyKillForShip(shipId, seed, day) {
   if (!loaded.length) return null;
   if (targetPage) {
     const chosen = chooseClosestKill(targetPage, shipId, targetTime, earliest, latestDate, {
-      allowEmpty: true,
+      allowEmpty: config.dailyAllowEmpty,
       seed: String(seed),
     });
     if (chosen) return chosen;
   }
   return pickWeightedKillByRecency(loaded, String(seed), shipId, latestDate, halfLifeDays(), {
-    allowEmpty: true,
+    allowEmpty: config.dailyAllowEmpty,
     earliestDate: earliest,
   });
 }

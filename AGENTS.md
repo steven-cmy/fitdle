@@ -386,15 +386,19 @@ translation [README.zh-CN.md](README.zh-CN.md).
   A full page is followed by page 2, 3, ... until the page covers the sampled
   target time, the history ends, or `FITDLE_KB_MAX_SCAN_PAGES` is reached.
 - The selected page is filtered by `victim.ship_type_id`, the KB lower bound, the
-  complete-month end, and `allowEmptyKb`. The closest kill to the sampled target
+  complete-month end, and the empty-hull choice (`FITDLE_DAILY_ALLOW_EMPTY` for
+  the service Daily). The closest kill to the sampled target
   time wins; equal times use a deterministic hash tie-break.
 - If the scan cap is reached before the target time, no extra page is requested;
   all already-loaded pages are combined and one kill is chosen with a deterministic
   recency-weighted draw.
 - The personal `allowEmptyKb` setting applies to random targets: practice filters
-  in the browser and online runs send `allowEmpty` to `/online/start`. Daily
-  (static and service) always allows empty hulls and explicit `kb` targets are
-  chosen, so both ignore it.
+  in the browser and online runs send `allowEmpty` to `/online/start`. Daily and
+  explicit `kb` targets ignore it.
+- The service Daily allows empty hulls according to `FITDLE_DAILY_ALLOW_EMPTY`
+  (runtime; true/false/1/0/yes/no; unset and unrecognized values allow, the
+  latter with a startup warning). Days already in `daily_pins` keep their
+  target. The static build's Daily always allows empty hulls.
 - Rooms use the host's room setting `settings.allowEmpty` (default true, bool
   only, host-only, changeable between matches) instead of any personal setting.
   Race rounds pass it to `getRandomTarget`; arbitration passes it to

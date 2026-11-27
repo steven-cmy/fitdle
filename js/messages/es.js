@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODOS',
   'help.gameplayTitle': 'MODALIDADES',
   'help.generalTitle': 'GENERAL',
-  'help.dailyBody': 'Un expediente por día de juego, el mismo para todos, con reinicio a las {time} UTC y reglas estándar. Inicia sesión con EVE para jugar; el resultado entra en tu historial. El expediente diario ignora el ajuste «Permitir pérdidas sin equipamiento».',
+  'help.dailyBody': 'Un expediente por día de juego, el mismo para todos, con reinicio a las {time} UTC y reglas estándar. Inicia sesión con EVE para jugar; el resultado entra en tu historial. El operador del servidor decide si el expediente diario permite pérdidas sin equipamiento; tu ajuste personal no le afecta.',
 
   'error.dailyUnavailableTitle': 'Expediente diario no disponible',
   'error.dailyUnavailableBody': 'No se pudo verificar la hora de referencia o el informe de muertes. Abre las prácticas para tomar otro expediente.',
