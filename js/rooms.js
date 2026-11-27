@@ -597,7 +597,7 @@ export class RoomSurface {
     this.setRegion(panel, 'localHead', `
       <div>
         <span class="mp-kicker">${esc(this.t('room.localKicker'))}</span>
-        <strong>LOCAL <em>#${esc(room.code)}</em></strong>
+        <strong>${esc(this.t('room.local'))} <em>#${esc(room.code)}</em></strong>
       </div>
       <span class="room-capacity">${room.players.length} / ${this.maxRoomPlayers()}</span>`);
     const list = panel.querySelector('[data-local-list]');
