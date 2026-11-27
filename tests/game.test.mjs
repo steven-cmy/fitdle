@@ -119,6 +119,11 @@ test('date helpers follow EVE downtime and reject invalid/future dates', () => {
   assert.equal(parseKillId('139037509'), 139037509);
   assert.equal(parseKillId('https://zkillboard.com/kill/139037509/'), 139037509);
   assert.equal(parseKillId('nope'), null);
+  assert.equal(parseKillId(' https://zkillboard.com/api/killID/139037509/ '), 139037509);
+  assert.equal(parseKillId('https://zkillboard.com/character/139037509/'), null);
+  assert.equal(parseKillId('0'), null);
+  assert.equal(parseKillId('https://zkillboard.com/kill/0/'), null);
+  assert.equal(parseKillId('4294967296'), null, 'a link token cannot hold it');
   const freeToken = freeKillToken(139037509);
   assert.ok(!freeToken.includes('139037509'));
   assert.equal(freeKillIdFromToken(freeToken), 139037509);
@@ -1021,6 +1026,13 @@ test('Docker image, Compose and GHCR image publishing are wired', () => {
   assert.match(ci, /^  image:$/m);
   assert.match(ci, /IMAGE="ghcr\.io\//);
   assert.match(ci, /--build-arg "PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__"/);
+  // Image builds test by default; only the CI jobs that follow `build` skip it.
+  assert.match(dockerfile, /^ARG RUN_TESTS=1$/m);
+  assert.match(dockerfile, /npm test && npm test --prefix server/);
+  assert.ok(ci.includes('--build-arg "RUN_TESTS=0"'));
+  assert.match(ci, /^  image-check:$/m);
+  assert.match(ci, /push: false/);
+  assert.match(ci, /api\/v1\/health/);
   assert.match(compose, /ghcr\.io\/steven-cmy\/fitdle/);
   assert.match(readme, /ghcr\.io\/steven-cmy\/fitdle/);
 });
@@ -3033,7 +3045,7 @@ test('an online run keeps its answer on the service until it ends', () => {
   for (const field of ['answerKillmail', 'answerId', 'answerKillId', 'answerShip']) assert.ok(install.includes(`state.${field} = null;`), field);
   assert.ok(install.includes('state.liveFetched = true;'), 'no live zKill lookup');
   assert.ok(main.includes('if (!keepLive && !isMasked()) await fetchAnswerLive();'));
-  assert.ok(main.includes("if (usesSimulatedFit() && !online) preloadDogma();"));
+  assert.ok(main.includes('if (usesSimulatedFit() && !served) preloadDogma();'));
   // The answer is only taken from an ended run.
   const reveal = slice('function revealOnlineAnswer(run)', '\n}\n');
   assert.ok(reveal.includes('const target = run.target;'));
@@ -3049,4 +3061,18 @@ test('an online run keeps its answer on the service until it ends', () => {
   const giveUp = slice('function giveUpTimed()', '\n}\n');
   assert.ok(giveUp.includes('void runSync?.lose(state.onlineRun.runId, elapsed);'));
   assert.ok(giveUp.indexOf('state.pendingEnd = true;') < giveUp.indexOf("state.status = 'lost';"));
+});
+
+test('a chosen killmail is played in the page, unscored, signed in or not', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const api = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
+  assert.doesNotMatch(main + api, /api\.custom|online\/custom/);
+  assert.match(main, /const linked = Boolean\(route\.kb\) && !\(online && route\.gameplay === 'daily'\)/);
+  assert.match(main, /return state\.appMode === 'online' && !isFree\(\);/);
+  assert.match(main, /data-action="open-kill"/);
+  assert.match(main, /parseKillId\(raw\)/);
+  for (const reason of ['invalid', 'missing', 'unavailable']) assert.match(main, new RegExp(`KillLinkError\\('${reason}'`));
+  for (const [locale, messages] of Object.entries(MESSAGES)) {
+    assert.notEqual(messages['error.killMissingCode'], messages['error.killOfflineCode'], locale);
+  }
 });

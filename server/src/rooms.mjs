@@ -1532,6 +1532,16 @@ function removePlayer(room, player, reason = 'leave') {
   changed(room);
 }
 
+/** Take an account that was replaced out of every room, as if it had left. */
+export function releaseSeats(nameKey) {
+  for (const room of ROOMS.values()) {
+    for (const player of [...room.players.values()]) {
+      // The page of that pilot then finds its session gone.
+      if (player.nameKey === nameKey) removePlayer(room, player, 'unauthorized');
+    }
+  }
+}
+
 function scheduleDisconnect(room, player) {
   player.connected = false;
   player.disconnectedAt = now();
@@ -1651,9 +1661,12 @@ export function registerRoomRoutes(app) {
       chatCount: 0,
       ws: null,
     };
+    const passwordHash = request.body?.password ? await hashPassword(String(request.body.password).slice(0, 128)) : '';
+    // The session may have ended while the password was hashed.
+    if (!requireUser(request, reply)) return;
     const room = {
       code,
-      passwordHash: request.body?.password ? await hashPassword(String(request.body.password).slice(0, 128)) : '',
+      passwordHash,
       ownerId: id,
       players: new Map([[id, player]]),
       phase: 'lobby',
@@ -1709,6 +1722,8 @@ export function registerRoomRoutes(app) {
         return;
       }
       passwordFailures.delete(key);
+      // The session may have ended while the password was checked.
+      if (!requireUser(request, reply)) return;
       // The room may have been evicted while the password was checked.
       if (ROOMS.get(code) !== room) {
         reply.code(404).send({ error: 'room-not-found' });

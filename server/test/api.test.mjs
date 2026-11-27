@@ -32,7 +32,7 @@ process.env.ZKILL_MIN_INTERVAL_MS = '0';
 process.env.NODE_ENV = 'test';
 
 const { config, parseFlag } = await import('../src/config.mjs');
-const { characterIdFromSubject } = await import('../src/auth.mjs');
+const { characterIdFromSubject, identityFromClaims } = await import('../src/auth.mjs');
 const {
   ROOMS, evictExpiredRooms, flushRooms, normalizeRoomSettings, nextBigRoundStep,
 } = await import('../src/rooms.mjs');
@@ -43,7 +43,7 @@ const {
 const { expireRuns = () => {} } = await import('../src/runs.mjs');
 const { buildApp } = await import('../src/index.mjs');
 const { sessionSecretWarnings } = await import('../src/startup.mjs');
-const { db, cleanupExpired } = await import('../src/db.mjs');
+const { db, capSessions, cleanupExpired } = await import('../src/db.mjs');
 const { profileStats, recordPlay } = await import('../src/stats.mjs');
 const { difficultyReport, parseArgs } = await import('../src/difficulty-report.mjs');
 const { RUN_PROTOCOL_HEADER, RUN_PROTOCOL_VERSION } = await import('../../js/run-sync.js');
@@ -1024,40 +1024,6 @@ test('a run left unfinished for a day after its first guess is lost', async () =
   });
 });
 
-test('custom killmails are playable and resumable but never counted', async () => {
-  await withSoloPool(async () => {
-    const pages = globalThis.fetch;
-    globalThis.fetch = async (url) => (/killID/.test(String(url))
-      ? new Response(JSON.stringify([{ ...lossPage(REAL_SHIP, [true])[0], killmail_id: 777001 }]))
-      : pages(url));
-    try {
-      const pilot = await soloPilot('Solo Custom Pilot');
-      const statRows = () => db.prepare('SELECT COUNT(*) AS n FROM kill_difficulty WHERE kill_id = 777001').get().n;
-      const run = (await pilot.custom('standard', 777001)).body;
-      await pilot.guess(run.runId, OTHER_SHIPS[0]);
-      const resumed = (await pilot.custom('standard', 777001)).body;
-      assert.deepEqual([resumed.runId, resumed.guesses], [run.runId, [OTHER_SHIPS[0]]]);
-      assert.equal((await pilot.guess(run.runId, REAL_SHIP)).body.status, 'won');
-      const random = await pilot.start('standard');
-      await pilot.guess(random.runId, REAL_SHIP);
-      const replay = (await pilot.custom('standard', 777001)).body;
-      assert.notEqual(replay.runId, run.runId);
-      for (const ship of OTHER_SHIPS.slice(0, 6)) await pilot.guess(replay.runId, ship);
-      const stats = await pilot.stats();
-      assert.equal(stats.streaks.standard, 1, 'neither the win nor the loss of a custom killmail counts');
-      assert.equal(stats.winStreak, 1);
-      assert.equal(statRows(), 0);
-      // A custom win alone is no winning day either.
-      const other = await soloPilot('Solo Custom Only Pilot');
-      const only = (await other.custom('standard', 777001)).body;
-      await other.guess(only.runId, REAL_SHIP);
-      assert.equal((await other.stats()).winStreak, 0);
-    } finally {
-      globalThis.fetch = pages;
-    }
-  });
-});
-
 /** The counters of one killmail and its hull in a gameplay, zero when nothing is recorded. */
 function difficultyOf(killId, shipId, gameplay) {
   const zero = { won: 0, lost: 0, abandoned: 0, won_guesses_sum: 0, won_ms_sum: 0 };
@@ -1128,6 +1094,28 @@ test('solo runs add anonymous difficulty counters once they end', async () => {
       db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 25 * 3600e3, expired.runId);
       expireRuns();
     })).kill, only({ abandoned: 1 }));
+  });
+});
+
+test('the service opens no run for a chosen killmail and never counts old custom runs', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Chosen Pilot');
+    const cookie = await login('Solo Chosen Pilot');
+    const response = await app.inject({
+      method: 'POST', url: '/api/v1/online/custom',
+      headers: { cookie, ...RUN_HEADERS, 'content-type': 'application/json' }, payload: { gameplay: 'standard', kb: '777001' },
+    });
+    assert.equal(response.statusCode, 404);
+    // Rows of earlier releases stay out of every record.
+    const asCustom = (runId) => db.prepare("UPDATE online_runs SET kind = 'custom' WHERE id = ?").run(runId);
+    const counters = () => db.prepare('SELECT COALESCE(SUM(won + lost + abandoned), 0) AS n FROM kill_difficulty').get().n;
+    const before = counters();
+    const old = await pilot.start('standard');
+    asCustom(old.runId);
+    assert.equal((await pilot.guess(old.runId, REAL_SHIP)).body.status, 'won');
+    const stats = await pilot.stats();
+    assert.deepEqual([stats.winStreak, stats.streaks.standard], [0, 0]);
+    assert.equal(counters(), before);
   });
 });
 
@@ -1218,21 +1206,6 @@ test('only files of the current release are cached for long', async () => {
   for (const url of ['/', '/js/main.js', '/js/main.js?v=0.0.1-aaaa', `/data/manifest.json?v=${version}`, `/js/none.js?v=${version}`]) {
     assert.equal(/immutable/.test(await cache(url) || ''), false, url);
   }
-});
-
-test('a killmail this service knows opens although zKillboard finds nothing', async () => {
-  await withSoloPool(async (requests) => {
-    const pilot = await soloPilot('Solo Stored Pilot');
-    const run = await pilot.start('standard');
-    const { killId } = truthOf(run.runId);
-    const before = requests.length;
-    const other = await soloPilot('Solo Stored Friend');
-    const custom = await other.custom('audit', killId);
-    assert.deepEqual([custom.status, custom.body.kind, custom.body.target], [200, 'custom', null]);
-    assert.equal(truthOf(custom.body.runId).killId, killId);
-    assert.deepEqual(requests.slice(before).filter((url) => !url.startsWith('/api/stats/')), [], 'no killmail request');
-    assert.equal((await other.custom('audit', 123456789)).status, 503);
-  });
 });
 
 test('opening Daily in two pages at once yields one run', async () => {
@@ -1774,5 +1747,181 @@ test.after(async () => {
   db.close();
   for (const suffix of ['', '-wal', '-shm']) {
     try { fs.rmSync(`${dbFile}${suffix}`, { force: true }); } catch {}
+  }
+});
+
+test('only a hash of the owner claim leaves the token', () => {
+  const claims = { name: 'Claim Pilot', sub: 'CHARACTER:EVE:42', owner: 'owner-value=' };
+  const identity = identityFromClaims(claims);
+  assert.equal(identity.characterId, 42);
+  assert.match(identity.ownerHash, /^[0-9a-f]{64}$/);
+  assert.equal(JSON.stringify(identity).includes('owner-value'), false);
+  assert.equal(identityFromClaims({ ...claims, owner: undefined }).ownerHash, null);
+  assert.throws(() => identityFromClaims({ sub: claims.sub }));
+});
+
+async function signIn(name, { characterId = '', owner = '' } = {}) {
+  const query = new URLSearchParams({ name, characterId, owner });
+  const response = await app.inject({ method: 'GET', url: `/api/v1/auth/dev?${query}` });
+  assert.equal(response.statusCode, 200, response.body);
+  return cookieFrom(response);
+}
+
+const whoAmI = async (cookie) => JSON.parse((await app.inject({ method: 'GET', url: '/api/v1/auth/me', headers: { cookie } })).body);
+
+/** One finished run and one dealt arbitration round, then the rows under a key. */
+function recordHistory(key) {
+  db.prepare(`INSERT INTO online_runs(id, name_key, kind, gameplay, game_day, target_kill_id, target_ship_id, target_json, status, started_at, finished_at)
+    VALUES (?, ?, 'random', 'standard', '2026-01-01', 1, 587, '{}', 'won', 1, 2)`).run(`history-${key}`, key);
+  db.prepare(`INSERT INTO arbitration_rounds(match_id, round, dealer_name_key, published_json, guesses, correct, dealer_score, created_at)
+    VALUES (?, 1, ?, '[]', 0, 0, 0, 1)`).run(`history-${key}`, key);
+}
+
+function rowsOf(key) {
+  const count = (sql) => Number(db.prepare(sql).get(key).count);
+  return {
+    runs: count('SELECT COUNT(*) AS count FROM online_runs WHERE name_key = ?'),
+    rounds: count('SELECT COUNT(*) AS count FROM arbitration_rounds WHERE dealer_name_key = ?'),
+  };
+}
+
+const archivesOf = (key) => db.prepare('SELECT name_key FROM users WHERE name_key LIKE ?').all(`${key}#%`).map((row) => row.name_key);
+
+for (const [title, name, before, after] of [
+  ['owner hash', 'Sold Pilot', { characterId: 7001, owner: 'seller' }, { characterId: 7001, owner: 'buyer' }],
+  ['character ID', 'Reused Name', { characterId: 7002, owner: 'same' }, { characterId: 7003, owner: 'same' }],
+  ['character ID without an owner claim', 'Reused Bare', { characterId: 7004 }, { characterId: 7005 }],
+]) {
+  test(`a changed ${title} starts a new account and archives the old one`, async () => {
+    const key = name.toLowerCase();
+    const old = await signIn(name, before);
+    recordHistory(key);
+    const fresh = await signIn(name, after);
+    assert.deepEqual(await whoAmI(old), { loggedIn: false });
+    assert.equal((await whoAmI(fresh)).characterId, after.characterId);
+    assert.equal('ownerHash' in await whoAmI(fresh), false);
+    assert.deepEqual(rowsOf(key), { runs: 0, rounds: 0 });
+    const [archived, ...more] = archivesOf(key);
+    assert.equal(more.length, 0);
+    assert.deepEqual(rowsOf(archived), { runs: 1, rounds: 1 });
+    const stats = await app.inject({ method: 'GET', url: '/api/v1/stats/me', headers: { cookie: fresh } });
+    assert.deepEqual(JSON.parse(stats.body), profileStats('nobody at all', JSON.parse(stats.body).gameDay));
+  });
+}
+
+test('an account keeps its records while nothing proves another holder', async () => {
+  const name = 'Kept Pilot';
+  const key = name.toLowerCase();
+  // An account of an earlier release has no hash: the first sign-in only stores it.
+  const first = await signIn(name, { characterId: 7100 });
+  recordHistory(key);
+  const storedHash = () => db.prepare('SELECT owner_hash FROM users WHERE name_key = ?').get(key).owner_hash;
+  assert.equal(storedHash(), null);
+  await signIn(name, { characterId: 7100, owner: 'keeper' });
+  const hash = storedHash();
+  assert.match(hash, /^[0-9a-f]{64}$/);
+  // Missing values neither replace the account nor erase what is stored.
+  await signIn(name);
+  await signIn(name, { owner: 'keeper' });
+  assert.equal(storedHash(), hash);
+  assert.equal((await whoAmI(first)).loggedIn, true);
+  assert.equal((await whoAmI(first)).characterId, 7100);
+  assert.deepEqual(rowsOf(key), { runs: 1, rounds: 1 });
+  assert.deepEqual(archivesOf(key), []);
+});
+
+test('a failed archive changes nothing', async () => {
+  const name = 'Locked Pilot';
+  const key = name.toLowerCase();
+  const old = await signIn(name, { characterId: 7200, owner: 'one' });
+  recordHistory(key);
+  db.exec("CREATE TRIGGER refuse_archive BEFORE UPDATE OF dealer_name_key ON arbitration_rounds BEGIN SELECT RAISE(ABORT, 'refused'); END");
+  try {
+    const response = await app.inject({ method: 'GET', url: `/api/v1/auth/dev?name=${encodeURIComponent(name)}&characterId=7200&owner=two` });
+    assert.equal(response.statusCode, 500);
+  } finally {
+    db.exec('DROP TRIGGER refuse_archive');
+  }
+  assert.equal((await whoAmI(old)).loggedIn, true);
+  assert.deepEqual(rowsOf(key), { runs: 1, rounds: 1 });
+  assert.deepEqual(archivesOf(key), []);
+});
+
+test('a replaced account loses its room seat', async () => {
+  const name = 'Seated Pilot';
+  const old = await signIn(name, { characterId: 7300, owner: 'one' });
+  const created = await app.inject({ method: 'POST', url: '/api/v1/rooms', headers: { cookie: old }, payload: {} });
+  assert.equal(created.statusCode, 200, created.body);
+  const { code, playerId } = JSON.parse(created.body);
+  await signIn(name, { characterId: 7300, owner: 'one' });
+  assert.equal(ROOMS.get(code).players.has(playerId), true);
+  const fresh = await signIn(name, { characterId: 7300, owner: 'two' });
+  assert.equal(ROOMS.get(code).players.has(playerId), false);
+  const state = await app.inject({ method: 'GET', url: `/api/v1/rooms/${code}`, headers: { cookie: fresh } });
+  assert.equal(state.statusCode, 404);
+});
+
+test('sessions last seven days, also those made for longer', async () => {
+  assert.equal(config.sessionTtlMs, 7 * 86400e3);
+  const cookie = await signIn('Long Session');
+  const read = () => db.prepare("SELECT created_at, expires_at FROM sessions WHERE name_key = 'long session'").get();
+  assert.equal(read().expires_at - read().created_at, config.sessionTtlMs);
+  db.prepare("UPDATE sessions SET created_at = ?, expires_at = ? WHERE name_key = 'long session'")
+    .run(Date.now() - 8 * 86400e3, Date.now() + 22 * 86400e3);
+  capSessions();
+  assert.deepEqual(await whoAmI(cookie), { loggedIn: false });
+});
+
+test('a database of an older release gains the owner hash column', () => {
+  const file = path.join(ROOT, '.cache', `online-owner-${process.pid}.sqlite`);
+  fs.rmSync(file, { force: true });
+  const script = `
+    const { DatabaseSync } = await import('node:sqlite');
+    const old = new DatabaseSync(process.env.DATABASE_PATH);
+    old.exec('CREATE TABLE users (name_key TEXT PRIMARY KEY, display_name TEXT NOT NULL, character_id INTEGER, created_at INTEGER NOT NULL, last_login_at INTEGER NOT NULL)');
+    old.exec("INSERT INTO users VALUES ('old pilot', 'Old Pilot', 5, 1, 1)");
+    old.close();
+    const { getUser } = await import('./server/src/db.mjs');
+    const user = getUser('old pilot');
+    process.stdout.write(JSON.stringify([user.character_id, user.owner_hash]));
+  `;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: ROOT, env: { ...process.env, DATABASE_PATH: file }, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '[5,null]');
+  for (const suffix of ['', '-wal', '-shm']) fs.rmSync(`${file}${suffix}`, { force: true });
+});
+
+test('a request still waiting for its target gives a replaced account nothing', async () => {
+  const name = 'Waiting Pilot';
+  const old = await signIn(name, { owner: 'one' });
+  usePool([REAL_SHIP]);
+  const kills = lossPage(REAL_SHIP, Array(3).fill(true));
+  try {
+    await withLossPages(() => kills, async () => {
+      const answer = globalThis.fetch;
+      let release;
+      let asked;
+      const held = new Promise((resolve) => { release = resolve; });
+      const waiting = new Promise((resolve) => { asked = resolve; });
+      globalThis.fetch = async (url) => {
+        asked();
+        await held;
+        return answer(url);
+      };
+      const start = app.inject({
+        method: 'POST', url: '/api/v1/online/start', headers: { cookie: old, ...RUN_HEADERS }, payload: { gameplay: 'standard' },
+      });
+      // Inject only sends the request once its result is wanted.
+      const settled = start.then((response) => response);
+      await waiting;
+      await signIn(name, { owner: 'two' });
+      release();
+      assert.equal((await settled).statusCode, 401);
+    });
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM online_runs WHERE name_key = 'waiting pilot'").get().count, 0);
+  } finally {
+    usePool(null);
   }
 });

@@ -30,6 +30,8 @@ async function request(path, { method = 'GET', body = null, timeoutMs = 20000 } 
   } catch {
     payload = null;
   }
+  // The session ended while the page was open: let the page offer a new sign-in.
+  if (response.status === 401) api.onUnauthorized?.();
   if (!response.ok) {
     const error = new Error(payload?.error || `http-${response.status}`);
     error.status = response.status;
@@ -46,7 +48,17 @@ export const api = {
     API_BASE = String(value || '').replace(/\/$/, '');
     api.base = API_BASE;
   },
+  onUnauthorized: null,
   me: () => request('/api/v1/auth/me', { timeoutMs: 4000 }),
+  /** For a refusal that may or may not mean the session ended (a room socket). */
+  async checkSession() {
+    try {
+      const me = await api.me();
+      if (me && !me.loggedIn) api.onUnauthorized?.();
+    } catch {
+      // Unreachable service: nothing is known about the session.
+    }
+  },
   stats: () => request('/api/v1/stats/me', { timeoutMs: 4000 }),
   meta: () => request('/api/v1/meta', { timeoutMs: 4000 }),
   loginUrl(returnTo = location.pathname + location.search + location.hash) {
@@ -55,7 +67,6 @@ export const api = {
   logout: () => request('/api/v1/auth/logout', { method: 'POST' }),
   daily: () => request('/api/v1/online/daily', { timeoutMs: 60000 }),
   start: (gameplay, allowEmpty = true) => request('/api/v1/online/start', { method: 'POST', body: { gameplay, allowEmpty }, timeoutMs: 60000 }),
-  custom: (gameplay, kb) => request('/api/v1/online/custom', { method: 'POST', body: { gameplay, kb }, timeoutMs: 60000 }),
   guess: (runId, shipId, elapsedMs = 0) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}/guess`, { method: 'POST', body: { shipId, elapsedMs }, timeoutMs: 10000 }),
   begin: (runId, elapsedMs = 0) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}/begin`, { method: 'POST', body: { elapsedMs }, timeoutMs: 10000 }),
   abandon: (runId) => request(`/api/v1/online/runs/${encodeURIComponent(runId)}/abandon`, { method: 'POST', body: {}, timeoutMs: 10000 }),

@@ -14,7 +14,7 @@ The interface is available in English, German, Spanish, French, Japanese, Korean
 - **Fitting Audit**: stats are calculated from the actual fit with all skills at V (using [dogma-engine](https://github.com/EVEShipFit/dogma-engine)). Your guesses don't show shared stats, and rarer hulls come up more often. Harder.
 - **Timed**: clues come out on a clock, no matter how many guesses you make.
 
-Log in with EVE SSO to play the daily puzzle (the same for everyone). Random targets you play while logged in are recorded too, in your record, stats and streak. Without logging in you play as a trainee: as much as you like, nothing is scored. A killmail opened from a shared killboard link is never scored.
+Log in with EVE SSO to play the daily puzzle (the same for everyone). Random targets you play while logged in are recorded too, in your record, stats and streak. Without logging in you play as a trainee: as much as you like, nothing is scored. You can also pick a killmail yourself, signed in or not: press CHOOSE KILLMAIL and paste a zKillboard link or a killID. A chosen or shared killmail is never scored.
 
 Multiplayer rooms support all three modes, plus Arbitration Review, where players take turns as the dealer.
 
@@ -90,7 +90,7 @@ UI strings for all 8 languages are in `js/messages/` and must keep the same keys
 
 ## CI
 
-GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests into `main` only build and test, and require a new version and CHANGELOG section when the program changes, not for documentation or `.github/` changes (day-to-day pushes to `dev` run nothing). Merged changes on `main` deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static trainee build). A version without a Release also gets its image published to GHCR and a Release when CHANGELOG has a matching section; an already released version is not pushed again unless the workflow is run manually. After a `dev` pull request is merged, [reset-dev.yml](.github/workflows/reset-dev.yml) resets `dev` to the merged `main`; if `dev` has moved since, it leaves the branch alone and comments on the pull request.
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)): pull requests into `main` build, test and build the container image and start it once without pushing it, and require a new version and CHANGELOG section when the program changes, not for documentation or `.github/` changes (day-to-day pushes to `dev` run nothing). Merged changes on `main` deploy [GitHub Pages](https://steven-cmy.github.io/fitdle/) (the static trainee build). A version without a Release also gets its image published to GHCR and a Release when CHANGELOG has a matching section; an already released version is not pushed again unless the workflow is run manually. Pull requests into `main` are merged with a merge commit, and `dev` carries on without a reset.
 
 ## License
 

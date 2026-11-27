@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import {
-  freeKillIdFromToken,
   killHasFittedModules,
   lastCompleteMonthEnd,
   utcDateKey,
@@ -38,15 +37,6 @@ async function requestJson(pathname) {
   } catch (error) {
     throw new TargetUnavailable('zkill', error?.message || 'zKill unavailable');
   }
-}
-
-export async function fetchKill(killId) {
-  const id = Number(killId);
-  if (!Number.isInteger(id) || id <= 0) throw new TargetUnavailable('kill', 'invalid kill id');
-  const { data } = await requestJson(`/api/killID/${id}/`);
-  const killmail = Array.isArray(data) ? data[0] : null;
-  if (!killmail?.victim?.ship_type_id) throw new TargetUnavailable('kill', 'kill has no victim hull');
-  return killmail;
 }
 
 /** Spaces the requests of background work; live picks never wait on it. */
@@ -328,36 +318,6 @@ export async function getRandomTarget(gameplay, { allowEmpty = true, excludeKill
   // Only after a success, so an upstream outage is not multiplied.
   refillShelf();
   return target;
-}
-
-/** A killmail this service already handed out; killmails never change. */
-function storedKill(killId) {
-  const row = statement('SELECT target_json FROM online_runs WHERE target_kill_id = ? ORDER BY started_at DESC LIMIT 1').get(killId);
-  try {
-    const killmail = JSON.parse(row?.target_json || 'null')?.killmail;
-    return Number(killmail?.killmail_id) === killId && killmail.victim?.ship_type_id ? killmail : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function getCustomTarget(kb) {
-  let killId = Number(kb);
-  if (!Number.isInteger(killId) || killId <= 0) {
-    try {
-      killId = Number(freeKillIdFromToken(String(kb)));
-    } catch {
-      killId = 0;
-    }
-  }
-  if (!Number.isInteger(killId) || killId <= 0) throw new TargetUnavailable('custom', 'invalid kb token');
-  // Looking a killmail up by its number sometimes finds nothing upstream.
-  const killmail = storedKill(killId) || await fetchKill(killId);
-  return {
-    shipId: Number(killmail.victim.ship_type_id),
-    killId,
-    killmail,
-  };
 }
 
 export function pruneTargetCaches() {

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -24,7 +25,8 @@ CREATE TABLE IF NOT EXISTS users (
   display_name TEXT NOT NULL,
   character_id INTEGER,
   created_at INTEGER NOT NULL,
-  last_login_at INTEGER NOT NULL
+  last_login_at INTEGER NOT NULL,
+  owner_hash TEXT
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash TEXT PRIMARY KEY,
@@ -161,6 +163,18 @@ if (!db.prepare('PRAGMA table_info(online_runs)').all().some((column) => column.
   if (!columns.includes('end_reason')) db.exec('ALTER TABLE online_runs ADD COLUMN end_reason TEXT');
 }
 
+// Accounts of earlier releases learn their owner hash at the next sign-in.
+if (!db.prepare('PRAGMA table_info(users)').all().some((column) => column.name === 'owner_hash')) {
+  db.exec('ALTER TABLE users ADD COLUMN owner_hash TEXT');
+}
+
+/** Sessions made under a longer lifetime end when the current one would have. */
+export function capSessions() {
+  db.prepare('UPDATE sessions SET expires_at = created_at + ? WHERE expires_at > created_at + ?')
+    .run(config.sessionTtlMs, config.sessionTtlMs);
+}
+capSessions();
+
 const statements = new Map();
 
 /** Prepare each SQL text once and reuse the compiled statement. */
@@ -192,17 +206,52 @@ export function getUser(nameKey) {
   return statement('SELECT * FROM users WHERE name_key = ?').get(nameKey) || null;
 }
 
-export function upsertUser(nameKey, displayName, characterId = null) {
+/**
+ * Put an account and everything recorded for it under a key no sign-in can
+ * reach, and end its sessions. Nothing is deleted but the sessions.
+ */
+function archiveAccount(nameKey) {
+  const archived = `${nameKey}#${crypto.randomBytes(12).toString('hex')}`;
+  statement('UPDATE users SET name_key = ? WHERE name_key = ?').run(archived, nameKey);
+  statement('UPDATE online_runs SET name_key = ? WHERE name_key = ?').run(archived, nameKey);
+  statement('UPDATE arbitration_rounds SET dealer_name_key = ? WHERE dealer_name_key = ?').run(archived, nameKey);
+  statement('DELETE FROM sessions WHERE name_key = ?').run(nameKey);
+}
+
+/**
+ * The account of a verified sign-in. The name starts over when the character
+ * moved to another EVE account (another owner hash) or another character holds
+ * the name now (another character ID). A value missing on either side proves
+ * nothing and never replaces a stored one. `onReplace` runs before the old
+ * account is archived, so that it can still finish what that account was doing.
+ */
+export function signInUser(nameKey, displayName, { characterId = null, ownerHash = null, onReplace = null } = {}) {
   const t = now();
   const numericCharacterId = Number(characterId);
   const safeCharacterId = Number.isSafeInteger(numericCharacterId) && numericCharacterId > 0
     ? numericCharacterId
     : null;
-  statement(`INSERT INTO users(name_key, display_name, character_id, created_at, last_login_at)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(name_key) DO UPDATE SET display_name = excluded.display_name,
-      character_id = COALESCE(excluded.character_id, users.character_id),
-      last_login_at = excluded.last_login_at`)
-    .run(nameKey, displayName, safeCharacterId, t, t);
+  const known = getUser(nameKey);
+  const differs = (stored, seen) => stored != null && seen != null && stored !== seen;
+  const replaced = Boolean(known) && (
+    differs(known.owner_hash, ownerHash)
+    || differs(known.character_id == null ? null : Number(known.character_id), safeCharacterId)
+  );
+  if (replaced) onReplace?.(nameKey);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (replaced) archiveAccount(nameKey);
+    statement(`INSERT INTO users(name_key, display_name, character_id, owner_hash, created_at, last_login_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(name_key) DO UPDATE SET display_name = excluded.display_name,
+        character_id = COALESCE(excluded.character_id, users.character_id),
+        owner_hash = COALESCE(excluded.owner_hash, users.owner_hash),
+        last_login_at = excluded.last_login_at`)
+      .run(nameKey, displayName, safeCharacterId, ownerHash, t, t);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
   return getUser(nameKey);
 }

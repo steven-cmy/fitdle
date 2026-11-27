@@ -382,7 +382,7 @@ test('the address keeps the room while seated, so a reload returns to it', () =>
   }
   // Pages for another target must not carry the room along.
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
-  assert.equal(main.split("url.searchParams.delete('room');").length - 1, 4);
+  assert.equal(main.split("url.searchParams.delete('room');").length - 1, 5);
 });
 
 test('room lobby and match settings are compact and apply-free', () => {
@@ -502,4 +502,90 @@ test('room panels keep their chat input and ignore replaced sockets', () => {
   assert.match(rooms, /if \(this\.ws === ws\) this\.onSocketClosed/);
   assert.match(rooms, /!button\.isConnected/);
   assert.match(rooms, /t: 'ping'/);
+});
+
+test('Local counts and lists every seated pilot, and only settings show the seat limit', () => {
+  const players = [
+    { id: 'a1', name: 'Host', connected: true, spectator: false, score: 0 },
+    { id: 'b2', name: 'Watcher', connected: true, spectator: true, score: 0 },
+    { id: 'c3', name: 'Away', connected: false, spectator: true, score: 0 },
+  ];
+  for (const locale of Object.keys(MESSAGES)) {
+    const t = (key, vars = {}) => String(MESSAGES[locale][key] ?? key)
+      .replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
+    const regions = {};
+    const surface = Object.assign(Object.create(RoomSurface.prototype), {
+      t, int: String, playerId: 'a1', maxPlayers: 8, connected: true, imagesBase: '', roomLimits: {},
+      room: { code: 'ABC123', ownerId: 'a1', phase: 'playing', gameplay: 'timed', maxPlayers: 8, players, match: null },
+      skeleton() {}, syncStartButton() {}, paintPlayers() {}, paintChat() {}, errorHtml: () => '',
+      setRegion(panel, name, html) { regions[name] = html; },
+    });
+    const panel = { querySelector: (selector) => (selector === '[data-matchbar]' ? { style: {} } : null) };
+
+    surface.paintRoom(panel);
+    assert.ok(regions.localHead.includes(`${t('room.local')} [3] <em>#ABC123</em>`), locale);
+    assert.ok(regions.head.includes(t('room.roomStatus', { count: 3 })), locale);
+    for (const html of [regions.localHead, regions.head]) assert.doesNotMatch(html, /\/ ?8\b/, locale);
+    surface.paintRail(panel);
+    assert.doesNotMatch(regions.head, /\/ ?8\b|room-capacity/, locale);
+    for (const playerId of ['a1', 'b2']) {
+      surface.playerId = playerId;
+      assert.ok(surface.renderSettings().includes(t('room.capacity', { max: 8 })), `${locale} ${playerId}`);
+    }
+
+    assert.equal(surface.localPlayers().length, 3);
+    const away = surface.playerRow(players[2]).html;
+    assert.ok(away.includes(t('room.spectator')) && away.includes(t('room.reconnecting')), locale);
+  }
+});
+
+test('a refused room socket checks whether the session ended', () => {
+  let checks = 0;
+  const surface = new RoomSurface({ api: { checkSession: () => { checks += 1; } } });
+  Object.assign(surface, { code: 'ABCD', playerId: 'p', update: () => {}, exitToLobby: () => {} });
+  surface.onSocketClosed(1008, 'unauthorized');
+  assert.equal(checks, 1);
+});
+
+test('a 401 or an ended session reaches the sign-in handler', async () => {
+  const { api } = await import('../js/api.js');
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  api.onUnauthorized = () => { calls += 1; };
+  const answer = (status, body) => {
+    globalThis.fetch = async () => new Response(JSON.stringify(body), { status });
+  };
+  try {
+    answer(401, { error: 'login-required' });
+    await assert.rejects(api.run('r'), (error) => error.status === 401);
+    assert.equal(calls, 1);
+    answer(503, { error: 'target-unavailable' });
+    await assert.rejects(api.daily());
+    assert.equal(calls, 1);
+    answer(200, { loggedIn: true });
+    await api.checkSession();
+    assert.equal(calls, 1);
+    answer(200, { loggedIn: false });
+    await api.checkSession();
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = realFetch;
+    api.onUnauthorized = null;
+  }
+});
+
+test('sign-in controls and offline fallbacks are wired and localized', () => {
+  const main = fs.readFileSync(new URL('../js/main.js', import.meta.url), 'utf8');
+  assert.match(main, /state\.meta\?\.features\?\.sso/);
+  assert.match(main, /ssoAvailable\(\) \? `<div class="eve-sso-slot">/);
+  assert.match(main, /route\.mode === 'multiplayer'/);
+  assert.match(main, /data-action="play-trainee"/);
+  assert.match(main, /api\.onUnauthorized = sessionExpired/);
+  for (const [lang, messages] of Object.entries(MESSAGES)) {
+    for (const key of ['auth.offlineOnly', 'auth.expiredTitle', 'auth.expiredBody', 'error.playTrainee']) {
+      assert.ok(messages[key], `${lang} missing ${key}`);
+    }
+  }
+  assert.equal(MESSAGES.zh['auth.offlineOnly'], '此站点仅提供离线模式');
+  assert.doesNotMatch(MESSAGES.zh['error.zkillBody'], /每日/);
 });

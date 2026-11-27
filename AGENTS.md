@@ -34,8 +34,9 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Work happens on the local `dev` branch. Ordinary commits may be pushed to
   `github/dev` (no CI runs there). Open/merge PRs into `main`, tag, release,
   publish Pages or images only on an explicit request. Never commit on `main`.
-- `CHANGELOG.md` is written (in Chinese) only at a release, which squashes the
-  pending local commits into one release commit. See *Release notes*.
+- `CHANGELOG.md` is written (in Chinese) only at a release. A release merges
+  `dev` into `main` with a merge commit, so every `dev` commit becomes part of
+  `main`'s history. See *Release notes*.
 - A merge with no program change (documentation or GitHub configuration only)
   needs no new version and no CHANGELOG section. See *Release notes*.
 - Nothing published may refer to the AI assistant or tool that helped write it:
@@ -191,20 +192,36 @@ translation [README.zh-CN.md](README.zh-CN.md).
   `@fastify/static` + `jose` + built-in `node:sqlite`. It serves `dist/`, `/api`
   and `/ws`; a split deployment sets `API_ORIGIN` and derives CORS/callback.
 - EVE SSO is authorization-code + PKCE, state/JWKS validation, minimal
-  `publicData` scope. Only the `name` and character-id (`sub`) claims are used.
+  `publicData` scope. Only the `name`, character-id (`sub`) and `owner` claims are used.
   Accounts are keyed by
   normalized character name; alts are separate; character rename creates a new
-  account. The character ID is stored only to render the official EVE portrait;
-  no corporation, alliance, avatar image or other identity data is stored.
+  account. The character ID renders the official EVE portrait; it and a SHA-256
+  of the token's `owner` claim tell whether a name still means the same account.
+  No corporation, alliance, avatar image or other identity data is stored.
   The token endpoint is read from the SSO metadata document; the client secret stays
   server-side and the callback is `${API_ORIGIN || PUBLIC_ORIGIN}/api/v1/auth/eve/callback`.
+- A transferred character is a new account. A sign-in whose owner hash or
+  character ID differs from the stored one archives the old account (its rows
+  move to a random-suffixed key, never deleted), ends its sessions and room
+  seats and starts empty, in one database transaction (`signInUser`). A missing
+  value proves nothing and never overwrites a stored one; accounts of earlier
+  releases only learn their hash at the next sign-in. A failed sign-in changes
+  nothing. CCP's current documentation does not define `owner`. Never log or
+  send it or its hash. Sessions last 7 days because only a sign-in checks it.
 - Modes are determined by auth/back-end availability: guest or service failure is
   Practice; logged-in is Online. Mode is not a manual toggle. Practice provides
   Standard/Audit/Timed, random or explicit KB, no scoring. Daily is online-only.
+- Sign-in controls (topbar button, login gate) exist only when `/api/v1/meta`
+  answered with `features.sso`; otherwise Daily and multiplayer say the site is
+  offline only (`auth.offlineOnly`).
+- A 401 (or a room socket refused for an ended session) opens the sign-in-expired
+  gate: sign in again, or reload as a guest. Unsent guesses stay queued.
+- Only when an online target fails, the error page offers the trainee desk to the
+  signed-in pilot (`?mode=practice`, ignored for guests): practice rules, no
+  scoring, its own target cache. Daily or multiplayer lead back online.
 - Online Daily is pinned once per game day and cached in SQLite. Online
-  Standard/Audit/Timed get a server-issued random target per run. A current KB
-  entered from a share link becomes an online custom run when logged in; custom
-  runs can be played and resumed but never enter streaks, win days or difficulty counters.
+  Standard/Audit/Timed get a server-issued random target per run. A chosen
+  killmail is no online run (see *Chosen killmails*).
 - The service records solo guesses: `POST /online/runs/:id/guess {shipId}` counts,
   deduplicates and judges them; `finish` only accepts a Timed loss. A run counts
   from its first guess, a Timed run from starting the clock (`begin`). `start` returns the player's open run of that gameplay, so a
@@ -215,7 +232,7 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - `js/run-sync.js` delivers solo guesses in order, keeps unsent ones in
   `fitdle:v1:pending-runs` and retries; resending is harmless.
 - **The answer stays on the service until the run ends** (online Daily, random
-  Standard/Audit/Timed and race rooms; not Arbitration, explicit KB runs or
+  Standard/Audit/Timed and race rooms; not Arbitration, chosen killmails or
   Practice). `server/src/puzzle.mjs` builds the puzzle once at the start (clue set,
   reveal plan, a snapshot of the live zKill statistics, Audit/Timed dogma) and
   stores it in `online_runs.puzzle_json`; rooms keep it in memory per round. A
@@ -293,6 +310,10 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - `ROOM_MAX_PLAYERS` controls total room seats (default 8, allowed 2..32,
   including spectators/offline seats). Existing names rejoin without consuming
   a new seat.
+- The Local panel title is EVE style, `<room.local> [n]`, where n is every seated
+  player (spectators and reconnecting players included); the list shows all of
+  them with their status. Other room counts use the same number. The seat limit
+  is shown only in the match settings area.
 - `ROOM_ARBITRATION_BIG_ROUNDS` / `ROOM_ARBITRATION_MAX_BIG_ROUNDS` define the Arbitration default and
   host limit for big rounds. `ROOM_TIMED_DURATION_MINUTES` /
   `ROOM_TIMED_MAX_DURATION_MINUTES` do the same for Timed room duration.
@@ -579,6 +600,20 @@ and goes on.
 - There is no archive mode; historical-day consistency is intentionally not
   supported. Only the current game day is synchronized.
 
+## Chosen killmails
+
+- A chosen killmail (`?kb=` link, or a kill number / zKillboard link typed into the
+  dock's picker, parsed by `parseKillId`) is a feature for sharing between friends:
+  no score, no anti-cheat. It runs wholly in the page (`resolvePracticeTarget`),
+  logged in or not, and also in the static build while zKillboard is reachable.
+- The service has no route for it: no run, no stats, no difficulty counters.
+  Progress is not stored; a reload starts the file again. Databases may hold
+  `custom` runs of earlier releases; records keep excluding them.
+- Online Daily ignores `kb`; choosing Daily removes it. A `kb` link without
+  `claim` is Standard. Rooms cannot choose a killmail.
+- Failures are told apart: unreadable link or number, killmail not found (zKillboard
+  answers an empty list, which is not cached by the page), zKillboard unavailable.
+
 ## Reveal rules
 
 - Every answer builds one immutable `revealPlan` at `buildAnswerData()` time:
@@ -750,8 +785,10 @@ and goes on.
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
 - At release, add the CHANGELOG section (and the final version) on `dev`, open a
-  PR `dev` -> `main` titled `Release <version>: <summary>`, and squash-merge it
-  once CI passes; the squash commit is the release commit. Merging publishes.
+  PR `dev` -> `main` titled `Release <version>: <summary>`, and once CI passes
+  merge it with **Create a merge commit** (never squash or rebase); the merge
+  commit is the release commit. Merging publishes. PRs without a release are
+  merged the same way.
 - Write the changelog in Chinese.
 - Write only player-visible changes and behavior changes. Do not include numeric
   values, balance figures, seed values, hashes, or internal implementation details.
@@ -808,7 +845,7 @@ and goes on.
 ## Stats and reset
 
 - The profile record comes from the service; practice has no record.
-- A run is counted from the first guess, or on starting a Timed run. Free and custom runs never affect stats.
+- A run is counted from the first guess, or on starting a Timed run. Free targets and chosen killmails never affect stats.
 - Streak is measured in consecutive successful days. Any gameplay win counts
   that day once; a missed day or a day with no win resets it.
 - Personal progress reset is intentionally unavailable in the current UI; there
@@ -856,23 +893,20 @@ container follows the same order.
 - Where Git shell hooks cannot run (some Windows sandboxes), run
   `node scripts/bump-version.mjs` by hand, then `git commit --no-verify`.
 - `dev` is the working branch, `main` the release branch (only changed by
-  squash-merged PRs). The hook runs only on local commits, so the merge never
-  bumps again.
-- After a `dev` -> `main` PR merges, `.github/workflows/reset-dev.yml` resets
-  `github/dev` to the merge commit with a lease. Then sync the local branch,
-  which must hold no unpushed work:
-  `git fetch github && git switch dev && git reset --hard github/dev`.
-- The workflow leaves `dev` alone, and comments on the PR, when `dev` is no
-  longer at the merged PR head (something was pushed since), the branch is gone,
-  or GitHub rejects the push. It does nothing for PRs closed without merging or
-  from another branch. In those cases keep the unmerged commits, then reset by
-  hand (it must hold no unmerged work):
-  `git fetch github && git switch dev && git reset --hard github/main && git push --force-with-lease github dev`.
+  PRs merged with a merge commit). The hook runs only on local commits, so the
+  merge on GitHub never bumps again.
+- `dev` is never reset or deleted after a merge: work goes on from where it is,
+  including commits pushed while the PR was open. `main` is then ahead of `dev`
+  only by merge commits, which the next PR does not need. Keep GitHub's automatic
+  head branch deletion from removing `dev`.
+- If `main` ever gets a change that did not come from `dev`, merge it back
+  before the next PR:
+  `git fetch github && git switch dev && git merge github/main`. Such a merge is
+  not a version change; if it needs a manual commit, use `VERSION_BUMP=none`.
 - Authority: the owner has delegated local tests, local git steps and plain
-  `git push github dev` (no force by hand except the manual post-release reset
-  above, which needs a go-ahead). Never push `main`. Opening or merging the PR into `main`,
-  releasing, and changing GitHub settings stay with the owner and happen only
-  when the owner says so.
+  `git push github dev` (never a force push). Never push `main`. Opening or
+  merging the PR into `main`, releasing, and changing GitHub settings stay with
+  the owner and happen only when the owner says so.
 
 ## Runtime URLs and storage
 
@@ -902,9 +936,9 @@ container follows the same order.
 
 ## Sharing
 
-- Online Standard, Audit and Timed (including custom killmails) are not shared: their
-  debrief has no share button or box. Online Daily, practice killmails and room
-  invites are shared.
+- Random online Standard, Audit and Timed targets are not shared: their debrief
+  has no share button or box. Online Daily, practice killmails, chosen killmails
+  and room invites are shared.
 - Non-free share URL: `share/{1..6|lost}/{lang}.html` with optional `rule=audit`/`rule=timed`
   (no `kb`, `d`, `mode`, `timer` or `lang` query; the path locale controls preview
   language and is stored locally). Daily shares must not carry a reversible kill token.
@@ -912,9 +946,8 @@ container follows the same order.
   The preview redirects to the app without forcing a language.
 - Timed share URL: `share/timed/{lang}.html?t=<seconds>&rule=timed`; Free Timed
   additionally carries `kb=...`.
-- Opening a `kb` link compares its killmail with the current Daily target for the
-  selected gameplay mode. On a match it enters Daily (restoring completed
-  progress); otherwise it stays in Free mode.
+- A `kb` link is never compared with the Daily target; it always opens as a
+  chosen killmail.
 - Static pages are generated per locale by `build-dist`; metadata is localized and
   contains only score/attempts, never the answer. The page stores its path locale
   locally before redirecting.
@@ -1007,12 +1040,22 @@ test reads `dist/`.
 
 - Home: https://github.com/steven-cmy/fitdle. CI is
   `.github/workflows/ci.yml` with jobs `sde-check`, `build`, `image`, `release`,
-  `pages-build` (uploads the Pages artifact), `pages` (deploys it). Pull requests into `main` run `sde-check`, `build` (all tests) and
+  `pages-build` (uploads the Pages artifact), `pages` (deploys it). Pull requests into `main` run `sde-check`, `build` (all tests), `image-check` and
   `release-check` (`scripts/check-release.mjs`: for program changes, version newer
   than main and non-empty CHANGELOG section; see *Release notes*) only. `image`, `release`, `pages-build` and `pages` run only after a push to
-  `main` (or a manual run on `main`); pushes to `dev` trigger nothing.
-  `.github/workflows/reset-dev.yml` runs when a PR into `main` closes and resets
-  `dev` after a merged `dev` PR (see *Version bump*).
+  `main` (or a manual run on `main`); pushes to `dev` trigger nothing. No workflow
+  changes `dev`.
+- `image-check` (pull requests only, after `build`) builds the all-in-one image
+  from the same build files with `REUSE_BUILD_CACHE=1` and never pushes it, then
+  starts it once and requires an answer from `/api/v1/health` and `/`, so a
+  broken Dockerfile or runtime stage fails before the merge. It reads the registry `buildcache`
+  and keeps a GitHub Actions cache for later runs of the same pull request.
+  GitHub does not let `main` read a cache written by a pull request, and the
+  data files differ between runs, so `image` builds on its own after the merge.
+  Keep the build arguments of both jobs the same.
+- The Dockerfile runs both test suites unless `RUN_TESTS=0`. Only the two CI
+  image jobs pass it, because they need `build`, which runs the suites on the same
+  commit and data files. Local and other image builds keep the default.
 - `image` builds the all-in-one image with `docker buildx` and pushes it to
   `ghcr.io/steven-cmy/fitdle`. Tags: version, `v`-version, `latest`, short SHA;
   `buildcache` holds the layer cache. On a push to `main` it pushes only when

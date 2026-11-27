@@ -207,7 +207,8 @@ export const config = {
   roomReconnectGraceMs: boundedIntEnv('ROOM_RECONNECT_GRACE_MS', 60000, 5000, 300000),
   roomHeartbeatMs: 25 * 1000,
   roomTtlMs: 2 * 60 * 60 * 1000,
-  sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
+  // Short, because a sign-in is the only time the owner of a character is checked.
+  sessionTtlMs: 7 * 24 * 60 * 60 * 1000,
 };
 
 export function ssoConfigured() {

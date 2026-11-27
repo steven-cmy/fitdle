@@ -878,6 +878,27 @@ a:focus-visible {
   background: #101c26;
 }
 
+/* Sits with the target button at the right end of the dock. */
+.kill-open-cta {
+  min-height: 44px;
+  margin-left: auto;
+}
+
+.kill-open-cta svg {
+  width: 15px;
+  height: 15px;
+}
+
+.fatal-screen .kill-form {
+  width: min(460px, 100%);
+  text-align: left;
+}
+
+.fatal-screen .kill-form .mode-modal-actions {
+  justify-content: center;
+  margin-top: 4px;
+}
+
 .daily-reset-cta {
   min-height: 44px;
   min-width: 210px;
@@ -942,6 +963,10 @@ a:focus-visible {
 
   .new-target-cta {
     width: 100%;
+  }
+
+  .kill-open-cta {
+    margin-left: 0;
   }
 
   .topbar {

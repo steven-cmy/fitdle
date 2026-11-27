@@ -101,7 +101,7 @@ Read from CCP's Static Data Export (build 3724492 and the release of 2026-11-24)
 |---|---|---|---|---|---|---|---|---|
 | Claims Assessor | 理赔评估员 | Schadenssachbearbeiter | perito de siniestros | expert en sinistres | 損害査定員 | 손해사정인 | оценщик убытков | project role, own wording |
 | Claim (insurance) | 案卷 / 理赔 | Akte / Anspruch | expediente | dossier | 案件 / 請求 | 청구건 | дело | own wording; ja クレーム means a complaint, so it is avoided |
-| Local | LOCAL | LOCAL | LOCAL | LOCAL | LOCAL | LOCAL | LOCAL | EVE channel name, kept as the room label |
+| Local | 本地 | Lokal | Local | Local | ローカル | 지역 | Локальный | EVE client chat channel name (`UI/Chat/Local`); room label, upper case in the Latin and Cyrillic UI |
 | Subspace Communication Beacon | 亚空间通讯信标 | Subraum-Kommunikationsbake | baliza de comunicaciones subespaciales | balise de communication subspatiale | サブスペース通信ビーコン | 아공간 통신 비컨 | маяк подпространственной связи | client message for wormhole Local; wording approved by the project |
 | SRP, FC, doctrine, fit, ping, TiDi, KB | SRP、FC、制式、装配、集结令、时间膨胀、KB | SRP, FC, Doktrin, Fit, Ping, TiDi, KB | SRP, FC, doctrina, ping, TiDi, KB | SRP, FC, doctrine, ping, TiDi, KB | SRP、FC、ドクトリン、TiDi、KB | SRP, FC, 독트린, 핑, TiDi, KB | SRP, ФК, доктрина, фит, пинг, TiDi, KB | community usage |
 | Drake (SRP memos) | 幼龙 | Drake | Drake | Drake | ドレイク | 드레이크 | Drake | zh community short form; the ship name elsewhere is 幼龙级 |
