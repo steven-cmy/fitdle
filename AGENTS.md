@@ -512,9 +512,11 @@ scores; `scripts/build-catalog.mjs` keeps building those pools from
   The server warns at start when the file is older than `FITDLE_USAGE_STALE_DAYS`
   (45: one monthly cycle plus buffer; keep it in line with the workflow's cron).
 - The main CI downloads that file (`npm run fetch:usage`, never fails the build)
-  into `.cache/ship-usage.json`; the Docker image copies it to
-  `data/ship-usage.json` (or an empty placeholder). The server reads it at start
-  (`FITDLE_SHIP_USAGE_FILE` overrides the path).
+  into `.cache/ship-usage.json`; the runtime stage of the Docker image copies
+  that file (or an empty placeholder) to `data/ship-usage.json`. It must not be
+  put into the build stage's `data/`, which `npm run build` deletes and
+  recreates. The server reads it at start (`FITDLE_SHIP_USAGE_FILE` overrides the
+  path).
 - Fresh data without a new image: `server/src/usage-refresh.mjs` loads a cached
   copy (`ship-usage.cache.json` next to the database) at start when it is newer
   than the image's file, then asks the data branch for the file at start and every
