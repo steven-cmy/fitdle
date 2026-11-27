@@ -1576,11 +1576,12 @@ test('the daily claim and rooms ignore the personal empty-hull setting', () => {
   assert.equal(daily.includes('allowEmptyKb'), false, 'static daily must match the service daily');
   assert.ok(daily.includes('allowEmpty: true'));
   const targets = fs.readFileSync(path.join(ROOT, 'server', 'src', 'targets.mjs'), 'utf8');
-  const serviceDaily = targets.slice(targets.indexOf('async function dailyKillForShip'), targets.indexOf('async function createDailyPin'));
-  assert.equal(serviceDaily.match(/allowEmpty: config\.dailyAllowEmpty,/g)?.length, 2, 'the deployment setting decides the service daily');
+  const serviceDaily = targets.slice(targets.indexOf('async function createDailyPin'), targets.indexOf('const dailyLocks'));
+  assert.equal(serviceDaily.match(/allowEmpty: config\.dailyAllowEmpty,/g)?.length, 1, 'the deployment setting decides the service daily');
   assert.equal(serviceDaily.includes('allowEmpty: true'), false);
   const rooms = fs.readFileSync(path.join(ROOT, 'server', 'src', 'rooms.mjs'), 'utf8');
-  assert.ok(rooms.includes('getRandomTarget(match.gameplay, { allowEmpty: room.settings?.allowEmpty !== false })'));
+  assert.ok(rooms.includes('roomTarget(room, match.gameplay)'));
+  assert.ok(rooms.includes("roomTarget(room, 'audit')"));
   assert.ok(rooms.includes('allowEmpty: room.settings?.allowEmpty !== false,'));
 });
 

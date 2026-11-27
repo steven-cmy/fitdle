@@ -16,7 +16,7 @@ import {
   arbitrationEndBonusRaw,
   arbitrationDealerCredit,
 } from '../../js/mp/rules.js';
-import { pickDealerRound } from '../../js/mp/target.js';
+import { buildDealerRound } from '../../js/mp/target.js';
 import { calculateDogmaFit, calculateDogmaBaseline } from '../../js/dogma.js';
 import { buildRevealPlan } from '../../js/reveal.js';
 import { config } from './config.mjs';
@@ -24,7 +24,6 @@ import { getSessionUser } from './auth.mjs';
 import { now, statement } from './db.mjs';
 import { withinLimit } from './limits.mjs';
 import { getRandomTarget, TargetUnavailable } from './targets.mjs';
-import { zkillFetch } from './zkill.mjs';
 import { recordPlays, recordArbitrationRound, recordRoomMatch } from './stats.mjs';
 
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -653,14 +652,27 @@ async function buildEndlessClues(room, target, roundNo) {
   };
 }
 
+/**
+ * Next target of a room from the shared selection. A killmail is played once
+ * per room (the same hull may come again); rooms do not look at each other.
+ */
+function roomTarget(room, gameplay) {
+  room.usedKillIds ||= new Set();
+  return getRandomTarget(gameplay, {
+    allowEmpty: room.settings?.allowEmpty !== false,
+    excludeKillIds: room.usedKillIds,
+  });
+}
+
 async function prepareEndlessRound(room, roundNo, current) {
   const match = room.match;
   if (!match || match.rule !== 'endless') return;
   clearTimeout(match.startTimer);
   clearTimeout(match.roundTimer);
-  const target = await getRandomTarget(match.gameplay, { allowEmpty: room.settings?.allowEmpty !== false });
+  const target = await roomTarget(room, match.gameplay);
   const built = await buildEndlessClues(room, target, roundNo);
   if (!current() || room.match !== match) return;
+  room.usedKillIds.add(target.killId);
   match.roundId = crypto.randomUUID();
   match.roundNo = roundNo;
   match.target = target;
@@ -994,22 +1006,23 @@ function substituteDealerId(room, active, wantedDealerId) {
 }
 
 async function startArbitration(room, wantedDealerId, current) {
-  const round = await pickDealerRound({
+  const target = await roomTarget(room, 'audit');
+  const round = await buildDealerRound({
+    target,
     manifest: config.manifest,
     catalog: config.catalogShips,
     refsEn,
-    fetchImpl: zkillFetch,
-    allowEmpty: room.settings?.allowEmpty !== false,
     mode: 'audit',
     moduleFallbacks,
     weaponUpgradeGroups: config.manifest?.weaponUpgradeGroups || null,
     weaponGroups: config.manifest?.weaponGroups || null,
-    simulate: async (ship, target) => ({
-      fittedAttrs: await calculateDogmaFit(ship, target.killmail),
+    simulate: async (ship, picked) => ({
+      fittedAttrs: await calculateDogmaFit(ship, picked.killmail),
       baselineAttrs: await calculateDogmaBaseline(ship),
     }),
   });
   if (!current()) return;
+  room.usedKillIds.add(target.killId);
   // Players may have left while the target loaded.
   const active = connectedPilots(room);
   if (active.length < 2) throw Object.assign(new Error('not enough players'), { code: 'need-players' });

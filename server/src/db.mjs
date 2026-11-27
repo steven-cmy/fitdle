@@ -51,6 +51,16 @@ CREATE TABLE IF NOT EXISTS daily_pins (
   killmail_json TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+-- Prepared random targets: each row is handed out once and expires.
+CREATE TABLE IF NOT EXISTS target_shelf (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ship_id INTEGER NOT NULL,
+  kill_id INTEGER NOT NULL,
+  has_fit INTEGER NOT NULL,
+  killmail_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS shelf_created ON target_shelf(created_at);
 CREATE TABLE IF NOT EXISTS online_runs (
   id TEXT PRIMARY KEY,
   name_key TEXT NOT NULL,

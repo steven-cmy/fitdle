@@ -12,7 +12,7 @@ import {
   clueForWire, decodeMessage, encodeMessage, normalizeName, RateLimiter,
   sanitizeChatText, sanitizeName, sanitizeText, validClueForWire, validName,
 } from '../js/mp/protocol.js';
-import { pickDealerRound, pickRaceTarget, KbUnavailableError } from '../js/mp/target.js';
+import { buildDealerRound } from '../js/mp/target.js';
 import { renderClueList } from '../js/mp/clue-view.js';
 import { avatarInitials, avatarHtml, portraitUrl } from '../js/avatar.js';
 import { reconnectDelay, shortPilotId, sortLocalPlayers } from '../js/rooms.js';
@@ -45,23 +45,6 @@ function fittedKill(killId = 4242, shipId = 670) {
   };
 }
 
-function mockFetch({ failPage = false, failKill = false, bareList = false, requests = [] } = {}) {
-  return async (url) => {
-    requests.push(String(url));
-    const failure = { ok: false, status: 404, headers: { get: () => null }, json: async () => ({}) };
-    if (String(url).includes('/api/losses/shipTypeID/')) {
-      if (failPage) return failure;
-      const kill = fittedKill();
-      if (bareList) delete kill.victim.items;
-      return { ok: true, json: async () => [kill] };
-    }
-    if (String(url).includes('/api/killID/')) {
-      if (failKill) return failure;
-      return { ok: true, json: async () => [fittedKill()] };
-    }
-    throw new Error(`unexpected URL ${url}`);
-  };
-}
 
 test('endless scores use 3000 points', () => {
   assert.equal(ROOM_SCORE_PER_KB, 3000);
@@ -258,64 +241,13 @@ test('dealer wire clues never carry the answer or the full clue set', () => {
   assert.equal(validClueForWire({ i: 1, k: 'bonus', c: 'traits', w: 2 }), false);
 });
 
-test('race target acquisition fetches a real fitted killmail and never falls back', async () => {
-  const requests = [];
-  const target = await pickRaceTarget({
-    manifest,
-    mode: 'standard',
-    fetchImpl: mockFetch({ requests }),
-  });
-  assert.equal(requests.some((url) => url.includes('/api/killID/')), false);
-  assert.equal(target.killId, 4242);
-  assert.equal(target.shipId, 670);
-  assert.equal(target.killmail.victim.ship_type_id, 670);
-
-  await assert.rejects(
-    () => pickRaceTarget({ manifest, mode: 'standard', fetchImpl: mockFetch({ failPage: true }) }),
-    (error) => error instanceof KbUnavailableError,
-  );
-  await assert.rejects(
-    () => pickRaceTarget({ manifest, mode: 'standard', fetchImpl: mockFetch({ bareList: true, failKill: true }) }),
-    (error) => error instanceof KbUnavailableError,
-  );
-  const bare = await pickRaceTarget({ manifest, mode: 'standard', fetchImpl: mockFetch({ bareList: true }) });
-  assert.equal(bare.killmail.victim.items.length, 2);
-});
-
-test('race targets skip empty hulls when they are turned off', async () => {
-  const empty = (id) => {
-    const kill = fittedKill(id);
-    kill.victim.items = [{ flag: 5, item_type_id: 34, quantity_destroyed: 1, quantity_dropped: 0 }];
-    return kill;
-  };
-  const feed = (kills) => async (url) => {
-    if (String(url).includes('/api/losses/shipTypeID/')) return { ok: true, json: async () => kills };
-    throw new Error(`unexpected URL ${url}`);
-  };
-  const mixed = [...Array.from({ length: 20 }, (_, index) => empty(100 + index)), fittedKill(4242)];
-  for (let i = 0; i < 12; i += 1) {
-    const picked = await pickRaceTarget({ manifest, mode: 'standard', allowEmpty: false, fetchImpl: feed(mixed) });
-    assert.equal(picked.killId, 4242);
-  }
-  const onlyEmpty = feed([empty(100), empty(101)]);
-  await assert.rejects(
-    () => pickRaceTarget({ manifest, mode: 'standard', allowEmpty: false, fetchImpl: onlyEmpty }),
-    (error) => error instanceof KbUnavailableError,
-  );
-  await assert.rejects(
-    () => pickDealerRound({ manifest, catalog, refsEn, allowEmpty: false, fetchImpl: onlyEmpty }),
-    (error) => error instanceof KbUnavailableError,
-  );
-  const allowed = await pickRaceTarget({ manifest, mode: 'standard', fetchImpl: onlyEmpty });
-  assert.ok([100, 101].includes(allowed.killId), 'empty hulls stay valid by default');
-});
-
 test('dealer round builds clues locally and exposes only wire clues', async () => {
-  const round = await pickDealerRound({
+  const killmail = fittedKill(4242);
+  const round = await buildDealerRound({
+    target: { killId: 4242, shipId: 670, killmail },
     manifest,
     catalog,
     refsEn,
-    fetchImpl: mockFetch(),
   });
   assert.equal(round.killId, 4242);
   assert.ok(round.clues.length > 10);

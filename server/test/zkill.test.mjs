@@ -9,7 +9,7 @@ process.env.DATABASE_PATH = dbFile;
 process.env.SESSION_SECRET = 'test-secret';
 process.env.PUBLIC_ORIGIN = 'http://127.0.0.1:8790';
 process.env.NODE_ENV = 'test';
-const { ZkillClient, zkillFetch, zkill } = await import('../src/zkill.mjs');
+const { ZkillClient, zkill } = await import('../src/zkill.mjs');
 const { freshnessMs, retryAfterMs } = await import('../../js/retry-after.js');
 const { config } = await import('../src/config.mjs');
 
@@ -158,15 +158,13 @@ test('the response cache has a byte limit', async () => {
   assert.ok(client.bytes === [...client.entries.values()].reduce((sum, entry) => sum + entry.body.length, 0));
 });
 
-test('arbitration targets use the identified shared client', async () => {
+test('target selection uses the identified shared client', async () => {
   const seen = [];
   globalThis.fetch = async (url, init) => { seen.push(init.headers['User-Agent']); return json([{ ok: 1 }]); };
   zkill.reset();
-  const base = String(config.manifest?.zkillboard?.baseUrl || 'https://zkillboard.com');
-  const response = await zkillFetch(`${base}/api/losses/shipTypeID/1/page/1/`, {});
-  assert.equal(response.ok, true);
-  assert.deepEqual(await response.json(), [{ ok: 1 }]);
-  await zkillFetch(`${base}/api/losses/shipTypeID/1/page/1/`, {});
+  const first = await zkill.get('/api/losses/shipTypeID/1/page/1/');
+  assert.deepEqual(first.data, [{ ok: 1 }]);
+  await zkill.get('/api/losses/shipTypeID/1/page/1/');
   assert.equal(seen.length, 1);
   assert.match(seen[0], /^FITDLE\//);
 });

@@ -12,7 +12,7 @@ process.env.FITDLE_DEV_AUTH = '1';
 process.env.PUBLIC_ORIGIN = 'http://127.0.0.1:8790';
 process.env.ROOM_MAX_PLAYERS = '6';
 process.env.ROOM_RECONNECT_GRACE_MS = '5000';
-process.env.TARGET_SPARES = '0';
+process.env.TARGET_SHELF_SIZE = '0';
 process.env.ZKILL_MIN_INTERVAL_MS = '0';
 process.env.NODE_ENV = 'test';
 
@@ -22,7 +22,7 @@ const {
 } = await import('../../js/mp/rules.js');
 const { ROOMS, acceptedNames } = await import('../src/rooms.mjs');
 const { zkill } = await import('../src/zkill.mjs');
-const { clearHulls } = await import('../src/targets.mjs');
+const { resetTargets } = await import('../src/targets.mjs');
 const { buildApp } = await import('../src/index.mjs');
 const { db } = await import('../src/db.mjs');
 
@@ -62,7 +62,7 @@ globalThis.fetch = async (url, options) => {
 function holdUpstream() {
   // A cached page would answer without reaching the held upstream.
   zkill.reset();
-  clearHulls();
+  resetTargets();
   let release;
   gate = new Promise((resolve) => { release = resolve; });
   return () => { gate = null; release(); };
@@ -765,15 +765,11 @@ test('a leaver does not block players who are ready for the next round', async (
 
 test('a failed target returns the room to the lobby phase', async () => {
   const { pilots, room, code } = await makeRoom(2);
-  config.manifest.savedPool = config.manifest.auditKillShipPool;
-  config.manifest.auditKillShipPool = [999999991];
   failNext = true;
   pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: {} });
   await until(() => pilots[0].last('error')?.code === 'target', 'error', 15000);
   assert.equal(room.phase, 'between_matches');
   failNext = false;
-  config.manifest.auditKillShipPool = config.manifest.savedPool;
-  delete config.manifest.savedPool;
   await closeAll(pilots, code);
 });
 
@@ -785,7 +781,7 @@ test('the host room setting keeps empty hulls out of race rounds', async () => {
   upstreamEmpty = 'mixed';
   try {
     for (let round = 0; round < 4; round += 1) {
-      clearHulls();
+      resetTargets();
       pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: false } });
       await until(() => room.match?.target, 'target');
       assert.equal(room.settings.allowEmpty, false);
@@ -796,12 +792,12 @@ test('the host room setting keeps empty hulls out of race rounds', async () => {
     }
     // Only empty hulls: the round fails instead of using one.
     upstreamEmpty = 'empty';
-    clearHulls();
+    resetTargets();
     pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: false } });
     await until(() => pilots[0].last('error')?.code === 'target', 'target error', 15000);
     assert.equal(room.phase, 'between_matches');
     // Allowed again: empty hulls are valid targets.
-    clearHulls();
+    resetTargets();
     pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: true } });
     await until(() => room.match?.target, 'empty target');
     assert.equal(fitted(room.match.target.killmail), false);
@@ -813,7 +809,7 @@ test('the host room setting keeps empty hulls out of race rounds', async () => {
     assert.equal(room.settings.allowEmpty, true);
   } finally {
     upstreamEmpty = null;
-    clearHulls();
+    resetTargets();
   }
   await closeAll(pilots, code);
 });
@@ -830,16 +826,16 @@ test('arbitration never deals an empty hull when the room turned them off', asyn
   const { pilots, room, code } = await makeRoom(2);
   upstreamEmpty = 'empty';
   try {
-    clearHulls();
+    resetTargets();
     pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: { allowEmpty: false } });
     await until(() => pilots[0].last('error')?.code === 'target', 'target error', 15000);
     assert.equal(room.match, null);
-    clearHulls();
+    resetTargets();
     pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: { allowEmpty: true } });
     await until(() => room.match?.target, 'empty hull allowed', 15000);
   } finally {
     upstreamEmpty = null;
-    clearHulls();
+    resetTargets();
   }
   await closeAll(pilots, code);
 });

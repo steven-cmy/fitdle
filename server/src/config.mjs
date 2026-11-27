@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildUserAgent, parseContact } from '../../js/user-agent.js';
 import { resolveGameDayStart } from '../../js/game.js';
+import { DEFAULT_GROUP_FACTORS, parseGroupFactors } from './selection.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 try {
@@ -91,6 +92,23 @@ if (dailyAllowEmptyRaw && dailyAllowEmpty === null) {
 }
 // Per-killmail difficulty counters not played for this long are deleted.
 const statsKillRetentionDays = boundedIntEnv('FITDLE_STATS_KILL_RETENTION_DAYS', 60, 1, 3650);
+// Target selection: usage bonus, group factors and the prepared-target shelf.
+const usageMaxRatioRaw = String(process.env.FITDLE_USAGE_MAX_RATIO ?? '').trim();
+let usageMaxRatio = 3;
+if (usageMaxRatioRaw) {
+  const value = Number(usageMaxRatioRaw);
+  if (Number.isFinite(value) && value >= 1 && value <= 20) usageMaxRatio = value;
+  else warnings.push(`FITDLE_USAGE_MAX_RATIO="${usageMaxRatioRaw}" must be a number from 1 to 20; 3 is used`);
+}
+const groupFactorsRaw = process.env.FITDLE_SHIP_GROUP_FACTORS;
+const parsedFactors = parseGroupFactors(groupFactorsRaw == null ? DEFAULT_GROUP_FACTORS : groupFactorsRaw);
+for (const warning of parsedFactors.warnings) warnings.push(`FITDLE_SHIP_GROUP_FACTORS: ${warning}`);
+const usageFile = [
+  process.env.FITDLE_SHIP_USAGE_FILE,
+  path.join(ROOT, 'data', 'ship-usage.json'),
+  path.join(ROOT, '.cache', 'ship-usage.json'),
+].filter(Boolean).find((file) => fs.existsSync(file));
+const shipUsage = usageFile ? readJson(usageFile, null) : null;
 const apiContact = parseContact(process.env.API_CONTACT);
 const roomArbitrationBigRounds = boundedIntEnv('ROOM_ARBITRATION_BIG_ROUNDS', 1, 1, 32);
 const roomArbitrationMaxBigRounds = boundedIntEnv('ROOM_ARBITRATION_MAX_BIG_ROUNDS', 5, 1, 32);
@@ -117,7 +135,7 @@ export const config = {
   devAuth: devAuth && (!production || loopback),
   warnings,
   gameDayStartMinutes: gameDayStart.minutes,
-  algorithmVersion: 'online-v1',
+  algorithmVersion: 'online-v2',
   dailyAllowEmpty: dailyAllowEmpty ?? true,
   statsKillRetentionDays,
   eve: {
@@ -143,7 +161,16 @@ export const config = {
   roomTimedDurationMinutes,
   roomTimedMaxDurationMinutes,
   zkillMinIntervalMs: boundedIntEnv('ZKILL_MIN_INTERVAL_MS', 250, 0, 5000),
-  targetSpares: boundedIntEnv('TARGET_SPARES', 2, 0, 8),
+  usageMaxRatio,
+  groupFactors: parsedFactors.factors,
+  usageWindowMonths: boundedIntEnv('FITDLE_USAGE_WINDOW_MONTHS', 3, 1, 12),
+  // Monthly zKill usage and loss counts per hull; null means every hull weighs 1.
+  shipUsage: shipUsage?.version === 1 && shipUsage.ships && typeof shipUsage.ships === 'object' ? shipUsage : null,
+  noKillRetryMs: boundedIntEnv('FITDLE_NO_KILL_RETRY_HOURS', 24, 1, 720) * 60 * 60 * 1000,
+  targetShelfSize: boundedIntEnv('TARGET_SHELF_SIZE', 150, 0, 1000),
+  targetShelfTtlMs: boundedIntEnv('TARGET_SHELF_TTL_HOURS', 24, 1, 168) * 60 * 60 * 1000,
+  // Spacing of the requests that fill the shelf; 2000 ms is 0.5 requests a second.
+  targetRefillIntervalMs: boundedIntEnv('TARGET_REFILL_INTERVAL_MS', 2000, 0, 60000),
   roomReconnectGraceMs: boundedIntEnv('ROOM_RECONNECT_GRACE_MS', 60000, 5000, 300000),
   roomHeartbeatMs: 25 * 1000,
   roomTtlMs: 2 * 60 * 60 * 1000,

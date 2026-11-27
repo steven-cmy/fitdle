@@ -23,7 +23,8 @@ process.env.ROOM_ARBITRATION_MAX_BIG_ROUNDS = '4';
 process.env.ROOM_TIMED_DURATION_MINUTES = '15';
 process.env.ROOM_TIMED_MAX_DURATION_MINUTES = '30';
 process.env.ROOM_RECONNECT_GRACE_MS = '5000';
-process.env.TARGET_SPARES = '0';
+process.env.TARGET_SHELF_SIZE = '0';
+process.env.TARGET_REFILL_INTERVAL_MS = '0';
 process.env.API_CONTACT = 'ops@example.test';
 process.env.API_CONTACT_PUBLIC = '0';
 process.env.ZKILL_MIN_INTERVAL_MS = '0';
@@ -35,7 +36,7 @@ const {
   ROOMS, evictExpiredRooms, flushRooms, normalizeRoomSettings, nextBigRoundStep,
 } = await import('../src/rooms.mjs');
 const { zkill } = await import('../src/zkill.mjs');
-const { clearHulls, getDailyTarget, getRandomTarget } = await import('../src/targets.mjs');
+const { resetTargets, shelfIdle, getDailyTarget, getRandomTarget } = await import('../src/targets.mjs');
 const { expireRuns = () => {} } = await import('../src/runs.mjs');
 const { buildApp } = await import('../src/index.mjs');
 const { db, cleanupExpired } = await import('../src/db.mjs');
@@ -417,6 +418,15 @@ test('room snapshots are coalesced and expired empty rooms are dropped', async (
   ROOMS.delete(fresh);
 });
 
+const realShips = config.catalogShips;
+
+/** Only these hulls are playable (without usage data, so the latest loss page is used); null restores the catalog. */
+function usePool(ids) {
+  config.catalogShips = ids ? ids.map((id) => ({ id, groupID: 25 })) : realShips;
+  config.shipUsage = null;
+  resetTargets();
+}
+
 /** Replace zKill with synthetic loss pages and record every requested path. */
 async function withLossPages(makePage, run) {
   const realFetch = globalThis.fetch;
@@ -441,96 +451,146 @@ const cargoItem = { flag: 5, item_type_id: 34, quantity_destroyed: 10, quantity_
 let killSerial = 1000;
 const lossPage = (ship, flags) => flags.map((fitted) => ({
   killmail_id: killSerial += 1,
+  killmail_time: '2025-06-01T10:00:00Z',
   zkb: { totalValue: 1 },
   victim: { ship_type_id: ship, items: fitted ? [fittedItem] : [cargoItem] },
 }));
 
 test('random targets come from the loss page without per-kill requests', async () => {
-  const pool = config.manifest.normalShipPool;
-  config.manifest.normalShipPool = [900001];
+  usePool([900001]);
   try {
     await withLossPages((ship) => lossPage(ship, Array(20).fill(true)), async (requests) => {
-      const seen = new Set();
       for (let i = 0; i < 5; i += 1) {
         const target = await getRandomTarget('standard');
         assert.equal(target.shipId, 900001);
         assert.equal(target.killmail.killmail_id, target.killId);
         assert.equal(target.killmail.victim.items.length, 1);
-        seen.add(target.killId);
       }
-      assert.equal(seen.size, 5, 'a cached sample never repeats a killmail');
-      assert.equal(requests.length, 1, 'five targets share one page request');
-      for (let i = 0; i < 15; i += 1) seen.add((await getRandomTarget('standard')).killId);
-      assert.equal(seen.size, 20, 'the whole page is used before anything repeats');
-      await getRandomTarget('standard');
-      assert.equal(requests.length, 1, 'drawing again never requests the page within its lifetime');
+      assert.equal(requests.length, 1, 'five targets share the cached page request');
       assert.ok(requests.every((pathname) => pathname.startsWith('/api/losses/')));
     });
   } finally {
-    config.manifest.normalShipPool = pool;
+    usePool(null);
   }
 });
 
-test('spare targets are prepared after first use and handed out once', async () => {
-  const pool = config.manifest.auditKillShipPool;
-  config.manifest.auditKillShipPool = [900010, 900011, 900012];
-  config.targetSpares = 2;
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
+test('a hull with usage data is asked for one month and page by its loss count', async () => {
+  usePool([900040]);
+  // Only 2025-03 and 2025-04 have losses; 450 losses of 2025-04 are three pages.
+  config.shipUsage = { version: 1, ships: { 900040: { m: { 202503: [0, 5], 202504: [0, 450], 202505: [9, 0] } } } };
   try {
-    await withLossPages((ship) => lossPage(ship, Array(50).fill(true)), async (requests) => {
-      await settle();
-      assert.equal(requests.length, 0, 'nothing is requested before a pool is used');
-      const seen = new Set();
-      for (let i = 0; i < 12; i += 1) {
-        const target = await getRandomTarget('audit');
-        assert.equal(seen.has(target.killId), false, 'a target is handed out once');
-        seen.add(target.killId);
-        assert.ok(config.manifest.auditKillShipPool.includes(target.shipId));
-        await settle();
+    await withLossPages((ship) => lossPage(ship, Array(30).fill(true)), async (requests) => {
+      for (let i = 0; i < 20; i += 1) {
+        resetTargets();
+        config.shipUsage = { version: 1, ships: { 900040: { m: { 202503: [0, 5], 202504: [0, 450], 202505: [9, 0] } } } };
+        await getRandomTarget('standard');
       }
-      // With spares ready the caller does not wait for the upstream service.
-      globalThis.fetch = () => new Promise(() => {});
-      const ready = await Promise.all([getRandomTarget('audit'), getRandomTarget('audit')]);
-      assert.notEqual(ready[0].killId, ready[1].killId);
+      const seen = new Set(requests);
+      assert.ok(requests.length > 0 && requests.every((pathname) => /^\/api\/losses\/shipTypeID\/900040\/year\/2025\/month\/[34]\/page\/[123]\/$/.test(pathname)), [...seen].join());
+      assert.ok([...seen].every((pathname) => !pathname.includes('page/4') && !pathname.includes('month/5')));
+      assert.ok(seen.size > 1, 'different months and pages are drawn');
     });
   } finally {
-    config.manifest.auditKillShipPool = pool;
-    config.targetSpares = 0;
+    usePool(null);
   }
 });
 
-test('a failed pick does not start background requests', async () => {
-  const pool = config.manifest.normalShipPool;
-  config.manifest.normalShipPool = Array.from({ length: 30 }, (_, index) => 900100 + index);
-  config.targetSpares = 2;
+test('the queue falls through hulls without killmails and remembers them', async () => {
+  usePool(Array.from({ length: 6 }, (_, index) => 900100 + index));
   try {
+    await withLossPages((ship) => (ship === 900103 ? lossPage(ship, [true, true]) : []), async (requests) => {
+      const target = await getRandomTarget('standard');
+      assert.equal(target.shipId, 900103, 'hulls without killmails are skipped');
+      assert.ok(requests.length <= 6);
+    });
+    usePool(Array.from({ length: 30 }, (_, index) => 900100 + index));
+    // Every hull is empty: a pick gives up after twelve hulls, the next one skips them.
     await withLossPages(() => [], async (requests) => {
       await assert.rejects(getRandomTarget('standard'), /no usable killmail/);
+      assert.equal(requests.length, 12);
+      const first = new Set(requests);
+      requests.length = 0;
+      await assert.rejects(getRandomTarget('standard'), /no usable killmail/);
+      assert.equal(requests.length, 12);
+      assert.equal(requests.some((pathname) => first.has(pathname)), false, 'remembered hulls are not asked again');
       await new Promise((resolve) => setTimeout(resolve, 30));
-      assert.equal(requests.length, 6, 'only the six hulls the caller tried');
+      assert.equal(requests.length, 12, 'a failed pick starts no background requests');
     });
   } finally {
-    config.manifest.normalShipPool = pool;
-    config.targetSpares = 0;
+    usePool(null);
   }
 });
 
-test('running out of fitted losses does not repeat the remaining empty ones', async () => {
-  const pool = config.manifest.normalShipPool;
-  config.manifest.normalShipPool = [900030];
+test('a room never gets the same killmail twice, but may get the same hull', async () => {
+  usePool([900050]);
   try {
-    // Two fitted and ten empty losses.
-    await withLossPages((ship) => lossPage(ship, [true, true, ...Array(10).fill(false)]), async () => {
+    await withLossPages((ship) => lossPage(ship, Array(5).fill(true)), async () => {
+      const used = new Set();
+      for (let i = 0; i < 5; i += 1) {
+        const target = await getRandomTarget('standard', { excludeKillIds: used });
+        assert.equal(target.shipId, 900050);
+        assert.equal(used.has(target.killId), false);
+        used.add(target.killId);
+      }
+      await assert.rejects(getRandomTarget('standard', { excludeKillIds: used }), /no usable killmail/);
+      // A refusal caused by the room's own history is not remembered for everybody.
+      assert.equal((await getRandomTarget('standard')).shipId, 900050);
+    });
+  } finally {
+    usePool(null);
+  }
+});
+
+test('the shelf hands out prepared targets once and refills below half', async () => {
+  usePool([900060]);
+  config.targetShelfSize = 4;
+  try {
+    await withLossPages((ship) => lossPage(ship, [...Array(10).fill(true), ...Array(10).fill(false)]), async (requests) => {
+      const count = () => db.prepare('SELECT COUNT(*) AS n FROM target_shelf').get().n;
+      assert.equal(count(), 0, 'nothing is prepared before the first pick');
+      await getRandomTarget('standard');
+      await shelfIdle();
+      assert.equal(count(), 4, 'the first pick fills the shelf');
+      requests.length = 0;
+      // Without network the shelf still serves; each target once.
+      const realFetch = globalThis.fetch;
+      globalThis.fetch = () => new Promise(() => {});
       const seen = new Set();
-      for (let i = 0; i < 4; i += 1) await getRandomTarget('standard', { allowEmpty: false });
-      for (let i = 0; i < 10; i += 1) {
-        const { killId } = await getRandomTarget('standard');
-        assert.equal(seen.has(killId), false, 'no repeat before the page is used up');
-        seen.add(killId);
+      try {
+        const a = await getRandomTarget('standard');
+        const b = await getRandomTarget('standard');
+        seen.add(a.killId).add(b.killId);
+        assert.equal(seen.size, 2);
+        assert.equal(count(), 2, 'two left, not yet below half');
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+      // Entries expire.
+      db.prepare('UPDATE target_shelf SET created_at = 1').run();
+      const fresh = await getRandomTarget('standard');
+      assert.ok(fresh.killId);
+      await shelfIdle();
+      assert.equal(count() >= 2, true);
+      // The empty-hull flag decides what a switched-off pick may take.
+      db.prepare('DELETE FROM target_shelf').run();
+      const fit = (killmail) => killmail.victim.items[0].flag !== 5;
+      const row = (kill, hasFit) => db.prepare('INSERT INTO target_shelf(ship_id, kill_id, has_fit, killmail_json, created_at) VALUES (?, ?, ?, ?, ?)')
+        .run(900060, kill.killmail_id, hasFit, JSON.stringify(kill), Date.now());
+      const [emptyKill, fitKill] = [lossPage(900060, [false])[0], lossPage(900060, [true])[0]];
+      row(emptyKill, 0);
+      row(fitKill, 1);
+      globalThis.fetch = () => new Promise(() => {});
+      try {
+        assert.equal((await getRandomTarget('standard', { allowEmpty: false })).killId, fitKill.killmail_id);
+        assert.equal(fit((await getRandomTarget('standard')).killmail), false, 'the empty one stayed on the shelf');
+      } finally {
+        globalThis.fetch = realFetch;
       }
     });
   } finally {
-    config.manifest.normalShipPool = pool;
+    config.targetShelfSize = 0;
+    await shelfIdle();
+    usePool(null);
   }
 });
 
@@ -542,22 +602,21 @@ test('the empty-hull setting reaches random target selection', async () => {
     payload: { gameplay: 'standard', ...body },
   })).body);
   const isEmpty = (run) => run.target.killmail.victim.items[0].flag === 5;
-  const pool = config.manifest.normalShipPool;
   try {
     // One fitted loss among many empty hulls.
-    config.manifest.normalShipPool = [900002];
+    usePool([900002]);
     await withLossPages((ship) => lossPage(ship, [true, ...Array(60).fill(false)]), async () => {
       for (let i = 0; i < 6; i += 1) assert.equal(isEmpty(await start({ allowEmpty: false })), false);
     });
     // Only empty hulls: refused when disabled, used when enabled or unspecified.
-    config.manifest.normalShipPool = [900003];
+    usePool([900003]);
     await withLossPages((ship) => lossPage(ship, Array(8).fill(false)), async () => {
       assert.equal((await start({ allowEmpty: false })).error, 'target-unavailable');
       assert.equal(isEmpty(await start({ allowEmpty: true })), true);
       assert.equal(isEmpty(await start({})), true);
     });
     // A hull without fitted losses is skipped for the next one.
-    config.manifest.normalShipPool = [900004, 900005];
+    usePool([900004, 900005]);
     await withLossPages((ship) => lossPage(ship, Array(8).fill(ship === 900005)), async () => {
       for (let i = 0; i < 4; i += 1) {
         const run = await start({ allowEmpty: false });
@@ -565,7 +624,7 @@ test('the empty-hull setting reaches random target selection', async () => {
       }
     });
   } finally {
-    config.manifest.normalShipPool = pool;
+    usePool(null);
   }
 });
 
@@ -574,15 +633,11 @@ const OTHER_SHIPS = [588, 589, 590, 591, 592, 593, 594];
 
 /** A single-hull pool with one fitted loss page per run. */
 async function withSoloPool(run, flags = Array(40).fill(true)) {
-  const saved = [config.manifest.normalShipPool, config.manifest.auditKillShipPool];
-  config.manifest.normalShipPool = [REAL_SHIP];
-  config.manifest.auditKillShipPool = [REAL_SHIP];
-  clearHulls();
+  usePool([REAL_SHIP]);
   try {
     return await withLossPages((ship) => lossPage(ship, flags), run);
   } finally {
-    [config.manifest.normalShipPool, config.manifest.auditKillShipPool] = saved;
-    clearHulls();
+    usePool(null);
   }
 }
 
@@ -939,9 +994,8 @@ test('the difficulty report ranks by win rate and keeps abandoned plays out of i
 
 test('attackers never reach the cache, the database or a player', async () => {
   const makePage = (ship) => lossPage(ship, Array(5).fill(true)).map((kill) => ({ ...kill, attackers: [{ character_id: 90000077 }] }));
-  const saved = config.manifest.normalShipPool;
-  config.manifest.normalShipPool = [REAL_SHIP];
-  clearHulls();
+  usePool([REAL_SHIP]);
+  resetTargets();
   try {
     await withLossPages(makePage, async () => {
       const pilot = await soloPilot('Solo Slim Pilot');
@@ -954,8 +1008,8 @@ test('attackers never reach the cache, the database or a player', async () => {
       assert.equal(zlib.gunzipSync(entry.body).toString().includes('attackers'), false);
     });
   } finally {
-    config.manifest.normalShipPool = saved;
-    clearHulls();
+    usePool(null);
+    resetTargets();
   }
 });
 
@@ -985,8 +1039,7 @@ test('a killmail this service knows opens although zKillboard finds nothing', as
 test('opening Daily in two pages at once yields one run', async () => {
   const day = JSON.parse((await app.inject({ method: 'GET', url: '/api/v1/meta' })).body).gameDay;
   db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
-  const pool = config.manifest.normalShipPool;
-  config.manifest.normalShipPool = [REAL_SHIP];
+  usePool([REAL_SHIP]);
   const kills = lossPage(REAL_SHIP, Array(3).fill(true)).map((kill) => ({ ...kill, killmail_time: '2025-06-01T00:00:00Z' }));
   try {
     await withLossPages(() => kills, async () => {
@@ -1000,7 +1053,7 @@ test('opening Daily in two pages at once yields one run', async () => {
       assert.equal((await pilot.abandon(back.runId)).status, 400, 'Daily has no other target');
     });
   } finally {
-    config.manifest.normalShipPool = pool;
+    usePool(null);
     db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
   }
 });
@@ -1021,24 +1074,19 @@ test('the daily empty-hull setting parses flags and defaults to allowed', () => 
 });
 
 test('the daily empty-hull setting decides which killmail is pinned', async () => {
-  const saved = [config.manifest.normalShipPool, config.manifest.kbMaxScanPages, config.dailyAllowEmpty];
+  const savedAllow = config.dailyAllowEmpty;
   const days = Array.from({ length: 5 }, (_, index) => `2031-0${index + 1}-15`);
   const dated = (flags, time = '2025-06-01T00:00:00Z') => lossPage(REAL_SHIP, flags)
     .map((kill) => ({ ...kill, killmail_time: time }));
   const isEmpty = (target) => target.killmail.victim.items[0].flag === cargoItem.flag;
   const pin = (day, kills) => withLossPages(() => kills, () => getDailyTarget(day));
-  config.manifest.normalShipPool = [REAL_SHIP];
+  usePool([REAL_SHIP]);
   try {
     // One fitted loss among many empty hulls.
     config.dailyAllowEmpty = false;
     const oneFitted = [true, ...Array(60).fill(false)];
     for (const day of days.slice(0, 2)) assert.equal(isEmpty(await pin(day, dated(oneFitted))), false, day);
     await assert.rejects(pin(days[2], dated(Array(8).fill(false))), /no daily target/);
-    // The scan cap leaves the target time unreached, so the fallback pick chooses.
-    config.manifest.kbMaxScanPages = 1;
-    const capped = dated([true, ...Array(199).fill(false)], '2030-12-31T23:00:00Z');
-    assert.equal(isEmpty(await pin(days[3], capped)), false);
-    config.manifest.kbMaxScanPages = saved[1];
 
     config.dailyAllowEmpty = true;
     const allowed = await pin(days[4], dated(Array(8).fill(false)));
@@ -1047,7 +1095,36 @@ test('the daily empty-hull setting decides which killmail is pinned', async () =
     config.dailyAllowEmpty = false;
     assert.equal((await pin(days[4], dated([true]))).killId, allowed.killId);
   } finally {
-    [config.manifest.normalShipPool, config.manifest.kbMaxScanPages, config.dailyAllowEmpty] = saved;
+    config.dailyAllowEmpty = savedAllow;
+    usePool(null);
+    for (const day of days) db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
+  }
+});
+
+test('the same day and secret give the same Daily target, another day another one', async () => {
+  const days = ['2031-06-15', '2031-06-16', '2031-06-17'];
+  const ships = Array.from({ length: 10 }, (_, index) => 900200 + index);
+  usePool(ships);
+  const fixed = (ship) => Array.from({ length: 40 }, (_, index) => ({
+    killmail_id: ship * 100 + index,
+    killmail_time: '2025-06-01T10:00:00Z',
+    zkb: { totalValue: 1 },
+    victim: { ship_type_id: ship, items: [fittedItem] },
+  }));
+  try {
+    const run = async (day) => {
+      db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
+      resetTargets();
+      return withLossPages(fixed, async () => (await getDailyTarget(day)).killId);
+    };
+    const first = [];
+    const again = [];
+    for (const day of days) first.push(await run(day));
+    for (const day of days) again.push(await run(day));
+    assert.deepEqual(first, again, 'reproducible');
+    assert.ok(new Set(first).size > 1, 'days differ');
+  } finally {
+    usePool(null);
     for (const day of days) db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
   }
 });
