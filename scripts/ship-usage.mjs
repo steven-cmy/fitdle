@@ -6,8 +6,17 @@
  * (the usage measure) and its losses (which sizes the loss pages of a month).
  */
 
-/** Months of a single-ship stats response as { YYYYMM: [destroyed, lost] }. */
-export function parseStats(stats) {
+/**
+ * Months of a single-ship stats response as { YYYYMM: [destroyed, lost] }.
+ *
+ * `months` is not in the documented response of /api/stats/ (zKillboard's API
+ * catalog lists no per-month field); it was found by looking at real answers.
+ * When it is missing or unreadable the result is `found: false` with no months,
+ * never an error, and the caller decides what that means.
+ * `beforeKey` ('YYYYMM') drops that month and later ones: a month that is not
+ * over has only a few days of data.
+ */
+export function parseStats(stats, { beforeKey = '' } = {}) {
   const raw = stats?.months;
   if (!raw || typeof raw !== 'object') return { found: false, months: {} };
   const entries = Array.isArray(raw) ? raw.map((value) => [null, value]) : Object.entries(raw);
@@ -19,9 +28,17 @@ export function parseStats(stats) {
     const destroyed = Math.max(0, Math.floor(Number(value?.shipsDestroyed) || 0));
     const lost = Math.max(0, Math.floor(Number(value?.shipsLost) || 0));
     if (!destroyed && !lost) continue;
-    months[`${year}${String(month).padStart(2, '0')}`] = [destroyed, lost];
+    const key = `${year}${String(month).padStart(2, '0')}`;
+    if (beforeKey && key >= beforeKey) continue;
+    months[key] = [destroyed, lost];
   }
   return { found: true, months };
+}
+
+/** 'YYYYMM' of the month `time` falls in (UTC). */
+export function monthKeyOf(time) {
+  const date = new Date(time);
+  return `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 /** Hull ids to request: all of them, or only those without an entry yet. */
