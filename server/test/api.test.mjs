@@ -325,7 +325,7 @@ test('room disconnect grace, reconnect and kick are authoritative', async () => 
     headers: { cookie: guest, 'content-type': 'application/json' },
     payload: {},
   })).body);
-  const url = (playerId) => `ws://127.0.0.1:${port}/api/v1/rooms/${created.code}/ws?player=${playerId}`;
+  const url = (playerId) => `ws://127.0.0.1:${port}/api/v1/rooms/${created.code}/ws?player=${playerId}&v=2`;
   const open = (cookie, playerId) => new Promise((resolve, reject) => {
     const socket = new WebSocket(url(playerId), { headers: { Cookie: cookie } });
     socket.once('open', () => resolve(socket));
@@ -384,7 +384,7 @@ test('room owner transfer waits for the reconnect grace', async () => {
   })).body);
   const port = app.server.address().port;
   const open = (cookie, playerId) => new Promise((resolve, reject) => {
-    const socket = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${created.code}/ws?player=${playerId}`, {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${created.code}/ws?player=${playerId}&v=2`, {
       headers: { Cookie: cookie },
     });
     socket.once('open', () => resolve(socket));
@@ -1352,7 +1352,7 @@ test('startup lines summarise settings without secrets', async () => {
     eve: { ...config.eve, clientSecret: 'SECRETCLIENT' },
     publicOrigin: 'https://fitdle.example',
   }).join('\n');
-  assert.match(text, /^FITDLE \S+ · API v1 · run protocol v2 · WebSocket protocol v1 · algorithm online-v2 · Node v/);
+  assert.match(text, /^FITDLE \S+ · API v1 · run protocol v2 · WebSocket protocol v2 · algorithm online-v2 · Node v/);
   assert.ok(text.includes(config.version));
   assert.match(text, /Origin https:\/\/fitdle\.example/);
   assert.match(text, /session secret configured/);

@@ -21,6 +21,7 @@ const {
   arbitrationShare, arbitrationSolvePoints, arbitrationDealerRoundRaw, arbitrationEndBonusRaw,
 } = await import('../../js/mp/rules.js');
 const { ROOMS, acceptedNames } = await import('../src/rooms.mjs');
+const { PROTOCOL_VERSION } = await import('../../js/mp/protocol.js');
 const { zkill } = await import('../src/zkill.mjs');
 const { resetTargets } = await import('../src/targets.mjs');
 const { buildApp } = await import('../src/index.mjs');
@@ -120,7 +121,7 @@ class Pilot {
   }
 
   async open() {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${this.code}/ws?player=${this.id}`, {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${this.code}/ws?player=${this.id}&v=${PROTOCOL_VERSION}`, {
       headers: { Cookie: this.cookie },
     });
     const log = [];
@@ -209,6 +210,98 @@ async function playing(size, gameplay) {
 
 // --- The server counts and judges race guesses ------------------------------
 
+// Fields that would name or locate the target while a part is still open.
+const ANSWER_KEYS = new Set(['target', 'killmail', 'killmail_id', 'killId', 'seed', 'sampleKill', 'fittedKills', 'fitDelta', 'plan', 'bonusKey', 'bonusTermKey']);
+
+function answerKeys(value, found = []) {
+  if (Array.isArray(value)) value.forEach((item) => answerKeys(item, found));
+  else if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      if (ANSWER_KEYS.has(key)) found.push(key);
+      answerKeys(item, found);
+    }
+  }
+  return found;
+}
+
+function assertNoAnswer(messages, label) {
+  for (const message of messages) {
+    assert.deepEqual(answerKeys(message), [], `${label}: ${message.t} names the answer`);
+    for (const clue of message.board?.clues || []) {
+      if (!clue.hidden) continue;
+      assert.deepEqual(Object.keys(clue).sort(), ['c', 'hidden', 'i', 'k', 'w'], `${label}: a hidden clue carries only its kind`);
+    }
+  }
+}
+
+test('a race round keeps the answer on the service until each part ends', async () => {
+  const { pilots, room, code } = await playing(2, 'standard');
+  const { roundId, target, puzzle } = room.match;
+  assertNoAnswer(pilots[0].log, 'start');
+  assertNoAnswer(pilots[1].log, 'start');
+  const opening = pilots[0].last('endlessStart').board;
+  assert.ok(opening.revealed.length > 0 && opening.revealed.length < opening.clues.length, 'part of the board is open');
+  assert.deepEqual(pilots[1].last('endlessStart').board.revealed, opening.revealed, 'every player starts from the same board');
+  const released = puzzle.clues.map((clue) => JSON.stringify(clue.v));
+  for (const clue of opening.clues.filter((item) => !item.hidden)) assert.ok(released.includes(JSON.stringify(clue.v)));
+  const [miss] = wrongShips(room);
+  pilots[0].send({ t: 'raceGuess', roundId, shipId: miss });
+  await until(() => pilots[0].last('raceGuesses')?.guesses.length === 1, 'miss');
+  const afterMiss = pilots[0].last('raceGuesses').board;
+  assert.equal(afterMiss.feedback[0].correct, false);
+  assert.ok(afterMiss.revealed.length >= opening.revealed.length);
+  // The other player solves; the first one still sees no answer.
+  pilots[1].send({ t: 'raceGuess', roundId, shipId: target.shipId });
+  await until(() => pilots[1].last('raceGuesses')?.status === 'won', 'solved');
+  const solved = pilots[1].last('raceGuesses');
+  assert.equal(Number(solved.target.shipId), Number(target.shipId));
+  assert.equal(solved.board.revealed.length, solved.board.clues.length, 'the full board follows the end');
+  assertNoAnswer(pilots[0].log, 'open part');
+  for (const shipId of wrongShips(room).slice(1, 6)) pilots[0].send({ t: 'raceGuess', roundId, shipId });
+  await until(() => pilots[0].last('raceGuesses')?.status === 'lost', 'lost');
+  assert.equal(Number(pilots[0].last('raceGuesses').target.killId), Number(target.killId));
+  await until(() => pilots[0].last('endlessRoundResult'), 'round result');
+  await closeAll(pilots, code);
+});
+
+test('a timed race releases clues on the server clock and ends when none are left', async () => {
+  const { pilots, room, code } = await playing(2, 'timed');
+  const { roundId } = room.match;
+  const opening = pilots[0].last('endlessStart').board.revealed.length;
+  pilots[0].send({ t: 'raceBoard', roundId });
+  await until(() => pilots[0].count('raceGuesses') === 1, 'board');
+  assert.equal(pilots[0].last('raceGuesses').board.revealed.length, opening, 'nothing more before the first release');
+  room.match.startAt -= 30_000;
+  pilots[0].send({ t: 'raceBoard', roundId });
+  await until(() => pilots[0].count('raceGuesses') === 2, 'release');
+  assert.equal(pilots[0].last('raceGuesses').board.revealed.length, opening + 1);
+  assertNoAnswer(pilots[0].log, 'timed');
+  room.match.startAt -= 30_000 * 500;
+  pilots[0].send({ t: 'raceBoard', roundId });
+  await until(() => pilots[0].last('raceGuesses')?.status === 'lost', 'exhausted');
+  assert.equal(pilots[0].last('raceGuesses').endReason, 'exhausted');
+  assert.ok(pilots[0].last('raceGuesses').target);
+  pilots[1].send({ t: 'raceResult', roundId, status: 'lost' });
+  await until(() => pilots[1].last('raceGuesses')?.status === 'lost', 'gave up');
+  assert.equal(pilots[1].last('raceGuesses').endReason, 'gave-up');
+  await until(() => pilots[0].last('endlessRoundResult'), 'round result');
+  await closeAll(pilots, code);
+});
+
+test('a page of another WebSocket protocol is asked to reload', async () => {
+  const { pilots, code } = await makeRoom(2, { connect: false });
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${code}/ws?player=${pilots[0].id}`, {
+    headers: { Cookie: pilots[0].cookie },
+  });
+  const messages = [];
+  ws.on('message', (raw) => messages.push(JSON.parse(String(raw))));
+  const [closeCode, reason] = await new Promise((resolve) => ws.once('close', (codeValue, why) => resolve([codeValue, String(why)])));
+  assert.equal(closeCode, 1008);
+  assert.equal(reason, 'client-outdated');
+  assert.deepEqual(messages, [{ t: 'error', code: 'client-outdated', protocol: PROTOCOL_VERSION }]);
+  await closeAll(pilots, code);
+});
+
 test('room guesses are counted, deduplicated and judged by the server', async () => {
   const { pilots, room, code } = await playing(2, 'standard');
   const { roundId, target } = room.match;
@@ -282,7 +375,11 @@ test('a reload returns the guesses already made', async () => {
   await wait(30);
   const ws = await pilots[0].open();
   await until(() => ws.log.some((message) => message.t === 'endlessPrepare'), 'resume');
-  assert.deepEqual(ws.log.find((message) => message.t === 'endlessPrepare').guesses, ships.slice(0, 4));
+  const resumed = ws.log.find((message) => message.t === 'endlessPrepare');
+  assert.deepEqual(resumed.guesses, ships.slice(0, 4));
+  assert.deepEqual(resumed.board.feedback.map((item) => item.shipId), ships.slice(0, 4));
+  assert.equal(resumed.target, undefined, 'the board comes back without the answer');
+  assertNoAnswer(ws.log, 'resume');
   for (const shipId of ships.slice(4, 6)) pilots[0].send({ t: 'raceGuess', roundId: room.match.roundId, shipId });
   await until(() => room.match.results[0]?.status === 'lost', 'six in total lose');
   await closeAll(pilots, code);
@@ -636,7 +733,7 @@ test('reconnecting while the target loads waits for it', async () => {
   await wait(40);
   assert.equal(ws.log.some((message) => message.t === 'endlessPrepare'), false, 'no empty target is sent');
   release();
-  await until(() => ws.log.some((message) => message.t === 'endlessPrepare' && message.target), 'prepare');
+  await until(() => ws.log.some((message) => message.t === 'endlessPrepare' && message.roundId), 'prepare');
   await closeAll(pilots, code);
 });
 

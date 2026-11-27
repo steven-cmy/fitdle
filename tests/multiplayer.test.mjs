@@ -194,11 +194,11 @@ test('race ranking ignores spectators and breaks ties deterministically', () => 
 });
 
 test('protocol validates messages, names, text and rate limits', () => {
-  const raw = encodeMessage({ v: 1, t: 'hello', name: 'Pilot' });
-  assert.deepEqual(decodeMessage(raw), { v: 1, t: 'hello', name: 'Pilot' });
+  const raw = encodeMessage({ v: 2, t: 'hello', name: 'Pilot' });
+  assert.deepEqual(decodeMessage(raw), { v: 2, t: 'hello', name: 'Pilot' });
   assert.equal(decodeMessage('{not json'), null);
-  assert.equal(decodeMessage('{"v":2,"t":"hello"}'), null);
-  assert.equal(decodeMessage('{"v":1,"t":"unknown"}'), null);
+  assert.equal(decodeMessage('{"v":1,"t":"hello"}'), null);
+  assert.equal(decodeMessage('{"v":2,"t":"unknown"}'), null);
   assert.equal(decodeMessage('null'), null);
 
   assert.equal(sanitizeName('  A\u0000B  '), 'A B');

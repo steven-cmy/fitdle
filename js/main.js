@@ -947,6 +947,10 @@ function startLockCooldown() {
 
 /** A masked Timed run: fetch the board the service's clock has reached. */
 async function pollMaskedRun() {
+  if (state.roomEndless) {
+    if (isMasked() && state.status === 'playing') state.roomSurface?.requestBoard(state.roomEndless.roundId);
+    return;
+  }
   const runId = state.onlineRun?.runId;
   if (!runId || !isMasked() || state.status !== 'playing') return;
   try {
@@ -1013,7 +1017,8 @@ function giveUpTimed() {
     state.timerElapsedMs = elapsed;
     state.pendingEnd = true;
     // The service names the answer once it has recorded the loss.
-    void runSync?.lose(state.onlineRun.runId, elapsed);
+    if (state.roomEndless) state.roomSurface?.sendLoss(state.roomEndless.roundId);
+    else void runSync?.lose(state.onlineRun.runId, elapsed);
     renderAll();
     return;
   }
@@ -4253,9 +4258,14 @@ function applyMaskedGuess(shipId) {
   state.selectedId = null;
   state.activeSuggestion = -1;
   state.suggestions = [];
-  void runSync?.guess(state.onlineRun.runId, shipId, isTimed() ? currentElapsed() : 0).then((delivered) => {
-    if (delivered === false && state.pendingGuess === shipId) showToast(t('online.recordPending'), '', 'warn', 5000);
-  });
+  if (state.roomEndless) {
+    // The room keeps the guess until the service confirmed it.
+    state.roomSurface?.sendGuess(state.roomEndless.roundId, shipId);
+  } else {
+    void runSync?.guess(state.onlineRun.runId, shipId, isTimed() ? currentElapsed() : 0).then((delivered) => {
+      if (delivered === false && state.pendingGuess === shipId) showToast(t('online.recordPending'), '', 'warn', 5000);
+    });
+  }
   renderAll();
   if (isTimed()) startLockCooldown();
   if (window.innerWidth < 860) $('#ship-input')?.blur();
@@ -5776,29 +5786,33 @@ function roomRoundMode(gameplay) {
   return { mode: 'normal', timed: false };
 }
 
+/**
+ * A race round: the service keeps the target and sends this player's board
+ * (released clues and the match of each guess) once the round starts; the
+ * answer follows when this player's part, or the round, is decided.
+ */
 async function prepareEndlessRound(message) {
-  const target = message?.target;
-  if (!target?.killmail) throw new Error('room-target');
+  if (!message?.roundId) throw new Error('room-target');
   // The connection dropped and came back during this round: keep the board.
   if (message.resumed && state.roomEndless?.loaded && state.roomEndless.roundId === message.roundId) {
-    state.roomEndless.target = target;
-    if (mergeRoomGuesses(message.guesses) && state.roomEndless.phase === 'playing') recomputeRevealed();
+    if (message.board) applyMaskedRun(raceRun(message));
     applySubmittedRound(message);
     applyRoomLayout();
     renderAll();
     return true;
   }
   const gameplay = ['standard', 'audit', 'timed'].includes(message.gameplay) ? message.gameplay : 'standard';
-  const { mode, timed } = roomRoundMode(gameplay);
+  const { timed } = roomRoundMode(gameplay);
   applyGameplay(gameplay);
-  installTarget({
-    killmail: target.killmail,
-    shipId: target.shipId,
-    killId: target.killId,
-    source: 'online',
-    free: false,
-    cacheable: false,
+  installMaskedTarget({
+    race: true,
+    roundId: message.roundId,
+    board: { clues: [], revealed: [], sealed: [], feedback: [] },
+    guesses: [],
+    status: 'playing',
+    completed: false,
   });
+  state.date = `room-${message.roundId}`;
   state.roomCode = state.roomSurface?.code || state.roomCode;
   state.roomView = 'endless';
   state.roomArbitration = null;
@@ -5807,16 +5821,14 @@ async function prepareEndlessRound(message) {
     roundNo: message.roundNo,
     gameplay,
     phase: 'loading',
-    target,
-    seed: message.seed,
     startAt: null,
     serverOffset: 0,
     ready: false,
   };
   state.status = 'playing';
   state.appMode = 'online';
-  state.onlineRun = null;
   state.onlineFinished = false;
+  state.pendingEnd = false;
   state.guesses = [];
   state.revealed = new Set();
   state.fresh = new Set();
@@ -5826,70 +5838,13 @@ async function prepareEndlessRound(message) {
   state.timerStarted = false;
   state.timerStartAt = 0;
   state.timerElapsedMs = 0;
+  state.timedPolled = 0;
   state.gaveUp = false;
   state.timedExpired = false;
-  state.liveLosses = [target.killmail];
-  state.liveFetched = true;
-  state.liveError = false;
-  let built;
-  if (Array.isArray(message.clues) && message.clues.length) {
-    built = {
-      clues: message.clues,
-      sampleKill: message.sampleKill || target.killmail?.killmail_id || null,
-      fittedKills: message.fittedKills || [],
-      fitDelta: message.fitDelta || null,
-    };
-  } else {
-    let fittedAttrs = null;
-    let baselineAttrs = null;
-    if (mode === 'audit') {
-      try {
-        fittedAttrs = await calculateDogmaFit(state.answerShip, target.killmail);
-        baselineAttrs = await calculateDogmaBaseline(state.answerShip);
-      } catch {
-        // Fallback simulation remains available.
-      }
-    }
-    built = buildClues({
-      ship: state.answerShip,
-      catalog: state.catalog,
-      refs: state.refs,
-      stats: null,
-      losses: [target.killmail],
-      dateKey: `room:${state.roomCode}:${message.roundId}`,
-      dataVersion: state.manifest?.clueVersion || '5',
-      targetKillId: target.killId,
-      mode,
-      fittedAttrs,
-      baselineAttrs,
-      moduleFallbacks: state.manifest.moduleFallbacks || {},
-      weaponUpgradeGroups: state.manifest.weaponUpgradeGroups || null,
-      weaponGroups: state.manifest.weaponGroups || null,
-    });
-  }
-  const revealPlan = buildRevealPlan({
-    clues: built.clues,
-    seed: message.seed,
-    mode,
-    timed,
-    config: state.manifest?.reveal,
-  });
-  state.answerData = {
-    ...state.answerShip,
-    description: state.answerShip.descriptions?.[state.locale] || state.answerShip.descriptions?.en || '',
-    bonuses: state.answerShip.bonuses?.[state.locale] || state.answerShip.bonuses?.en || [],
-    bonusEntries: state.answerShip.bonusEntries || [],
-    clues: built.clues,
-    sampleKill: built.sampleKill,
-    fitting: { fittedKills: built.fittedKills },
-    fitDelta: built.fitDelta,
-    revealSeed: message.seed,
-    revealPlan,
-  };
   state.timed = timed;
-  state.roomEndless.phase = 'loading';
+  buildMaskedAnswerData();
+  if (message.board) applyMaskedRun(raceRun(message));
   state.roomEndless.loaded = true;
-  mergeRoomGuesses(message.guesses);
   applySubmittedRound(message);
   applyRoomLayout();
   renderAll();
@@ -5897,12 +5852,54 @@ async function prepareEndlessRound(message) {
   return true;
 }
 
+/** A board message of the room as the run-like object the masked board reads. */
+function raceRun(message) {
+  const status = ['won', 'lost'].includes(message.status) ? message.status : 'playing';
+  return {
+    ...state.onlineRun,
+    guesses: message.guesses || [],
+    board: message.board,
+    status,
+    completed: status !== 'playing',
+    target: message.target || null,
+    endReason: message.endReason || null,
+    elapsedMs: message.elapsedMs,
+  };
+}
+
+/** A new board of a race round: show what the service released and judged. */
+function showRaceBoard(message) {
+  const room = state.roomEndless;
+  const guessesBefore = state.guesses.length;
+  const shownBefore = state.revealed.size;
+  if (!applyMaskedRun(raceRun(message))) return;
+  const guessed = state.guesses.length > guessesBefore;
+  if (state.status === 'playing' && (guessed || shownBefore > 0)) {
+    if (state.fresh.size > 0) showToast(t('toast.intel'), t('toast.clue', { n: state.fresh.size }), 'info');
+    else if (guessed) showToast(t('toast.noMatch'), '', 'warn');
+  }
+  if (guessed) state.scanPulse = true;
+  if (state.status !== 'playing') {
+    room.phase = 'waiting';
+    stopTimedClock();
+  }
+  renderAll();
+  rememberNewClues(state.fresh);
+  if (state.fresh.size) void fetchCargoTypeNames().then(() => renderDossier());
+  if (state.status === 'playing' && guessed && window.innerWidth >= 860) {
+    setTimeout(() => $('#ship-input')?.focus(), 60);
+  }
+  syncRoomAction();
+}
+
 /** This player already reported a result for the round being resumed. */
 function applySubmittedRound(message) {
   if (!message.submitted) return;
   state.status = message.submitted.status === 'won' ? 'won' : 'lost';
   state.roomEndless.phase = 'waiting';
-  state.visibleCount = state.answerData.clues.length;
+  state.visibleCount = state.answerData?.clues?.length || 0;
+  state.pendingGuess = null;
+  state.pendingEnd = false;
   stopTimedClock();
 }
 
@@ -5916,18 +5913,13 @@ function mergeRoomGuesses(confirmed = []) {
 
 function onRaceState(message) {
   const room = state.roomEndless;
-  if (!room || room.roundId !== message.roundId || room.phase !== 'playing') return;
-  const added = mergeRoomGuesses(message.guesses);
-  const ended = message.status !== 'playing' && state.status === 'playing';
-  if (ended) {
-    state.status = message.status === 'won' ? 'won' : 'lost';
-    room.phase = 'waiting';
-    stopTimedClock();
+  if (!room || room.roundId !== message.roundId || !isMasked() || !message.board) return;
+  if (room.phase === 'playing') {
+    showRaceBoard(message);
+    return;
   }
-  if (!added && !ended) return;
-  recomputeRevealed();
-  renderAll();
-  syncRoomAction();
+  // The opening board before the start, or the full board after this part ended.
+  if (applyMaskedRun(raceRun(message)) && room.phase !== 'loading' && room.phase !== 'starting') renderAll();
 }
 
 function onEndlessLoaded(message) {
@@ -5941,6 +5933,7 @@ function onEndlessLoaded(message) {
 
 function onEndlessStart(message) {
   if (!state.roomEndless) return;
+  if (message.board && isMasked() && state.roomEndless.roundId === message.roundId) onRaceState(message);
   // A resumed start must not restart a round that already runs here.
   if (message.resumed && ['playing', 'waiting', 'finished'].includes(state.roomEndless.phase)) return;
   state.roomEndless.phase = 'starting';
@@ -5965,6 +5958,9 @@ function beginEndlessRound() {
     // Follow the server's start, so a late or resumed client loses no clue time.
     const startedAt = Number(state.roomEndless.startAt) - (Number(state.roomEndless.serverOffset) || 0);
     if (Number.isFinite(startedAt) && startedAt > 0) state.timerStartAt = Math.min(Date.now(), startedAt);
+    state.timedPolled = Math.floor(currentElapsed() / 30000);
+    // A late or resumed start asks for the releases it missed.
+    if (state.timedPolled > 0) void pollMaskedRun();
     recomputeRevealed();
   }
   applyRoomLayout();
@@ -5974,6 +5970,13 @@ function beginEndlessRound() {
 
 function onEndlessRoundResult(result) {
   if (!state.roomEndless) return;
+  // A spectator learns the answer with the round's result.
+  if (isMasked() && !state.answerShip && result?.target) {
+    revealOnlineAnswer({ target: result.target });
+    buildMaskedAnswerData();
+  }
+  state.pendingGuess = null;
+  state.pendingEnd = false;
   state.roomEndless.phase = 'finished';
   state.roomEndless.result = result;
   state.roomEndless.prepared = false;
@@ -6153,6 +6156,7 @@ function openRooms() {
     onEndlessRoundResult: (result) => onEndlessRoundResult(result),
     onRoundEvent: (message) => onRoundEvent(message),
     onRaceState: (message) => onRaceState(message),
+    onOutdated: () => showFatal({ status: 426, code: 'client-outdated' }),
     onKicked: () => {
       showToast(tl('room.kicked', 'You were removed from the room by the host.'), '', 'error');
     },

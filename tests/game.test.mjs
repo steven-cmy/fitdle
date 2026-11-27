@@ -2999,6 +2999,23 @@ test('API contact is optional, validated and never shipped with the repository',
   assert.match(example, /^API_CONTACT_PUBLIC=0$/m);
 });
 
+test('a race round keeps its answer on the service until the part ends', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const rooms = fs.readFileSync(path.join(ROOT, 'js', 'rooms.js'), 'utf8');
+  const slice = (from, to) => main.slice(main.indexOf(from), main.indexOf(to, main.indexOf(from) + from.length));
+  const prepare = slice('async function prepareEndlessRound(message)', '\n}\n');
+  // No target, killmail or clue set reaches the page before the end; the board comes from the room.
+  assert.ok(prepare.includes('installMaskedTarget({'));
+  for (const local of ['installTarget(', 'buildClues(', 'calculateDogmaFit(', 'message.target', 'message.clues']) {
+    assert.equal(prepare.includes(local), false, local);
+  }
+  assert.ok(slice('function applyMaskedGuess(shipId)', '\n}\n').includes('state.roomSurface?.sendGuess(state.roomEndless.roundId, shipId);'));
+  assert.ok(slice('async function pollMaskedRun()', '\n}\n').includes('state.roomSurface?.requestBoard(state.roomEndless.roundId);'));
+  // The socket names its protocol; a refused page asks for a reload.
+  assert.ok(rooms.includes('&v=${PROTOCOL_VERSION}'));
+  assert.ok(rooms.includes("if (reason === 'client-outdated') {"));
+});
+
 test('an online run keeps its answer on the service until it ends', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   const api = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');

@@ -111,15 +111,18 @@ function moduleDetailsFor(killmail, refsData) {
 
 /**
  * Build the puzzle of a target once. Audit and Timed simulate the actual fit
- * (all skills V), as the browser did before.
+ * (all skills V), as the browser did before. Rooms give their own reveal seed
+ * and simulate only in Audit, as their rounds always did.
  */
-export async function buildPuzzle({ target, gameplay, gameDay, stats: givenStats } = {}) {
+export async function buildPuzzle({
+  target, gameplay, gameDay, stats: givenStats, seed: givenSeed, simulated: givenSimulated,
+} = {}) {
   const ship = shipById(target.shipId);
   if (!ship) throw new Error('target hull missing from catalog');
   const refsData = refs();
   const timed = gameplay === 'timed';
   const revealMode = gameplay === 'audit' ? 'audit' : 'normal';
-  const simulated = gameplay === 'audit' || timed;
+  const simulated = givenSimulated ?? (gameplay === 'audit' || timed);
   const killmail = target.killmail;
   let fittedAttrs = null;
   let baselineAttrs = null;
@@ -138,7 +141,7 @@ export async function buildPuzzle({ target, gameplay, gameDay, stats: givenStats
     if (!fittedAttrs) moduleDetails = moduleDetailsFor(killmail, refsData);
   }
   const stats = givenStats === undefined ? await liveStats(ship.id) : givenStats;
-  const seed = `online:${gameDay}:${Number(target.killId)}`;
+  const seed = givenSeed || `online:${gameDay}:${Number(target.killId)}`;
   const built = buildClues({
     ship,
     catalog: CATALOG,
