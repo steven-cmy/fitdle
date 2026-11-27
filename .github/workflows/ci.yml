@@ -72,6 +72,7 @@ jobs:
             .cache/killpool.json
             .cache/sde-meta.json
             .cache/ship-weights.json
+            .cache/ship-usage.json
             .cache/zkill-version.json
       - name: Prepare SDE
         run: |
@@ -87,6 +88,8 @@ jobs:
       - run: npm run build:killpool || grep -q '"serverDate"' .cache/killpool.json
       # Requests only missing or aging hulls.
       - run: npm run build:weights
+      # Monthly hull usage kept on the data branch; the build goes on without it.
+      - run: npm run fetch:usage
       - run: npm run build
       - run: npm test
       - run: npm ci --prefix server --no-audit --no-fund
@@ -105,6 +108,7 @@ jobs:
             .cache/killpool.json
             .cache/sde-meta.json
             .cache/ship-weights.json
+            .cache/ship-usage.json
             .cache/zkill-version.json
 
   # Pull requests only: when the program changes, the version must grow and

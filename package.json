@@ -7,6 +7,8 @@
   "scripts": {
     "build": "node scripts/build-catalog.mjs && node scripts/build-dist.mjs",
     "build:killpool": "node scripts/build-killpool.mjs",
+    "fetch:usage": "node scripts/fetch-ship-usage.mjs",
+    "build:usage": "node scripts/build-ship-usage.mjs",
     "build:weights": "node scripts/build-ship-weights.mjs",
     "build:catalog": "node scripts/build-catalog.mjs",
     "build:dist": "node scripts/build-dist.mjs",
@@ -18,7 +20,7 @@
     "serve:source": "node scripts/serve.mjs --root .",
     "server:start": "node server/src/index.mjs",
     "stats:difficulty": "node server/src/difficulty-report.mjs",
-    "test": "node tests/game.test.mjs && node tests/multiplayer.test.mjs && node tests/sde-api.test.mjs && node tests/run-sync.test.mjs && node tests/ship-query.test.mjs",
+    "test": "node tests/game.test.mjs && node tests/multiplayer.test.mjs && node tests/sde-api.test.mjs && node tests/run-sync.test.mjs && node tests/ship-query.test.mjs && node tests/ship-usage.test.mjs",
     "test:server": "npm test --prefix server",
     "hooks:install": "node scripts/install-git-hooks.mjs"
   },
