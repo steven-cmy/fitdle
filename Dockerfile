@@ -42,8 +42,14 @@ RUN if [ "$REUSE_BUILD_CACHE" = "1" ] && [ -f .cache/killpool.json ]; then \
     npm run build:catalog && npm run build:killpool; \
   fi
 RUN npm run build
-RUN npm test
-RUN npm test --prefix server
+# Tests run by default. CI passes 0 because its build job has already run both
+# suites on the same commit and data files.
+ARG RUN_TESTS=1
+RUN if [ "$RUN_TESTS" = "0" ]; then \
+    echo "Tests skipped (RUN_TESTS=0)"; \
+  else \
+    npm test && npm test --prefix server; \
+  fi
 
 FROM node:24-bookworm-slim AS runtime
 

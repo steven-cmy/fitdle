@@ -90,7 +90,7 @@ npm run server:start      # http://127.0.0.1:8787
 
 ## CI
 
-GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：向 `main` 的 PR 只做构建、测试和不推送的镜像构建；改动了程序时要求新版本号和 CHANGELOG 章节，只改文档或 `.github/` 时不要求（日常推送到 `dev` 不触发任何流程）；合并到 `main` 后部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态见习版）；当前版本还没有 Release 时，同时推送镜像到 GHCR，并在 CHANGELOG 有对应章节时创建 Release；已发布过的版本不会重复推送镜像，除非手动运行工作流。`dev` 的 PR 合并后，[reset-dev.yml](.github/workflows/reset-dev.yml) 会把 `dev` 重置到合并后的 `main`；如果 `dev` 之后又有变动，则保持原样，只在 PR 下留言说明。
+GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）：向 `main` 的 PR 只做构建、测试，以及不推送的镜像构建和启动检查；改动了程序时要求新版本号和 CHANGELOG 章节，只改文档或 `.github/` 时不要求（日常推送到 `dev` 不触发任何流程）；合并到 `main` 后部署 [GitHub Pages](https://steven-cmy.github.io/fitdle/)（静态见习版）；当前版本还没有 Release 时，同时推送镜像到 GHCR，并在 CHANGELOG 有对应章节时创建 Release；已发布过的版本不会重复推送镜像，除非手动运行工作流。`dev` 的 PR 合并后，[reset-dev.yml](.github/workflows/reset-dev.yml) 会把 `dev` 重置到合并后的 `main`；如果 `dev` 之后又有变动，则保持原样，只在 PR 下留言说明。
 
 ## License
 

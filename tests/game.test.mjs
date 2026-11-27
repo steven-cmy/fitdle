@@ -1021,6 +1021,13 @@ test('Docker image, Compose and GHCR image publishing are wired', () => {
   assert.match(ci, /^  image:$/m);
   assert.match(ci, /IMAGE="ghcr\.io\//);
   assert.match(ci, /--build-arg "PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__"/);
+  // Image builds test by default; only the CI jobs that follow `build` skip it.
+  assert.match(dockerfile, /^ARG RUN_TESTS=1$/m);
+  assert.match(dockerfile, /npm test && npm test --prefix server/);
+  assert.ok(ci.includes('--build-arg "RUN_TESTS=0"'));
+  assert.match(ci, /^  image-check:$/m);
+  assert.match(ci, /push: false/);
+  assert.match(ci, /api\/v1\/health/);
   assert.match(compose, /ghcr\.io\/steven-cmy\/fitdle/);
   assert.match(readme, /ghcr\.io\/steven-cmy\/fitdle/);
 });

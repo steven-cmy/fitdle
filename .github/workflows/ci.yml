@@ -121,10 +121,10 @@ jobs:
           node-version: 24
       - run: node scripts/check-release.mjs "origin/${{ github.base_ref }}"
 
-  # Pull requests only: build the image the way the publish job does, so a broken
-  # Dockerfile shows up before the merge. Nothing is pushed. The GitHub Actions
-  # cache written here is only visible to later runs of the same pull request.
-  # The registry cache of the publish job is only read.
+  # Pull requests only: build the image the way the publish job does and start it
+  # once, so a broken Dockerfile shows up before the merge. Nothing is pushed.
+  # The GitHub Actions cache written here is only visible to later runs of the
+  # same pull request. The registry cache of the publish job is only read.
   image-check:
     runs-on: ubuntu-latest
     needs: build
@@ -155,14 +155,39 @@ jobs:
           context: .
           file: Dockerfile
           push: false
-          outputs: type=cacheonly
+          # Loaded into the runner's Docker for the start check.
+          load: true
+          tags: fitdle:check
           build-args: |
             PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__
             REUSE_BUILD_CACHE=1
+            RUN_TESTS=0
           cache-from: |
             type=gha,scope=image-check
             type=registry,ref=${{ steps.name.outputs.image }}:buildcache
           cache-to: type=gha,scope=image-check,mode=max,ignore-error=true
+      # The tests never run the runtime stage: start it and ask for the health
+      # check and the front page.
+      - name: Start the image
+        run: |
+          docker run --detach --name fitdle-check \
+            --publish 127.0.0.1:8787:8787 \
+            --env PUBLIC_ORIGIN=http://localhost:8787 \
+            --env FITDLE_USAGE_REFRESH_HOURS=0 \
+            fitdle:check
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://127.0.0.1:8787/api/v1/health \
+              && curl -fsS --max-time 5 --output /dev/null http://127.0.0.1:8787/; then
+              echo
+              docker logs fitdle-check
+              exit 0
+            fi
+            [ "$(docker inspect --format '{{.State.Running}}' fitdle-check)" = "true" ] || break
+            sleep 1
+          done
+          echo "::error::The image did not answer its health check and front page."
+          docker logs fitdle-check
+          exit 1
 
   image:
     runs-on: ubuntu-latest
@@ -225,6 +250,7 @@ jobs:
             --tag "$IMAGE:$SHORT_SHA" \
             --build-arg "PUBLIC_ORIGIN=__FITDLE_PUBLIC_ORIGIN__" \
             --build-arg "REUSE_BUILD_CACHE=1" \
+            --build-arg "RUN_TESTS=0" \
             --cache-from "type=registry,ref=$IMAGE:buildcache" \
             --cache-to "type=registry,ref=$IMAGE:buildcache,mode=max" \
             --label "org.opencontainers.image.version=$VERSION" \

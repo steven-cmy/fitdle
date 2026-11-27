@@ -1014,12 +1014,16 @@ test reads `dist/`.
   `.github/workflows/reset-dev.yml` runs when a PR into `main` closes and resets
   `dev` after a merged `dev` PR (see *Version bump*).
 - `image-check` (pull requests only, after `build`) builds the all-in-one image
-  from the same build files with `REUSE_BUILD_CACHE=1` and never pushes it, so a
-  broken Dockerfile fails before the merge. It reads the registry `buildcache`
+  from the same build files with `REUSE_BUILD_CACHE=1` and never pushes it, then
+  starts it once and requires an answer from `/api/v1/health` and `/`, so a
+  broken Dockerfile or runtime stage fails before the merge. It reads the registry `buildcache`
   and keeps a GitHub Actions cache for later runs of the same pull request.
   GitHub does not let `main` read a cache written by a pull request, and the
   data files differ between runs, so `image` builds on its own after the merge.
   Keep the build arguments of both jobs the same.
+- The Dockerfile runs both test suites unless `RUN_TESTS=0`. Only the two CI
+  image jobs pass it, because they need `build`, which runs the suites on the same
+  commit and data files. Local and other image builds keep the default.
 - `image` builds the all-in-one image with `docker buildx` and pushes it to
   `ghcr.io/steven-cmy/fitdle`. Tags: version, `v`-version, `latest`, short SHA;
   `buildcache` holds the layer cache. On a push to `main` it pushes only when
