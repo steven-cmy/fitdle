@@ -34,8 +34,9 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Work happens on the local `dev` branch. Ordinary commits may be pushed to
   `github/dev` (no CI runs there). Open/merge PRs into `main`, tag, release,
   publish Pages or images only on an explicit request. Never commit on `main`.
-- `CHANGELOG.md` is written (in Chinese) only at a release, which squashes the
-  pending local commits into one release commit. See *Release notes*.
+- `CHANGELOG.md` is written (in Chinese) only at a release. A release merges
+  `dev` into `main` with a merge commit, so every `dev` commit becomes part of
+  `main`'s history. See *Release notes*.
 - A merge with no program change (documentation or GitHub configuration only)
   needs no new version and no CHANGELOG section. See *Release notes*.
 - Nothing published may refer to the AI assistant or tool that helped write it:
@@ -767,8 +768,10 @@ and goes on.
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
 - At release, add the CHANGELOG section (and the final version) on `dev`, open a
-  PR `dev` -> `main` titled `Release <version>: <summary>`, and squash-merge it
-  once CI passes; the squash commit is the release commit. Merging publishes.
+  PR `dev` -> `main` titled `Release <version>: <summary>`, and once CI passes
+  merge it with **Create a merge commit** (never squash or rebase); the merge
+  commit is the release commit. Merging publishes. PRs without a release are
+  merged the same way.
 - Write the changelog in Chinese.
 - Write only player-visible changes and behavior changes. Do not include numeric
   values, balance figures, seed values, hashes, or internal implementation details.
@@ -873,23 +876,20 @@ container follows the same order.
 - Where Git shell hooks cannot run (some Windows sandboxes), run
   `node scripts/bump-version.mjs` by hand, then `git commit --no-verify`.
 - `dev` is the working branch, `main` the release branch (only changed by
-  squash-merged PRs). The hook runs only on local commits, so the merge never
-  bumps again.
-- After a `dev` -> `main` PR merges, `.github/workflows/reset-dev.yml` resets
-  `github/dev` to the merge commit with a lease. Then sync the local branch,
-  which must hold no unpushed work:
-  `git fetch github && git switch dev && git reset --hard github/dev`.
-- The workflow leaves `dev` alone, and comments on the PR, when `dev` is no
-  longer at the merged PR head (something was pushed since), the branch is gone,
-  or GitHub rejects the push. It does nothing for PRs closed without merging or
-  from another branch. In those cases keep the unmerged commits, then reset by
-  hand (it must hold no unmerged work):
-  `git fetch github && git switch dev && git reset --hard github/main && git push --force-with-lease github dev`.
+  PRs merged with a merge commit). The hook runs only on local commits, so the
+  merge on GitHub never bumps again.
+- `dev` is never reset or deleted after a merge: work goes on from where it is,
+  including commits pushed while the PR was open. `main` is then ahead of `dev`
+  only by merge commits, which the next PR does not need. Keep GitHub's automatic
+  head branch deletion from removing `dev`.
+- If `main` ever gets a change that did not come from `dev`, merge it back
+  before the next PR:
+  `git fetch github && git switch dev && git merge github/main`. Such a merge is
+  not a version change; if it needs a manual commit, use `VERSION_BUMP=none`.
 - Authority: the owner has delegated local tests, local git steps and plain
-  `git push github dev` (no force by hand except the manual post-release reset
-  above, which needs a go-ahead). Never push `main`. Opening or merging the PR into `main`,
-  releasing, and changing GitHub settings stay with the owner and happen only
-  when the owner says so.
+  `git push github dev` (never a force push). Never push `main`. Opening or
+  merging the PR into `main`, releasing, and changing GitHub settings stay with
+  the owner and happen only when the owner says so.
 
 ## Runtime URLs and storage
 
@@ -1026,9 +1026,8 @@ test reads `dist/`.
   `pages-build` (uploads the Pages artifact), `pages` (deploys it). Pull requests into `main` run `sde-check`, `build` (all tests), `image-check` and
   `release-check` (`scripts/check-release.mjs`: for program changes, version newer
   than main and non-empty CHANGELOG section; see *Release notes*) only. `image`, `release`, `pages-build` and `pages` run only after a push to
-  `main` (or a manual run on `main`); pushes to `dev` trigger nothing.
-  `.github/workflows/reset-dev.yml` runs when a PR into `main` closes and resets
-  `dev` after a merged `dev` PR (see *Version bump*).
+  `main` (or a manual run on `main`); pushes to `dev` trigger nothing. No workflow
+  changes `dev`.
 - `image-check` (pull requests only, after `build`) builds the all-in-one image
   from the same build files with `REUSE_BUILD_CACHE=1` and never pushes it, then
   starts it once and requires an answer from `/api/v1/health` and `/`, so a
