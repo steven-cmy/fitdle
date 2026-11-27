@@ -3,3 +3,19 @@
 docker/entrypoint.sh text eol=lf
 *.sh text eol=lf
 Dockerfile text eol=lf
+
+# Everything else is stored with LF; Windows checkouts convert on their own.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.wasm binary
+*.br binary
+*.gz binary

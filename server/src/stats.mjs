@@ -18,13 +18,19 @@ export function recordPlay(play) {
 export function recordPlays(list) {
   const rows = list.map(normalizePlay).filter(Boolean);
   if (!rows.length) return;
-  db.exec('BEGIN IMMEDIATE');
+  // Statistics are best effort: a full disk or a locked database must never
+  // stop a round, so a failure is logged without any ids and the plays are lost.
   try {
-    for (const row of rows) addPlay(row);
-    db.exec('COMMIT');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const row of rows) addPlay(row);
+      db.exec('COMMIT');
+    } catch (error) {
+      try { db.exec('ROLLBACK'); } catch { /* already rolled back */ }
+      throw error;
+    }
   } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
+    console.warn(`difficulty statistics were not written: ${error.code || error.message}`);
   }
 }
 
@@ -49,13 +55,15 @@ function addPlay({
   kill, ship, gameplay, won, lost, abandoned, guesses, ms,
 }) {
   const t = now();
+  // Whole days only: an exact time could be matched against other logs.
+  const day = Math.floor(t / 86400000) * 86400000;
   statement(`INSERT INTO kill_difficulty(kill_id, gameplay, ship_id, won, lost, abandoned, won_guesses_sum, won_ms_sum, first_at, last_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(kill_id, gameplay) DO UPDATE SET
       won = won + excluded.won, lost = lost + excluded.lost, abandoned = abandoned + excluded.abandoned,
       won_guesses_sum = won_guesses_sum + excluded.won_guesses_sum,
       won_ms_sum = won_ms_sum + excluded.won_ms_sum, last_at = excluded.last_at`)
-    .run(kill, gameplay, ship, won, lost, abandoned, guesses, ms, t, t);
+    .run(kill, gameplay, ship, won, lost, abandoned, guesses, ms, day, day);
   statement(`INSERT INTO ship_difficulty(ship_id, gameplay, won, lost, abandoned, won_guesses_sum, won_ms_sum, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(ship_id, gameplay) DO UPDATE SET
@@ -68,6 +76,18 @@ function addPlay({
 export function recordArbitrationRound({
   matchId, round, dealerNameKey, published, guesses, correct, dealerScore, publishedShare = 0, unsolved = 0,
 }) {
+  try {
+    insertArbitrationRound({
+      matchId, round, dealerNameKey, published, guesses, correct, dealerScore, publishedShare, unsolved,
+    });
+  } catch (error) {
+    console.warn(`arbitration statistics were not written: ${error.code || error.message}`);
+  }
+}
+
+function insertArbitrationRound({
+  matchId, round, dealerNameKey, published, guesses, correct, dealerScore, publishedShare, unsolved,
+}) {
   statement(`INSERT INTO arbitration_rounds(match_id, round, dealer_name_key, published_json, guesses, correct, dealer_score, published_share, unsolved, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(matchId, Number(round), dealerNameKey, JSON.stringify(published), Number(guesses) || 0,
@@ -75,6 +95,14 @@ export function recordArbitrationRound({
 }
 
 export function recordRoomMatch({ id, roomCode, rule, targetKillId, targetShipId, result }) {
+  try {
+    insertRoomMatch({ id, roomCode, rule, targetKillId, targetShipId, result });
+  } catch (error) {
+    console.warn(`room match statistics were not written: ${error.code || error.message}`);
+  }
+}
+
+function insertRoomMatch({ id, roomCode, rule, targetKillId, targetShipId, result }) {
   statement(`INSERT INTO room_matches(id, room_code, rule, target_kill_id, target_ship_id, result_json, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .run(id, roomCode, rule, Number(targetKillId) || null, Number(targetShipId) || null,

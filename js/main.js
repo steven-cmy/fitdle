@@ -10,14 +10,10 @@ import {
   freeKillToken,
   gameDateKey,
   killHasFittedModules,
-  lastCompleteMonthEnd,
   loadState,
   modeFromLocation,
   msUntilNextDowntime,
   normalizeText,
-  chooseClosestKill,
-  pickWeightedKillByRecency,
-  sampleTargetTime,
   saveState,
   searchShips,
   weightedHullOrder,
@@ -1408,55 +1404,6 @@ async function fetchShipPage(shipId, page) {
     throw new DailyUnavailableError('kb-unavailable', error);
   }
 }
-
-async function fetchDailyKill(shipId, seed) {
-  const earliestDate = kbSelectionStartDate();
-  const latestDate = lastCompleteMonthEnd(state.today);
-  if (!latestDate) return null;
-  if (earliestDate && earliestDate > latestDate) return null;
-  const halfLifeDays = kbRecencyHalfLifeDays();
-  const targetTime = sampleTargetTime(seed, shipId, earliestDate, latestDate, halfLifeDays);
-  if (!Number.isFinite(targetTime)) return null;
-
-  const maxPages = kbMaxScanPages();
-  const loaded = [];
-  let targetPage = null;
-  for (let page = 1; page <= maxPages; page++) {
-    const data = await fetchShipPage(shipId, page);
-    if (!data.length) break;
-    loaded.push(...data);
-    const oldest = Date.parse(String(data[data.length - 1]?.killmail_time || ''));
-    if (data.length < 200 || (!Number.isFinite(oldest) || oldest <= targetTime)) {
-      targetPage = data;
-      break;
-    }
-  }
-  if (!loaded.length) return null;
-
-  if (targetPage) {
-    const kill = chooseClosestKill(targetPage, shipId, targetTime, earliestDate, latestDate, {
-      // The daily claim is the same for everyone; the personal setting does not apply.
-      // The static build has no server settings, so empty hulls are always allowed
-      // here, including by the fallback pick below.
-      allowEmpty: true,
-      seed,
-    });
-    if (kill) return kill;
-  }
-
-  // The scan cap or an exhausted history means the exact target page is not
-  // reachable. Fall back to a deterministic recency-weighted record from all
-  // pages already loaded, never a separate page request.
-  return pickWeightedKillByRecency(
-    loaded,
-    seed,
-    shipId,
-    latestDate,
-    halfLifeDays,
-    { allowEmpty: true, earliestDate },
-  );
-}
-
 
 async function pickRandomFreeKill() {
   const killShipPool = state.mode === 'audit'

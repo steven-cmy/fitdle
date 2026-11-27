@@ -219,18 +219,10 @@ test('closest target and recency fallback pick valid kills deterministically', (
   }));
 });
 
-test('daily selection uses time sampling and capped ship-page lookups', () => {
+test('the static build carries no Daily selection code', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
-  assert.match(main, /weightedRendezvousOrder/);
-  assert.match(main, /lastCompleteMonthEnd/);
-  assert.match(main, /sampleTargetTime/);
-  assert.match(main, /pickWeightedKillByRecency/);
-  assert.match(main, /fetchShipPage\(shipId, page\)/);
-  assert.match(main, /page <= maxPages/);
-  assert.match(main, /ship-page:\$\{shipId\}:\$\{page\}/);
+  assert.equal(main.includes('fetchDailyKill'), false);
   assert.doesNotMatch(main, /estimateMonthlyPageCount|probeMonthPageCount|monthPageTotal|monthRecordSlot/);
-  assert.doesNotMatch(main, /year\/\$\{year\}\/month/);
-  assert.equal(main.includes('step < 12'), false);
 });
 
 test('game day start accepts HH:MM or minutes and warns about anything else', () => {
@@ -1570,11 +1562,6 @@ test('the empty-hull setting is read, sent to the service and not overridden', (
 });
 
 test('the daily claim and rooms ignore the personal empty-hull setting', () => {
-  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
-  const start = main.indexOf('async function fetchDailyKill');
-  const daily = main.slice(start, main.indexOf('async function pickRandomFreeKill'));
-  assert.equal(daily.includes('allowEmptyKb'), false, 'static daily must match the service daily');
-  assert.ok(daily.includes('allowEmpty: true'));
   const targets = fs.readFileSync(path.join(ROOT, 'server', 'src', 'targets.mjs'), 'utf8');
   const serviceDaily = targets.slice(targets.indexOf('async function createDailyPin'), targets.indexOf('const dailyLocks'));
   assert.equal(serviceDaily.match(/allowEmpty: config\.dailyAllowEmpty,/g)?.length, 1, 'the deployment setting decides the service daily');

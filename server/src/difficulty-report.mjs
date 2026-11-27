@@ -26,7 +26,9 @@ export function difficultyReport(db, {
   const where = gameplay === 'all' ? "gameplay != 'arbitration'" : 'gameplay = ?';
   const rows = db.prepare(`SELECT ${key} AS id${select},
       SUM(won) AS won, SUM(lost) AS lost, SUM(abandoned) AS abandoned,
-      SUM(won_guesses_sum) AS won_guesses_sum, SUM(won_ms_sum) AS won_ms_sum
+      SUM(won_guesses_sum) AS won_guesses_sum, SUM(won_ms_sum) AS won_ms_sum,
+      SUM(CASE WHEN gameplay != 'arbitration' THEN won ELSE 0 END) AS won_counted,
+      SUM(CASE WHEN gameplay = 'timed' THEN won ELSE 0 END) AS won_timed
     FROM ${table} WHERE ${where} GROUP BY ${key}
     HAVING SUM(won) + SUM(lost) >= ?`)
     .all(...(gameplay === 'all' ? [] : [gameplay]), Math.max(1, Math.floor(Number(minFinished)) || 1));
@@ -42,8 +44,9 @@ export function difficultyReport(db, {
       abandoned: Number(row.abandoned),
       winRate: Number(row.won) / finished,
       abandonRate: Number(row.abandoned) / plays,
-      avgGuessesToWin: Number(row.won) ? Number(row.won_guesses_sum) / Number(row.won) : null,
-      avgSecondsToWin: Number(row.won_ms_sum) ? Number(row.won_ms_sum) / Number(row.won) / 1000 : null,
+      // Only plays that record the value count: arbitration keeps no guesses, only timed keeps time.
+      avgGuessesToWin: Number(row.won_counted) && Number(row.won_guesses_sum) ? Number(row.won_guesses_sum) / Number(row.won_counted) : null,
+      avgSecondsToWin: Number(row.won_timed) && Number(row.won_ms_sum) ? Number(row.won_ms_sum) / Number(row.won_timed) / 1000 : null,
     };
   });
   report.sort((a, b) => (easiest ? b.winRate - a.winRate : a.winRate - b.winRate) || b.plays - a.plays);
@@ -59,13 +62,26 @@ function shipNames() {
   }
 }
 
-function parseArgs(argv) {
+const FLAG_OPTIONS = new Set(['easiest', 'json', 'help']);
+const VALUE_OPTIONS = new Set(['by', 'gameplay', 'min', 'limit', 'db']);
+
+export function parseArgs(argv) {
   const options = {};
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--easiest' || arg === '--json' || arg === '--help') options[arg.slice(2)] = true;
-    else if (arg.startsWith('--')) options[arg.slice(2)] = argv[++i];
-    else throw new Error(`unexpected argument: ${arg}`);
+    if (!arg.startsWith('--')) throw new Error(`unexpected argument: ${arg}`);
+    const eq = arg.indexOf('=');
+    const name = arg.slice(2, eq === -1 ? undefined : eq);
+    if (FLAG_OPTIONS.has(name)) {
+      if (eq !== -1) throw new Error(`--${name} takes no value`);
+      options[name] = true;
+    } else if (VALUE_OPTIONS.has(name)) {
+      const value = eq === -1 ? argv[++i] : arg.slice(eq + 1);
+      if (value == null || value === '' || (eq === -1 && value.startsWith('--'))) throw new Error(`--${name} needs a value`);
+      options[name] = value;
+    } else {
+      throw new Error(`unknown option: --${name}`);
+    }
   }
   return options;
 }

@@ -112,6 +112,7 @@ export class RoomSurface {
     this.code = '';
     this.playerId = '';
     this.room = null;
+    this.draftAllowEmpty = null;
     this.dealerClues = null;
     this.dealerTarget = null;
     this.decoyShipIds = [];
@@ -700,6 +701,8 @@ export class RoomSurface {
     const timed = form.querySelector('[data-settings-timed]');
     if (arbitration) arbitration.hidden = draft.gameplay !== 'arbitration';
     if (timed) timed.hidden = draft.gameplay !== 'timed';
+    // Kept locally so a redraw before a gameplay is chosen does not undo the tick.
+    if (draft.settings) this.draftAllowEmpty = draft.settings.allowEmpty;
     if (draft.gameplay) this.send({ t: 'settings', gameplay: draft.gameplay, settings: draft.settings });
   }
 
@@ -892,7 +895,9 @@ export class RoomSurface {
 
   renderSettings() {
     const settings = this.room.settings || {};
-    const allowEmpty = settings.allowEmpty !== false;
+    const allowEmpty = this.owner() && !this.room.gameplay && this.draftAllowEmpty != null
+      ? this.draftAllowEmpty
+      : settings.allowEmpty !== false;
     if (!this.owner()) {
       return `<p class="room-note">${esc(this.t('room.waitingHost'))}</p>
       <p class="room-note">${esc(this.t(allowEmpty ? 'room.allowEmptyOn' : 'room.allowEmptyOff'))}</p>`;
