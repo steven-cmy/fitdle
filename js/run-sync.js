@@ -1,3 +1,11 @@
+/**
+ * Version of the online run exchange. 2: the service keeps the answer and the
+ * clues and sends a board with only what the player may see. A page of another
+ * version is refused with 426 and asked to reload.
+ */
+export const RUN_PROTOCOL_VERSION = 2;
+export const RUN_PROTOCOL_HEADER = 'x-fitdle-run-protocol';
+
 const STORAGE_KEY = 'fitdle:v1:pending-runs';
 const MAX_PENDING_RUNS = 20;
 const RETRY_MIN_MS = 3000;
@@ -5,7 +13,8 @@ const RETRY_MAX_MS = 60_000;
 
 /** The answer is final: asking again cannot change it. */
 function isFinal(error) {
-  return [400, 404, 409].includes(Number(error?.status));
+  // 426: this page is older than the service; only a reload helps.
+  return [400, 404, 409, 426].includes(Number(error?.status));
 }
 
 /**

@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': 'ЦЕЛЬ НЕ ЗАХВАЧЕНА',
   'error.unknownHullLore': 'СИГНАЛ НЕ КЛАССИФИЦИРОВАН',
   'error.genericLore': 'СБОЙ КАНАЛА СВЯЗИ',
+  'error.outdatedCode': 'Страница устарела',
+  'error.outdatedLore': 'Эта страница старше сети страховых заявок',
+  'error.outdatedBody': 'FITDLE обновлён. Перезагрузите страницу, чтобы продолжить; ваша партия сохранится.',
+  'error.reload': 'ПЕРЕЗАГРУЗИТЬ',
   'error.genericCode': 'Неклассифицированный сбой сигнала',
 
   'online.label': 'ОНЛАЙН',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': 'Онлайн-сервис недоступен. Стажировка остаётся доступной.',
   'online.recordFailed': 'Не удалось записать результат.',
+  'online.guessPending': 'Ждём, пока сеть заявок оценит вашу последнюю догадку.',
   'online.recordPending': 'Результат будет записан, когда связь восстановится.',
   'online.abandonTitle': 'ОТКАЗАТЬСЯ ОТ ЭТОГО ДЕЛА?',
   'online.abandonBody': 'Это дело уже начато. Переход к следующему засчитает поражение.',

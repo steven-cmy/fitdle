@@ -154,6 +154,13 @@ if (!db.prepare('PRAGMA table_info(online_runs)').all().some((column) => column.
   db.exec('ALTER TABLE online_runs ADD COLUMN begun_at INTEGER');
 }
 
+// Added in 1.0.59: the service keeps the puzzle of a run and how a Timed run ended.
+{
+  const columns = db.prepare('PRAGMA table_info(online_runs)').all().map((column) => column.name);
+  if (!columns.includes('puzzle_json')) db.exec('ALTER TABLE online_runs ADD COLUMN puzzle_json TEXT');
+  if (!columns.includes('end_reason')) db.exec('ALTER TABLE online_runs ADD COLUMN end_reason TEXT');
+}
+
 const statements = new Map();
 
 /** Prepare each SQL text once and reuse the compiled statement. */

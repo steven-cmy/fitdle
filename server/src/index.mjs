@@ -10,6 +10,7 @@ import { config } from './config.mjs';
 import { cleanupExpired } from './db.mjs';
 import { registerAuthRoutes } from './auth.mjs';
 import { expireRuns, registerRunRoutes } from './runs.mjs';
+import { RUN_PROTOCOL_HEADER, RUN_PROTOCOL_VERSION } from '../../js/run-sync.js';
 import { pruneLimits } from './limits.mjs';
 import { evictExpiredRooms, registerRoomRoutes } from './rooms.mjs';
 import { pruneTargetCaches } from './targets.mjs';
@@ -69,7 +70,7 @@ export async function buildApp({ logStream = null } = {}) {
       reply.header('Access-Control-Allow-Origin', origin);
       reply.header('Vary', 'Origin, Accept-Encoding');
       reply.header('Access-Control-Allow-Credentials', 'true');
-      reply.header('Access-Control-Allow-Headers', 'content-type');
+      reply.header('Access-Control-Allow-Headers', `content-type, ${RUN_PROTOCOL_HEADER}`);
       reply.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     }
     if (request.method === 'OPTIONS') {
@@ -91,6 +92,7 @@ export async function buildApp({ logStream = null } = {}) {
       algorithmVersion: config.algorithmVersion,
       ...(config.publicContact ? { contact: config.publicContact } : {}),
       features: { online: true, rooms: true, sso: Boolean(config.eve.clientId) },
+      runProtocol: RUN_PROTOCOL_VERSION,
       limits: {
         maxPlayers: config.roomMaxPlayers,
         room: {

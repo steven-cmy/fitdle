@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': '목표 잠금 없음',
   'error.unknownHullLore': '신호 미분류',
   'error.genericLore': '업링크 실패',
+  'error.outdatedCode': '페이지가 오래되었습니다',
+  'error.outdatedLore': '이 페이지는 청구 네트워크보다 오래된 버전입니다',
+  'error.outdatedBody': 'FITDLE이 업데이트되었습니다. 페이지를 새로 고쳐 계속하세요. 진행 중인 판은 유지됩니다.',
+  'error.reload': '새로 고침',
   'error.genericCode': '분류되지 않은 신호 오류',
 
   'online.label': '온라인',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': '온라인 서비스를 사용할 수 없습니다. 수습 검토는 계속할 수 있습니다.',
   'online.recordFailed': '결과를 기록하지 못했습니다.',
+  'online.guessPending': '청구 네트워크가 마지막 추측을 판정하기를 기다리는 중입니다.',
   'online.recordPending': '연결이 복구되면 결과가 기록됩니다.',
   'online.abandonTitle': '이 청구건을 포기하시겠습니까?',
   'online.abandonBody': '이미 시작한 청구건입니다. 다음으로 넘어가면 패배로 기록됩니다.',

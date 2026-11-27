@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': '未捕获目标',
   'error.unknownHullLore': '信号无法归类',
   'error.genericLore': '上行链路失败',
+  'error.outdatedCode': '页面版本过旧',
+  'error.outdatedLore': '此页面版本早于理赔网络',
+  'error.outdatedBody': 'FITDLE 已更新。请刷新页面后继续，你的对局会保留。',
+  'error.reload': '刷新页面',
   'error.genericCode': '未分类的信号错误',
 
   'online.label': '在线',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': '在线服务不可用，仍可进行见习评估。',
   'online.recordFailed': '结果未能记录。',
+  'online.guessPending': '正在等待理赔网络判定你的上一次猜测。',
   'online.recordPending': '结果会在连接恢复后记录。',
   'online.abandonTitle': '放弃这份案卷？',
   'online.abandonBody': '这份案卷已经开始。换下一份会记为一次失败。',

@@ -1,4 +1,5 @@
 import { PROTOCOL_VERSION } from '../../js/mp/protocol.js';
+import { RUN_PROTOCOL_VERSION } from '../../js/run-sync.js';
 import { config as defaultConfig, ssoConfigured } from './config.mjs';
 
 /** HTTP API generation: the `/api/v1` route prefix. */
@@ -51,7 +52,7 @@ export function startupLines(config = defaultConfig, { node = process.version, n
   const factors = [...(config.groupFactors || new Map())].map(([group, factor]) => `g${group}×${factor}`).join(' ') || 'none';
   const apiOrigin = config.apiOrigin && config.apiOrigin !== config.publicOrigin ? ` · API origin ${config.apiOrigin}` : '';
   return [
-    `FITDLE ${config.version || 'unknown'} · API v${API_VERSION} · WebSocket protocol v${PROTOCOL_VERSION} · algorithm ${config.algorithmVersion} · Node ${node}`,
+    `FITDLE ${config.version || 'unknown'} · API v${API_VERSION} · run protocol v${RUN_PROTOCOL_VERSION} · WebSocket protocol v${PROTOCOL_VERSION} · algorithm ${config.algorithmVersion} · Node ${node}`,
     `Origin ${config.publicOrigin || 'PUBLIC_ORIGIN not set'}${apiOrigin} · listen ${config.host}:${config.port} · proxy headers trusted`,
     `Data ${String(config.manifest?.dataVersion || 'unknown')} · database ${config.databasePath} · static ${config.staticDir}`,
     `Game day starts ${clock(config.gameDayStartMinutes)} UTC (${config.gameDayStartSource})`,

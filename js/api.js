@@ -1,3 +1,5 @@
+import { RUN_PROTOCOL_HEADER, RUN_PROTOCOL_VERSION } from './run-sync.js';
+
 let API_BASE = (() => {
   try {
     const value = globalThis.__FITDLE_API_BASE__;
@@ -12,10 +14,13 @@ function url(path) {
 }
 
 async function request(path, { method = 'GET', body = null, timeoutMs = 20000 } = {}) {
+  const headers = body == null ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' };
+  // Online runs are only exchanged between a page and a service of the same protocol.
+  if (path.startsWith('/api/v1/online/')) headers[RUN_PROTOCOL_HEADER] = String(RUN_PROTOCOL_VERSION);
   const response = await fetch(url(path), {
     method,
     credentials: 'include',
-    headers: body == null ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers,
     body: body == null ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   });

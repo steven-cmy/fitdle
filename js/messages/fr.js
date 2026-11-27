@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': 'AUCUN VERROUILLAGE DE CIBLE',
   'error.unknownHullLore': 'SIGNAL NON CLASSÉ',
   'error.genericLore': 'LIAISON MONTANTE EN ÉCHEC',
+  'error.outdatedCode': 'Page obsolète',
+  'error.outdatedLore': 'Cette page est plus ancienne que le réseau de sinistres',
+  'error.outdatedBody': 'FITDLE a été mis à jour. Recharge la page pour continuer ; ta partie est conservée.',
+  'error.reload': 'RECHARGER LA PAGE',
   'error.genericCode': 'Échec de signal non classé',
 
   'online.label': 'EN LIGNE',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': 'Le service en ligne est indisponible. L’entraînement reste ouvert.',
   'online.recordFailed': 'Le résultat n’a pas pu être enregistré.',
+  'online.guessPending': 'En attente du jugement de ta dernière proposition par le réseau de sinistres.',
   'online.recordPending': 'Le résultat sera enregistré au retour de la connexion.',
   'online.abandonTitle': 'ABANDONNER CE DOSSIER ?',
   'online.abandonBody': 'Ce dossier est déjà commencé. Prendre le prochain compte comme une défaite.',

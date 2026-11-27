@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': 'SIN BLOQUEO DE OBJETIVO',
   'error.unknownHullLore': 'SEÑAL SIN CLASIFICAR',
   'error.genericLore': 'ENLACE ASCENDENTE FALLIDO',
+  'error.outdatedCode': 'Página desactualizada',
+  'error.outdatedLore': 'Esta página es anterior a la red de reclamaciones',
+  'error.outdatedBody': 'FITDLE se ha actualizado. Recarga la página para continuar; tu partida se conserva.',
+  'error.reload': 'RECARGAR PÁGINA',
   'error.genericCode': 'Fallo de señal no clasificado',
 
   'online.label': 'EN LÍNEA',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': 'El servicio en línea no está disponible. Las prácticas siguen abiertas.',
   'online.recordFailed': 'No se pudo registrar el resultado.',
+  'online.guessPending': 'Esperando a que la red de reclamaciones evalúe tu último intento.',
   'online.recordPending': 'El resultado se registrará cuando vuelva la conexión.',
   'online.abandonTitle': '¿ABANDONAR ESTE EXPEDIENTE?',
   'online.abandonBody': 'Este expediente ya está empezado. Tomar el próximo cuenta como derrota.',

@@ -46,6 +46,8 @@ const { sessionSecretWarnings } = await import('../src/startup.mjs');
 const { db, cleanupExpired } = await import('../src/db.mjs');
 const { profileStats, recordPlay } = await import('../src/stats.mjs');
 const { difficultyReport, parseArgs } = await import('../src/difficulty-report.mjs');
+const { RUN_PROTOCOL_HEADER, RUN_PROTOCOL_VERSION } = await import('../../js/run-sync.js');
+const RUN_HEADERS = { [RUN_PROTOCOL_HEADER]: String(RUN_PROTOCOL_VERSION) };
 const app = await buildApp();
 await app.ready();
 
@@ -144,15 +146,26 @@ test('dev auth resolves to a name-keyed account and logout clears the session', 
 });
 
 test('online endpoints require a session', async () => {
-  const daily = await app.inject({ method: 'GET', url: '/api/v1/online/daily' });
+  const daily = await app.inject({ method: 'GET', url: '/api/v1/online/daily', headers: RUN_HEADERS });
   assert.equal(daily.statusCode, 401);
   const start = await app.inject({
     method: 'POST',
     url: '/api/v1/online/start',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...RUN_HEADERS, 'content-type': 'application/json' },
     payload: { gameplay: 'standard' },
   });
   assert.equal(start.statusCode, 401);
+});
+
+test('a page of another run protocol is asked to reload', async () => {
+  const cookie = await login('Outdated Page Pilot');
+  for (const headers of [{ cookie }, { cookie, [RUN_PROTOCOL_HEADER]: '1' }]) {
+    const response = await app.inject({ method: 'GET', url: '/api/v1/online/daily', headers });
+    assert.equal(response.statusCode, 426);
+    assert.deepEqual(JSON.parse(response.body), { error: 'client-outdated', protocol: RUN_PROTOCOL_VERSION });
+  }
+  const meta = JSON.parse((await app.inject({ method: 'GET', url: '/api/v1/meta' })).body);
+  assert.equal(meta.runProtocol, RUN_PROTOCOL_VERSION);
 });
 
 test('room settings allow only bounded big rounds and timed duration', () => {
@@ -612,10 +625,10 @@ test('the empty-hull setting reaches random target selection', async () => {
   const cookie = await login('Empty Hull Pilot');
   const start = async (body) => JSON.parse((await app.inject({
     method: 'POST', url: '/api/v1/online/start',
-    headers: { cookie, 'content-type': 'application/json' },
+    headers: { cookie, ...RUN_HEADERS, 'content-type': 'application/json' },
     payload: { gameplay: 'standard', ...body },
   })).body);
-  const isEmpty = (run) => run.target.killmail.victim.items[0].flag === 5;
+  const isEmpty = (run) => truthOf(run.runId).killmail.victim.items[0].flag === 5;
   try {
     // One fitted loss among many empty hulls.
     usePool([900002]);
@@ -634,13 +647,19 @@ test('the empty-hull setting reaches random target selection', async () => {
     await withLossPages((ship) => lossPage(ship, Array(8).fill(ship === 900005)), async () => {
       for (let i = 0; i < 4; i += 1) {
         const run = await start({ allowEmpty: false });
-        assert.equal(run.target.shipId, 900005);
+        assert.equal(truthOf(run.runId).shipId, 900005);
       }
     });
   } finally {
     usePool(null);
   }
 });
+
+/** What the service keeps of a run, whatever the player was sent. */
+function truthOf(runId) {
+  const row = db.prepare('SELECT target_json FROM online_runs WHERE id = ?').get(runId);
+  return row ? JSON.parse(row.target_json) : null;
+}
 
 const REAL_SHIP = 587;
 const OTHER_SHIPS = [588, 589, 590, 591, 592, 593, 594];
@@ -660,7 +679,7 @@ async function soloPilot(name) {
   const cookie = await login(name);
   const call = async (method, url, payload) => {
     const response = await app.inject({
-      method, url, headers: { cookie, ...(payload ? { 'content-type': 'application/json' } : {}) }, payload,
+      method, url, headers: { cookie, ...RUN_HEADERS, ...(payload ? { 'content-type': 'application/json' } : {}) }, payload,
     });
     return { status: response.statusCode, body: JSON.parse(response.body || 'null') };
   };
@@ -701,6 +720,121 @@ test('the service counts, checks and judges solo guesses', async () => {
     assert.equal((await pilot.run(next.runId)).body.status, 'lost', 'six misses lose');
     assert.equal((await pilot.guess(next.runId, REAL_SHIP)).status, 409);
     assert.equal((await pilot.stats()).streaks.standard, 0);
+  });
+});
+
+/** Everything of a run a player could read before it ends must hold no part of the answer. */
+function assertSealed(run, label = '') {
+  const target = truthOf(run.runId);
+  const text = JSON.stringify(run);
+  assert.equal(run.target, null, `${label} target`);
+  assert.equal(run.answerId, null, `${label} answer`);
+  for (const secret of [`${target.killId}`, target.killmail?.zkb?.hash, 'killmail', 'sampleKill', 'fittedKills']) {
+    if (secret) assert.equal(text.includes(secret), false, `${label} leaks ${secret}`);
+  }
+  const puzzle = JSON.parse(db.prepare('SELECT puzzle_json FROM online_runs WHERE id = ?').get(run.runId).puzzle_json);
+  const shown = new Set(puzzle.shown);
+  const open = new Set(run.board.revealed);
+  for (const clue of run.board.clues) {
+    if (open.has(clue.i)) continue;
+    assert.deepEqual(Object.keys(clue).sort(), ['c', 'hidden', 'i', 'k', 'w'], `${label} hidden clue carries only its kind`);
+    assert.equal(['equipment', 'cargo', 'bonus'].includes(clue.k), false, `${label} sealed kinds are not listed`);
+  }
+  // Every value on the board is a released clue of the puzzle.
+  const released = puzzle.clues.filter((_, index) => shown.has(index)).map((clue) => JSON.stringify(clue.v));
+  for (const clue of run.board.clues.filter((item) => open.has(item.i))) {
+    assert.ok(released.includes(JSON.stringify(clue.v)), `${label} ${clue.k} was released`);
+  }
+  // The released static clues still fit several hulls of the catalog.
+  return { target, puzzle };
+}
+
+test('an open run sends only released clues; the answer follows the end', async () => {
+  const { clueMatchesShip } = await import('../../js/clues.js');
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Sealed Board Pilot');
+    const run = await pilot.start('standard');
+    const { puzzle } = assertSealed(run, 'start');
+    assert.ok(run.board.revealed.length >= 1 && run.board.revealed.length < run.board.clues.length);
+    const statics = run.board.clues.filter((clue) => run.board.revealed.includes(clue.i)
+      && ['identity', 'hull', 'slots', 'nav', 'defense', 'targeting', 'fitting'].includes(clue.c));
+    const candidates = realShips.filter((ship) => statics.every((clue) => clueMatchesShip(clue, ship, puzzle.fitDelta)));
+    assert.ok(candidates.length >= 2, 'the opening does not name the hull');
+    assert.ok(run.board.sealed.length >= 1, 'sealed groups are only flagged');
+
+    const reload = (await pilot.run(run.runId)).body;
+    assert.deepEqual(reload.board, run.board, 'a reload shows the same board');
+    assert.deepEqual((await pilot.start('standard')).board, run.board, 'so does asking for a target again');
+
+    const miss = (await pilot.guess(run.runId, OTHER_SHIPS[0])).body;
+    assertSealed(miss, 'miss');
+    assert.deepEqual(miss.board.feedback.map((item) => [item.shipId, item.correct]), [[OTHER_SHIPS[0], false]]);
+    assert.ok(miss.board.feedback[0].similarity >= 1 && miss.board.feedback[0].similarity <= 97);
+    assert.ok(run.board.revealed.every((i) => miss.board.revealed.includes(i)), 'released clues stay released');
+    assert.ok(miss.board.revealed.length > run.board.revealed.length, 'a miss releases more');
+    for (const clue of run.board.clues) assert.deepEqual(miss.board.clues[clue.i].k, clue.k, 'board places are stable');
+    assertSealed((await pilot.run(miss.runId)).body, 'reload after a miss');
+
+    const won = (await pilot.guess(run.runId, REAL_SHIP)).body;
+    assert.equal(won.status, 'won');
+    assert.deepEqual([won.target.shipId, won.answerId], [REAL_SHIP, REAL_SHIP]);
+    assert.equal(won.board.revealed.length, won.board.clues.length, 'every clue after the end');
+    assert.deepEqual(won.board.sealed, []);
+    assert.equal(won.board.sampleKill, truthOf(run.runId).killId);
+    assert.deepEqual(won.board.feedback.at(-1), { shipId: REAL_SHIP, correct: true, similarity: 100 });
+    for (const clue of miss.board.clues) assert.equal(won.board.clues[clue.i].k, clue.k, 'places survive the end');
+
+    // Losing and abandoning end a run too.
+    const lost = await pilot.start('standard');
+    let last = lost;
+    for (const ship of OTHER_SHIPS.slice(0, 5)) {
+      last = (await pilot.guess(lost.runId, ship)).body;
+      assertSealed(last, `miss ${ship}`);
+    }
+    last = (await pilot.guess(lost.runId, OTHER_SHIPS[5])).body;
+    assert.deepEqual([last.status, last.target.shipId], ['lost', REAL_SHIP]);
+    const left = await pilot.start('standard');
+    await pilot.guess(left.runId, OTHER_SHIPS[0]);
+    const abandoned = (await pilot.abandon(left.runId)).body;
+    assert.deepEqual([abandoned.status, abandoned.endReason, abandoned.target.shipId], ['lost', 'abandoned', REAL_SHIP]);
+    const stale = await pilot.start('standard');
+    await pilot.guess(stale.runId, OTHER_SHIPS[0]);
+    db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 25 * 3600e3, stale.runId);
+    const expired = (await pilot.run(stale.runId)).body;
+    assert.deepEqual([expired.status, expired.endReason, expired.target.shipId], ['lost', 'expired', REAL_SHIP]);
+  });
+});
+
+test('Daily shows every player the same clues in the same order', async () => {
+  const day = JSON.parse((await app.inject({ method: 'GET', url: '/api/v1/meta' })).body).gameDay;
+  db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
+  await withSoloPool(async () => {
+    const first = (await (await soloPilot('Daily Order One')).daily()).body;
+    const secondPilot = await soloPilot('Daily Order Two');
+    const second = (await secondPilot.daily()).body;
+    assertSealed(first, 'daily');
+    assert.deepEqual(second.board.revealed, first.board.revealed);
+    assert.deepEqual(second.board.clues, first.board.clues);
+    assert.equal(second.board.caseId, first.board.caseId);
+    const third = (await (await soloPilot('Daily Order Three')).daily()).body;
+    const a = (await secondPilot.guess(second.runId, OTHER_SHIPS[1])).body;
+    const thirdPilot = await soloPilot('Daily Order Three');
+    const b = (await thirdPilot.guess(third.runId, OTHER_SHIPS[1])).body;
+    assert.deepEqual(a.board.clues, b.board.clues, 'the same guess releases the same clues');
+  });
+  db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
+});
+
+test('a run of an older release gets its puzzle on the next visit', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Old Release Pilot');
+    const run = await pilot.start('standard');
+    await pilot.guess(run.runId, OTHER_SHIPS[0]);
+    db.prepare('UPDATE online_runs SET puzzle_json = NULL WHERE id = ?').run(run.runId);
+    const back = (await pilot.run(run.runId)).body;
+    assertSealed(back, 'rebuilt');
+    assert.deepEqual(back.guesses, [OTHER_SHIPS[0]]);
+    assert.ok(back.board.revealed.length > 0);
   });
 });
 
@@ -814,8 +948,9 @@ test('an empty unguessed target is replaced when empty hulls are off', async () 
   await withSoloPool(async () => {
     const pilot = await soloPilot('Solo Empty Pilot');
     const run = await pilot.start('standard');
+    const target = truthOf(run.runId);
     db.prepare('UPDATE online_runs SET target_json = ? WHERE id = ?').run(JSON.stringify({
-      killId: run.target.killId, shipId: REAL_SHIP, killmail: { ...run.target.killmail, victim: { ship_type_id: REAL_SHIP, items: [cargoItem] } },
+      killId: target.killId, shipId: REAL_SHIP, killmail: { ...target.killmail, victim: { ship_type_id: REAL_SHIP, items: [cargoItem] } },
     }), run.runId);
     assert.equal((await pilot.start('standard')).runId, run.runId);
     assert.notEqual((await pilot.start('standard', { allowEmpty: false })).runId, run.runId);
@@ -889,9 +1024,10 @@ const COUNTERS = ['won', 'lost', 'abandoned', 'won_guesses_sum', 'won_ms_sum'];
 
 /** What a run did to the counters of its killmail and hull. */
 async function difficultyChange(run, gameplay, act) {
-  const before = difficultyOf(run.target.killId, run.target.shipId, gameplay);
+  const target = truthOf(run.runId);
+  const before = difficultyOf(target.killId, target.shipId, gameplay);
   await act();
-  const after = difficultyOf(run.target.killId, run.target.shipId, gameplay);
+  const after = difficultyOf(target.killId, target.shipId, gameplay);
   const delta = (a, b) => Object.fromEntries(COUNTERS.map((name) => [name, Number(b[name]) - Number(a[name])]));
   return { kill: delta(before.kill, after.kill), ship: delta(before.ship, after.ship) };
 }
@@ -1014,7 +1150,7 @@ test('attackers never reach the cache, the database or a player', async () => {
     await withLossPages(makePage, async () => {
       const pilot = await soloPilot('Solo Slim Pilot');
       const run = await pilot.start('standard');
-      assert.ok(run.target.killmail.victim.items.length);
+      assert.ok(truthOf(run.runId).killmail.victim.items.length);
       assert.equal(JSON.stringify(run).includes('attackers'), false);
       const stored = db.prepare('SELECT target_json FROM online_runs WHERE id = ?').get(run.runId).target_json;
       assert.equal(stored.includes('90000077'), false);
@@ -1041,10 +1177,11 @@ test('a killmail this service knows opens although zKillboard finds nothing', as
   await withSoloPool(async (requests) => {
     const pilot = await soloPilot('Solo Stored Pilot');
     const run = await pilot.start('standard');
+    const { killId } = truthOf(run.runId);
     const before = requests.length;
     const other = await soloPilot('Solo Stored Friend');
-    const custom = await other.custom('audit', run.target.killId);
-    assert.deepEqual([custom.status, custom.body.kind, custom.body.target?.killId], [200, 'custom', run.target.killId]);
+    const custom = await other.custom('audit', killId);
+    assert.deepEqual([custom.status, custom.body.kind, custom.body.target?.killId], [200, 'custom', killId]);
     assert.equal(requests.length, before);
     assert.equal((await other.custom('audit', 123456789)).status, 503);
   });
@@ -1176,7 +1313,7 @@ test('startup lines summarise settings without secrets', async () => {
     eve: { ...config.eve, clientSecret: 'SECRETCLIENT' },
     publicOrigin: 'https://fitdle.example',
   }).join('\n');
-  assert.match(text, /^FITDLE \S+ · API v1 · WebSocket protocol v1 · algorithm online-v2 · Node v/);
+  assert.match(text, /^FITDLE \S+ · API v1 · run protocol v2 · WebSocket protocol v1 · algorithm online-v2 · Node v/);
   assert.ok(text.includes(config.version));
   assert.match(text, /Origin https:\/\/fitdle\.example/);
   assert.match(text, /session secret configured/);

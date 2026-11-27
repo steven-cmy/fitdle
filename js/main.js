@@ -104,6 +104,8 @@ const state = {
   auth: { loading: true, loggedIn: false, name: '', characterId: null },
   profileStats: null,
   onlineRun: null,
+  // Online runs: the shipId of a guess the service has not answered yet.
+  pendingGuess: null,
   onlineFinished: false,
   newTargetBusy: false,
   roomRequest: null,
@@ -321,11 +323,13 @@ function dailyResetReady() {
 }
 
 function claimFileId() {
+  // An online run's file number comes from the service; it does not name the killmail.
+  const caseId = onlineBoard()?.caseId;
   return claimCaseNumber({
     gameplay: state.gameplay,
     day: state.today,
-    killId: state.answerKillId,
-    killHash: state.answerKillmail?.zkb?.hash,
+    killId: caseId ? null : state.answerKillId,
+    killHash: caseId || state.answerKillmail?.zkb?.hash,
   });
 }
 
@@ -413,6 +417,8 @@ function claimDepartmentPool() {
 }
 
 function currentClaimSeed(seed = null) {
+  const caseId = onlineBoard()?.caseId;
+  if (caseId) return claimSeed({ killId: `case:${caseId}` });
   return claimSeed({
     killId: seed ?? state.answerKillId,
     killmailId: state.answerKillmail?.killmail_id,
@@ -448,6 +454,19 @@ function isScored() {
 
 function isFree() {
   return Boolean(state.freeKillId);
+}
+
+/**
+ * An online run whose answer stays on the service: the page holds only the
+ * board the service sent (released clues, kinds of the open-board ones and the
+ * match of each guess) until the run has ended.
+ */
+function isMasked() {
+  return state.targetSource === 'online' && Boolean(state.onlineRun?.board);
+}
+
+function onlineBoard() {
+  return isMasked() ? state.onlineRun.board : null;
 }
 
 function isTriglavianBrand() {
@@ -512,6 +531,8 @@ function writeTargetCache(data) {
 }
 
 function cacheCurrentTarget() {
+  // The service keeps an open masked run itself; the page has no target to keep.
+  if (isMasked()) return;
   if (!state.answerKillmail || !state.answerKillId || state.roomCode || state.roomRequest) return;
   if (state.guesses.length || state.timerStarted || state.onlineFinished) return;
   const data = readTargetCache() || {
@@ -547,6 +568,7 @@ async function restoreCachedTarget(gameplay) {
     if (entry.source === 'online') {
       if (!entry.run?.runId) throw new Error('cached run missing');
       const run = await api.run(entry.run.runId);
+      if (run?.board) throw new Error('the service keeps this run');
       if (!run || run.status !== 'playing' || run.begun) throw new Error('cached run consumed');
       if (run.gameplay !== gameplay) throw new Error('cached run gameplay changed');
       if (!run.target?.killmail) throw new Error('cached target missing');
@@ -715,7 +737,9 @@ function setAllowEmptyKb(enabled) {
   const current = state.liveLosses?.[0];
   // A started online run stays the same target, so there is nothing to reload.
   const started = state.appMode === 'online' && (state.guesses.length > 0 || state.timerStarted);
-  if (!started && emptyKbSettingApplies() && rejectsEmptyKb(current)) {
+  // A masked target is unknown here: the service replaces it if it is an empty hull.
+  const replace = isMasked() ? !state.allowEmptyKb && state.status === 'playing' : rejectsEmptyKb(current);
+  if (!started && emptyKbSettingApplies() && replace) {
     location.reload();
     return;
   }
@@ -1618,8 +1642,11 @@ async function fetchCargoTypeNames() {
       // localStorage may be unavailable; the SDE API remains the fallback
     }
   }
+  const modules = isMasked() && !state.liveLosses.length
+    ? (state.onlineRun.board.clues || []).filter((clue) => clue.v?.module).map((clue) => ({ module: clue.v.module }))
+    : getEquipment(state.liveLosses, state.refs).equipment;
   const unknown = [...new Set(
-    getEquipment(state.liveLosses, state.refs).equipment
+    modules
       .map((item) => item.module)
       .filter((id) => !state.refs.modules[id] && !state.extraTypeNames[id] && !missingTypeNames.has(Number(id)))
   )];
@@ -1713,7 +1740,50 @@ async function fetchModuleDetails() {
   }
 }
 
+/** The board of a masked run as answer data: no hull until the service names it. */
+function buildMaskedAnswerData() {
+  const board = state.onlineRun.board;
+  const clues = (board.clues || []).map((clue) => ({ ...clue }));
+  const ship = state.answerShip;
+  if (ship) {
+    state.answerData = {
+      ...ship,
+      description: ship.descriptions?.[state.locale] || ship.descriptions?.en || '',
+      bonuses: ship.bonuses?.[state.locale] || ship.bonuses?.en || [],
+      bonusEntries: ship.bonusEntries || [],
+      clues,
+      sampleKill: board.sampleKill || null,
+      fitting: { fittedKills: board.fittedKills || 0 },
+      fitDelta: null,
+      revealSeed: '',
+      revealPlan: null,
+      sealed: [],
+    };
+    return;
+  }
+  const bonusEntries = {};
+  for (const clue of clues) {
+    if (clue.k === 'bonus' && clue.entry) bonusEntries[clue.v] = clue.entry;
+  }
+  state.answerData = {
+    clues,
+    bonusEntries,
+    bonuses: [],
+    description: '',
+    sampleKill: null,
+    fitting: { fittedKills: 0 },
+    fitDelta: null,
+    revealSeed: '',
+    revealPlan: null,
+    sealed: [...(board.sealed || [])],
+  };
+}
+
 function buildAnswerData() {
+  if (isMasked()) {
+    buildMaskedAnswerData();
+    return;
+  }
   if (!state.answerShip || !state.refs) return;
   const ship = state.answerShip;
   const bonuses = ship.bonuses?.[state.locale] || ship.bonuses?.en || [];
@@ -1758,6 +1828,10 @@ function buildAnswerData() {
 }
 
 function localizeAnswerData() {
+  if (isMasked()) {
+    buildMaskedAnswerData();
+    return;
+  }
   if (!state.answerData || !state.answerShip) return;
   const ship = state.answerShip;
   state.answerData = {
@@ -1788,9 +1862,9 @@ async function loadLocaleData(locale, { keepLive = false, keepAnswer = false } =
   state.index = buildSearchIndex(state.catalog, refs.groups, {
     races: refs.races, factions: refs.factions, locale: state.locale, aliases: state.searchAliases,
   });
-  if (!keepLive) await fetchAnswerLive();
+  if (!keepLive && !isMasked()) await fetchAnswerLive();
   await fetchCargoTypeNames();
-  if (usesSimulatedFit() && state.liveLosses[0]) {
+  if (usesSimulatedFit() && !isMasked() && state.liveLosses[0]) {
     try {
       state.dogmaAttrs = await calculateDogmaFit(
         state.answerShip,
@@ -1805,7 +1879,7 @@ async function loadLocaleData(locale, { keepLive = false, keepAnswer = false } =
       state.dogmaBaseline = null;
     }
   }
-  if (usesSimulatedFit() && !state.dogmaAttrs) await fetchModuleDetails();
+  if (usesSimulatedFit() && !isMasked() && !state.dogmaAttrs) await fetchModuleDetails();
   if (keepAnswer && state.answerData) {
     localizeAnswerData();
   } else {
@@ -1839,7 +1913,7 @@ function localeTargetSnapshot() {
     timedClueCount: state.timedClueCount,
     kbValue: (() => {
       const clue = state.answerData?.clues?.find((item) => item.k === 'kbValue');
-      return clue ? Number(clue.v) : null;
+      return clue && !clue.hidden ? Number(clue.v) : null;
     })(),
     kb: new URL(location.href).searchParams.get('kb'),
   };
@@ -1899,6 +1973,8 @@ function restoreLocaleKbValue(snapshot) {
 
 function readStoredState() {
   if (isFree()) return { guesses: [], status: 'playing', invalidated: false };
+  // A masked run comes back from the service alone.
+  if (isMasked()) return { invalidated: false };
   const stored = loadState(localStorage, state.date, state.dataVersionKey, storageMode(), {
     dailySeed: state.dailySeed,
     answerKillId: state.answerKillId,
@@ -1937,6 +2013,12 @@ function markInitialFresh() {
 }
 
 function recomputeRevealed() {
+  if (isMasked()) {
+    state.revealed = new Set(state.onlineRun.board.revealed || []);
+    state.visibleCount = state.revealed.size;
+    markInitialFresh();
+    return;
+  }
   const base = {
     clues: state.answerData.clues,
     catalog: state.catalog,
@@ -2001,6 +2083,11 @@ function pruneStoredStates() {
 function persist() {
   // Practice, rooms and the room placeholder have nothing to come back to.
   if (isFree() || !state.onlineRun?.runId) return;
+  // The service keeps a masked run; a board of an older page version is dropped.
+  if (isMasked()) {
+    try { localStorage.removeItem(`fitdle:v1:state:${state.date}:${storageMode()}`); } catch { /* best effort */ }
+    return;
+  }
   saveState(localStorage, state.date, {
     dataVersion: state.dataVersionKey,
     dailySeed: state.dailySeed,
@@ -2466,6 +2553,7 @@ function renderChrome() {
 
 function hiddenTotals() {
   const clues = state.answerData?.clues || [];
+  if (state.answerData?.sealed?.length) return true;
   return clues.some((clue, index) => (
     (clue.c === 'equipment' || clue.c === 'cargo' || clue.c === 'traits') && !state.revealed.has(index)
   ));
@@ -2771,7 +2859,7 @@ function startRadarMosaic() {
   stopRadarMosaic();
   if (state.status !== 'playing') return;
   const stage = document.querySelector('.radar-visual');
-  if (!stage || !state.answerId) return;
+  if (!stage || (!state.answerId && !isMasked())) return;
   spawnSalvageNoise();
 
   // Never put the answer render in the pre-reveal DOM. Cycle five unrelated
@@ -2857,13 +2945,36 @@ function renderAttempts() {
   }
   const ended = state.status !== 'playing';
   const rows = [];
+  const board = onlineBoard();
+  const pendingRow = () => {
+    const ship = state.catalogMap.get(state.pendingGuess);
+    if (!ship || state.guesses.includes(ship.id)) return '';
+    return `
+      <li class="attempt is-complete is-pending" aria-busy="true" aria-label="${esc(`${displayName(ship)}, ${t('board.awaiting')}`)}">
+        <span class="attempt-marker">${String(state.guesses.length + 1).padStart(2, '0')}</span>
+        ${attemptIcon(ship)}
+        <span class="attempt-body">
+          <span class="attempt-name">${esc(displayName(ship))}</span>
+          <span class="attempt-meta">${esc(raceName(ship))}<span class="sep"></span>${esc(groupName(ship))}</span>
+          <span class="match-track" style="--match:0%"><span></span></span>
+        </span>
+        <span class="attempt-status">
+          <strong>${esc(t('board.awaiting'))}</strong>
+          <span>…</span>
+        </span>
+      </li>
+    `;
+  };
   const actualRow = (i) => {
     const guessId = state.guesses[i];
     const ship = state.catalogMap.get(guessId);
     if (!ship) return '';
-    const correct = guessId === state.answerId;
-    const result = buildGuessResult(ship, state.answerShip, i + 1);
-    const similarity = correct ? 100 : result.similarity;
+    // A masked run has no answer here: the service judged the guess.
+    const feedback = board?.feedback?.find((item) => Number(item.shipId) === Number(guessId));
+    const correct = board ? Boolean(feedback?.correct) : guessId === state.answerId;
+    const similarity = correct ? 100 : board
+      ? Number(feedback?.similarity) || 0
+      : buildGuessResult(ship, state.answerShip, i + 1).similarity;
     return `
       <li class="attempt is-complete ${correct ? 'is-correct' : 'is-wrong'}${state.latestIndex === i ? ' is-latest' : ''}" aria-label="${esc(`${displayName(ship)}, ${correct ? t('board.confirmed') : t('board.matchRate')}, ${similarity}%`)}">
         <span class="attempt-marker">${String(i + 1).padStart(2, '0')}</span>
@@ -2891,14 +3002,17 @@ function renderAttempts() {
       <span class="attempt-status"><strong>${esc(active ? t('board.ready') : t('board.sealed'))}</strong></span>
     </li>
   `;
+  const pending = state.pendingGuess != null && !ended ? pendingRow() : '';
   if (isTimed()) {
     // Timed mode has no fixed slots: newest attempt first, oldest last.
+    if (pending) rows.push(pending);
     for (let i = state.guesses.length - 1; i >= 0; i--) rows.push(actualRow(i));
   } else {
     // Standard/Audit keep the original chronological six-slot board.
     for (let i = 0; i < ATTEMPT_LIMIT; i++) {
       if (state.guesses[i] != null) rows.push(actualRow(i));
-      else rows.push(emptyRow(i, !ended && i === state.guesses.length));
+      else if (pending && i === state.guesses.length) rows.push(pending);
+      else rows.push(emptyRow(i, !ended && !pending && i === state.guesses.length));
     }
   }
   list.innerHTML = rows.join('');
@@ -3694,12 +3808,15 @@ function renderDossier() {
     }
   }
 
+  // Groups of a masked run with clues the service has not released yet.
+  const sealedGroups = new Set((state.answerData.sealed || []).map((c) => groupCategory({ c })));
+  const sealedExtra = (category) => (sealedGroups.has(category) ? 1 : 0);
   const groups = CATEGORIES.map((category) => ({
     category,
     entries: state.answerData.clues
       .map((clue, index) => ({ clue, index }))
       .filter((entry) => groupCategory(entry.clue) === category),
-  })).filter((group) => group.entries.length);
+  })).filter((group) => group.entries.length || sealedGroups.has(group.category));
 
   const host = $('#dossier-groups');
   if (host) {
@@ -3711,7 +3828,7 @@ function renderDossier() {
           || a.index - b.index
         ));
         const revealed = ordered.filter((entry) => state.revealed.has(entry.index));
-        const hidden = ordered.length - revealed.length;
+        const hidden = ordered.length - revealed.length + sealedExtra(category);
         const capacityEntry = category === 'cargo'
           ? ordered.find((entry) => entry.clue.k === 'cargoCapacity') || null
           : null;
@@ -3760,7 +3877,7 @@ function renderDossier() {
           : revealed.length;
         const counterTotal = category === 'cargo' ? cargoItems.length : ordered.length;
         const counterPending = category === 'cargo'
-          ? counterTotal - counterRevealed
+          ? counterTotal - counterRevealed + sealedExtra(category)
           : hidden;
         return `<section class="dossier-group cat-${category}${hidden ? ' is-sealed' : ''}">
           <header class="group-head">
@@ -3778,7 +3895,7 @@ function renderDossier() {
       if (category === 'traits') {
         const ordered = [...entries].sort((a, b) => Number(a.clue.v) - Number(b.clue.v));
         const revealed = ordered.filter((entry) => state.revealed.has(entry.index));
-        const hidden = ordered.length - revealed.length;
+        const hidden = ordered.length - revealed.length + sealedExtra('traits');
         const sealed = hidden
           ? `<div class="attr-row cat-traits is-hidden equipment-sealed">
               <span class="attr-label">${esc(t('dossier.traitsSealed'))}</span>
@@ -4053,6 +4170,10 @@ function submitGuess() {
     return;
   }
   if (isTimed() && Date.now() < state.lockCooldownUntil) return;
+  if (isMasked() && state.pendingGuess != null) {
+    showToast(t('online.guessPending'), '', 'warn');
+    return;
+  }
   const ship = currentGuessShip();
   if (!ship) return;
   if (state.guesses.includes(ship.id)) {
@@ -4070,7 +4191,76 @@ function recordDailyResult() {
   void finishOnlineRun();
 }
 
+/** A guess of a masked run: the service judges it and answers with the new board. */
+function applyMaskedGuess(shipId) {
+  dropCurrentTargetCache();
+  hideSuggestions();
+  state.pendingGuess = shipId;
+  state.inputValue = '';
+  state.selectedId = null;
+  state.activeSuggestion = -1;
+  state.suggestions = [];
+  void runSync?.guess(state.onlineRun.runId, shipId, isTimed() ? currentElapsed() : 0).then((delivered) => {
+    if (delivered === false && state.pendingGuess === shipId) showToast(t('online.recordPending'), '', 'warn', 5000);
+  });
+  renderAll();
+  if (isTimed()) startLockCooldown();
+  if (window.innerWidth < 860) $('#ship-input')?.blur();
+}
+
+/**
+ * The service's board of a masked run: guesses, released clues and, once the
+ * run has ended, the answer. Returns false when nothing changed.
+ */
+function applyMaskedRun(run) {
+  const previous = state.onlineRun;
+  const previousRevealed = new Set(state.revealed);
+  const previousGuesses = state.guesses.length;
+  const ended = run.completed && state.status === 'playing';
+  const guesses = (run.guesses || []).map(Number).filter((id) => state.catalogMap.has(id));
+  const changed = ended
+    || guesses.length !== state.guesses.length
+    || (run.board?.revealed?.length || 0) !== (previous?.board?.revealed?.length || 0);
+  state.onlineRun = { ...previous, ...run };
+  if (!changed) return false;
+  state.guesses = guesses;
+  if (state.pendingGuess != null && (guesses.includes(state.pendingGuess) || run.completed)) state.pendingGuess = null;
+  if (ended) {
+    if (isTimed()) {
+      stopTimedClock();
+      state.timerElapsedMs = Number(run.elapsedMs) || state.timerElapsedMs;
+      state.gaveUp = run.status === 'lost' && run.endReason === 'gave-up';
+      state.timedExpired = run.status === 'lost' && run.endReason === 'exhausted';
+    }
+    state.status = run.status;
+    state.onlineFinished = true;
+    revealOnlineAnswer(run);
+  }
+  buildMaskedAnswerData();
+  recomputeRevealed();
+  state.fresh = new Set([...state.revealed].filter((index) => !previousRevealed.has(index)));
+  if (guesses.length > previousGuesses) state.latestIndex = previousGuesses;
+  return true;
+}
+
+/** The answer of an ended masked run, as the service sent it. */
+function revealOnlineAnswer(run) {
+  const target = run.target;
+  if (!target?.killmail?.victim) return;
+  state.answerKillmail = target.killmail;
+  state.answerId = Number(target.shipId || target.killmail.victim.ship_type_id);
+  state.answerKillId = Number(target.killId);
+  state.answerShip = state.catalogMap.get(state.answerId) || null;
+  state.liveLosses = [target.killmail];
+  state.liveFetched = true;
+  void fetchCargoTypeNames();
+}
+
 function applyGuess(shipId) {
+  if (isMasked()) {
+    applyMaskedGuess(shipId);
+    return;
+  }
   const ship = state.catalogMap.get(shipId);
   if (!ship) return;
   dropCurrentTargetCache();
@@ -4193,7 +4383,7 @@ function shareLink() {
 }
 
 function renderDebrief() {
-  if (state.status === 'playing' || !state.answerData) return;
+  if (state.status === 'playing' || !state.answerData || !state.answerShip) return;
   const won = state.status === 'won';
   const ship = state.answerShip;
   const total = state.answerData.clues.length;
@@ -4977,6 +5167,18 @@ function showFatal(error) {
     </div>`;
     return;
   }
+  if (isOutdatedPage(error)) {
+    app.innerHTML = `<div class="fatal-screen">
+      <div class="fatal-glyph">${icon('refresh')}</div>
+      <div class="fatal-code">${esc(t('error.outdatedCode'))}</div>
+      <h1>${esc(t('error.outdatedLore'))}</h1>
+      <p>${esc(t('error.outdatedBody'))}</p>
+      <div class="fatal-actions">
+        <button class="button primary" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.reload'))}</button>
+      </div>
+    </div>`;
+    return;
+  }
   if (error instanceof UnknownHullError) {
     app.innerHTML = `<div class="fatal-screen">
       <div class="fatal-glyph">${icon('radar')}</div>
@@ -5105,6 +5307,35 @@ function installTarget({ killmail, shipId, killId, run = null, source, free = fa
   if (cacheable) cacheCurrentTarget();
 }
 
+/** An online run whose answer the service keeps until it has ended. */
+function installMaskedTarget(run) {
+  state.freeKillId = null;
+  state.freeKillToken = null;
+  state.freeKillmail = null;
+  state.answerKillmail = null;
+  state.answerId = null;
+  state.answerKillId = null;
+  state.answerShip = null;
+  state.targetSource = 'online';
+  state.dailyKillmail = null;
+  state.dailySeed = null;
+  state.onlineRun = run;
+  state.onlineFinished = Boolean(run.completed);
+  state.pendingGuess = null;
+  state.kbValueCompact = false;
+  state.lastRevealSize = 0;
+  state.initialFreshDone = false;
+  state.liveLosses = [];
+  state.liveStats = null;
+  state.liveFetched = true;
+  state.liveError = false;
+  state.targetGameDay = String(run.gameDay || state.today || '');
+  state.date = `online-${run.runId}`;
+  if (run.completed) revealOnlineAnswer(run);
+  pickClaimDepartment(false);
+  void loadInsurancePrices();
+}
+
 /** A local board behind the room lobby; it is never shown or played. */
 function installPlaceholder() {
   const ship = state.catalog.find((item) => Number(item.id) > 0);
@@ -5146,6 +5377,11 @@ async function resolveOnlineTarget(route) {
   } else {
     run = await api.start(route.gameplay, state.allowEmptyKb);
   }
+  if (run?.board) {
+    applyGameplay(route.gameplay);
+    installMaskedTarget(run);
+    return;
+  }
   if (!run?.target?.killmail) throw new Error('online target missing');
   applyGameplay(route.gameplay);
   installTarget({
@@ -5182,7 +5418,8 @@ async function prepareAppTarget(route) {
     return;
   }
   applyGameplay(state.gameplay);
-  if (usesSimulatedFit()) preloadDogma();
+  // Online, the service simulates fits; the engine is only needed for practice.
+  if (usesSimulatedFit() && !online) preloadDogma();
   if (online && runSync?.runs.size) await runSync.flush();
   if (!route.kb && await restoreCachedTarget(state.gameplay)) return;
   if (online) {
@@ -5191,7 +5428,7 @@ async function prepareAppTarget(route) {
       return;
     } catch (error) {
       debugLog('online target', error);
-      showToast(t('online.unavailable'), '', 'warn', 5000);
+      if (!isOutdatedPage(error)) showToast(t('online.unavailable'), '', 'warn', 5000);
       throw error;
     }
   }
@@ -5216,9 +5453,19 @@ function startRunSync() {
     },
     onRejected: (runId, error) => {
       debugLog('online run', error);
+      if (isOutdatedPage(error)) {
+        showFatal(error);
+        return;
+      }
       const run = error?.payload?.run;
       if (run && state.onlineRun?.runId === runId) applyServerRun(run);
-      else if (state.onlineRun?.runId === runId) showToast(t('online.recordFailed'), '', 'warn', 5000);
+      else if (state.onlineRun?.runId === runId) {
+        if (state.pendingGuess != null) {
+          state.pendingGuess = null;
+          renderAll();
+        }
+        showToast(t('online.recordFailed'), '', 'warn', 5000);
+      }
       void refreshProfileStats();
     },
   });
@@ -5226,8 +5473,38 @@ function startRunSync() {
 
 window.addEventListener('online', () => { void runSync?.flush(); });
 
+/** A page of an older release than the service: it has to reload. */
+function isOutdatedPage(error) {
+  return Number(error?.status) === 426 || error?.code === 'client-outdated';
+}
+
+/** A new board of a masked run: show what the service released and judged. */
+function showMaskedRun(run) {
+  const guessesBefore = state.guesses.length;
+  if (!applyMaskedRun(run)) return;
+  const guessed = state.guesses.length > guessesBefore;
+  if (state.status === 'playing') {
+    if (state.fresh.size > 0) showToast(t('toast.intel'), t('toast.clue', { n: state.fresh.size }), 'info');
+    else if (guessed) showToast(t('toast.noMatch'), '', 'warn');
+  }
+  if (guessed) state.scanPulse = true;
+  renderAll();
+  rememberNewClues(state.fresh);
+  if (state.fresh.size) void fetchCargoTypeNames().then(() => renderDossier());
+  if (state.status !== 'playing') {
+    dropCurrentTargetCache();
+    setTimeout(() => renderDebrief(), guessed ? 850 : 300);
+  } else if (guessed && window.innerWidth >= 860) {
+    setTimeout(() => $('#ship-input')?.focus(), 60);
+  }
+}
+
 /** The service's answer wins over the local board, e.g. after playing on two devices. */
 function applyServerRun(run) {
+  if (state.booted && !state.roomEndless && !state.roomArbitration && isMasked() && run?.board) {
+    showMaskedRun(run);
+    return;
+  }
   state.onlineRun = { ...state.onlineRun, ...run };
   if (!state.booted || state.roomEndless || state.roomArbitration) return;
   const allowed = (run.guesses || []).filter((id) => state.catalogMap.has(Number(id)));
@@ -5254,6 +5531,13 @@ function applyServerRun(run) {
 function mergeOnlineRun(restored) {
   const run = state.onlineRun;
   if (!run?.runId) return restored;
+  if (isMasked()) {
+    const guesses = (run.guesses || []).map(Number).filter((id) => state.catalogMap.has(id));
+    // A guess sent before a reload that the service has not answered yet.
+    const waiting = runSync?.runs.get(run.runId)?.guesses?.[0]?.shipId;
+    if (!run.completed && waiting && !guesses.includes(Number(waiting))) state.pendingGuess = Number(waiting);
+    return { guesses, status: run.status, invalidated: false };
+  }
   const known = (id) => state.catalogMap.has(Number(id));
   const confirmed = (run.guesses || []).map(Number).filter(known);
   if (run.completed) {

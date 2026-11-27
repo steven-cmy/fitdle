@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': 'KEINE ZIELERFASSUNG',
   'error.unknownHullLore': 'SIGNAL UNKLASSIFIZIERT',
   'error.genericLore': 'UPLINK FEHLGESCHLAGEN',
+  'error.outdatedCode': 'Seite veraltet',
+  'error.outdatedLore': 'Diese Seite ist älter als das Schadensnetz',
+  'error.outdatedBody': 'FITDLE wurde aktualisiert. Lade die Seite neu, um weiterzuspielen; dein Lauf bleibt erhalten.',
+  'error.reload': 'SEITE NEU LADEN',
   'error.genericCode': 'Unklassifizierter Signalfehler',
 
   'online.label': 'ONLINE',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': 'Der Onlinedienst ist nicht verfügbar. Das Praktikum bleibt offen.',
   'online.recordFailed': 'Das Ergebnis konnte nicht erfasst werden.',
+  'online.guessPending': 'Warte, bis das Schadensnetz deinen letzten Tipp bewertet hat.',
   'online.recordPending': 'Das Ergebnis wird erfasst, sobald die Verbindung wieder steht.',
   'online.abandonTitle': 'DIESE AKTE AUFGEBEN?',
   'online.abandonBody': 'Diese Akte wurde bereits begonnen. Die nächste Akte zählt als Niederlage.',

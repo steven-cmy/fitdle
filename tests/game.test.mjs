@@ -1546,7 +1546,12 @@ test('ZKILLBOARD statistics are fetched, cached, and passed to the clue builder'
   assert.match(main, /\/api\/stats\/shipTypeID\/\$\{shipId\}\/kills\//);
   assert.match(main, /state\.liveStats = stats\.status === 'fulfilled'/);
   assert.match(main, /stats: state\.liveStats/);
-  assert.equal(main.includes('state.liveStats = null;'), false);
+  // Only a masked online run drops them: its statistics are the service's snapshot.
+  const masked = main.slice(main.indexOf('function installMaskedTarget'), main.indexOf('/** A local board behind the room lobby'));
+  assert.equal(main.replace(masked, '').includes('state.liveStats = null;'), false);
+  const puzzle = fs.readFileSync(path.join(ROOT, 'server', 'src', 'puzzle.mjs'), 'utf8');
+  assert.match(puzzle, /zkill\.get\(`\/api\/stats\/shipTypeID\/\$\{Number\(shipId\)\}\/`\)/);
+  assert.match(puzzle, /const stats = givenStats === undefined \? await liveStats\(ship\.id\) : givenStats;/);
 });
 
 test('the empty-hull setting is read, sent to the service and not overridden', () => {
@@ -2992,4 +2997,29 @@ test('API contact is optional, validated and never shipped with the repository',
   const example = fs.readFileSync(path.join(ROOT, '.env.example'), 'utf8');
   assert.match(example, /^API_CONTACT=$/m);
   assert.match(example, /^API_CONTACT_PUBLIC=0$/m);
+});
+
+test('an online run keeps its answer on the service until it ends', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  const api = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
+  const slice = (from, to) => main.slice(main.indexOf(from), main.indexOf(to, main.indexOf(from) + from.length));
+  // Every online request names the run protocol; a refused page asks for a reload.
+  assert.ok(api.includes("if (path.startsWith('/api/v1/online/')) headers[RUN_PROTOCOL_HEADER] = String(RUN_PROTOCOL_VERSION);"));
+  assert.ok(main.includes("<div class=\"fatal-code\">${esc(t('error.outdatedCode'))}</div>"));
+  // A masked target has no hull, kill or killmail on the page and nothing goes to zKillboard.
+  const install = slice('function installMaskedTarget(run)', '\n}\n');
+  for (const field of ['answerKillmail', 'answerId', 'answerKillId', 'answerShip']) assert.ok(install.includes(`state.${field} = null;`), field);
+  assert.ok(install.includes('state.liveFetched = true;'), 'no live zKill lookup');
+  assert.ok(main.includes('if (!keepLive && !isMasked()) await fetchAnswerLive();'));
+  assert.ok(main.includes("if (usesSimulatedFit() && !online) preloadDogma();"));
+  // The answer is only taken from an ended run.
+  const reveal = slice('function revealOnlineAnswer(run)', '\n}\n');
+  assert.ok(reveal.includes('const target = run.target;'));
+  assert.ok(slice('function applyMaskedRun(run)', '\n}\n').includes('if (ended) {'));
+  // Guesses are judged by the service; nothing of the board is stored locally.
+  assert.ok(slice('function applyMaskedGuess(shipId)', '\n}\n').includes('runSync?.guess('));
+  assert.ok(slice('function persist()', '\n}\n').includes('if (isMasked()) {'));
+  assert.ok(slice('function cacheCurrentTarget()', '\n}\n').includes('if (isMasked()) return;'));
+  // The claim file number comes from the service, not from the killmail.
+  assert.ok(slice('function claimFileId()', '\n}\n').includes('onlineBoard()?.caseId'));
 });

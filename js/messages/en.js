@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': 'NO TARGET LOCK',
   'error.unknownHullLore': 'SIGNAL UNCLASSIFIED',
   'error.genericLore': 'UPLINK FAILED',
+  'error.outdatedCode': 'Page out of date',
+  'error.outdatedLore': 'This page is older than the claims network',
+  'error.outdatedBody': 'FITDLE was updated. Reload the page to continue; your run is kept.',
+  'error.reload': 'RELOAD PAGE',
   'error.genericCode': 'Unclassified signal failure',
 
   'online.label': 'ONLINE',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': 'The online service is unavailable. Trainee reviews remain open.',
   'online.recordFailed': 'The result could not be recorded.',
+  'online.guessPending': 'Waiting for the claims network to judge your last guess.',
   'online.recordPending': 'The result will be recorded once the connection is back.',
   'online.abandonTitle': 'GIVE UP THIS CLAIM?',
   'online.abandonBody': 'This claim has already been started. Taking the next one records a loss.',

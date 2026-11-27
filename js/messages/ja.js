@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': '目標ロックなし',
   'error.unknownHullLore': '信号未分類',
   'error.genericLore': 'アップリンク失敗',
+  'error.outdatedCode': 'ページが古くなっています',
+  'error.outdatedLore': 'このページは査定ネットワークより古い版です',
+  'error.outdatedBody': 'FITDLE が更新されました。ページを再読み込みして続けてください。進行中の対局は保持されます。',
+  'error.reload': '再読み込み',
   'error.genericCode': '未分類の信号障害',
 
   'online.label': 'オンライン',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': 'オンラインサービスを利用できません。研修査定は続けられます。',
   'online.recordFailed': '結果を記録できませんでした。',
+  'online.guessPending': '査定ネットワークが直前の推測を判定するのを待っています。',
   'online.recordPending': '結果は接続が回復しだい記録されます。',
   'online.abandonTitle': 'この案件を放棄しますか？',
   'online.abandonBody': 'この案件はすでに開始しています。次に進むと敗北として記録されます。',
