@@ -28,9 +28,9 @@ export function parseStats(stats, { beforeKey = '' } = {}) {
     const destroyed = Math.max(0, Math.floor(Number(value?.shipsDestroyed) || 0));
     const lost = Math.max(0, Math.floor(Number(value?.shipsLost) || 0));
     if (!destroyed && !lost) continue;
-    const key = `${year}${String(month).padStart(2, '0')}`;
-    if (beforeKey && key >= beforeKey) continue;
-    months[key] = [destroyed, lost];
+    const monthKey = `${year}${String(month).padStart(2, '0')}`;
+    if (beforeKey && monthKey >= beforeKey) continue;
+    months[monthKey] = [destroyed, lost];
   }
   return { found: true, months };
 }
