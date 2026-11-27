@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { mergeUsage, monthKeyOf, parseStats, planUsage } from '../scripts/ship-usage.mjs';
 import { practicePools } from '../scripts/practice-pools.mjs';
+import { createProgress, estimateRemaining, formatDuration, formatProgress } from '../scripts/progress.mjs';
 
 test('stats months become [destroyed, lost] per YYYYMM', () => {
   const parsed = parseStats({
@@ -122,4 +123,95 @@ test('the catalog build only reads the usage file for hull weights', () => {
   assert.match(source, /'\.cache', 'ship-usage\.json'/);
   assert.match(source, /every hull gets weight 1/);
   assert.doesNotMatch(source, /api\/stats/);
+});
+
+const fakeStream = (isTTY) => {
+  const writes = [];
+  return { isTTY, writes, write: (text) => { writes.push(text); } };
+};
+
+test('the progress line shows a bar and the time left', () => {
+  assert.equal(formatDuration(0), '0s');
+  assert.equal(formatDuration(125_400), '2m 05s');
+  assert.equal(formatDuration(3_725_000), '1h 02m 05s');
+  assert.equal(estimateRemaining({ done: 0, total: 10, elapsedMs: 5000 }), null);
+  assert.equal(estimateRemaining({ done: 2, total: 10, elapsedMs: 3000 }), 12_000);
+  assert.equal(estimateRemaining({ done: 10, total: 10, elapsedMs: 3000 }), 0);
+  assert.equal(
+    formatProgress({ done: 0, total: 430, elapsedMs: 0 }),
+    '[------------------------]   0% 0/430 | elapsed 0s | ETA --',
+  );
+  assert.equal(
+    formatProgress({ done: 215, total: 430, elapsedMs: 240_000, failed: 2 }),
+    '[############------------]  50% 215/430 | 2 failed | elapsed 4m 00s | ETA 4m 00s',
+  );
+  assert.ok(formatProgress({ done: 430, total: 430, elapsedMs: 36_000_000, failed: 43 }).length < 100);
+});
+
+test('a CI log gets a progress line per percentage step or interval only', () => {
+  const stream = fakeStream(false);
+  let time = 0;
+  const progress = createProgress({ total: 430, stream, now: () => time });
+  for (let done = 1; done <= 430; done += 1) {
+    time += 1200;
+    progress.update(done);
+  }
+  progress.stop();
+  assert.ok(stream.writes.length >= 20 && stream.writes.length <= 25, `${stream.writes.length} lines`);
+  for (const text of stream.writes) assert.match(text, /^\[[#-]{24}\] +\d+% \d+\/430 \| .*ETA [^\r]*\n$/);
+  assert.match(stream.writes.at(-1), /100% 430\/430 .* ETA 0s\n$/);
+
+  // A slow run still reports between the steps.
+  const slow = fakeStream(false);
+  time = 0;
+  const waiting = createProgress({ total: 1000, stream: slow, now: () => time });
+  waiting.update(1);
+  assert.equal(slow.writes.length, 1);
+  time = 60_000;
+  waiting.update(2);
+  assert.equal(slow.writes.length, 2);
+});
+
+test('a terminal redraws one progress line and ends it with a newline', () => {
+  const stream = fakeStream(true);
+  const progress = createProgress({ total: 3, stream, now: () => 0 });
+  progress.update(1);
+  progress.update(2);
+  progress.update(3);
+  progress.stop();
+  progress.stop();
+  assert.equal(stream.writes.filter((text) => text === '\n').length, 1);
+  assert.ok(stream.writes.slice(0, -1).every((text) => text.startsWith('\r') && !text.includes('\n')));
+  assert.equal(stream.writes.at(-1), '\n');
+});
+
+test('the usage script logs a short progress report and writes the file', async () => {
+  const server = http.createServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ months: { 202001: { shipsDestroyed: 5, shipsLost: 2 } } }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fitdle-usage-'));
+  const out = path.join(dir, 'ship-usage.json');
+  try {
+    const root = path.resolve(import.meta.dirname, '..');
+    const child = spawn(process.execPath, [path.join(root, 'scripts', 'build-ship-usage.mjs'), '--out', out], {
+      cwd: root,
+      env: { ...process.env, USAGE_STATS_BASE: `http://127.0.0.1:${server.address().port}/api/stats/shipTypeID`, USAGE_REQUEST_PAUSE_MS: '0' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    child.stdout.on('data', (chunk) => { output += chunk; });
+    child.stderr.resume();
+    const code = await new Promise((resolve) => child.on('close', resolve));
+    assert.equal(code, 0);
+    const bars = output.split('\n').filter((line) => line.startsWith('['));
+    assert.ok(bars.length >= 2 && bars.length <= 30, `${bars.length} progress lines`);
+    assert.match(bars.at(-1), /100% (\d+)\/\1 \| .*ETA 0s$/);
+    assert.equal(output.includes('\r'), false);
+    assert.ok(Object.keys(JSON.parse(fs.readFileSync(out, 'utf8')).ships).length > 400);
+  } finally {
+    server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

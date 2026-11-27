@@ -508,7 +508,9 @@ and goes on.
   `scripts/build-ship-usage.mjs` (about 430 requests, one at a time, 1 s apart,
   generic User-Agent with the repository URL only, Retry-After honoured, previous
   entries kept for failed hulls, refuses to write if the format looks wrong, and a
-  401/403 stops the whole run at once without writing) and
+  401/403 stops the whole run at once without writing; progress is a bar with the
+  elapsed time and the ETA, redrawn on a terminal and printed every few percent or
+  once a minute in CI logs, see `scripts/progress.mjs`) and
   commits the result straight to the `data` branch (`ship-usage.json`). Main is not
   touched and no pull request is involved; the workflow needs `contents: write`.
   The server warns at start when the file is older than `FITDLE_USAGE_STALE_DAYS`
