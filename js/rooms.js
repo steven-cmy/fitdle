@@ -1104,6 +1104,7 @@ export class RoomSurface {
       this.update();
       return;
     }
+    if (reason === 'unauthorized') void this.api.checkSession?.();
     if (closeCode === CLOSE_REPLACED || closeCode === CLOSE_REFUSED) {
       this.exitToLobby('room-error');
       return;

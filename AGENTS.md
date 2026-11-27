@@ -202,6 +202,14 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Modes are determined by auth/back-end availability: guest or service failure is
   Practice; logged-in is Online. Mode is not a manual toggle. Practice provides
   Standard/Audit/Timed, random or explicit KB, no scoring. Daily is online-only.
+- Sign-in controls (topbar button, login gate) exist only when `/api/v1/meta`
+  answered with `features.sso`; otherwise Daily and multiplayer say the site is
+  offline only (`auth.offlineOnly`).
+- A 401 (or a room socket refused for an ended session) opens the sign-in-expired
+  gate: sign in again, or reload as a guest. Unsent guesses stay queued.
+- Only when an online target fails, the error page offers the trainee desk to the
+  signed-in pilot (`?mode=practice`, ignored for guests): practice rules, no
+  scoring, its own target cache. Daily or multiplayer lead back online.
 - Online Daily is pinned once per game day and cached in SQLite. Online
   Standard/Audit/Timed get a server-issued random target per run. A chosen
   killmail is no online run (see *Chosen killmails*).

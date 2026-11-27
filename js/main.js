@@ -102,6 +102,10 @@ const state = {
   appMode: 'practice',
   gameplay: 'standard',
   auth: { loading: true, loggedIn: false, name: '', characterId: null },
+  // A signed-in pilot who moved to the trainee desk after a failed online target.
+  trainee: false,
+  onlineTargetFailed: false,
+  sessionExpired: false,
   profileStats: null,
   onlineRun: null,
   // Online runs: the shipId of a guess the service has not answered yet.
@@ -507,7 +511,8 @@ function refreshBrandUI() {
 const TARGET_CACHE_KEY = 'fitdle:v1:target-cache';
 
 function targetCacheUser() {
-  return state.auth.loggedIn ? `user:${state.auth.name}` : 'guest';
+  // A trainee's practice target must never come back as an online one.
+  return state.auth.loggedIn && !state.trainee ? `user:${state.auth.name}` : 'guest';
 }
 
 function readTargetCache() {
@@ -2361,7 +2366,7 @@ function renderShell() {
                </button>
                ${pilotMenuHtml()}
              </div>`
-          : `<div class="eve-sso-slot">${eveSsoButton('small')}</div>`}
+          : ssoAvailable() ? `<div class="eve-sso-slot">${eveSsoButton('small')}</div>` : ''}
         <div class="appearance-wrap">
           <button class="icon-button topbar-appearance" type="button" data-action="appearance-menu" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu" aria-label="${esc(t('manual.settingsTitle'))}">${icon('settings')}</button>
           ${appearanceMenuHtml()}
@@ -2381,20 +2386,20 @@ function renderShell() {
         <div class="mode-bar" data-mode="${state.mode}">
           <span class="mode-label">${esc(tl('mode.label', 'MODE'))}</span>
           <div class="mode-switch mode-nav" role="group" aria-label="${esc(tl('mode.label', 'MODE'))}">
-            <button type="button" class="mode-button${state.gameplay === 'daily' ? ' is-active' : ''}${state.appMode === 'online' ? '' : ' is-unavailable'}"
+            <button type="button" class="mode-button${state.gameplay === 'daily' ? ' is-active' : ''}${onlineEntryOpen() ? '' : ' is-unavailable'}"
               data-action="set-gameplay" data-gameplay="daily"
-              ${state.appMode === 'online' ? '' : 'aria-disabled="true"'}
-              ${state.appMode === 'online' ? '' : `data-tip="${esc(tl('mode.dailyReason', 'Sign in with EVE to play Daily mode.'))}"`}
-              ${state.appMode === 'online' ? '' : `aria-label="${esc(`${t('mode.daily')} — ${tl('mode.dailyReason', 'Sign in with EVE to play Daily mode.')}`)}"`}>${esc(t('mode.daily'))}</button>
+              ${onlineEntryOpen() ? '' : 'aria-disabled="true"'}
+              ${onlineEntryOpen() ? '' : `data-tip="${esc(onlineEntryReason('mode.dailyReason'))}"`}
+              ${onlineEntryOpen() ? '' : `aria-label="${esc(`${t('mode.daily')} — ${onlineEntryReason('mode.dailyReason')}`)}"`}>${esc(t('mode.daily'))}</button>
             <button type="button" class="mode-button${state.gameplay === 'standard' ? ' is-active' : ''}" data-action="set-gameplay" data-gameplay="standard">${esc(tl('gameplay.standard', 'STANDARD'))}</button>
             <button type="button" class="mode-button${state.gameplay === 'audit' ? ' is-active' : ''}" data-action="set-gameplay" data-gameplay="audit">${esc(t('mode.audit'))}</button>
             <button type="button" class="mode-button${state.gameplay === 'timed' ? ' is-active' : ''}" data-action="set-gameplay" data-gameplay="timed">${esc(t('mode.timed'))}</button>
             <span class="mode-divider" aria-hidden="true"></span>
-            <button type="button" class="mode-button mode-multiplayer${state.appMode === 'online' ? '' : ' is-unavailable'}"
+            <button type="button" class="mode-button mode-multiplayer${onlineEntryOpen() ? '' : ' is-unavailable'}"
               data-action="rooms"
-              ${state.appMode === 'online' ? '' : 'aria-disabled="true"'}
-              ${state.appMode === 'online' ? '' : `data-tip="${esc(tl('mode.multiplayerReason', 'Sign in with EVE to enter multiplayer.'))}"`}
-              ${state.appMode === 'online' ? '' : `aria-label="${esc(`${tl('mode.multiplayer', 'MULTIPLAYER')} — ${tl('mode.multiplayerReason', 'Sign in with EVE to enter multiplayer.')}`)}"`}>${esc(tl('mode.multiplayer', 'MULTIPLAYER'))}</button>
+              ${onlineEntryOpen() ? '' : 'aria-disabled="true"'}
+              ${onlineEntryOpen() ? '' : `data-tip="${esc(onlineEntryReason('mode.multiplayerReason'))}"`}
+              ${onlineEntryOpen() ? '' : `aria-label="${esc(`${tl('mode.multiplayer', 'MULTIPLAYER')} — ${onlineEntryReason('mode.multiplayerReason')}`)}"`}>${esc(tl('mode.multiplayer', 'MULTIPLAYER'))}</button>
           </div>
         </div>
       </div>
@@ -2505,6 +2510,26 @@ function renderShell() {
 // ---------------------------------------------------------------------------
 // Chrome, hero, board, dossier
 // ---------------------------------------------------------------------------
+
+/** Signing in needs a service that answered and has EVE SSO set up. */
+function ssoAvailable() {
+  return Boolean(state.meta?.features?.sso);
+}
+
+/** Daily and multiplayer lead online; a signed-in trainee may go back through them. */
+function onlineEntryOpen() {
+  return state.appMode === 'online' || state.trainee;
+}
+
+function onlineEntryReason(key) {
+  return t(ssoAvailable() ? key : 'auth.offlineOnly');
+}
+
+/** The address of the next page keeps the desk this one is on. */
+function setModeParam(url) {
+  if (state.appMode === 'online') url.searchParams.set('mode', 'online');
+  else if (state.trainee) url.searchParams.set('mode', 'practice');
+}
 
 function eveSsoButton(size = 'small') {
   const label = tl('auth.login', 'LOG IN WITH EVE');
@@ -5005,6 +5030,7 @@ document.addEventListener('click', (event) => {
     }
     if (action === 'set-gameplay') { setGameplay(actionEl.dataset.gameplay); return; }
     if (action === 'new-target') { void requestNewTarget(); return; }
+    if (action === 'play-trainee') { playAsTrainee(); return; }
     if (action === 'abandon-target') { closeModal(); void takeNewTarget(); return; }
     if (action === 'open-kill') { renderKillPicker(); return; }
     if (action === 'rooms') { openRooms(); return; }
@@ -5272,6 +5298,10 @@ function showFatal(error) {
     </div>`;
     return;
   }
+  // A signed-in pilot whose online target failed can still play in the page.
+  const trainee = state.onlineTargetFailed
+    ? `<button class="button" type="button" data-action="play-trainee">${icon('arrowRight')} ${esc(t('error.playTrainee'))}</button>`
+    : '';
   if (error instanceof UnknownHullError) {
     app.innerHTML = `<div class="fatal-screen">
       <div class="fatal-glyph">${icon('radar')}</div>
@@ -5280,6 +5310,7 @@ function showFatal(error) {
       <p>${esc(t('error.unknownHullBody'))}</p>
       <div class="fatal-actions">
         <button class="button primary fatal-back" type="button" data-action="go-back">${icon('arrowRight')} ${esc(t('error.back'))}</button>
+        ${trainee}
       </div>
     </div>`;
     return;
@@ -5305,8 +5336,18 @@ function showFatal(error) {
     <div class="fatal-actions">
       <button class="button primary" type="button" data-action="new-target">${icon('radar')} ${esc(tl('online.newTarget', 'NEW TARGET'))}</button>
       <button class="button" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>
+      ${trainee}
     </div>
   </div>`;
+}
+
+/** Leave the online desk for this visit: the same gameplay, played in the page. */
+function playAsTrainee() {
+  const url = new URL(location.href);
+  for (const key of ['kb', 'room', 'rule']) url.searchParams.delete(key);
+  url.searchParams.set('claim', state.gameplay === 'daily' ? 'standard' : state.gameplay);
+  url.searchParams.set('mode', 'practice');
+  location.assign(url.toString());
 }
 
 function goBack() {
@@ -5338,7 +5379,7 @@ function parseAppRoute() {
 
 function setGameplay(gameplay) {
   const next = routeGameplay(gameplay);
-  if (state.appMode === 'practice' && next === 'daily') return;
+  if (next === 'daily' && !onlineEntryOpen()) return;
   cacheCurrentTarget();
   const url = new URL(location.href);
   url.searchParams.delete('gameplay');
@@ -5347,7 +5388,9 @@ function setGameplay(gameplay) {
   if (next === 'daily') url.searchParams.delete('kb');
   url.searchParams.delete('mode');
   url.searchParams.delete('room');
-  if (state.appMode === 'online') url.searchParams.set('mode', 'online');
+  // Daily is online only, so choosing it leaves the trainee desk.
+  if (next === 'daily') url.searchParams.set('mode', 'online');
+  else setModeParam(url);
   location.assign(url.toString());
 }
 
@@ -5502,9 +5545,11 @@ async function resolveOnlineTarget(route) {
 }
 
 async function prepareAppTarget(route) {
-  const online = state.auth.loggedIn;
+  state.trainee = state.auth.loggedIn && route.mode === 'practice';
+  const online = state.auth.loggedIn && !state.trainee;
   state.appMode = online ? 'online' : 'practice';
-  state.loginRequired = !online && (route.mode === 'online' || Boolean(route.room));
+  state.loginRequired = !state.auth.loggedIn
+    && (route.mode === 'online' || route.mode === 'multiplayer' || Boolean(route.room));
   state.gameplay = online || route.gameplay !== 'daily' ? route.gameplay : 'standard';
   state.roomRequest = route.mode === 'multiplayer' || route.room ? route.room || 'lobby' : null;
   if (state.roomRequest) {
@@ -5516,11 +5561,7 @@ async function prepareAppTarget(route) {
       installPlaceholder();
       return;
     }
-    try {
-      await resolvePracticeTarget({ ...route, gameplay: 'standard', kb: '' });
-    } catch {
-      state.freeKillId = null;
-    }
+    await resolvePracticeTarget({ ...route, gameplay: 'standard', kb: '' });
     return;
   }
   applyGameplay(state.gameplay);
@@ -5537,12 +5578,13 @@ async function prepareAppTarget(route) {
       return;
     } catch (error) {
       debugLog('online target', error);
+      state.onlineTargetFailed = !isOutdatedPage(error);
       if (!isOutdatedPage(error)) showToast(t('online.unavailable'), '', 'warn', 5000);
       throw error;
     }
   }
   await resolvePracticeTarget(route);
-  if (!online && route.mode === 'online') {
+  if (state.loginRequired && route.mode === 'online' && ssoAvailable()) {
     showToast(t('auth.loginRequired'), '', 'warn', 5000);
   }
 }
@@ -5760,7 +5802,7 @@ async function takeNewTarget() {
   url.searchParams.delete('room');
   url.searchParams.delete('rule');
   url.searchParams.set('claim', state.gameplay);
-  if (state.appMode === 'online') url.searchParams.set('mode', 'online');
+  setModeParam(url);
   location.assign(url.toString());
 }
 
@@ -5773,7 +5815,7 @@ function openKillmail(raw) {
   for (const key of ['mode', 'room', 'rule']) url.searchParams.delete(key);
   url.searchParams.set('claim', state.gameplay === 'daily' ? 'standard' : state.gameplay);
   url.searchParams.set('kb', freeKillToken(killId));
-  if (state.appMode === 'online') url.searchParams.set('mode', 'online');
+  setModeParam(url);
   location.assign(url.toString());
   return true;
 }
@@ -6276,22 +6318,48 @@ function openRooms() {
   state.roomRequest = null;
 }
 
-function showAuthGate() {
-  if (document.getElementById('auth-gate')) return;
+/** The login request; `expired` when a signed-in page lost its session. */
+function showAuthGate({ expired = false } = {}) {
+  const open = document.getElementById('auth-gate');
+  if (open && !expired) return;
+  if (!expired && !ssoAvailable()) {
+    showToast(t('auth.offlineOnly'), '', 'warn', 5000);
+    return;
+  }
+  open?.remove();
   const gate = document.createElement('div');
   gate.id = 'auth-gate';
   gate.className = 'room-overlay';
-  gate.innerHTML = `<div class="room-surface auth-gate">
+  gate.innerHTML = `<div class="room-surface auth-gate" role="dialog" aria-modal="true">
     <div class="mp-kicker">FITDLE // ONLINE</div>
-    <h2>${esc(tl('auth.loginTitle', 'SIGN IN WITH EVE'))}</h2>
-    <p>${esc(t('auth.loginRequired'))}</p>
+    <h2>${esc(t(expired ? 'auth.expiredTitle' : 'auth.loginTitle'))}</h2>
+    <p>${esc(t(expired ? 'auth.expiredBody' : 'auth.loginRequired'))}</p>
     <div class="room-actions">
-      ${eveSsoButton('large')}
-      <button class="button ghost" type="button" data-auth-close>${esc(tl('auth.practice', 'CONTINUE IN PRACTICE'))}</button>
+      ${ssoAvailable() ? eveSsoButton('large') : ''}
+      <button class="button ghost" type="button" data-auth-close>${esc(t('auth.practice'))}</button>
     </div>
   </div>`;
   document.body.append(gate);
-  gate.querySelector('[data-auth-close]')?.addEventListener('click', () => gate.remove());
+  // Keys must not reach the board behind a gate that cannot be closed.
+  if (expired) gate.querySelector('[data-auth-close]')?.focus();
+  gate.querySelector('[data-auth-close]')?.addEventListener('click', () => {
+    if (!expired) {
+      gate.remove();
+      return;
+    }
+    // The page still shows a signed-in board: load it again as a guest.
+    const url = new URL(location.href);
+    url.searchParams.delete('mode');
+    url.searchParams.delete('room');
+    location.assign(url.toString());
+  });
+}
+
+/** The service no longer knows this session: nothing online can go on. */
+function sessionExpired() {
+  if (!state.auth.loggedIn || state.sessionExpired) return;
+  state.sessionExpired = true;
+  showAuthGate({ expired: true });
 }
 
 
@@ -6349,6 +6417,7 @@ async function boot() {
     state.today = gameDateKey(now, state.gameDayStartMinutes);
     const route = parseAppRoute();
     api.setBase(String(manifest.apiBase || ''));
+    api.onUnauthorized = sessionExpired;
     await resolveSession();
     startRunSync();
     if (state.meta?.gameDay) state.today = state.meta.gameDay;
@@ -6417,6 +6486,8 @@ async function boot() {
     if (state.roomRequest && state.auth.loggedIn) openRooms();
   } catch (error) {
     showFatal(error);
+    // A room link that could not load its practice board still asks to sign in.
+    if (state.loginRequired && ssoAvailable()) showAuthGate();
   }
 }
 
