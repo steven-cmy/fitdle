@@ -102,3 +102,11 @@ test('a signed-out or different account keeps the queue without sending it', asy
 test('merging keeps the confirmed order and adds unsent guesses', () => {
   assert.deepEqual(mergeGuesses([3, 1], [1, 2, '4', 0, null]), [3, 1, 2, 4]);
 });
+
+test('a page older than the service stops sending and is told so', async () => {
+  const { sync, rejected, timers, failWith } = setup();
+  failWith({ status: 426 });
+  assert.equal(await sync.guess('a', 1), true);
+  assert.deepEqual(rejected, [['a', 426]]);
+  assert.equal(timers.length, 0, 'no retry: only a reload helps');
+});

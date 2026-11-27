@@ -177,16 +177,3 @@ export const zkill = new ZkillClient({
   userAgent: config.userAgent,
   minIntervalMs: config.zkillMinIntervalMs,
 });
-
-/** fetch-shaped adapter for code shared with the browser (js/mp/target.js). */
-export async function zkillFetch(url) {
-  const base = zkill.base();
-  const pathname = String(url).startsWith(base) ? String(url).slice(base.length) : new URL(String(url)).pathname;
-  try {
-    const { data } = await zkill.get(pathname);
-    return { ok: true, status: 200, headers: new Headers(), json: async () => data };
-  } catch {
-    // The client already retried; a non-retryable status stops another round.
-    return { ok: false, status: 424, headers: new Headers(), json: async () => null };
-  }
-}

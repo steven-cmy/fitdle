@@ -246,7 +246,7 @@ export default {
   'settings.sizeNormal': 'NORMAL',
 
   'manual.emptyKb': 'Permitir pérdidas sin equipamiento',
-  'manual.emptyKbHelp': 'Se aplica al elegir el próximo expediente.',
+  'manual.emptyKbHelp': 'Solo afecta a los expedientes aleatorios en solitario; el expediente diario, las salas multijugador y los enlaces kb compartidos no se ven afectados. Se aplica al elegir el próximo expediente.',
   'manual.emptyKbOn': 'Pérdidas sin equipamiento activadas',
   'manual.emptyKbOff': 'Pérdidas sin equipamiento desactivadas',
 
@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'MODOS',
   'help.gameplayTitle': 'MODALIDADES',
   'help.generalTitle': 'GENERAL',
-  'help.dailyBody': 'Un expediente por día de juego, el mismo para todos, con reinicio a las {time} UTC y reglas estándar. Inicia sesión con EVE para jugar; el resultado entra en tu historial.',
+  'help.dailyBody': 'Un expediente por día de juego, el mismo para todos, con reinicio a las {time} UTC y reglas estándar. Inicia sesión con EVE para jugar; el resultado entra en tu historial. El operador del servidor decide si el expediente diario permite pérdidas sin equipamiento; tu ajuste personal no le afecta.',
 
   'error.dailyUnavailableTitle': 'Expediente diario no disponible',
   'error.dailyUnavailableBody': 'No se pudo verificar la hora de referencia o el informe de muertes. Abre las prácticas para tomar otro expediente.',
@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': 'SIN BLOQUEO DE OBJETIVO',
   'error.unknownHullLore': 'SEÑAL SIN CLASIFICAR',
   'error.genericLore': 'ENLACE ASCENDENTE FALLIDO',
+  'error.outdatedCode': 'Página desactualizada',
+  'error.outdatedLore': 'Esta página es anterior a la red de reclamaciones',
+  'error.outdatedBody': 'FITDLE se ha actualizado. Recarga la página para continuar; tu partida se conserva.',
+  'error.reload': 'RECARGAR PÁGINA',
   'error.genericCode': 'Fallo de señal no clasificado',
 
   'online.label': 'EN LÍNEA',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': 'El servicio en línea no está disponible. Las prácticas siguen abiertas.',
   'online.recordFailed': 'No se pudo registrar el resultado.',
+  'online.guessPending': 'Esperando a que la red de reclamaciones evalúe tu último intento.',
   'online.recordPending': 'El resultado se registrará cuando vuelva la conexión.',
   'online.abandonTitle': '¿ABANDONAR ESTE EXPEDIENTE?',
   'online.abandonBody': 'Este expediente ya está empezado. Tomar el próximo cuenta como derrota.',
@@ -407,6 +412,10 @@ export default {
   'room.bigRoundsHelp': 'Rotaciones completas de repartidores, 1–{max}.',
   'room.duration': 'LÍMITE DE TIEMPO (MINUTOS)',
   'room.durationHelp': 'Solo modo crono, 1–{max} minutos.',
+  'room.allowEmpty': 'Permitir pérdidas sin equipamiento',
+  'room.allowEmptyHelp': 'Si se desmarca, cada ronda usa solo pérdidas con equipamiento.',
+  'room.allowEmptyOn': 'Esta sala permite pérdidas sin equipamiento.',
+  'room.allowEmptyOff': 'Esta sala solo usa pérdidas con equipamiento.',
   'room.error.reconnecting': 'Conexión perdida. Reconectando…',
   'room.error.room-not-found': 'Sala no encontrada.',
   'room.error.wrong-password': 'Contraseña de sala incorrecta.',
@@ -456,7 +465,7 @@ export default {
   'mode.dailyRefresh': 'ACTUALIZAR',
 
   'help.multiplayerFlowTitle': 'FLUJO DE SALA',
-  'help.multiplayerFlow': 'El anfitrión crea la sala y elige modalidad y ajustes. Hacen falta al menos dos jugadores. Se unen desde la lista de salas. En Estándar, Auditoría de equipamiento y Contrarreloj todos precargan el objetivo y empiezan a la vez; tras cada ronda todos vuelven a prepararse y la siguiente usa un nuevo objetivo compartido. Los puntos de sala se acumulan entre partidas; solo el anfitrión puede reiniciarlos, en el vestíbulo o entre partidas. Quien sale de la sala pierde sus puntos de sala. Salir durante una ronda, o seguir desconectado más allá del margen de reconexión, la da por perdida; ser expulsado por el anfitrión no.',
+  'help.multiplayerFlow': 'El anfitrión crea la sala y elige modalidad y ajustes. Hacen falta al menos dos jugadores. Se unen desde la lista de salas. En Estándar, Auditoría de equipamiento y Contrarreloj todos precargan el objetivo y empiezan a la vez; tras cada ronda todos vuelven a prepararse y la siguiente usa un nuevo objetivo compartido. Los puntos de sala se acumulan entre partidas; solo el anfitrión puede reiniciarlos, en el vestíbulo o entre partidas. Quien sale de la sala pierde sus puntos de sala. Salir durante una ronda, o seguir desconectado más allá del margen de reconexión, la da por perdida; ser expulsado por el anfitrión no. El anfitrión decide en los ajustes de la sala si se permiten pérdidas sin equipamiento; toda la sala sigue esa decisión, no los ajustes personales.',
   'help.multiplayerRaceTitle': 'ESTÁNDAR / AUDITORÍA / CONTRARRELOJ',
   'help.multiplayerRace': 'Las reglas son las del juego individual (ver MODALIDADES en el manual); aquí solo se indican las diferencias.\nTodos reciben el mismo expediente, el mismo orden de pruebas y la misma salida.\nEstándar y Auditoría de equipamiento: acertar el casco termina tu ronda. Cuantas menos revisiones uses, más puntos; si fallas las seis, no puntúas.\nContrarreloj: en cada ronda, una cuenta atrás común para toda la sala, con la duración que fija el anfitrión. Los puntos siguen el orden en que se acierta el casco; quien no acierta antes de que acabe el tiempo no puntúa.\nQuien termina antes puede ver el resultado mientras los demás siguen.',
   'help.multiplayerArbitrationTitle': 'ARBITRAJE',

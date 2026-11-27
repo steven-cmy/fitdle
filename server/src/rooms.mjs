@@ -2,9 +2,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { buildSearchIndex, gameDateKey, normalizeText } from '../../js/game.js';
+import { buildSearchIndex, normalizeText } from '../../js/game.js';
 import { buildClues } from '../../js/clues.js';
-import { clueForWire, sanitizeChatText, sanitizeText } from '../../js/mp/protocol.js';
+import { clueForWire, PROTOCOL_VERSION, sanitizeChatText, sanitizeText } from '../../js/mp/protocol.js';
 import {
   rankPoints,
   endlessRoundScore,
@@ -16,16 +16,18 @@ import {
   arbitrationEndBonusRaw,
   arbitrationDealerCredit,
 } from '../../js/mp/rules.js';
-import { pickDealerRound } from '../../js/mp/target.js';
+import { buildDealerRound } from '../../js/mp/target.js';
 import { calculateDogmaFit, calculateDogmaBaseline } from '../../js/dogma.js';
 import { buildRevealPlan } from '../../js/reveal.js';
+import {
+  boardView, buildPuzzle, guessFeedback, markShown, releasedClues, TIMED_RELEASE_MS, timedExhaustedAt,
+} from './puzzle.mjs';
 import { config } from './config.mjs';
 import { getSessionUser } from './auth.mjs';
 import { now, statement } from './db.mjs';
 import { withinLimit } from './limits.mjs';
 import { getRandomTarget, TargetUnavailable } from './targets.mjs';
-import { zkillFetch } from './zkill.mjs';
-import { recordExposure, recordArbitrationRound, recordRoomMatch } from './stats.mjs';
+import { recordPlays, recordArbitrationRound, recordRoomMatch } from './stats.mjs';
 
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const RULES = new Set(['standard', 'audit', 'timed', 'arbitration']);
@@ -54,6 +56,7 @@ export function normalizeRoomSettings(current = {}, incoming = {}) {
       next.bigRounds = bigRounds;
     }
   }
+  if (typeof incoming.allowEmpty === 'boolean') next.allowEmpty = incoming.allowEmpty;
   if (incoming.raceDurationMs != null) {
     const duration = Number(incoming.raceDurationMs);
     if (Number.isFinite(duration)) {
@@ -614,42 +617,25 @@ function connectedPilots(room) {
   return [...room.players.values()].filter((player) => player.connected && !player.spectator);
 }
 
-async function buildEndlessClues(room, target, roundNo) {
-  const ship = SHIPS_BY_ID.get(Number(target.shipId));
-  if (!ship) throw new TargetUnavailable('target hull missing');
-  const audit = room.gameplay === 'audit';
-  let fittedAttrs = null;
-  let baselineAttrs = null;
-  if (audit) {
-    fittedAttrs = await calculateDogmaFit(ship, target.killmail);
-    baselineAttrs = await calculateDogmaBaseline(ship);
-  }
-  const built = buildClues({
-    ship,
-    catalog: config.catalogShips,
-    refs: refsEn,
-    stats: null,
-    losses: [target.killmail],
-    dateKey: `room:${room.code}:${roundNo}`,
-    dataVersion: config.manifest?.clueVersion || 'room',
-    targetKillId: target.killId,
-    mode: audit ? 'audit' : 'normal',
-    fittedAttrs,
-    baselineAttrs,
-    moduleFallbacks,
-    weaponUpgradeGroups: config.manifest?.weaponUpgradeGroups || null,
-    weaponGroups: config.manifest?.weaponGroups || null,
+/**
+ * The round's puzzle, kept by the service: the same clue set and reveal plan
+ * for every player, without live statistics. Only Audit simulates the fit.
+ */
+async function buildEndlessPuzzle(gameplay, target, seed) {
+  if (!SHIPS_BY_ID.has(Number(target.shipId))) throw new TargetUnavailable('target hull missing');
+  return buildPuzzle({ target, gameplay, seed, stats: null, simulated: gameplay === 'audit' });
+}
+
+/**
+ * Next target of a room from the shared selection. A killmail is played once
+ * per room (the same hull may come again); rooms do not look at each other.
+ */
+function roomTarget(room, gameplay) {
+  room.usedKillIds ||= new Set();
+  return getRandomTarget(gameplay, {
+    allowEmpty: room.settings?.allowEmpty !== false,
+    excludeKillIds: room.usedKillIds,
   });
-  return {
-    clues: built.clues.map((clue, index) => {
-      const entry = ship.bonusEntries?.[clue.v];
-      const text = clue.k === 'bonus' && entry?.text ? entry.text : null;
-      return { ...clue, i: index, ...(text ? { text } : {}) };
-    }),
-    sampleKill: built.sampleKill,
-    fittedKills: built.fittedKills,
-    fitDelta: built.fitDelta,
-  };
 }
 
 async function prepareEndlessRound(room, roundNo, current) {
@@ -657,25 +643,17 @@ async function prepareEndlessRound(room, roundNo, current) {
   if (!match || match.rule !== 'endless') return;
   clearTimeout(match.startTimer);
   clearTimeout(match.roundTimer);
-  const target = await getRandomTarget(match.gameplay);
-  const built = await buildEndlessClues(room, target, roundNo);
+  const target = await roomTarget(room, match.gameplay);
+  const seed = `room:${room.code}:${roundNo}:${target.killId}`;
+  const puzzle = await buildEndlessPuzzle(match.gameplay, target, seed);
   if (!current() || room.match !== match) return;
-  recordExposure({
-    source: 'room',
-    mode: 'multiplayer',
-    gameplay: match.gameplay,
-    targetKillId: target.killId,
-    targetShipId: target.shipId,
-    gameDay: gameDateKey(new Date(), config.gameDayStartMinutes),
-  });
+  room.usedKillIds.add(target.killId);
   match.roundId = crypto.randomUUID();
   match.roundNo = roundNo;
   match.target = target;
-  match.seed = `room:${room.code}:${roundNo}:${target.killId}`;
-  match.clues = built.clues;
-  match.sampleKill = built.sampleKill;
-  match.fittedKills = built.fittedKills;
-  match.fitDelta = built.fitDelta;
+  match.seed = seed;
+  match.puzzle = puzzle;
+  match.views = new Map();
   match.phase = 'loading';
   match.ready.clear();
   match.prepared.clear();
@@ -685,17 +663,12 @@ async function prepareEndlessRound(room, roundNo, current) {
   match.startAt = null;
   match.endsAt = null;
   match.history ||= [];
+  // Neither the target nor a clue: the board follows when the round starts.
   broadcast(room, {
     t: 'endlessPrepare',
     roundId: match.roundId,
     roundNo: match.roundNo,
     gameplay: match.gameplay,
-    target: match.target,
-    seed: match.seed,
-    clues: built.clues,
-    sampleKill: built.sampleKill,
-    fittedKills: built.fittedKills,
-    fitDelta: built.fitDelta,
     activeIds: match.activeIds,
   });
   changed(room);
@@ -770,13 +743,16 @@ function startEndlessRound(room) {
   match.endsAt = match.gameplay === 'timed'
     ? startAt + (Number(room.settings.raceDurationMs) || config.roomTimedDurationMinutes * 60 * 1000)
     : null;
-  broadcast(room, {
-    t: 'endlessStart',
-    roundId: match.roundId,
-    startAt: match.startAt,
-    serverNow: now(),
-    endsAt: match.endsAt,
-  });
+  for (const player of room.players.values()) {
+    send(player, {
+      t: 'endlessStart',
+      roundId: match.roundId,
+      startAt: match.startAt,
+      serverNow: now(),
+      endsAt: match.endsAt,
+      ...raceView(match, player.id),
+    });
+  }
   changed(room);
   match.startTimer = setTimeout(() => {
     if (room.match !== match || match.phase !== 'starting') return;
@@ -790,6 +766,26 @@ function startEndlessRound(room) {
     }
   }, Math.max(0, startAt - now()));
   match.startTimer.unref?.();
+}
+
+/**
+ * Add the round's results to the anonymous difficulty counters. A player counts
+ * from the first guess (a timed round from its start); one who left the room
+ * mid-round counts as abandoned, but only after a guess.
+ */
+function recordRacePlays(match) {
+  recordPlays(match.results.flatMap((result) => {
+    const guessed = Number(result.attempts) > 0;
+    if (result.forfeit ? !guessed : !guessed && match.gameplay !== 'timed') return [];
+    return [{
+      killId: match.target.killId,
+      shipId: match.target.shipId,
+      gameplay: match.gameplay,
+      outcome: result.status === 'won' ? 'won' : (result.forfeit ? 'abandoned' : 'lost'),
+      attempts: result.attempts,
+      elapsedMs: result.elapsedMs,
+    }];
+  }));
 }
 
 function finishEndlessRound(room, reason = 'complete') {
@@ -831,10 +827,16 @@ function finishEndlessRound(room, reason = 'complete') {
     scores: Object.fromEntries([...room.players.values()].map((player) => [player.id, player.score])),
     reason,
   };
+  recordRacePlays(match);
   match.history.push(result);
   match.phase = 'finished';
   match.ready.clear();
   match.prepared.clear();
+  // Players still on the board when the clock ran out get the full board first.
+  for (const playerId of match.activeIds) {
+    const player = room.players.get(playerId);
+    if (player && !known.has(playerId)) sendRaceGuesses(player, match);
+  }
   broadcast(room, { t: 'endlessRoundResult', result });
   changed(room);
 }
@@ -881,6 +883,47 @@ function openRace(room, player, message) {
   return match.activeIds.includes(player.id) ? match : null;
 }
 
+function raceReleases(match) {
+  if (match.gameplay !== 'timed' || !match.startAt) return 0;
+  return Math.max(0, Math.floor((now() - match.startAt) / TIMED_RELEASE_MS));
+}
+
+/**
+ * What one player may see of the round: the clues released to them, the match
+ * of each of their guesses and, once their part (or the round) is decided, the
+ * answer. Released clues stay released, in the order they appeared.
+ */
+function raceView(match, playerId) {
+  const { puzzle, target } = match;
+  if (!puzzle || !target) return {};
+  const result = match.results.find((item) => item.playerId === playerId);
+  const ended = Boolean(result) || match.phase === 'finished';
+  let view = match.views.get(playerId);
+  if (!view) {
+    view = { ...puzzle, wire: [], shown: [] };
+    match.views.set(playerId, view);
+  }
+  const guesses = raceGuesses(match, playerId);
+  if (!ended) {
+    markShown(view, releasedClues(view, {
+      answerId: target.shipId,
+      guesses,
+      begun: Boolean(match.startAt),
+      releases: raceReleases(match),
+    }));
+  }
+  return {
+    board: {
+      ...boardView(view, { answerId: target.shipId, ended }),
+      feedback: guessFeedback(guesses, target.shipId),
+      caseId: puzzle.caseId,
+      ...(ended ? { sampleKill: puzzle.sampleKill, fittedKills: puzzle.fittedKills } : {}),
+    },
+    ...(ended ? { target } : {}),
+    ...(result ? { endReason: result.reason || null, elapsedMs: result.elapsedMs } : {}),
+  };
+}
+
 /** Tell one player what the server has recorded for them in this round. */
 function sendRaceGuesses(player, match, extra = {}) {
   const result = match.results.find((item) => item.playerId === player.id);
@@ -889,8 +932,31 @@ function sendRaceGuesses(player, match, extra = {}) {
     roundId: match.roundId,
     guesses: raceGuesses(match, player.id),
     status: result?.status || 'playing',
+    ...raceView(match, player.id),
     ...extra,
   });
+}
+
+/**
+ * A player asks for the board the round's clock has reached (Timed). A Timed
+ * part with nothing left to release ends there, without the answer.
+ */
+function handleRaceBoard(room, player, message) {
+  const match = room.match;
+  if (!match || match.rule !== 'endless' || !match.puzzle) return;
+  if (!match.roundId || String(message.roundId) !== String(match.roundId)) return;
+  const open = match.phase === 'playing'
+    && match.gameplay === 'timed'
+    && match.activeIds.includes(player.id)
+    && !match.results.some((result) => result.playerId === player.id);
+  if (open && timedExhaustedAt(match.puzzle, { answerId: match.target.shipId, releases: raceReleases(match) })) {
+    recordRaceResult(room, player, 'lost', { reason: 'exhausted' });
+    sendRaceGuesses(player, match);
+    if (raceComplete(match)) finishEndlessRound(room);
+    else changed(room);
+    return;
+  }
+  sendRaceGuesses(player, match);
 }
 
 function recordRaceResult(room, player, status, extra = {}) {
@@ -946,7 +1012,7 @@ function handleRaceLoss(room, player, message) {
   if (!match || match.gameplay !== 'timed' || message.status !== 'lost') return;
   if (match.startAt && now() < match.startAt) return;
   if (match.results.some((result) => result.playerId === player.id)) return;
-  recordRaceResult(room, player, 'lost');
+  recordRaceResult(room, player, 'lost', { reason: 'gave-up' });
   sendRaceGuesses(player, match);
   if (raceComplete(match)) finishEndlessRound(room);
   else changed(room);
@@ -980,34 +1046,28 @@ function substituteDealerId(room, active, wantedDealerId) {
 }
 
 async function startArbitration(room, wantedDealerId, current) {
-  const round = await pickDealerRound({
+  const target = await roomTarget(room, 'audit');
+  const round = await buildDealerRound({
+    target,
     manifest: config.manifest,
     catalog: config.catalogShips,
     refsEn,
-    fetchImpl: zkillFetch,
     mode: 'audit',
     moduleFallbacks,
     weaponUpgradeGroups: config.manifest?.weaponUpgradeGroups || null,
     weaponGroups: config.manifest?.weaponGroups || null,
-    simulate: async (ship, target) => ({
-      fittedAttrs: await calculateDogmaFit(ship, target.killmail),
+    simulate: async (ship, picked) => ({
+      fittedAttrs: await calculateDogmaFit(ship, picked.killmail),
       baselineAttrs: await calculateDogmaBaseline(ship),
     }),
   });
   if (!current()) return;
+  room.usedKillIds.add(target.killId);
   // Players may have left while the target loaded.
   const active = connectedPilots(room);
   if (active.length < 2) throw Object.assign(new Error('not enough players'), { code: 'need-players' });
   const dealerId = substituteDealerId(room, active, wantedDealerId);
   const accepted = acceptedNames(round.ship.id);
-  recordExposure({
-    source: 'room',
-    mode: 'multiplayer',
-    gameplay: 'arbitration',
-    targetKillId: round.killId,
-    targetShipId: round.shipId,
-    gameDay: gameDateKey(new Date(), config.gameDayStartMinutes),
-  });
   const match = {
     id: crypto.randomUUID(),
     rule: 'arbitration',
@@ -1098,6 +1158,17 @@ function recordArbitrationRoundOnce(room, match) {
 function recordArbitrationMatch(room, match, result) {
   if (match.recordedMatch) return;
   match.recordedMatch = true;
+  // Players who never got to guess tell nothing about the target. A leaver stays
+  // unsolved, as in the scoring. Only counts are kept: the clues were chosen by
+  // the dealer, so these rows must not be mixed with the other gameplays.
+  if (match.guesses > 0 || match.solved.size > 0) {
+    const solved = Math.min(match.solved.size, match.playerCount);
+    const base = { killId: match.target.killId, shipId: match.target.shipId, gameplay: 'arbitration' };
+    recordPlays([
+      { ...base, outcome: 'won', plays: solved },
+      { ...base, outcome: 'lost', plays: match.playerCount - solved },
+    ]);
+  }
   recordRoomMatch({
     id: match.id,
     roomCode: room.code,
@@ -1390,6 +1461,10 @@ function onMessage(room, player, raw) {
     handleRaceLoss(room, player, message);
     return;
   }
+  if (message.t === 'raceBoard') {
+    handleRaceBoard(room, player, message);
+    return;
+  }
   if (message.t === 'leave') {
     removePlayer(room, player, 'leave');
     return;
@@ -1497,14 +1572,9 @@ function resumeEndless(room, player) {
     roundId: match.roundId,
     roundNo: match.roundNo,
     gameplay: match.gameplay,
-    target: match.target,
-    seed: match.seed,
-    clues: match.clues || [],
-    sampleKill: match.sampleKill || null,
-    fittedKills: match.fittedKills || [],
-    fitDelta: match.fitDelta || null,
     activeIds: match.activeIds,
     guesses: raceGuesses(match, player.id),
+    ...(match.startAt || submitted || match.phase === 'finished' ? raceView(match, player.id) : {}),
     resumed: true,
     phase: match.phase,
     submitted: submitted ? { status: submitted.status, attempts: submitted.attempts } : null,
@@ -1531,6 +1601,7 @@ function resumeEndless(room, player) {
       serverNow: now(),
       endsAt: match.endsAt,
       resumed: true,
+      ...raceView(match, player.id),
     });
   }
 }
@@ -1597,6 +1668,7 @@ export function registerRoomRoutes(app) {
       settings: {
         bigRounds: config.roomArbitrationBigRounds,
         raceDurationMs: config.roomTimedDurationMinutes * 60 * 1000,
+        allowEmpty: true,
       },
       match: null,
       bigRound: null,
@@ -1700,6 +1772,12 @@ export function registerRoomRoutes(app) {
     const user = getSessionUser(request);
     const code = String(request.params.code || '').toUpperCase();
     const playerId = String(request.query?.player || '');
+    // A page of another release must reload before it can play a round.
+    if (String(request.query?.v || '') !== String(PROTOCOL_VERSION)) {
+      socket.send(JSON.stringify({ t: 'error', code: 'client-outdated', protocol: PROTOCOL_VERSION }));
+      socket.close(1008, 'client-outdated');
+      return;
+    }
     const room = ROOMS.get(code);
     const player = room?.players.get(playerId);
     if (!user || !room || !player || player.nameKey !== user.name_key) {

@@ -246,7 +246,7 @@ export default {
   'settings.sizeNormal': '标准',
 
   'manual.emptyKb': '允许空船击毁报告',
-  'manual.emptyKbHelp': '从下一次选取案卷开始生效。',
+  'manual.emptyKbHelp': '仅对单人随机评估生效；每日、联机房间和指定击毁不受影响。从下一次选取案卷开始生效。',
   'manual.emptyKbOn': '已允许空船击毁报告',
   'manual.emptyKbOff': '已禁止空船击毁报告',
 
@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': '模式说明',
   'help.gameplayTitle': '玩法说明',
   'help.generalTitle': '通用',
-  'help.dailyBody': '每个游戏日一份案卷，所有人相同，{time} UTC 重置，按标准玩法进行。登录 EVE 后才能进行，结果记入评估员记录。',
+  'help.dailyBody': '每个游戏日一份案卷，所有人相同，{time} UTC 重置，按标准玩法进行。登录 EVE 后才能进行，结果记入评估员记录。每日案卷是否允许空船击毁报告由部署者设置，不受个人开关影响。',
 
   'error.dailyUnavailableTitle': '每日案卷暂不可用',
   'error.dailyUnavailableBody': '无法验证权威时间或击毁报告。请进入见习评估另取一份案卷。',
@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': '未捕获目标',
   'error.unknownHullLore': '信号无法归类',
   'error.genericLore': '上行链路失败',
+  'error.outdatedCode': '页面版本过旧',
+  'error.outdatedLore': '此页面版本早于理赔网络',
+  'error.outdatedBody': 'FITDLE 已更新。请刷新页面后继续，你的对局会保留。',
+  'error.reload': '刷新页面',
   'error.genericCode': '未分类的信号错误',
 
   'online.label': '在线',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': '在线服务不可用，仍可进行见习评估。',
   'online.recordFailed': '结果未能记录。',
+  'online.guessPending': '正在等待理赔网络判定你的上一次猜测。',
   'online.recordPending': '结果会在连接恢复后记录。',
   'online.abandonTitle': '放弃这份案卷？',
   'online.abandonBody': '这份案卷已经开始。换下一份会记为一次失败。',
@@ -407,6 +412,10 @@ export default {
   'room.bigRoundsHelp': '完整庄家轮换次数，1–{max}。',
   'room.duration': '时间上限（分钟）',
   'room.durationHelp': '仅计时模式，1–{max} 分钟。',
+  'room.allowEmpty': '允许空船击毁报告',
+  'room.allowEmptyHelp': '取消勾选后，每一轮都只选择带装配的击毁报告。',
+  'room.allowEmptyOn': '本房间允许空船击毁报告。',
+  'room.allowEmptyOff': '本房间不使用空船击毁报告。',
   'room.error.reconnecting': '连接已断开，正在重连…',
   'room.error.room-not-found': '房间不存在。',
   'room.error.wrong-password': '房间密码错误。',
@@ -456,7 +465,7 @@ export default {
   'mode.dailyRefresh': '刷新',
 
   'help.multiplayerFlowTitle': '房间流程',
-  'help.multiplayerFlow': '房主创建房间并选择玩法与设置，至少需要两名玩家。玩家从房间列表加入。标准、装配审计和计时玩法中，所有人预加载目标后同时开始；每轮结束后所有人重新准备，下一轮换一份新的共享案卷。房间分数跨对局持续累计，只有房主能在大厅或对局之间重置。离开房间后，你的房间分数随之清除。本轮开始后主动离开，或断线超过重连等待时间，本轮记负；被房主踢出不记负。',
+  'help.multiplayerFlow': '房主创建房间并选择玩法与设置，至少需要两名玩家。玩家从房间列表加入。标准、装配审计和计时玩法中，所有人预加载目标后同时开始；每轮结束后所有人重新准备，下一轮换一份新的共享案卷。房间分数跨对局持续累计，只有房主能在大厅或对局之间重置。离开房间后，你的房间分数随之清除。本轮开始后主动离开，或断线超过重连等待时间，本轮记负；被房主踢出不记负。房主可在设置里决定本房间是否允许空船击毁报告，全房间使用房主的设置，不受个人设置影响。',
   'help.multiplayerRaceTitle': '标准 / 装配审计 / 计时',
   'help.multiplayerRace': '规则与单人玩法相同（见手册「玩法说明」），这里只写联机的不同之处。\n所有人使用同一份案卷、同一证据顺序，同时开始。\n标准与装配审计：确认船体即结束自己的本轮；用的复核次数越少得分越高，六次都不符则本轮不得分。\n计时：每轮全房间共用一个倒计时，时长由房主设置。按确认船体的先后排名得分；时间到仍未确认则不得分。\n先完成的玩家可以查看结算，等其他人完成。',
   'help.multiplayerArbitrationTitle': '仲裁复核',

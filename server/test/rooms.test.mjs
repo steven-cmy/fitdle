@@ -12,7 +12,7 @@ process.env.FITDLE_DEV_AUTH = '1';
 process.env.PUBLIC_ORIGIN = 'http://127.0.0.1:8790';
 process.env.ROOM_MAX_PLAYERS = '6';
 process.env.ROOM_RECONNECT_GRACE_MS = '5000';
-process.env.TARGET_SPARES = '0';
+process.env.TARGET_SHELF_SIZE = '0';
 process.env.ZKILL_MIN_INTERVAL_MS = '0';
 process.env.NODE_ENV = 'test';
 
@@ -21,8 +21,9 @@ const {
   arbitrationShare, arbitrationSolvePoints, arbitrationDealerRoundRaw, arbitrationEndBonusRaw,
 } = await import('../../js/mp/rules.js');
 const { ROOMS, acceptedNames } = await import('../src/rooms.mjs');
+const { PROTOCOL_VERSION } = await import('../../js/mp/protocol.js');
 const { zkill } = await import('../src/zkill.mjs');
-const { clearHulls } = await import('../src/targets.mjs');
+const { resetTargets } = await import('../src/targets.mjs');
 const { buildApp } = await import('../src/index.mjs');
 const { db } = await import('../src/db.mjs');
 
@@ -34,7 +35,11 @@ config.roomHeartbeatMs = 60;
 const realFetch = globalThis.fetch;
 let gate = null;
 let failNext = false;
+// null: every loss is fitted; 'mixed': one fitted among empty hulls; 'empty': all empty.
+let upstreamEmpty = null;
 let pageRequests = 0;
+// A number: that many fixed killmails (same ids on every request) instead of fresh ones.
+let upstreamFixed = 0;
 let killSerial = 5000;
 const items = [[27, 2048], [19, 5973], [11, 519]].map(([flag, item_type_id]) => ({
   flag, item_type_id, quantity_destroyed: 1, quantity_dropped: 0,
@@ -46,17 +51,36 @@ globalThis.fetch = async (url, options) => {
   pageRequests += 1;
   if (gate) await gate;
   if (failNext) return new Response('{}', { status: 404 });
-  return new Response(JSON.stringify(Array.from({ length: 12 }, () => ({
+  const cargo = [{ flag: 5, item_type_id: 34, quantity_destroyed: 1, quantity_dropped: 0 }];
+  if (upstreamFixed) {
+    return new Response(JSON.stringify(Array.from({ length: upstreamFixed }, (_, index) => ({
+      killmail_id: 7000 + index,
+      killmail_time: '2026-06-01T00:00:00Z',
+      zkb: { totalValue: 1000 },
+      victim: { ship_type_id: ship, items },
+    }))), { status: 200 });
+  }
+  return new Response(JSON.stringify(Array.from({ length: 12 }, (_, index) => ({
     killmail_id: killSerial += 1,
     killmail_time: '2026-06-01T00:00:00Z',
     zkb: { totalValue: 1000 },
-    victim: { ship_type_id: ship, items },
+    victim: {
+      ship_type_id: ship,
+      items: upstreamEmpty === 'empty' || (upstreamEmpty === 'mixed' && index > 0) ? cargo : items,
+    },
   }))), { status: 200 });
 };
+// The response cache outlives a change of the synthetic upstream, so it is
+// cleared together with the prepared targets.
+function resetUpstream() {
+  zkill.reset();
+  resetTargets();
+}
+test.beforeEach(resetUpstream);
+
 function holdUpstream() {
   // A cached page would answer without reaching the held upstream.
-  zkill.reset();
-  clearHulls();
+  resetUpstream();
   let release;
   gate = new Promise((resolve) => { release = resolve; });
   return () => { gate = null; release(); };
@@ -97,7 +121,7 @@ class Pilot {
   }
 
   async open() {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${this.code}/ws?player=${this.id}`, {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${this.code}/ws?player=${this.id}&v=${PROTOCOL_VERSION}`, {
       headers: { Cookie: this.cookie },
     });
     const log = [];
@@ -186,6 +210,98 @@ async function playing(size, gameplay) {
 
 // --- The server counts and judges race guesses ------------------------------
 
+// Fields that would name or locate the target while a part is still open.
+const ANSWER_KEYS = new Set(['target', 'killmail', 'killmail_id', 'killId', 'seed', 'sampleKill', 'fittedKills', 'fitDelta', 'plan', 'bonusKey', 'bonusTermKey']);
+
+function answerKeys(value, found = []) {
+  if (Array.isArray(value)) value.forEach((item) => answerKeys(item, found));
+  else if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      if (ANSWER_KEYS.has(key)) found.push(key);
+      answerKeys(item, found);
+    }
+  }
+  return found;
+}
+
+function assertNoAnswer(messages, label) {
+  for (const message of messages) {
+    assert.deepEqual(answerKeys(message), [], `${label}: ${message.t} names the answer`);
+    for (const clue of message.board?.clues || []) {
+      if (!clue.hidden) continue;
+      assert.deepEqual(Object.keys(clue).sort(), ['c', 'hidden', 'i', 'k', 'w'], `${label}: a hidden clue carries only its kind`);
+    }
+  }
+}
+
+test('a race round keeps the answer on the service until each part ends', async () => {
+  const { pilots, room, code } = await playing(2, 'standard');
+  const { roundId, target, puzzle } = room.match;
+  assertNoAnswer(pilots[0].log, 'start');
+  assertNoAnswer(pilots[1].log, 'start');
+  const opening = pilots[0].last('endlessStart').board;
+  assert.ok(opening.revealed.length > 0 && opening.revealed.length < opening.clues.length, 'part of the board is open');
+  assert.deepEqual(pilots[1].last('endlessStart').board.revealed, opening.revealed, 'every player starts from the same board');
+  const released = puzzle.clues.map((clue) => JSON.stringify(clue.v));
+  for (const clue of opening.clues.filter((item) => !item.hidden)) assert.ok(released.includes(JSON.stringify(clue.v)));
+  const [miss] = wrongShips(room);
+  pilots[0].send({ t: 'raceGuess', roundId, shipId: miss });
+  await until(() => pilots[0].last('raceGuesses')?.guesses.length === 1, 'miss');
+  const afterMiss = pilots[0].last('raceGuesses').board;
+  assert.equal(afterMiss.feedback[0].correct, false);
+  assert.ok(afterMiss.revealed.length >= opening.revealed.length);
+  // The other player solves; the first one still sees no answer.
+  pilots[1].send({ t: 'raceGuess', roundId, shipId: target.shipId });
+  await until(() => pilots[1].last('raceGuesses')?.status === 'won', 'solved');
+  const solved = pilots[1].last('raceGuesses');
+  assert.equal(Number(solved.target.shipId), Number(target.shipId));
+  assert.equal(solved.board.revealed.length, solved.board.clues.length, 'the full board follows the end');
+  assertNoAnswer(pilots[0].log, 'open part');
+  for (const shipId of wrongShips(room).slice(1, 6)) pilots[0].send({ t: 'raceGuess', roundId, shipId });
+  await until(() => pilots[0].last('raceGuesses')?.status === 'lost', 'lost');
+  assert.equal(Number(pilots[0].last('raceGuesses').target.killId), Number(target.killId));
+  await until(() => pilots[0].last('endlessRoundResult'), 'round result');
+  await closeAll(pilots, code);
+});
+
+test('a timed race releases clues on the server clock and ends when none are left', async () => {
+  const { pilots, room, code } = await playing(2, 'timed');
+  const { roundId } = room.match;
+  const opening = pilots[0].last('endlessStart').board.revealed.length;
+  pilots[0].send({ t: 'raceBoard', roundId });
+  await until(() => pilots[0].count('raceGuesses') === 1, 'board');
+  assert.equal(pilots[0].last('raceGuesses').board.revealed.length, opening, 'nothing more before the first release');
+  room.match.startAt -= 30_000;
+  pilots[0].send({ t: 'raceBoard', roundId });
+  await until(() => pilots[0].count('raceGuesses') === 2, 'release');
+  assert.equal(pilots[0].last('raceGuesses').board.revealed.length, opening + 1);
+  assertNoAnswer(pilots[0].log, 'timed');
+  room.match.startAt -= 30_000 * 500;
+  pilots[0].send({ t: 'raceBoard', roundId });
+  await until(() => pilots[0].last('raceGuesses')?.status === 'lost', 'exhausted');
+  assert.equal(pilots[0].last('raceGuesses').endReason, 'exhausted');
+  assert.ok(pilots[0].last('raceGuesses').target);
+  pilots[1].send({ t: 'raceResult', roundId, status: 'lost' });
+  await until(() => pilots[1].last('raceGuesses')?.status === 'lost', 'gave up');
+  assert.equal(pilots[1].last('raceGuesses').endReason, 'gave-up');
+  await until(() => pilots[0].last('endlessRoundResult'), 'round result');
+  await closeAll(pilots, code);
+});
+
+test('a page of another WebSocket protocol is asked to reload', async () => {
+  const { pilots, code } = await makeRoom(2, { connect: false });
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/api/v1/rooms/${code}/ws?player=${pilots[0].id}`, {
+    headers: { Cookie: pilots[0].cookie },
+  });
+  const messages = [];
+  ws.on('message', (raw) => messages.push(JSON.parse(String(raw))));
+  const [closeCode, reason] = await new Promise((resolve) => ws.once('close', (codeValue, why) => resolve([codeValue, String(why)])));
+  assert.equal(closeCode, 1008);
+  assert.equal(reason, 'client-outdated');
+  assert.deepEqual(messages, [{ t: 'error', code: 'client-outdated', protocol: PROTOCOL_VERSION }]);
+  await closeAll(pilots, code);
+});
+
 test('room guesses are counted, deduplicated and judged by the server', async () => {
   const { pilots, room, code } = await playing(2, 'standard');
   const { roundId, target } = room.match;
@@ -203,7 +319,7 @@ test('room guesses are counted, deduplicated and judged by the server', async ()
   // Nothing is accepted after the result.
   pilots[0].send({ t: 'raceGuess', roundId, shipId: wrongShips(room)[4] });
   loseRound(pilots[1], room);
-  await until(() => room.match.phase === 'finished', 'finished');
+  await until(() => pilots[0].last('endlessRoundResult'), 'round result');
   const result = pilots[0].last('endlessRoundResult').result;
   assert.deepEqual(result.results.map((item) => [item.status, item.attempts]), [['won', 3], ['lost', 6]]);
   assert.deepEqual([result.points[pilots[0].id], result.points[pilots[1].id]], [2000, 0]);
@@ -259,7 +375,11 @@ test('a reload returns the guesses already made', async () => {
   await wait(30);
   const ws = await pilots[0].open();
   await until(() => ws.log.some((message) => message.t === 'endlessPrepare'), 'resume');
-  assert.deepEqual(ws.log.find((message) => message.t === 'endlessPrepare').guesses, ships.slice(0, 4));
+  const resumed = ws.log.find((message) => message.t === 'endlessPrepare');
+  assert.deepEqual(resumed.guesses, ships.slice(0, 4));
+  assert.deepEqual(resumed.board.feedback.map((item) => item.shipId), ships.slice(0, 4));
+  assert.equal(resumed.target, undefined, 'the board comes back without the answer');
+  assertNoAnswer(ws.log, 'resume');
   for (const shipId of ships.slice(4, 6)) pilots[0].send({ t: 'raceGuess', roundId: room.match.roundId, shipId });
   await until(() => room.match.results[0]?.status === 'lost', 'six in total lose');
   await closeAll(pilots, code);
@@ -273,7 +393,7 @@ test('leaving or timing out during a round is a loss, being kicked is not', asyn
   left.pilots[1].ws.terminate();
   await until(() => left.room.match.results.length === 2, 'grace timeout');
   loseRound(left.pilots[0], left.room);
-  await until(() => left.room.match.phase === 'finished', 'finished');
+  await until(() => left.pilots[0].last('endlessRoundResult'), 'round result');
   const { results, points } = left.pilots[0].last('endlessRoundResult').result;
   assert.deepEqual(results.map((item) => [item.playerId, item.status, Boolean(item.forfeit)]), [
     [left.pilots[2].id, 'lost', true], [left.pilots[1].id, 'lost', true], [left.pilots[0].id, 'lost', false],
@@ -359,7 +479,7 @@ test('everyone solving ends the stint with only the end bonus for the dealer', a
   const share = shareOf(room.match);
   pilots[1].send({ t: 'guess', text: answerText(room.match) });
   pilots[2].send({ t: 'guess', text: answerText(room.match) });
-  await until(() => room.match?.phase === 'reveal', 'reveal');
+  await until(() => pilots[0].last('arbitrationReveal'), 'reveal');
   const bonus = Math.round(arbitrationEndBonusRaw({ share, players: 2 }) / 2);
   assert.equal(room.match.dealerPoints, bonus);
   assert.equal(pilots[0].last('arbitrationReveal').result.endBonus, bonus);
@@ -613,7 +733,7 @@ test('reconnecting while the target loads waits for it', async () => {
   await wait(40);
   assert.equal(ws.log.some((message) => message.t === 'endlessPrepare'), false, 'no empty target is sent');
   release();
-  await until(() => ws.log.some((message) => message.t === 'endlessPrepare' && message.target), 'prepare');
+  await until(() => ws.log.some((message) => message.t === 'endlessPrepare' && message.roundId), 'prepare');
   await closeAll(pilots, code);
 });
 
@@ -759,16 +879,159 @@ test('a leaver does not block players who are ready for the next round', async (
 
 test('a failed target returns the room to the lobby phase', async () => {
   const { pilots, room, code } = await makeRoom(2);
-  config.manifest.savedPool = config.manifest.auditKillShipPool;
-  config.manifest.auditKillShipPool = [999999991];
   failNext = true;
   pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: {} });
   await until(() => pilots[0].last('error')?.code === 'target', 'error', 15000);
   assert.equal(room.phase, 'between_matches');
   failNext = false;
-  config.manifest.auditKillShipPool = config.manifest.savedPool;
-  delete config.manifest.savedPool;
   await closeAll(pilots, code);
+});
+
+const fitted = (killmail) => killmail.victim.items.some((item) => item.flag !== 5);
+
+test('the host room setting keeps empty hulls out of race rounds', async () => {
+  const { pilots, room, code } = await makeRoom(2);
+  assert.equal(room.settings.allowEmpty, true, 'empty hulls are allowed by default');
+  upstreamEmpty = 'mixed';
+  try {
+    for (let round = 0; round < 4; round += 1) {
+      resetUpstream();
+      pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: false } });
+      await until(() => room.match?.target, 'target');
+      assert.equal(room.settings.allowEmpty, false);
+      assert.equal(pilots[1].last('room').room.settings.allowEmpty, false, 'the setting reaches everyone');
+      assert.equal(fitted(room.match.target.killmail), true);
+      pilots[0].send({ t: 'end' });
+      await until(() => room.match === null, 'ended');
+    }
+    // Only empty hulls: the round fails instead of using one.
+    upstreamEmpty = 'empty';
+    resetUpstream();
+    pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: false } });
+    await until(() => pilots[0].last('error')?.code === 'target', 'target error', 15000);
+    assert.equal(room.phase, 'between_matches');
+    // Allowed again: empty hulls are valid targets.
+    resetUpstream();
+    pilots[0].send({ t: 'start', gameplay: 'standard', settings: { allowEmpty: true } });
+    await until(() => room.match?.target, 'empty target');
+    assert.equal(fitted(room.match.target.killmail), false);
+    // A non-boolean value cannot change the setting.
+    pilots[0].send({ t: 'end' });
+    await until(() => room.match === null, 'ended again');
+    pilots[0].send({ t: 'settings', gameplay: 'standard', settings: { allowEmpty: 'no' } });
+    await wait(60);
+    assert.equal(room.settings.allowEmpty, true);
+  } finally {
+    upstreamEmpty = null;
+    resetUpstream();
+  }
+  await closeAll(pilots, code);
+});
+
+test('only the host can change the empty hull setting', async () => {
+  const { pilots, room, code } = await makeRoom(2);
+  pilots[1].send({ t: 'settings', gameplay: 'standard', settings: { allowEmpty: false } });
+  await wait(80);
+  assert.equal(room.settings.allowEmpty, true);
+  await closeAll(pilots, code);
+});
+
+test('arbitration never deals an empty hull when the room turned them off', async () => {
+  const { pilots, room, code } = await makeRoom(2);
+  upstreamEmpty = 'empty';
+  try {
+    resetUpstream();
+    pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: { allowEmpty: false } });
+    await until(() => pilots[0].last('error')?.code === 'target', 'target error', 15000);
+    assert.equal(room.match, null);
+    resetUpstream();
+    pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: { allowEmpty: true } });
+    await until(() => room.match?.target, 'empty hull allowed', 15000);
+  } finally {
+    upstreamEmpty = null;
+    resetUpstream();
+  }
+  await closeAll(pilots, code);
+});
+
+const COUNTER_NAMES = ['won', 'lost', 'abandoned', 'won_guesses_sum', 'won_ms_sum'];
+
+function difficultyNow(match, gameplay) {
+  const row = db.prepare('SELECT * FROM kill_difficulty WHERE kill_id = ? AND gameplay = ?')
+    .get(Number(match.target.killId), gameplay) || {};
+  return Object.fromEntries(COUNTER_NAMES.map((name) => [name, Number(row[name]) || 0]));
+}
+
+const difficultyDelta = (before, after) => Object.fromEntries(COUNTER_NAMES.map((name) => [name, after[name] - before[name]]));
+
+test('race rounds add anonymous difficulty counters when the round ends', async () => {
+  const { pilots, room, code } = await playing(3, 'standard');
+  const { target } = room.match;
+  const before = difficultyNow(room.match, 'standard');
+  const [wrong] = wrongShips(room);
+  pilots[2].send({ t: 'raceGuess', roundId: room.match.roundId, shipId: wrong });
+  await until(() => pilots[2].last('raceGuesses')?.guesses?.length === 1, 'first guess');
+  pilots[2].send({ t: 'leave' });
+  await until(() => room.match.results.some((result) => result.forfeit), 'forfeit');
+  pilots[0].send({ t: 'raceGuess', roundId: room.match.roundId, shipId: wrong });
+  pilots[0].send({ t: 'raceGuess', roundId: room.match.roundId, shipId: target.shipId });
+  loseRound(pilots[1], room);
+  await until(() => room.match.phase === 'finished', 'finished');
+  assert.deepEqual(difficultyDelta(before, difficultyNow(room.match, 'standard')), {
+    won: 1, lost: 1, abandoned: 1, won_guesses_sum: 2, won_ms_sum: 0,
+  });
+  await closeAll(pilots, code);
+});
+
+test('a race player who never guessed or gave up a timed round is counted accordingly', async () => {
+  const standard = await playing(3, 'standard');
+  const standardBefore = difficultyNow(standard.room.match, 'standard');
+  standard.pilots[2].send({ t: 'leave' });
+  await until(() => standard.room.match.results.some((result) => result.forfeit), 'forfeit');
+  standard.pilots[0].send({ t: 'raceGuess', roundId: standard.room.match.roundId, shipId: standard.room.match.target.shipId });
+  loseRound(standard.pilots[1], standard.room);
+  await until(() => standard.room.match.phase === 'finished', 'finished');
+  assert.deepEqual(difficultyDelta(standardBefore, difficultyNow(standard.room.match, 'standard')), {
+    won: 1, lost: 1, abandoned: 0, won_guesses_sum: 1, won_ms_sum: 0,
+  }, 'a leaver without a guess tells nothing');
+  await closeAll(standard.pilots, standard.code);
+
+  const timed = await playing(2, 'timed');
+  const timedBefore = difficultyNow(timed.room.match, 'timed');
+  timed.pilots[1].send({ t: 'raceResult', roundId: timed.room.match.roundId, status: 'lost' });
+  await until(() => timed.room.match.results.length === 1, 'gave up');
+  timed.pilots[0].send({ t: 'raceResult', roundId: timed.room.match.roundId, status: 'lost' });
+  await until(() => timed.room.match.phase === 'finished', 'finished');
+  assert.deepEqual(difficultyDelta(timedBefore, difficultyNow(timed.room.match, 'timed')), {
+    won: 0, lost: 2, abandoned: 0, won_guesses_sum: 0, won_ms_sum: 0,
+  });
+  await closeAll(timed.pilots, timed.code);
+});
+
+test('an arbitration stint counts solvers and the rest as players, and only once guessing began', async () => {
+  const quiet = await startArbitration(2);
+  await publish(quiet);
+  const quietMatch = quiet.room.match;
+  const quietBefore = difficultyNow(quietMatch, 'arbitration');
+  quiet.pilots[0].send({ t: 'end' });
+  await until(() => quiet.room.match === null, 'ended');
+  assert.deepEqual(difficultyNow(quietMatch, 'arbitration'), quietBefore, 'nobody guessed');
+  await closeAll(quiet.pilots, quiet.code);
+
+  const setup = await startArbitration(3);
+  const { room, pilots } = setup;
+  await publish(setup);
+  const match = room.match;
+  const before = difficultyNow(match, 'arbitration');
+  pilots[1].send({ t: 'guess', text: answerText(match) });
+  pilots[2].send({ t: 'guess', text: 'definitely wrong' });
+  await until(() => room.match?.round === 2, 'round settled');
+  pilots[0].send({ t: 'end' });
+  await until(() => room.match === null, 'ended');
+  assert.deepEqual(difficultyDelta(before, difficultyNow(match, 'arbitration')), {
+    won: 1, lost: 1, abandoned: 0, won_guesses_sum: 0, won_ms_sum: 0,
+  });
+  await closeAll(pilots, setup.code);
 });
 
 test.after(async () => {
@@ -778,4 +1041,39 @@ test.after(async () => {
   for (const suffix of ['', '-wal', '-shm']) {
     try { fs.rmSync(`${dbFile}${suffix}`, { force: true }); } catch {}
   }
+});
+
+test('a room plays each killmail once, in race rounds and in arbitration', async () => {
+  const savedShips = config.catalogShips;
+  const { pilots, room, code } = await makeRoom(2);
+  config.catalogShips = [{ id: 587, groupID: 25 }];
+  upstreamFixed = 3;
+  try {
+    resetUpstream();
+    const seen = [];
+    for (let round = 0; round < 3; round += 1) {
+      pilots[0].send({ t: 'start', gameplay: 'standard', settings: {} });
+      await until(() => room.match?.target, `target ${round}`);
+      seen.push(room.match.target.killId);
+      pilots[0].send({ t: 'end' });
+      await until(() => room.match === null, `ended ${round}`);
+    }
+    assert.equal(new Set(seen).size, 3, `three different killmails: ${seen}`);
+    // All three are used up: the hull is the same, the killmails are not.
+    pilots[0].send({ t: 'start', gameplay: 'standard', settings: {} });
+    await until(() => pilots[0].last('error')?.code === 'target', 'no fourth killmail', 15000);
+    assert.equal(room.phase, 'between_matches');
+    // Arbitration draws from the same room history.
+    resetUpstream();
+    upstreamFixed = 4;
+    pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: {} });
+    await until(() => room.match?.target, 'arbitration target');
+    assert.equal(seen.includes(room.match.target.killId), false, 'arbitration skips what the room played');
+    assert.equal(room.usedKillIds.has(room.match.target.killId), true);
+  } finally {
+    upstreamFixed = 0;
+    config.catalogShips = savedShips;
+    resetUpstream();
+  }
+  await closeAll(pilots, code);
 });

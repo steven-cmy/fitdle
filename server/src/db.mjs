@@ -51,6 +51,16 @@ CREATE TABLE IF NOT EXISTS daily_pins (
   killmail_json TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+-- Prepared random targets: each row is handed out once and expires.
+CREATE TABLE IF NOT EXISTS target_shelf (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ship_id INTEGER NOT NULL,
+  kill_id INTEGER NOT NULL,
+  has_fit INTEGER NOT NULL,
+  killmail_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS shelf_created ON target_shelf(created_at);
 CREATE TABLE IF NOT EXISTS online_runs (
   id TEXT PRIMARY KEY,
   name_key TEXT NOT NULL,
@@ -75,31 +85,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS runs_daily_unique
 CREATE INDEX IF NOT EXISTS runs_result ON online_runs(name_key, gameplay, status, finished_at);
 CREATE INDEX IF NOT EXISTS runs_open ON online_runs(status, started_at) WHERE status = 'playing';
 CREATE INDEX IF NOT EXISTS runs_kill ON online_runs(target_kill_id);
-CREATE TABLE IF NOT EXISTS target_exposures (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  source TEXT NOT NULL,
-  mode TEXT NOT NULL,
+-- Anonymous difficulty counters (1.0.59): no player, room or run is stored.
+-- gameplay is daily, standard, audit, timed or arbitration.
+CREATE TABLE IF NOT EXISTS kill_difficulty (
+  kill_id INTEGER NOT NULL,
   gameplay TEXT NOT NULL,
-  target_kill_id INTEGER NOT NULL,
-  target_ship_id INTEGER NOT NULL,
-  game_day TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  ship_id INTEGER NOT NULL,
+  won INTEGER NOT NULL DEFAULT 0,
+  lost INTEGER NOT NULL DEFAULT 0,
+  abandoned INTEGER NOT NULL DEFAULT 0,
+  won_guesses_sum INTEGER NOT NULL DEFAULT 0,
+  won_ms_sum INTEGER NOT NULL DEFAULT 0,
+  first_at INTEGER NOT NULL,
+  last_at INTEGER NOT NULL,
+  PRIMARY KEY(kill_id, gameplay)
 );
-CREATE TABLE IF NOT EXISTS target_stats (
-  target_kill_id INTEGER NOT NULL,
+CREATE INDEX IF NOT EXISTS kill_difficulty_last ON kill_difficulty(last_at);
+CREATE TABLE IF NOT EXISTS ship_difficulty (
+  ship_id INTEGER NOT NULL,
   gameplay TEXT NOT NULL,
-  mode TEXT NOT NULL,
-  exposures INTEGER NOT NULL DEFAULT 0,
-  runs INTEGER NOT NULL DEFAULT 0,
-  wins INTEGER NOT NULL DEFAULT 0,
-  losses INTEGER NOT NULL DEFAULT 0,
-  attempts_sum INTEGER NOT NULL DEFAULT 0,
-  duration_sum INTEGER NOT NULL DEFAULT 0,
-  rounds_sum INTEGER NOT NULL DEFAULT 0,
-  guesses INTEGER NOT NULL DEFAULT 0,
-  correct INTEGER NOT NULL DEFAULT 0,
+  won INTEGER NOT NULL DEFAULT 0,
+  lost INTEGER NOT NULL DEFAULT 0,
+  abandoned INTEGER NOT NULL DEFAULT 0,
+  won_guesses_sum INTEGER NOT NULL DEFAULT 0,
+  won_ms_sum INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL,
-  PRIMARY KEY(target_kill_id, gameplay, mode)
+  PRIMARY KEY(ship_id, gameplay)
 );
 CREATE TABLE IF NOT EXISTS rooms (
   code TEXT PRIMARY KEY,
@@ -143,6 +154,13 @@ if (!db.prepare('PRAGMA table_info(online_runs)').all().some((column) => column.
   db.exec('ALTER TABLE online_runs ADD COLUMN begun_at INTEGER');
 }
 
+// Added in 1.0.59: the service keeps the puzzle of a run and how a Timed run ended.
+{
+  const columns = db.prepare('PRAGMA table_info(online_runs)').all().map((column) => column.name);
+  if (!columns.includes('puzzle_json')) db.exec('ALTER TABLE online_runs ADD COLUMN puzzle_json TEXT');
+  if (!columns.includes('end_reason')) db.exec('ALTER TABLE online_runs ADD COLUMN end_reason TEXT');
+}
+
 const statements = new Map();
 
 /** Prepare each SQL text once and reuse the compiled statement. */
@@ -164,6 +182,10 @@ export function cleanupExpired() {
   statement('DELETE FROM sessions WHERE expires_at <= ?').run(t);
   statement('DELETE FROM oauth_states WHERE expires_at <= ?').run(t);
   statement('DELETE FROM rooms WHERE expires_at <= ?').run(t);
+  // Per-killmail counters are only useful while a killmail can come back; the
+  // per-ship totals are kept for good.
+  statement('DELETE FROM kill_difficulty WHERE last_at <= ?')
+    .run(t - config.statsKillRetentionDays * 86400e3);
 }
 
 export function getUser(nameKey) {

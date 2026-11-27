@@ -204,7 +204,7 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Online Daily is pinned once per game day and cached in SQLite. Online
   Standard/Audit/Timed get a server-issued random target per run. A current KB
   entered from a share link becomes an online custom run when logged in; custom
-  runs can be played and resumed but never enter streaks, win days or target stats.
+  runs can be played and resumed but never enter streaks, win days or difficulty counters.
 - The service records solo guesses: `POST /online/runs/:id/guess {shipId}` counts,
   deduplicates and judges them; `finish` only accepts a Timed loss. A run counts
   from its first guess, a Timed run from starting the clock (`begin`). `start` returns the player's open run of that gameplay, so a
@@ -214,17 +214,48 @@ translation [README.zh-CN.md](README.zh-CN.md).
   waits for its clock: it shows no clue yet. Explicit `kb` targets can be left.
 - `js/run-sync.js` delivers solo guesses in order, keeps unsent ones in
   `fitdle:v1:pending-runs` and retries; resending is harmless.
+- **The answer stays on the service until the run ends** (online Daily, random
+  Standard/Audit/Timed and race rooms; not Arbitration, explicit KB runs or
+  Practice). `server/src/puzzle.mjs` builds the puzzle once at the start (clue set,
+  reveal plan, a snapshot of the live zKill statistics, Audit/Timed dogma) and
+  stores it in `online_runs.puzzle_json`; rooms keep it in memory per round. A
+  player only ever receives `board`: every open-board clue as `{i,k,c,w,hidden}`
+  until released, released clues in full, sealed clues (equipment, cargo, bonus)
+  only once released and in release order, `sealed` = categories still holding
+  hidden sealed clues, `feedback` = the match of each guess, `caseId` = an opaque
+  file number. `target`, killmail, kill id, `sampleKill` and `fittedKills` come
+  only after the end (`endReason`: solved, attempts, gave-up, abandoned, expired,
+  exhausted). Released clues stay released. Timed releases follow the service
+  clock (`TIMED_RELEASE_MS`, 30 s); the page polls after each release and the
+  service ends a Timed run with nothing left to release. Puzzles of runs ended
+  more than two days ago are pruned; an older run gets its puzzle on the next
+  visit. The page holds no answer: no local target cache, no zKill or dogma
+  lookups with the answer hull, nothing in localStorage. A guess is one round
+  trip; the page shows it as pending and accepts no next guess until the service
+  answered (no offline queueing of several guesses).
+- Run protocol: `/api/v1/online/*` requests carry `x-fitdle-run-protocol`
+  (`RUN_PROTOCOL_VERSION` in `js/run-sync.js`); another value gets 426
+  `client-outdated` and the page shows the reload screen. The room socket names
+  `PROTOCOL_VERSION` (`js/mp/protocol.js`) as `?v=`; another value gets an
+  `error client-outdated` message and close 1008 `client-outdated`. Bump the
+  matching version whenever the run or room messages change shape.
 - Room guesses go through `raceGuess {roundId, shipId}`; the server counts, judges
-  and keeps the Timed cooldown, and answers the player with `raceGuesses`.
-  `raceResult` only reports a Timed loss. Leaving for good (or the grace ending)
-  during a running round is a loss of that round; being kicked is not.
+  and keeps the Timed cooldown, and answers the player with `raceGuesses`
+  (guesses, status and that player's `board`; `target` once their part or the
+  round is decided). `endlessPrepare` carries neither target nor clues;
+  `endlessStart` carries each player's opening board; `raceBoard {roundId}` asks
+  for the board the Timed clock has reached and ends a part with nothing left to
+  release (`endReason: exhausted`). `raceResult` only reports a Timed give-up.
+  Leaving for good (or the grace ending) during a running round is a loss of that
+  round; being kicked is not.
 - Clients submit full hull names or ship ids. `js/ship-query.js` resolves
   abbreviations and partial names and asks when several hulls fit; the server never
   accepts abbreviations.
 - The room state API answers players of the room only. Scores reset only between
   matches. Seated players rejoin without the password; empty passwords are no guess.
 - Requests are limited per player (`server/src/limits.mjs`). Logs carry paths without
-  query strings, and the SSO state is bound to the browser by a short-lived cookie.
+  query strings, startup logs a few lines (`server/src/startup.mjs`): release, API, run and WebSocket protocol
+  versions, origin, data, sign-in flags, target and limit settings; yes/no for secrets, never values, and the SSO state is bound to the browser by a short-lived cookie.
 - `FITDLE_DEV_AUTH` is ignored in production unless `PUBLIC_ORIGIN` is loopback.
 - zKillboard killmails lose `attackers` on arrival (`js/killmail.js`); nothing uses it.
 - `multiplayer` is a separate room surface behind login. A room has no default
@@ -256,8 +287,9 @@ translation [README.zh-CN.md](README.zh-CN.md).
   `arbitration_rounds` stores `published_share` and `unsolved` per round for
   later coefficient tuning.
 - Room state, target selection, clue release, guessing, scoring and timers are
-  authoritative on the server. Clients never send scores. The server stores
-  target exposures/runs/rounds for future statistics; no leaderboard UI/API yet.
+  authoritative on the server. Clients never send scores. The server keeps
+  anonymous difficulty counters (see Difficulty counters) and per-round arbitration
+  rows for later tuning; no leaderboard UI/API yet.
 - `ROOM_MAX_PLAYERS` controls total room seats (default 8, allowed 2..32,
   including spectators/offline seats). Existing names rejoin without consuming
   a new seat.
@@ -295,6 +327,63 @@ translation [README.zh-CN.md](README.zh-CN.md).
   `room.chatUnavailable` system line and keep the chat input disabled.
 - The Daily reset CTA is enabled only after the local countdown has crossed into
   a new game day; clicking it reloads into the new Daily target.
+
+### Difficulty counters
+
+Two SQLite tables hold anonymous counters of how hard each target is; nothing
+in them says who or which room played, and no per-play row is written. They are
+written by `recordPlay` / `recordPlays` in `server/src/stats.mjs` and are not
+used for target selection.
+
+- `kill_difficulty(kill_id, gameplay, ship_id, won, lost, abandoned,
+  won_guesses_sum, won_ms_sum, first_at, last_at)`, one row per killmail and
+  gameplay. Rows whose `last_at` is older than `FITDLE_STATS_KILL_RETENTION_DAYS`
+  (default 60) are deleted by the 10-minute cleanup, so the table stays bounded
+  (about one row per distinct killmail played in the last 60 days; roughly 100
+  bytes each, so even 1000 daily players at 10 plays each stay near 60 MB of row
+  data; with the primary key and the `last_at` index the worst case is about
+  100-150 MB. That is the upper bound where every play is a different killmail).
+  `first_at` and `last_at` are rounded down to the UTC day, so a row cannot be
+  matched to an exact time in other logs.
+- `ship_difficulty(ship_id, gameplay, ...same counters..., updated_at)`, one row
+  per hull and gameplay, kept for good (a few hundred rows).
+- `gameplay` is `daily`, `standard`, `audit`, `timed` or `arbitration`. Solo
+  random runs and race rounds share the standard/audit/timed rows; the Daily has
+  its own. Custom killmails and offline/practice play are never recorded.
+- Outcomes: `won`; `lost` (six misses, a timed give-up, a race round timing out);
+  `abandoned` (the player took another target, the run expired after a day, or
+  they left the race room mid-round). A play counts from the first guess (timed:
+  from starting the clock); a race leaver with no guess is not counted at all.
+  Win rate is `won / (won + lost)`; abandoned plays are kept out of it and
+  reported separately.
+- `won_guesses_sum` adds the guesses of won plays only; `won_ms_sum` adds the
+  time of won plays in timed gameplay only (other gameplays measure no time).
+- Arbitration is recorded once per stint when at least one guess was made:
+  every player who started the stint counts, solvers as `won`, everyone else
+  (leavers included) as `lost`. It has no guess or time sums, and it is a
+  separate gameplay because the dealer chooses which clues are published, so it
+  measures the dealer as much as the target. Do not mix it with the others when
+  choosing targets. A race round that ends before it is settled records nothing
+  for that round, including players who had already won or lost in it: the host
+  ending the session, the last player leaving, or the room being closed. Rooms
+  are not restored after a restart, so a round running at that moment is never
+  recorded either. The single-player UPDATE and its counter write are not one
+  transaction, so a crash between the two loses that one play.
+- Writing statistics is best effort. A failing write (full disk, locked
+  database) is caught inside `stats.mjs`, logged as one warning without any id,
+  and the play is lost; it never stops a run, a round or a timer.
+- The older `target_exposures` and `target_stats` tables are no longer written;
+  databases that have them keep them untouched.
+- Reading: `npm run stats:difficulty -- --by ship|kill --gameplay all|daily|
+  standard|audit|timed|arbitration --min 5 --limit 30 [--easiest] [--json]`
+  (`docker exec <container> node server/src/difficulty-report.mjs ...` on the
+  deployment). It opens the database read-only, lists rows with at least `--min`
+  won-or-lost plays, hardest first, and `all` sums the four player gameplays.
+  Averages only use plays that record the value: guesses skip arbitration, time
+  counts timed wins only (so `all` shows the timed average). Unknown options,
+  options without a value and `--k=v` mistakes are errors.
+  `difficultyReport(db, options)` in `server/src/difficulty-report.mjs` is the
+  same query for code. There is no public API or UI.
 
 ### Main modules
 
@@ -348,23 +437,117 @@ translation [README.zh-CN.md](README.zh-CN.md).
 
 ## Target selection
 
-- Eligibility: all SDE hulls except those with zero all-time zKill losses
-  (special/ceremony hulls).
-- Standard: mild high-usage preference:
-  `1 + 2.2 * log1p(recent)/log1p(max)`.
-- Audit: mild low-usage preference:
-  `1 + 1.8 * (1 - normalized)`.
-- Pools are fixed at build time: `normalShipPool`, `auditKillShipPool`. Repeated
-  IDs are integer weights.
-- Online Daily seed: HMAC(server secret, gameDay, algorithmVersion).
-  `dataVersion` is never part of the daily seed.
-- Ship: weighted rendezvous order over the mode pool. Each unique ship keeps its
-  best copy score; ships are sorted by score with numeric ship ID as the tie-break.
-  Later items are the deterministic fallback queue. No floats, array order or usage stats are consulted.
-- Online Standard/Audit/Timed use a server-issued random target per run; practice
-  uses a client random/current KB target. Only Daily has a fixed daily KB.
-- The target continues to rotate every game day even if the site is not rebuilt;
-  SDE and weight changes only apply after a rebuild.
+One server-side picker (`server/src/targets.mjs`, pure rules in
+`server/src/selection.mjs`) serves the Daily, online Standard/Audit/Timed, race
+rooms and arbitration rooms. Practice (static build, browser) still uses its own
+client-side random pick from the manifest pools (`normalShipPool` etc.) and never
+scores; `scripts/build-catalog.mjs` keeps building those pools from
+`.cache/ship-weights.json`.
+
+### Hull queue
+
+- Every SDE hull in the catalog starts at weight 1. Its zKill kills as an
+  attacker (`shipsDestroyed`) over the last `FITDLE_USAGE_WINDOW_MONTHS` (3)
+  complete calendar months add a bonus on a log scale, capped so that the heaviest
+  ordinary hull is at most `FITDLE_USAGE_MAX_RATIO` (3) times the lightest. A hull
+  with no usage keeps exactly 1; there is no extra floor.
+- Then each hull is multiplied by its group factor,
+  `FITDLE_SHIP_GROUP_FACTORS` (default `29:0.2,31:0.3,237:0.5`: capsules, shuttles,
+  rookie ships; group ids confirmed against the SDE catalog: 2, 11 and 9 hulls).
+  Factor 0 removes the group. Hulls of a factored group do not set the scale of
+  the usage bonus.
+- Weights are computed per UTC day from `data/ship-usage.json` (see below) and
+  turned into a weighted order without replacement (exponential keys: heavier
+  hulls tend to come first, every hull appears once). The same seed always gives the
+  same order. Daily: seed = HMAC(server secret, gameDay, algorithmVersion); random
+  picks: a fresh random seed.
+- The picker walks the queue from the top (at most 12 hulls, 25 s per pick). A
+  hull without a usable killmail (for example tournament hulls) is remembered for
+  `FITDLE_NO_KILL_RETRY_HOURS` (24) per empty-hull setting and the next hull is
+  tried. A refusal caused only by a room's own history is not remembered.
+  A zKill error aborts the pick; there is never a static or other-day fallback.
+- `algorithmVersion` is `online-v2`. `dataVersion` is never part of the Daily seed.
+
+### Killmail of a hull
+
+- The target is a loss: `/api/losses/shipTypeID/{id}/year/{Y}/month/{M}/page/{N}/`
+  (month without zero padding, 200 per page, pages 1..100, newest first, empty
+  page past the end, 1 hour cache; `startTime`/`endTime` are disabled upstream and
+  are not used).
+- The month is drawn by time weight among months that have losses, from
+  `FITDLE_KB_SELECTION_START_DATE` to the end of the last complete month
+  (half-life `FITDLE_KB_RECENCY_HALF_LIFE_DAYS`, 365; older months count less but
+  never zero). The page is uniform over `ceil(losses / 200)` pages of that month
+  (capped at 100); an empty overshoot page falls back to page 1. One eligible
+  killmail of the page is drawn uniformly. At most 3 requests per hull.
+- Eligible: victim hull matches, date inside the period, fitted when empty hulls
+  are off, not already played in that room. Page killmails are complete, so no
+  `killID` request is needed.
+- A hull the usage file cannot size (no entry because it is new in the SDE, or an
+  entry with no month) reads the first page of one of the last 12 complete
+  months, drawn by the same time weight, up to 3 requests. The newest unfiltered
+  page is never used: for a busy hull it is all this month, which is not eligible.
+
+### Usage data
+
+- `data/ship-usage.json`: per hull `{ at, m: { YYYYMM: [shipsDestroyed, shipsLost] } }`
+  from the single-hull zKill statistics (`/api/stats/shipTypeID/{id}/kills/`, the
+  path of the API catalog; without `/kills/` it redirects). `shipsDestroyed` is the
+  usage measure, `shipsLost` sizes the pages of a month. **The `months` field is
+  not documented by zKillboard**: it was found in real answers. The parser treats
+  a missing or odd field as "no data" instead of failing; the script refuses to
+  write when fewer than half of the answers have months, so if upstream drops the
+  field the workflow fails, the old file stays, and the data slowly ages (the
+  server warns at start). Only complete calendar months are kept: the script drops
+  the month it runs in, and the server drops, when it reads a file, every month
+  not yet over at the time that entry was fetched.
+- The workflow `.github/workflows/usage.yml` runs on the 2nd of every month (and
+  manually, optionally only for hulls missing in the file), runs
+  `scripts/build-ship-usage.mjs` (about 430 requests, one at a time, 1 s apart,
+  generic User-Agent with the repository URL only, Retry-After honoured, previous
+  entries kept for failed hulls, refuses to write if the format looks wrong, and a
+  401/403 stops the whole run at once without writing) and
+  commits the result straight to the `data` branch (`ship-usage.json`). Main is not
+  touched and no pull request is involved; the workflow needs `contents: write`.
+  The server warns at start when the file is older than `FITDLE_USAGE_STALE_DAYS`
+  (45: one monthly cycle plus buffer; keep it in line with the workflow's cron).
+- The main CI downloads that file (`npm run fetch:usage`, never fails the build)
+  into `.cache/ship-usage.json`; the Docker image copies it to
+  `data/ship-usage.json` (or an empty placeholder). The server reads it at start
+  (`FITDLE_SHIP_USAGE_FILE` overrides the path).
+- Fresh data without a new image: `server/src/usage-refresh.mjs` loads a cached
+  copy (`ship-usage.cache.json` next to the database) at start when it is newer
+  than the image's file, then asks the data branch for the file at start and every
+  `FITDLE_USAGE_REFRESH_HOURS` (168; empty or 0 turns the refresh off). The
+  address is `FITDLE_USAGE_URL` (default: the raw `ship-usage.json` of this
+  repository's `data` branch). One request, generic User-Agent without personal
+  details, `If-None-Match` with the last ETag, 15 s timeout, no retry storm (after
+  a failure the next try is 6 h later at the earliest). The file is adopted only
+  if it parses, has the expected shape, a generation date and is newer than what
+  is loaded; then it is cached. Any failure keeps the data in use. The startup
+  log names the source (image, cache or remote) and its age; a remote refresh
+  after start is logged when it changes something.
+
+### Shelf and rooms
+
+- Random targets come from a shelf of prepared targets in the `target_shelf`
+  table (`TARGET_SHELF_SIZE` 150, 0 turns it off; `TARGET_SHELF_TTL_HOURS` 24). Each
+  row is handed out once and carries a has-fit flag, so a switched-off empty-hull
+  pick skips empty ones. Below half full a background refill runs, paced by one
+  shared gate (`TARGET_REFILL_INTERVAL_MS`, 2000 = 0.5 requests a second) so live
+  picks keep their share; it starts only after a successful pick, skips killmails
+  already on the shelf, and an empty shelf means a pick is made at once. The Daily
+  never uses the shelf (it is seeded and pinned in `daily_pins`).
+- Rooms play a killmail once per room (`room.usedKillIds`); the same hull may come
+  again, and rooms ignore each other. Arbitration takes its target from the same
+  picker (`roomTarget`) and `buildDealerRound` in `js/mp/target.js` only builds the
+  clues. The old preference of arbitration for fitted hulls is gone: the room's
+  empty-hull setting alone decides.
+- The empty-hull rules are unchanged: personal setting for online single play
+  (`allowEmpty` sent to `/online/start`), host setting for rooms, deployer setting
+  `FITDLE_DAILY_ALLOW_EMPTY` for the Daily (a pinned day keeps its target).
+  Explicit `kb` targets ignore all of it.
+- Reveal seeds may still contain the date; clue statistics need not be unified.
 
 ## KB selection
 
@@ -374,40 +557,16 @@ translation [README.zh-CN.md](README.zh-CN.md).
   entrypoint (`render-runtime-origin.mjs`) writes it into `dist/data/manifest.json`
   and its .br/.gz copies; the page prefers the meta value. So a runtime change
   needs no rebuild. Invalid values are logged and fall back to the build value.
-- Daily target times are sampled from `FITDLE_KB_SELECTION_START_DATE` to the last
-  day of the most recent complete month. The sample uses a truncated exponential
-  recency distribution with `FITDLE_KB_RECENCY_HALF_LIFE_DAYS`.
-- Ships come from one deterministic weighted queue over the full mode pool, seeded
-  by the server Daily HMAC seed. Only a ship with no usable kill advances to the
-  next queue entry.
-- Ship loss pages use `/api/losses/shipTypeID/{id}/page/{page}/`; these pages span
-  months, so low-volume ships do not produce empty-month requests.
-- Page 1 is the latest 200 losses. A page shorter than 200 is the whole history.
-  A full page is followed by page 2, 3, ... until the page covers the sampled
-  target time, the history ends, or `FITDLE_KB_MAX_SCAN_PAGES` is reached.
-- The selected page is filtered by `victim.ship_type_id`, the KB lower bound, the
-  complete-month end, and `allowEmptyKb`. The closest kill to the sampled target
-  time wins; equal times use a deterministic hash tie-break.
-- If the scan cap is reached before the target time, no extra page is requested;
-  all already-loaded pages are combined and one kill is chosen with a deterministic
-  recency-weighted draw.
-- The personal `allowEmptyKb` setting applies to random targets: practice filters
-  in the browser and online runs send `allowEmpty` to `/online/start`. Daily,
-  rooms and explicit `kb` targets are shared or chosen, so they ignore it.
-- Service random targets use the complete killmail from the loss page (no
-  `killID` request) and keep five ready killmails per hull. The compressed page
-  stays cached for its upstream lifetime and is never requested again before; the
-  browser uses the killmail the service sent.
-- `TARGET_SPARES` (default 2, 0..8) random targets per pool and empty-hull choice
-  are prepared after that pool's first use. They follow the same selection rules,
-  are handed out once and expire after an hour.
-- Every ship page is reused for the hour zKillboard allows, keyed by ship and page.
-  Failures are not cached. A page 100 scan is the absolute API limit.
+- The static build has no Daily (offline turns it into a Standard run). Its
+  Practice uses the older client-side random pick and respects the personal
+  `allowEmptyKb` setting.
 - `FITDLE_KB_SELECTION_START_DATE` is a global lower bound for all modes.
   Explicit `?kb=` links bypass it.
-- A network/API failure aborts selection; an empty page advances to the next ship.
-  Never use the static kill pool, SDE-only dossier, local clock, another day or
-  another ship.
+- Service targets use the complete killmail from the loss page; the browser uses
+  the killmail the service sent. Ship loss pages and killID responses are reused for
+  the hour zKillboard allows. Failures are not cached.
+- A network/API failure aborts selection. Never use the static kill pool, an
+  SDE-only dossier, the local clock, another day or another ship as a fallback.
 - If every queued ship has no candidate, show the localized NO TARGET screen with
   Free mode. Free random targets respect the KB lower bound; explicit `kb` links
   do not.
@@ -607,8 +766,8 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - `server/src/zkill.mjs` is the only zKillboard client of the service: User-Agent,
   shared compressed cache, one request per path, two concurrent and spaced
   requests (`ZKILL_MIN_INTERVAL_MS`, default 250), and one global pause for
-  `Retry-After`. Only timeouts, 5xx and 429 are retried, once. Arbitration uses it
-  through `zkillFetch`.
+  `Retry-After`. Only timeouts, 5xx and 429 are retried, once. Every service
+  target, arbitration included, goes through it.
 - `API_CONTACT` is runtime-only configuration: never commit a value, log it or put
   it into the image or manifest. It reaches browsers (and ESI) only with
   `API_CONTACT_PUBLIC=1`, through `/api/v1/meta`. Browser ESI requests identify the
@@ -875,7 +1034,15 @@ test reads `dist/`.
 - The all-in-one `Dockerfile` builds SDE data and `dist/`, then runs
   `server/src/index.mjs` with `dist/`, `/api` and `/ws`. It needs `PUBLIC_ORIGIN`,
   `EVE_CLIENT_ID`, `EVE_CLIENT_SECRET` and `SESSION_SECRET` at runtime, plus a
-  persistent `/data` volume for SQLite.
+  persistent `/data` volume for SQLite. Without `SESSION_SECRET` the server
+  makes a random secret at every start, keeps it in memory only (nothing is
+  written) and logs a red warning (plain text when stdout is not a terminal or
+  `NO_COLOR` is set): every restart then signs everybody out, and the alternative,
+  the default published in the source, would make the Daily predictable and
+  sessions forgeable. Setting a fixed long random value ends the warning. Daily
+  targets already stored in `daily_pins` are not affected by restarts.
+- Boolean variables accept `1/true/yes/on` and `0/false/no/off` (any case); an
+  unrecognised value warns at start and the default is used.
 - The runtime image carries only the `data/` files the server reads, and links
   `/app/vendor` to `dist/vendor` for the server-side dogma engine. Update the
   `COPY` list when the server starts reading another file.

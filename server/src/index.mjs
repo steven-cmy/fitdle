@@ -10,9 +10,12 @@ import { config } from './config.mjs';
 import { cleanupExpired } from './db.mjs';
 import { registerAuthRoutes } from './auth.mjs';
 import { expireRuns, registerRunRoutes } from './runs.mjs';
+import { RUN_PROTOCOL_HEADER, RUN_PROTOCOL_VERSION } from '../../js/run-sync.js';
 import { pruneLimits } from './limits.mjs';
 import { evictExpiredRooms, registerRoomRoutes } from './rooms.mjs';
 import { pruneTargetCaches } from './targets.mjs';
+import { sessionSecretWarnings, startupLines, startupWarnings } from './startup.mjs';
+import { loadUsageCache, startUsageRefresh } from './usage-refresh.mjs';
 
 /** Query strings may hold sign-in codes and room player ids: log the path only. */
 const logPath = (request) => String(request.url || '').split('?')[0];
@@ -67,7 +70,7 @@ export async function buildApp({ logStream = null } = {}) {
       reply.header('Access-Control-Allow-Origin', origin);
       reply.header('Vary', 'Origin, Accept-Encoding');
       reply.header('Access-Control-Allow-Credentials', 'true');
-      reply.header('Access-Control-Allow-Headers', 'content-type');
+      reply.header('Access-Control-Allow-Headers', `content-type, ${RUN_PROTOCOL_HEADER}`);
       reply.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
     }
     if (request.method === 'OPTIONS') {
@@ -89,6 +92,7 @@ export async function buildApp({ logStream = null } = {}) {
       algorithmVersion: config.algorithmVersion,
       ...(config.publicContact ? { contact: config.publicContact } : {}),
       features: { online: true, rooms: true, sso: Boolean(config.eve.clientId) },
+      runProtocol: RUN_PROTOCOL_VERSION,
       limits: {
         maxPlayers: config.roomMaxPlayers,
         room: {
@@ -153,16 +157,22 @@ const isMain = process.argv[1]
   && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (isMain || process.env.FITDLE_SERVER_MAIN === '1') {
   const app = await buildApp();
+  loadUsageCache();
   cleanupExpired();
   expireRuns();
+  let stopUsageRefresh = () => {};
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`FITDLE online service listening on ${config.host}:${config.port}`);
+    for (const line of startupLines()) app.log.info(line);
+    for (const warning of [...sessionSecretWarnings(), ...startupWarnings()]) app.log.warn(warning);
+    stopUsageRefresh = startUsageRefresh({ log: app.log });
   } catch (error) {
     app.log.error(error);
     process.exit(1);
   }
   const shutdown = async () => {
+    stopUsageRefresh();
     try {
       await app.close();
     } finally {

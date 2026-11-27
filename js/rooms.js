@@ -1,4 +1,5 @@
 import { esc } from './mp/clue-view.js';
+import { PROTOCOL_VERSION } from './mp/protocol.js';
 import { avatarHtml } from './avatar.js';
 import { icon } from './icons.js';
 
@@ -68,7 +69,7 @@ const region = (name, tag = 'div') => `<${tag} class="room-region" data-region="
  * never replaced by an unrelated room message.
  */
 export class RoomSurface {
-  constructor({ api, t, refs, catalog, locale, maxPlayers = 8, roomLimits = {}, imagesBase = '', int, onClose, onViewChange, onArbitrationState, onKicked, onEndlessPrepare, onEndlessStart, onEndlessLoaded, onEndlessRoundResult, onRoundEvent, onRaceState, onLeave, onRoomUpdate }) {
+  constructor({ api, t, refs, catalog, locale, maxPlayers = 8, roomLimits = {}, imagesBase = '', int, onClose, onViewChange, onArbitrationState, onKicked, onEndlessPrepare, onEndlessStart, onEndlessLoaded, onEndlessRoundResult, onRoundEvent, onRaceState, onLeave, onRoomUpdate, onOutdated }) {
     this.api = api;
     this.t = t;
     this.refs = refs;
@@ -93,6 +94,7 @@ export class RoomSurface {
     this.onEndlessRoundResult = onEndlessRoundResult;
     this.onRoundEvent = onRoundEvent;
     this.onRaceState = onRaceState;
+    this.onOutdated = onOutdated;
     this.onLeave = onLeave;
     this.onRoomUpdate = onRoomUpdate;
     this.root = null;
@@ -112,6 +114,7 @@ export class RoomSurface {
     this.code = '';
     this.playerId = '';
     this.room = null;
+    this.draftAllowEmpty = null;
     this.dealerClues = null;
     this.dealerTarget = null;
     this.decoyShipIds = [];
@@ -700,6 +703,8 @@ export class RoomSurface {
     const timed = form.querySelector('[data-settings-timed]');
     if (arbitration) arbitration.hidden = draft.gameplay !== 'arbitration';
     if (timed) timed.hidden = draft.gameplay !== 'timed';
+    // Kept locally so a redraw before a gameplay is chosen does not undo the tick.
+    if (draft.settings) this.draftAllowEmpty = draft.settings.allowEmpty;
     if (draft.gameplay) this.send({ t: 'settings', gameplay: draft.gameplay, settings: draft.settings });
   }
 
@@ -856,6 +861,11 @@ export class RoomSurface {
     this.raceTimer = setTimeout(() => this.flushRace(), RACE_RETRY_MS);
   }
 
+  /** Ask for the board the round's clock has reached (Timed). */
+  requestBoard(roundId) {
+    return this.send({ t: 'raceBoard', roundId });
+  }
+
   onRaceGuesses(message) {
     if (this.race && this.race.roundId === message.roundId) {
       const confirmed = new Set((message.guesses || []).map(Number));
@@ -881,6 +891,7 @@ export class RoomSurface {
     const settings = {};
     if (gameplay === 'arbitration') settings.bigRounds = Number(data.get('bigRounds'));
     if (gameplay === 'timed') settings.raceDurationMs = Number(data.get('durationMinutes')) * 60000;
+    settings.allowEmpty = data.get('allowEmpty') === 'on';
     return { gameplay, settings };
   }
 
@@ -890,8 +901,14 @@ export class RoomSurface {
   }
 
   renderSettings() {
-    if (!this.owner()) return `<p class="room-note">${esc(this.t('room.waitingHost'))}</p>`;
     const settings = this.room.settings || {};
+    const allowEmpty = this.owner() && !this.room.gameplay && this.draftAllowEmpty != null
+      ? this.draftAllowEmpty
+      : settings.allowEmpty !== false;
+    if (!this.owner()) {
+      return `<p class="room-note">${esc(this.t('room.waitingHost'))}</p>
+      <p class="room-note">${esc(this.t(allowEmpty ? 'room.allowEmptyOn' : 'room.allowEmptyOff'))}</p>`;
+    }
     const arbitration = this.room.gameplay === 'arbitration';
     const timed = this.room.gameplay === 'timed';
     const maxBigRounds = Math.max(1, this.roomLimits.arbitrationBigRoundsMax);
@@ -927,6 +944,11 @@ export class RoomSurface {
               <span>${esc(this.t('room.duration'))}</span>
               <input name="durationMinutes" type="number" min="1" max="${maxDuration}" step="1" value="${durationMinutes}" inputmode="numeric">
               <small>${esc(this.t('room.durationHelp', { max: maxDuration }))}</small>
+            </label>
+            <label class="room-field room-field-check">
+              <span>${esc(this.t('room.allowEmpty'))}</span>
+              <input name="allowEmpty" type="checkbox"${allowEmpty ? ' checked' : ''}>
+              <small>${esc(this.t('room.allowEmptyHelp'))}</small>
             </label>
           </div>
           <div class="room-settings-actions">
@@ -1021,7 +1043,7 @@ export class RoomSurface {
     const previous = this.ws;
     this.ws = null;
     previous?.close();
-    const path = `/api/v1/rooms/${encodeURIComponent(this.code)}/ws?player=${encodeURIComponent(this.playerId)}`;
+    const path = `/api/v1/rooms/${encodeURIComponent(this.code)}/ws?player=${encodeURIComponent(this.playerId)}&v=${PROTOCOL_VERSION}`;
     const ws = new WebSocket(this.api.wsUrl(path));
     this.ws = ws;
     // Events of a replaced socket must not affect the current connection.
@@ -1035,7 +1057,7 @@ export class RoomSurface {
       this.update();
     });
     ws.addEventListener('close', (event) => {
-      if (this.ws === ws) this.onSocketClosed(event.code);
+      if (this.ws === ws) this.onSocketClosed(event.code, event.reason);
     });
     ws.addEventListener('message', (event) => {
       if (this.ws !== ws) return;
@@ -1050,10 +1072,17 @@ export class RoomSurface {
     });
   }
 
-  onSocketClosed(closeCode) {
+  onSocketClosed(closeCode, reason = '') {
     this.ws = null;
     this.connected = false;
     this.stopHeartbeat();
+    if (reason === 'client-outdated') {
+      // The service runs a newer release: reconnecting cannot help.
+      this.leaving = true;
+      this.onOutdated?.();
+      this.update();
+      return;
+    }
     if (this.leaving || this.kicked || !this.code || !this.playerId) {
       this.update();
       return;

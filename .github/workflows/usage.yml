@@ -1,0 +1,73 @@
+name: Ship usage
+
+# Once a month (and on request) this requests the monthly statistics of every
+# playable hull from zKillboard, one request at a time, and commits the result
+# to the `data` branch as ship-usage.json. Nothing here goes through a pull
+# request: main is protected and is never written. The main CI downloads the
+# file from the data branch when it builds the image.
+on:
+  schedule:
+    # The 2nd of each month, once the previous month is complete.
+    - cron: '17 3 2 * *'
+  workflow_dispatch:
+    inputs:
+      missing_only:
+        description: Request only hulls the file does not know yet (for example new SDE ships)
+        type: boolean
+        default: false
+
+# Only the data branch is written; contents: write is required for that push.
+permissions:
+  contents: write
+
+concurrency:
+  group: ship-usage
+  cancel-in-progress: false
+
+jobs:
+  usage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # The hull list comes from the SDE catalog.
+      - run: npm run prepare:sde
+      - run: npm run build:catalog
+      - name: Previous file
+        run: |
+          mkdir -p .cache
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/data/ship-usage.json" -o .cache/ship-usage.json || rm -f .cache/ship-usage.json
+      - name: Request usage
+        run: |
+          if [ "${{ inputs.missing_only }}" = "true" ] && [ -f .cache/ship-usage.json ]; then
+            node scripts/build-ship-usage.mjs --missing-only
+          else
+            node scripts/build-ship-usage.mjs
+          fi
+      - name: Commit to the data branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp .cache/ship-usage.json "$RUNNER_TEMP/ship-usage.json"
+          git fetch origin data || true
+          if git rev-parse --verify -q origin/data >/dev/null; then
+            git checkout -q -B data origin/data
+          else
+            git checkout -q --orphan data
+            git rm -rfq .
+          fi
+          cp "$RUNNER_TEMP/ship-usage.json" ship-usage.json
+          cat > README.md <<'TXT'
+          Data only. ship-usage.json is written by the "Ship usage" workflow of the
+          main branch: per hull and month [shipsDestroyed, shipsLost] from zKillboard.
+          TXT
+          git add ship-usage.json README.md
+          if git diff --cached --quiet; then
+            echo "No change."
+          else
+            git commit -q -m "更新船只使用率数据 $(date -u +%Y-%m-%d)"
+            git push origin data
+          fi

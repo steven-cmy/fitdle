@@ -3,7 +3,8 @@
  * that comes from another browser is validated before it reaches the UI.
  */
 
-export const PROTOCOL_VERSION = 1;
+// 2: race rounds keep the answer on the service (boards over the socket).
+export const PROTOCOL_VERSION = 2;
 export const MAX_MESSAGE_BYTES = 16384;
 export const MAX_NAME = 24;
 export const MAX_TEXT = 120;

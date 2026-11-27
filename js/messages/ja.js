@@ -246,7 +246,7 @@ export default {
   'settings.sizeNormal': '標準',
 
   'manual.emptyKb': '未装備のキルレポートを許可',
-  'manual.emptyKbHelp': '次の案件から適用されます。',
+  'manual.emptyKbHelp': 'ソロのランダム案件にのみ適用されます。デイリー、マルチプレイのルーム、共有されたキルリンクは対象外です。次の案件から適用されます。',
   'manual.emptyKbOn': '未装備のキルレポートを有効化',
   'manual.emptyKbOff': '未装備のキルレポートを無効化',
 
@@ -287,7 +287,7 @@ export default {
   'help.modesTitle': 'モード',
   'help.gameplayTitle': 'ゲームモード',
   'help.generalTitle': '共通',
-  'help.dailyBody': 'ゲーム内の1日に1件、全員同じ案件です。{time} UTC にリセットされ、標準ルールで行います。EVE でログインするとプレイでき、結果は査定記録に残ります。',
+  'help.dailyBody': 'ゲーム内の1日に1件、全員同じ案件です。{time} UTC にリセットされ、標準ルールで行います。EVE でログインするとプレイでき、結果は査定記録に残ります。デイリー案件で未装備のキルレポートを許可するかはサーバー運営者が設定し、個人の設定の影響は受けません。',
 
   'error.dailyUnavailableTitle': 'デイリー案件を取得できません',
   'error.dailyUnavailableBody': '基準時刻またはキルレポートを検証できませんでした。研修査定を開き、別の案件を受け取ってください。',
@@ -307,6 +307,10 @@ export default {
   'error.noTargetLore': '目標ロックなし',
   'error.unknownHullLore': '信号未分類',
   'error.genericLore': 'アップリンク失敗',
+  'error.outdatedCode': 'ページが古くなっています',
+  'error.outdatedLore': 'このページは査定ネットワークより古い版です',
+  'error.outdatedBody': 'FITDLE が更新されました。ページを再読み込みして続けてください。進行中の対局は保持されます。',
+  'error.reload': '再読み込み',
   'error.genericCode': '未分類の信号障害',
 
   'online.label': 'オンライン',
@@ -343,6 +347,7 @@ export default {
 
   'online.unavailable': 'オンラインサービスを利用できません。研修査定は続けられます。',
   'online.recordFailed': '結果を記録できませんでした。',
+  'online.guessPending': '査定ネットワークが直前の推測を判定するのを待っています。',
   'online.recordPending': '結果は接続が回復しだい記録されます。',
   'online.abandonTitle': 'この案件を放棄しますか？',
   'online.abandonBody': 'この案件はすでに開始しています。次に進むと敗北として記録されます。',
@@ -407,6 +412,10 @@ export default {
   'room.bigRoundsHelp': 'ディーラー交代の回数、1〜{max}。',
   'room.duration': '制限時間（分）',
   'room.durationHelp': 'タイムモードのみ、1〜{max}分。',
+  'room.allowEmpty': '未装備のキルレポートを許可',
+  'room.allowEmptyHelp': 'オフにすると、毎ラウンド装備ありのキルレポートだけを使います。',
+  'room.allowEmptyOn': 'このルームでは未装備のキルレポートを許可しています。',
+  'room.allowEmptyOff': 'このルームでは装備ありのキルレポートだけを使います。',
   'room.error.reconnecting': '接続が切れました。再接続中…',
   'room.error.room-not-found': 'ルームが見つかりません。',
   'room.error.wrong-password': 'ルームのパスワードが違います。',
@@ -456,7 +465,7 @@ export default {
   'mode.dailyRefresh': '更新',
 
   'help.multiplayerFlowTitle': 'ルームの流れ',
-  'help.multiplayerFlow': 'ホストがルームを作成し、モードと設定を選びます。2人以上が必要です。プレイヤーは一覧から参加します。標準・装備監査・タイムでは、全員がターゲットを先読みして同時に開始し、各ラウンドの後は全員がもう一度準備して、新しい共有ターゲットで次のラウンドが始まります。ルーム得点は対戦をまたいで累積し、リセットできるのはロビーまたは対戦の合間のホストだけです。ルームを退出すると、自分のルーム得点は失われます。ラウンド中に退出するか、再接続の猶予を過ぎても切断したままだと、そのラウンドは敗北です。ホストにキックされた場合は敗北になりません。',
+  'help.multiplayerFlow': 'ホストがルームを作成し、モードと設定を選びます。2人以上が必要です。プレイヤーは一覧から参加します。標準・装備監査・タイムでは、全員がターゲットを先読みして同時に開始し、各ラウンドの後は全員がもう一度準備して、新しい共有ターゲットで次のラウンドが始まります。ルーム得点は対戦をまたいで累積し、リセットできるのはロビーまたは対戦の合間のホストだけです。ルームを退出すると、自分のルーム得点は失われます。ラウンド中に退出するか、再接続の猶予を過ぎても切断したままだと、そのラウンドは敗北です。ホストにキックされた場合は敗北になりません。ホストはルーム設定で未装備のキルレポートを許可するか決めます。ルーム全員がこの設定に従い、個人設定は影響しません。',
   'help.multiplayerRaceTitle': '標準 / 装備監査 / タイム',
   'help.multiplayerRace': 'ルールはソロプレイと同じです（ハンドブックの「ゲームモード」を参照）。ここでは違いだけを記します。\n全員が同じ案件、同じ証拠の順番で同時に開始します。\n標準と装備監査：船体を当てると自分のラウンドが終わります。使った査定回数が少ないほど高得点で、6回とも外すと得点はありません。\nタイム：ラウンドごとにルーム全体で1つのカウントダウンを共有し、時間はホストが設定します。船体を当てた順に得点が入り、時間切れまでに当てられなければ得点はありません。\n先に終えたプレイヤーは、他の人を待つ間に結果を確認できます。',
   'help.multiplayerArbitrationTitle': '仲裁',
