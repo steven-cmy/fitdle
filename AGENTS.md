@@ -1005,9 +1005,12 @@ test reads `dist/`.
   `server/src/index.mjs` with `dist/`, `/api` and `/ws`. It needs `PUBLIC_ORIGIN`,
   `EVE_CLIENT_ID`, `EVE_CLIENT_SECRET` and `SESSION_SECRET` at runtime, plus a
   persistent `/data` volume for SQLite. Without `SESSION_SECRET` the server
-  generates a random one in `session-secret` next to the database (mode 0600) and
-  keeps using it; only if that file cannot be written does it fall back to the
-  public default and warn.
+  makes a random secret at every start, keeps it in memory only (nothing is
+  written) and logs a red warning (plain text when stdout is not a terminal or
+  `NO_COLOR` is set): every restart then signs everybody out, and the alternative,
+  the default published in the source, would make the Daily predictable and
+  sessions forgeable. Setting a fixed long random value ends the warning. Daily
+  targets already stored in `daily_pins` are not affected by restarts.
 - Boolean variables accept `1/true/yes/on` and `0/false/no/off` (any case); an
   unrecognised value warns at start and the default is used.
 - The runtime image carries only the `data/` files the server reads, and links

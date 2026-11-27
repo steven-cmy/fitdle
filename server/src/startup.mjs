@@ -7,6 +7,22 @@ export const API_VERSION = 1;
 const clock = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
 /** Warnings that depend on the clock; the settings warnings live in `config.warnings`. */
+const red = (text, color) => (color ? `\u001b[1;31m${text}\u001b[0m` : text);
+
+/** Red on a terminal, plain text in files and pipes (or with NO_COLOR). */
+const wantsColor = () => Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
+
+/** Why a random session secret matters. Never contains the secret itself. */
+export function sessionSecretWarnings(config = defaultConfig, { color = wantsColor() } = {}) {
+  if (config.sessionSecretSource !== 'random') return [];
+  return [
+    'SESSION_SECRET is not set: a random temporary secret was generated for this run.',
+    'Consequence: every restart invalidates all sign-in sessions and everyone has to sign in again.',
+    'Why it is generated: the only alternative is the secret published in the source code, which would make the Daily target predictable and sign-in sessions forgeable.',
+    "Fix: set a fixed long random SESSION_SECRET in the environment (for example: node -e \"console.log(require('crypto').randomBytes(32).toString('base64url'))\"); restarts then keep sessions. Daily targets already stored are not affected by restarts.",
+  ].map((line) => red(line, color));
+}
+
 export function startupWarnings(config = defaultConfig, { now = new Date() } = {}) {
   if (!config.shipUsage) return [];
   const generated = Date.parse(config.shipUsage.generatedAt);
@@ -39,7 +55,7 @@ export function startupLines(config = defaultConfig, { node = process.version, n
     `Origin ${config.publicOrigin || 'PUBLIC_ORIGIN not set'}${apiOrigin} · listen ${config.host}:${config.port} · proxy headers trusted`,
     `Data ${String(config.manifest?.dataVersion || 'unknown')} · database ${config.databasePath} · static ${config.staticDir}`,
     `Game day starts ${clock(config.gameDayStartMinutes)} UTC (${config.gameDayStartSource})`,
-    `Sign-in: SSO ${ssoConfigured() ? 'configured' : 'not configured'} · session secret ${config.sessionSecret ? (config.sessionSecretSource === 'generated file' ? 'generated and kept next to the database' : 'configured') : 'NOT SET (public default)'} · dev sign-in ${config.devAuth ? 'ON' : 'off'}`,
+    `Sign-in: SSO ${ssoConfigured() ? 'configured' : 'not configured'} · session secret ${config.sessionSecret ? (config.sessionSecretSource === 'random' ? 'RANDOM, valid until restart' : 'configured') : 'NOT SET (public default)'} · dev sign-in ${config.devAuth ? 'ON' : 'off'}`,
     `Targets: daily empty hulls ${config.dailyAllowEmpty ? 'allowed' : 'excluded'} · usage ${usageText} · max usage ratio ${config.usageMaxRatio} · group factors ${factors} · shelf ${config.targetShelfSize} entries, ttl ${config.targetShelfTtlMs / 3600000} h`,
     `Limits: ${config.roomMaxPlayers} players a room · zKill spacing ${config.zkillMinIntervalMs} ms · shelf refill every ${config.targetRefillIntervalMs} ms · difficulty stats kept ${config.statsKillRetentionDays} days`,
   ];

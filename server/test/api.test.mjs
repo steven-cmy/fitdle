@@ -42,6 +42,7 @@ const {
 } = await import('../src/targets.mjs');
 const { expireRuns = () => {} } = await import('../src/runs.mjs');
 const { buildApp } = await import('../src/index.mjs');
+const { sessionSecretWarnings } = await import('../src/startup.mjs');
 const { db, cleanupExpired } = await import('../src/db.mjs');
 const { profileStats, recordPlay } = await import('../src/stats.mjs');
 const { difficultyReport, parseArgs } = await import('../src/difficulty-report.mjs');
@@ -564,7 +565,7 @@ test('the shelf hands out prepared targets once and refills below half', async (
       requests.length = 0;
       // Without network the shelf still serves; each target once.
       const realFetch = globalThis.fetch;
-      globalThis.fetch = () => new Promise(() => {});
+      globalThis.fetch = () => Promise.reject(new Error('offline'));
       const seen = new Set();
       try {
         const a = await getRandomTarget('standard');
@@ -592,7 +593,7 @@ test('the shelf hands out prepared targets once and refills below half', async (
       const [emptyKill, fitKill] = [lossPage(900060, [false])[0], lossPage(900060, [true])[0]];
       row(emptyKill, 0);
       row(fitKill, 1);
-      globalThis.fetch = () => new Promise(() => {});
+      globalThis.fetch = () => Promise.reject(new Error('offline'));
       try {
         assert.equal((await getRandomTarget('standard', { allowEmpty: false })).killId, fitKill.killmail_id);
         assert.equal(fit((await getRandomTarget('standard')).killmail), false, 'the empty one stayed on the shelf');
@@ -1300,7 +1301,7 @@ test('development login needs a loopback origin in production', () => {
   assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://fitdle.test' }), [false, 1]);
   assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'http://127.0.0.1:8787' }), [true, 0]);
   assert.deepEqual(read({ NODE_ENV: '', PUBLIC_ORIGIN: 'https://fitdle.test' }), [true, 0]);
-  // A blank SESSION_SECRET gets a generated private one next to the database, so there is no warning.
+  // A blank SESSION_SECRET gets a random in-memory one; its red warning is logged at start, not a config warning.
   assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'http://127.0.0.1:8787', SESSION_SECRET: ' ' }), [true, 0]);
 });
 
@@ -1409,28 +1410,36 @@ test('a Daily row already stored always wins over the pin just built', () => {
   }
 });
 
-test('a missing SESSION_SECRET gets a private generated one that survives restarts', () => {
+test('a missing SESSION_SECRET gets a random in-memory one and a red warning without the value', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fitdle-secret-'));
   const script = "const { config } = await import('./server/src/config.mjs');"
-    + "console.log(JSON.stringify([config.sessionSecretSource, config.sessionSecret.length, config.warnings.filter((w) => w.includes('SESSION_SECRET')).length]));";
-  const read = (databasePath) => {
+    + "const { sessionSecretWarnings } = await import('./server/src/startup.mjs');"
+    + "console.log(JSON.stringify({ source: config.sessionSecretSource, secret: config.sessionSecret,"
+    + " red: sessionSecretWarnings(config, { color: true }), plain: sessionSecretWarnings(config, { color: false }) }));";
+  const read = () => {
     // An empty value wins over any .env file and counts as not set.
-    const env = { ...process.env, NODE_ENV: 'production', DATABASE_PATH: databasePath, SESSION_SECRET: '' };
+    const env = { ...process.env, NODE_ENV: 'production', DATABASE_PATH: path.join(dir, 'x.sqlite'), SESSION_SECRET: '' };
     return JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8', env }).stdout);
   };
   try {
-    const database = path.join(dir, 'x.sqlite');
-    assert.deepEqual(read(database), ['generated file', 43, 0]);
-    const first = fs.readFileSync(path.join(dir, 'session-secret'), 'utf8');
-    assert.deepEqual(read(database), ['generated file', 43, 0]);
-    assert.equal(fs.readFileSync(path.join(dir, 'session-secret'), 'utf8'), first, 'the same secret after a restart');
-    // A directory that cannot be written: the service still starts, with a warning.
-    const blocker = path.join(dir, 'file');
-    fs.writeFileSync(blocker, 'x');
-    assert.deepEqual(read(path.join(blocker, 'x.sqlite')), ['none', 0, 1]);
+    const first = read();
+    const second = read();
+    assert.equal(first.source, 'random');
+    assert.equal(first.secret.length, 43);
+    assert.notEqual(first.secret, second.secret, 'a different secret at every start');
+    assert.deepEqual(fs.readdirSync(dir), [], 'nothing is written');
+    const text = first.red.join('\n');
+    assert.ok(first.red.every((line) => line.startsWith('\u001b[1;31m') && line.endsWith('\u001b[0m')), 'red on a terminal');
+    assert.equal(first.plain.some((line) => line.includes('\u001b')), false, 'plain text elsewhere');
+    for (const part of [/SESSION_SECRET is not set/, /restart invalidates all sign-in sessions/, /predictable and sign-in sessions forgeable/, /randomBytes\(32\)/, /already stored are not affected/]) {
+      assert.match(text, part);
+    }
+    assert.equal(text.includes(first.secret), false, 'the secret is never logged');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+  // With a secret from the environment there is no warning.
+  assert.deepEqual(sessionSecretWarnings({ ...config, sessionSecretSource: 'environment' }), []);
 });
 
 test('the usage file of the data branch is adopted only when valid and newer', async () => {

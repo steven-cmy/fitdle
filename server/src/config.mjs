@@ -127,34 +127,12 @@ if (usageRefreshRaw !== undefined) {
   else warnings.push(`FITDLE_USAGE_REFRESH_HOURS="${text}" must be 1..8760, or empty/0 to turn it off; 168 is used`);
 }
 const databasePath = path.resolve(process.env.DATABASE_PATH || path.join(ROOT, '.cache', 'fitdle-online.sqlite'));
-// Without SESSION_SECRET the Daily would follow from a public default, so a
-// private random one is kept next to the database. If that is not possible the
-// old behaviour (and its warning) stays: the service still starts.
+// Without SESSION_SECRET a random one is made at every start and kept in memory
+// only (nothing is written). The public default would make the Daily predictable
+// and sessions forgeable; the startup log explains the consequence in red.
 let sessionSecret = String(process.env.SESSION_SECRET || '').trim();
-let sessionSecretSource = sessionSecret ? 'environment' : 'none';
-if (!sessionSecret) {
-  const secretFile = path.join(path.dirname(databasePath), 'session-secret');
-  try {
-    sessionSecret = fs.readFileSync(secretFile, 'utf8').trim();
-    if (sessionSecret) sessionSecretSource = 'generated file';
-  } catch {
-    // Not there yet.
-  }
-  if (!sessionSecret) {
-    try {
-      fs.mkdirSync(path.dirname(secretFile), { recursive: true });
-      const fresh = crypto.randomBytes(32).toString('base64url');
-      fs.writeFileSync(secretFile, `${fresh}\n`, { mode: 0o600, flag: 'wx' });
-      sessionSecret = fresh;
-      sessionSecretSource = 'generated file';
-    } catch {
-      sessionSecret = '';
-    }
-  }
-}
-if (sessionSecretSource === 'none' && production) {
-  warnings.push('SESSION_SECRET is not set and no secret file could be written: Daily targets can be predicted from the public default');
-}
+const sessionSecretSource = sessionSecret ? 'environment' : 'random';
+if (!sessionSecret) sessionSecret = crypto.randomBytes(32).toString('base64url');
 const apiContact = parseContact(process.env.API_CONTACT);
 const roomArbitrationBigRounds = boundedIntEnv('ROOM_ARBITRATION_BIG_ROUNDS', 1, 1, 32);
 const roomArbitrationMaxBigRounds = boundedIntEnv('ROOM_ARBITRATION_MAX_BIG_ROUNDS', 5, 1, 32);
