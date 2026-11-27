@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
+import http from 'node:http';
 import zlib from 'node:zlib';
 import WebSocket from 'ws';
 
@@ -1477,7 +1478,7 @@ test('static assets are served precompressed with identical content', async () =
       const packed = await get(encoding);
       assert.equal(packed.headers['content-encoding'], encoding, url);
       assert.match(packed.headers['content-type'], type);
-      assert.match(packed.headers.vary, /Accept-Encoding/);
+      assert.match(packed.headers.vary, /Accept-Encoding/i);
       assert.ok(packed.rawPayload.length < plain.rawPayload.length);
       assert.ok(decode(packed.rawPayload).equals(plain.rawPayload), `${url} ${encoding}`);
       const cached = await app.inject({
@@ -1923,5 +1924,53 @@ test('a request still waiting for its target gives a replaced account nothing', 
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM online_runs WHERE name_key = 'waiting pilot'").get().count, 0);
   } finally {
     usePool(null);
+  }
+});
+
+test('static files never leave the static root and only canonical paths are served', async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'fitdle-static-'));
+  const root = path.join(base, 'root');
+  fs.mkdirSync(path.join(root, 'js'), { recursive: true });
+  fs.writeFileSync(path.join(base, 'secret.txt'), 'OUTSIDE-THE-ROOT');
+  fs.writeFileSync(path.join(root, 'index.html'), 'home');
+  fs.writeFileSync(path.join(root, 'js', 'main.js'), 'inside');
+  const previous = { staticDir: config.staticDir, allowedOrigins: config.allowedOrigins };
+  config.staticDir = root;
+  config.allowedOrigins = ['http://site.test'];
+  const site = await buildApp();
+  try {
+    await site.listen({ host: '127.0.0.1', port: 0 });
+    // A real request: inject() and fetch() would resolve the dot segments before sending.
+    const get = (url, headers = {}) => new Promise((resolve, reject) => {
+      http.get({ host: '127.0.0.1', port: site.server.address().port, path: url, headers }, (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => { body += chunk; });
+        response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body }));
+      }).on('error', reject);
+    });
+    for (const url of [
+      '/../secret.txt', '/js/../../secret.txt', '//../secret.txt', '/./../secret.txt', '/....//secret.txt',
+      '/%2e%2e/secret.txt', '/%2E%2E%2Fsecret.txt', '/..%2fsecret.txt', '/js/%2e%2e/%2e%2e/secret.txt',
+      '/js/..%2f..%2fsecret.txt', '/..%5csecret.txt', '/%2e%2e%5csecret.txt', '/..\\secret.txt',
+      '/%252e%252e/secret.txt', '/%252e%252e%252fsecret.txt', '/..%252fsecret.txt',
+      `/${encodeURIComponent(path.join(base, 'secret.txt'))}`,
+      // Other spellings of a served file are refused too.
+      '//js/main.js', '/js//main.js', '/js/./main.js', '/js/../js/main.js', '/js%2Fmain.js', '/js%5Cmain.js',
+    ]) {
+      const response = await get(url);
+      assert.ok([403, 404].includes(response.status), `${url} answered ${response.status}`);
+      assert.equal(/OUTSIDE-THE-ROOT|inside/.test(response.body), false, url);
+    }
+    assert.equal((await get('/js/main.js?v=1')).body, 'inside');
+    assert.equal((await get('/')).body, 'home');
+    // Caches must keep apart both the encoding and the allowed origin.
+    const { headers } = await get('/js/main.js', { origin: 'http://site.test' });
+    assert.match(headers.vary, /Origin/);
+    assert.match(headers.vary, /Accept-Encoding/i);
+  } finally {
+    Object.assign(config, previous);
+    await site.close();
+    fs.rmSync(base, { recursive: true, force: true });
   }
 });

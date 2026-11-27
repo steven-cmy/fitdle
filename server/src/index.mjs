@@ -134,8 +134,8 @@ export async function buildApp({ logStream = null } = {}) {
       cacheControl: true,
       maxAge: 0,
       // build-dist writes .br/.gz siblings; HTML has none and is served as is.
+      // The plugin adds Accept-Encoding to Vary without dropping the CORS Origin.
       preCompressed: true,
-      setHeaders: (response) => response.setHeader('Vary', 'Accept-Encoding'),
     });
   } else {
     app.log.warn(`static directory not found: ${config.staticDir}`);
