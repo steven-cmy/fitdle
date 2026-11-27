@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
  * Pull request gate for releases. A pull request that changes the program needs
- * a version in package.json newer than the base branch's and a matching
- * CHANGELOG.md section. One that changes only documentation or GitHub
- * configuration passes without either (see NON_PROGRAM).
+ * a version in package.json newer than the base branch's and one CHANGELOG.md
+ * section for that version, covering everything since the last release. The
+ * versions dev passed through on the way need no section and must not have one.
+ * A pull request that changes only documentation or GitHub configuration passes
+ * without either (see NON_PROGRAM).
  *
  * Usage: node scripts/check-release.mjs <base-ref>   (e.g. origin/main)
  */
@@ -62,6 +64,12 @@ if (start >= 0) {
   }
 }
 if (!body.trim()) errors.push(`CHANGELOG.md needs a non-empty "## v${current}" section.`);
+for (const line of section) {
+  const version = /^## v(\d+\.\d+\.\d+)$/.exec(line.trim())?.[1];
+  if (version && version !== current && newer(version, baseVersion)) {
+    errors.push(`CHANGELOG.md has a "## v${version}" section; this release has only "## v${current}".`);
+  }
+}
 
 if (errors.length) {
   for (const error of errors) console.error(`::error::${error}`);
