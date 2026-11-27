@@ -20,7 +20,7 @@ import { buildDealerRound } from '../../js/mp/target.js';
 import { calculateDogmaFit, calculateDogmaBaseline } from '../../js/dogma.js';
 import { buildRevealPlan } from '../../js/reveal.js';
 import {
-  boardView, buildPuzzle, guessFeedback, markShown, releasedClues, TIMED_RELEASE_MS, timedExhaustedAt,
+  auditKillmail, boardView, buildPuzzle, guessFeedback, markShown, releasedClues, TIMED_RELEASE_MS, timedExhaustedAt,
 } from './puzzle.mjs';
 import { config } from './config.mjs';
 import { getSessionUser } from './auth.mjs';
@@ -70,13 +70,6 @@ export function normalizeRoomSettings(current = {}, incoming = {}) {
 }
 
 const refsEn = JSON.parse(fs.readFileSync(path.join(config.dataDir, 'refs', 'en.json'), 'utf8'));
-const moduleFallbacks = (() => {
-  try {
-    return JSON.parse(fs.readFileSync(path.join(config.dataDir, 'module-fallback.json'), 'utf8'));
-  } catch {
-    return {};
-  }
-})();
 const searchAliases = (() => {
   try {
     return JSON.parse(fs.readFileSync(path.join(config.dataDir, 'search.json'), 'utf8'));
@@ -1053,11 +1046,11 @@ async function startArbitration(room, wantedDealerId, current) {
     catalog: config.catalogShips,
     refsEn,
     mode: 'audit',
-    moduleFallbacks,
+    moduleFallbacks: config.manifest?.moduleFallbacks || {},
     weaponUpgradeGroups: config.manifest?.weaponUpgradeGroups || null,
     weaponGroups: config.manifest?.weaponGroups || null,
     simulate: async (ship, picked) => ({
-      fittedAttrs: await calculateDogmaFit(ship, picked.killmail),
+      fittedAttrs: await calculateDogmaFit(ship, auditKillmail(picked.killmail, refsEn)),
       baselineAttrs: await calculateDogmaBaseline(ship),
     }),
   });
