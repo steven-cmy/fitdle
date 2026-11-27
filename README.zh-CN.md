@@ -73,9 +73,9 @@ Node 24+。前端是原生 ES modules，没有打包器；后端在 `server/`，
 ```bash
 npm install
 npm run prepare:sde       # 下载官方 SDE
+npm run fetch:usage       # 从 data 分支下载船体使用率
 npm run build:catalog
 npm run build:killpool
-npm run build:weights
 npm run build             # 生成 data/ 和 dist/
 npm test
 

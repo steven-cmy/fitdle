@@ -9,8 +9,8 @@ translation [README.zh-CN.md](README.zh-CN.md).
   Gameplays: Standard, Fitting Audit, Timed; Arbitration in rooms only.
 - Front end: static ES modules (`index.html`, `js/`, `styles/`), no bundler.
   Back end: `server/` (Node 24, Fastify, WebSocket, `node:sqlite`).
-- Build: `prepare:sde` → `build:catalog` → `build:killpool` → `build:weights` →
-  `build`; tests: `npm test` and `npm run test:server` (see *Commands*).
+- Build: `prepare:sde` → `build:catalog` → `fetch:usage` → `build:catalog` →
+  `build:killpool` → `build`; tests: `npm test` and `npm run test:server` (see *Commands*).
 - Rules below are grouped: hard rules first, then architecture, game rules
   (target, KB, reveal), runtime/API, UI copy, and CI/deployment.
 
@@ -417,15 +417,13 @@ used for target selection.
    `.cache/sde-source/`, reuses the rest, and normalizes them.
 2. `build:killpool` builds a small offline fallback pool from zKill global losses
    and stores zKill's server `Date` as `serverDate`.
-3. `build:weights` fetches zKill `stats/shipTypeID/{id}/kills/` for missing or
-   aging hulls and stores recent/all ship-loss counts with a per-hull fetch time
-   in `.cache/ship-weights.json`. Entries expire after 7 days; from day 5 a build
-   renews up to 60 of the oldest. A failed request keeps the previous value and
-   never writes zeros, which would drop the hull from the pools.
-   zKill's `rankings.recent` bucket is the 90-day window. Economy clues use
-   `losses90`, recent kill rank (`shipsDestroyed`), and a recent
-   kill/(kill+loss) danger index. The block title, not each row, says 90 days.
-4. `build` reads normalized SDE + weights + killpool and writes `data/` and
+3. `fetch:usage` downloads the monthly ship usage file of the `data` branch to
+   `.cache/ship-usage.json` (see *Usage data*). Builds make no per-hull zKill
+   requests. Economy clues use the live ship statistics: `losses90`, recent kill
+   rank (`shipsDestroyed`) and a recent kill/(kill+loss) danger index from
+   zKill's 90-day `rankings.recent` bucket. The block title, not each row, says
+   90 days.
+4. `build` reads normalized SDE + usage file + killpool and writes `data/` and
    `dist/`. It also emits a compact `data/module-fallback.json` from
    `typeDogma` for the six attributes used by the audit fallback simulator, so
    that fallback never calls ESI at runtime.
@@ -441,8 +439,12 @@ One server-side picker (`server/src/targets.mjs`, pure rules in
 `server/src/selection.mjs`) serves the Daily, online Standard/Audit/Timed, race
 rooms and arbitration rooms. Practice (static build, browser) still uses its own
 client-side random pick from the manifest pools (`normalShipPool` etc.) and never
-scores; `scripts/build-catalog.mjs` keeps building those pools from
-`.cache/ship-weights.json`.
+scores. `scripts/build-catalog.mjs` builds those pools with
+`scripts/practice-pools.mjs` from `.cache/ship-usage.json`: usage over the last
+3 complete months before the file was made, Standard favouring used hulls and
+Audit the others, with the default group factors; a hull whose months hold no
+loss is left out. Without usable data the build warns, gives every hull weight 1
+and goes on.
 
 ### Hull queue
 
@@ -506,15 +508,19 @@ scores; `scripts/build-catalog.mjs` keeps building those pools from
   `scripts/build-ship-usage.mjs` (about 430 requests, one at a time, 1 s apart,
   generic User-Agent with the repository URL only, Retry-After honoured, previous
   entries kept for failed hulls, refuses to write if the format looks wrong, and a
-  401/403 stops the whole run at once without writing) and
+  401/403 stops the whole run at once without writing; progress is a bar with the
+  elapsed time and the ETA, redrawn on a terminal and printed every few percent or
+  once a minute in CI logs, see `scripts/progress.mjs`) and
   commits the result straight to the `data` branch (`ship-usage.json`). Main is not
   touched and no pull request is involved; the workflow needs `contents: write`.
   The server warns at start when the file is older than `FITDLE_USAGE_STALE_DAYS`
   (45: one monthly cycle plus buffer; keep it in line with the workflow's cron).
 - The main CI downloads that file (`npm run fetch:usage`, never fails the build)
-  into `.cache/ship-usage.json`; the Docker image copies it to
-  `data/ship-usage.json` (or an empty placeholder). The server reads it at start
-  (`FITDLE_SHIP_USAGE_FILE` overrides the path).
+  into `.cache/ship-usage.json`; the runtime stage of the Docker image copies
+  that file (or an empty placeholder) to `data/ship-usage.json`. It must not be
+  put into the build stage's `data/`, which `npm run build` deletes and
+  recreates. The server reads it at start (`FITDLE_SHIP_USAGE_FILE` overrides the
+  path).
 - Fresh data without a new image: `server/src/usage-refresh.mjs` loads a cached
   copy (`ship-usage.cache.json` next to the database) at start when it is newer
   than the image's file, then asks the data branch for the file at start and every
@@ -829,16 +835,15 @@ npm run prepare:sde       # fetch/normalize official SDE via HTTP API
 npm run update:sde        # force latest SDE release
 npm run check:sde-cache   # compare cached SDE with official latest (exit 1 = stale)
 npm run build:killpool    # fallback KB pool + zKill server date
-npm run build:weights     # 430-hull zKill usage weights
+npm run fetch:usage       # ship usage file from the data branch
 npm run build             # data + dist
 npm run update:dogma      # vendor latest EVE Ship Fit engine/SDE
 npm run hooks:install     # enable shared Git hooks
 ```
 
-`npm run build` requires `data/catalog.json`; on a fresh checkout run
-`prepare:sde` then `build` once before `build:killpool` or `build:weights`, since
-both read the catalog. The all-in-one container runs `build:catalog`, then both
-refreshes, then the final `build`.
+`build:killpool` reads the catalog, so on a fresh checkout run `prepare:sde`,
+`fetch:usage` and `build:catalog` before it, then `build`. The all-in-one
+container follows the same order.
 
 ## Version bump
 
@@ -878,6 +883,9 @@ refreshes, then the final `build`.
 - `?kb=<opaque-token>` opens Free mode; only the current `k...` token format is
   accepted.
 - `?mode=online` / `?mode=multiplayer` and `?room=<code>` are current app routes.
+  While a player is seated the address keeps `mode=multiplayer&room=<code>`, so a
+  reload rejoins (a seated player needs no password). Leaving, a kick and a lost
+  seat remove `room`; navigation to another target must remove it too.
   Old `?mode=audit`, `?mode=timed`, `?timer`, `?timed`, `?lang`, `?free`, `?d`,
   `?killmail` and `?kill` are not read or migrated.
 - Standard may omit `claim`; static share URLs still use `rule`.
@@ -1056,10 +1064,10 @@ test reads `dist/`.
   and skips `prepare:sde` when they match and normalized schema version 3 is
   cached; a schema/SDE change or `FORCE_SDE=1` downloads the SDE again.
 - Build caches (via `actions/cache`, a new key per run) `.cache/normalized.json`, `.cache/killpool.json`,
-  `.cache/sde-meta.json`, `.cache/ship-weights.json`, `.cache/zkill-version.json`
+  `.cache/sde-meta.json`, `.cache/ship-usage.json`, `.cache/zkill-version.json`
   and passes them to `image` (`REUSE_BUILD_CACHE=1`), so the image makes
   no data requests and matches Pages. Other image builds fetch everything.
-- If `data/catalog.json` is missing, build first; weights need a catalog.
+- If `data/catalog.json` is missing, build the catalog first; the kill pool needs it.
 - Daily scheduled pipeline is disabled: daily selection no longer depends on a
   rebuild. Builds run on pushes to `main`, pull requests into `main` and manual runs; only `main` publishes.
 - `pages` deploys `dist/` to GitHub Pages

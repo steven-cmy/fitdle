@@ -21,6 +21,7 @@ const {
   arbitrationShare, arbitrationSolvePoints, arbitrationDealerRoundRaw, arbitrationEndBonusRaw,
 } = await import('../../js/mp/rules.js');
 const { ROOMS, acceptedNames } = await import('../src/rooms.mjs');
+const { calculateDogmaBaseline } = await import('../../js/dogma.js');
 const { PROTOCOL_VERSION } = await import('../../js/mp/protocol.js');
 const { zkill } = await import('../src/zkill.mjs');
 const { resetTargets } = await import('../src/targets.mjs');
@@ -37,6 +38,8 @@ let gate = null;
 let failNext = false;
 // null: every loss is fitted; 'mixed': one fitted among empty hulls; 'empty': all empty.
 let upstreamEmpty = null;
+// A list: the fitting of every loss instead of the usual one.
+let upstreamItems = null;
 let pageRequests = 0;
 // A number: that many fixed killmails (same ids on every request) instead of fresh ones.
 let upstreamFixed = 0;
@@ -66,7 +69,7 @@ globalThis.fetch = async (url, options) => {
     zkb: { totalValue: 1000 },
     victim: {
       ship_type_id: ship,
-      items: upstreamEmpty === 'empty' || (upstreamEmpty === 'mixed' && index > 0) ? cargo : items,
+      items: upstreamEmpty === 'empty' || (upstreamEmpty === 'mixed' && index > 0) ? cargo : upstreamItems || items,
     },
   }))), { status: 200 });
 };
@@ -451,6 +454,28 @@ test('arbitration wire clues carry their weight share, never per-player values',
   assert.ok(state.share > 0 && Math.abs(state.share - shareOf(room.match)) < 1e-9);
   assert.equal(state.scoring.solveBase, 1200);
   await closeAll(setup.pilots, setup.code);
+});
+
+test('arbitration stands a representative in for an abyssal module', async () => {
+  const abyssal = 47804; // Medium Abyssal Shield Extender
+  upstreamItems = [{ flag: 19, item_type_id: abyssal, quantity_destroyed: 1, quantity_dropped: 0 }];
+  try {
+    resetUpstream();
+    const setup = await startArbitration(2);
+    const { clues, target } = setup.room.match;
+    const representative = clues.find((clue) => clue.k === 'equipment' && clue.v.module === abyssal)?.calcModule;
+    assert.ok(config.manifest.moduleFallbacks[abyssal].t2.concat(
+      config.manifest.moduleFallbacks[abyssal].faction || [],
+    ).includes(representative), `representative ${representative}`);
+    // The simulation uses it too: the extender raises the shield above the bare hull.
+    const ship = config.catalogShips.find((entry) => Number(entry.id) === Number(target.shipId));
+    const bare = await calculateDogmaBaseline(ship);
+    assert.ok(clues.find((clue) => clue.k === 'shield').v > Math.round(bare.shield));
+    await closeAll(setup.pilots, setup.code);
+  } finally {
+    upstreamItems = null;
+    resetUpstream();
+  }
 });
 
 test('arbitration pays a solve at once and the dealer per unsolved player', async () => {

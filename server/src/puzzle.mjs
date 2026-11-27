@@ -70,7 +70,7 @@ async function liveStats(shipId) {
 }
 
 /** The audit input of the browser version: mutated modules stand in by their slot-tier representative. */
-function auditKillmail(killmail, refsData) {
+export function auditKillmail(killmail, refsData) {
   const equipment = getEquipment([killmail], refsData).equipment;
   const fallbacks = selectAuditFallbacks(equipment, refsData, config.manifest?.moduleFallbacks || {});
   if (!fallbacks.size || !killmail?.victim?.items) return killmail;

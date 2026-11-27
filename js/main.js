@@ -17,7 +17,6 @@ import {
   saveState,
   searchShips,
   weightedHullOrder,
-  weightedRendezvousOrder,
 } from './game.js';
 import { claimGroups, claimSeed, pickClaimDebrief, pickClaimGroup, pickClaimMemo } from './claim.js';
 import { detectLocale, createI18n, isLocale, LOCALES, LOCALE_META } from './i18n.js';
@@ -1119,10 +1118,6 @@ function raceName(ship) {
   return state.refs?.races?.[ship?.raceID] || '';
 }
 
-function factionName(ship) {
-  return state.refs?.factions?.[ship?.factionID] || raceName(ship);
-}
-
 const HERO_FACTION_FONTS = Object.freeze({
   500003: 'amarr',
   500001: 'caldari',
@@ -1451,12 +1446,7 @@ function kbSelectionStartDate() {
   return String(state.manifest?.kbSelectionStartDate || state.kbSelectionStartDate || '');
 }
 
-const SHIP_PAGE_CACHE_MS = 60 * 60 * 1000;
-const FREE_PAGE_CACHE_MS = SHIP_PAGE_CACHE_MS;
-
-function kbInvalid() {
-  return new DailyUnavailableError('kb-invalid');
-}
+const FREE_PAGE_CACHE_MS = 60 * 60 * 1000;
 
 function kbRecencyHalfLifeDays() {
   const value = Number(state.manifest?.kbRecencyHalfLifeDays);
@@ -1466,21 +1456,6 @@ function kbRecencyHalfLifeDays() {
 function kbMaxScanPages() {
   const value = Number(state.manifest?.kbMaxScanPages);
   return Number.isInteger(value) && value > 0 ? Math.min(100, value) : 20;
-}
-
-async function fetchShipPage(shipId, page) {
-  try {
-    const data = await fetchZkill(
-      `/api/losses/shipTypeID/${shipId}/page/${page}/`,
-      { key: `ship-page:${shipId}:${page}`, ttlMs: SHIP_PAGE_CACHE_MS },
-    );
-    if (!Array.isArray(data)) throw kbInvalid();
-    return data;
-  } catch (error) {
-    if (error instanceof DailyUnavailableError) throw error;
-    debugLog('daily ship page request', error);
-    throw new DailyUnavailableError('kb-unavailable', error);
-  }
 }
 
 async function pickRandomFreeKill() {
@@ -4770,6 +4745,7 @@ function playToday() {
   dropCurrentTargetCache();
   const url = new URL(location.href);
   url.searchParams.delete('kb');
+  url.searchParams.delete('room');
   location.href = url.toString();
 }
 
@@ -5314,6 +5290,7 @@ function setGameplay(gameplay) {
   url.searchParams.delete('rule');
   url.searchParams.set('claim', next);
   url.searchParams.delete('mode');
+  url.searchParams.delete('room');
   if (state.appMode === 'online') url.searchParams.set('mode', 'online');
   location.assign(url.toString());
 }
@@ -5712,6 +5689,7 @@ async function takeNewTarget() {
   const url = new URL(location.href);
   url.searchParams.delete('kb');
   url.searchParams.delete('mode');
+  url.searchParams.delete('room');
   url.searchParams.delete('rule');
   url.searchParams.set('claim', state.gameplay);
   if (state.appMode === 'online') url.searchParams.set('mode', 'online');
@@ -5857,7 +5835,8 @@ function raceRun(message) {
   const status = ['won', 'lost'].includes(message.status) ? message.status : 'playing';
   return {
     ...state.onlineRun,
-    guesses: message.guesses || [],
+    // A resumed start carries the board only: the guesses it was judged with stay.
+    guesses: message.guesses || state.guesses,
     board: message.board,
     status,
     completed: status !== 'playing',
@@ -5901,14 +5880,6 @@ function applySubmittedRound(message) {
   state.pendingGuess = null;
   state.pendingEnd = false;
   stopTimedClock();
-}
-
-/** Guesses the server recorded, e.g. before a reload. Returns true if any was new here. */
-function mergeRoomGuesses(confirmed = []) {
-  const guesses = mergeGuesses(confirmed.filter((id) => state.catalogMap.has(Number(id))), state.guesses);
-  if (guesses.length === state.guesses.length) return false;
-  state.guesses = guesses;
-  return true;
 }
 
 function onRaceState(message) {

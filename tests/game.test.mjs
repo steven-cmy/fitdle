@@ -2940,6 +2940,9 @@ test('runtime image ships what the server needs without recursive chown layers',
   for (const file of ['catalog.json', 'manifest.json', 'search.json', 'module-fallback.json', 'refs/en.json']) {
     assert.ok(runtime.includes(`/app/data/${file}`), file);
   }
+  // `npm run build` recreates data/, so the usage file is taken from .cache.
+  assert.ok(runtime.includes('--from=build /app/.cache/ship-usage.json ./data/ship-usage.json'));
+  assert.doesNotMatch(dockerfile, /\/app\/data\/ship-usage\.json|cp \.cache\/ship-usage\.json/);
   assert.equal(entrypoint.includes('/app/dist'), false, 'dist ownership is not rewritten at start');
   assert.ok(entrypoint.indexOf('render-runtime-origin.mjs') < entrypoint.indexOf('exec setpriv'));
   assert.equal(readme.includes('location /ws {'), false);
@@ -3011,6 +3014,8 @@ test('a race round keeps its answer on the service until the part ends', () => {
   }
   assert.ok(slice('function applyMaskedGuess(shipId)', '\n}\n').includes('state.roomSurface?.sendGuess(state.roomEndless.roundId, shipId);'));
   assert.ok(slice('async function pollMaskedRun()', '\n}\n').includes('state.roomSurface?.requestBoard(state.roomEndless.roundId);'));
+  // A resumed start carries no guesses; the board keeps the ones it has.
+  assert.ok(slice('function raceRun(message)', '\n}\n').includes('guesses: message.guesses || state.guesses,'));
   // The socket names its protocol; a refused page asks for a reload.
   assert.ok(rooms.includes('&v=${PROTOCOL_VERSION}'));
   assert.ok(rooms.includes("if (reason === 'client-outdated') {"));

@@ -1,6 +1,6 @@
 {
   "name": "fitdle",
-  "version": "1.0.59",
+  "version": "1.0.60",
   "private": true,
   "type": "module",
   "description": "EVE Online killboard puzzle with a lightweight online service, EVE SSO, authoritative rooms, and a practice fallback.",
@@ -9,7 +9,6 @@
     "build:killpool": "node scripts/build-killpool.mjs",
     "fetch:usage": "node scripts/fetch-ship-usage.mjs",
     "build:usage": "node scripts/build-ship-usage.mjs",
-    "build:weights": "node scripts/build-ship-weights.mjs",
     "build:catalog": "node scripts/build-catalog.mjs",
     "build:dist": "node scripts/build-dist.mjs",
     "prepare:sde": "node scripts/prepare-sde.mjs",

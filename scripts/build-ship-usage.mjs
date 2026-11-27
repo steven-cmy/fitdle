@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { retryAfterMs } from '../js/retry-after.js';
+import { createProgress } from './progress.mjs';
 import { mergeUsage, monthKeyOf, parseStats, planUsage } from './ship-usage.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -81,17 +82,23 @@ async function fetchShip(id) {
 }
 
 const rows = [];
+let failures = 0;
+const progress = createProgress({ total: queue.length });
 for (const [index, id] of queue.entries()) {
   try {
     rows.push(await fetchShip(id));
   } catch (error) {
+    progress.stop();
     if (!(error instanceof Blocked)) throw error;
     console.error(`zKillboard refused access (${error.message}) after ${rows.length} hulls; stopping and writing nothing.`);
     process.exit(1);
   }
-  if ((index + 1) % 50 === 0) console.log(`Fetched ${index + 1}/${queue.length}`);
-  await sleep(PAUSE_MS);
+  if (rows.at(-1).error) failures += 1;
+  // The pause belongs to the time of this hull, so the estimate includes it.
+  if (index + 1 < queue.length) await sleep(PAUSE_MS);
+  progress.update(rows.length, failures);
 }
+progress.stop();
 
 const answered = rows.filter((row) => !row.error);
 const withMonths = answered.filter((row) => Object.keys(row.months).length > 0);
