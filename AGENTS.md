@@ -214,17 +214,47 @@ translation [README.zh-CN.md](README.zh-CN.md).
   waits for its clock: it shows no clue yet. Explicit `kb` targets can be left.
 - `js/run-sync.js` delivers solo guesses in order, keeps unsent ones in
   `fitdle:v1:pending-runs` and retries; resending is harmless.
+- **The answer stays on the service until the run ends** (online Daily, random
+  Standard/Audit/Timed and race rooms; not Arbitration, explicit KB runs or
+  Practice). `server/src/puzzle.mjs` builds the puzzle once at the start (clue set,
+  reveal plan, a snapshot of the live zKill statistics, Audit/Timed dogma) and
+  stores it in `online_runs.puzzle_json`; rooms keep it in memory per round. A
+  player only ever receives `board`: every open-board clue as `{i,k,c,w,hidden}`
+  until released, released clues in full, sealed clues (equipment, cargo, bonus)
+  only once released and in release order, `sealed` = categories still holding
+  hidden sealed clues, `feedback` = the match of each guess, `caseId` = an opaque
+  file number. `target`, killmail, kill id, `sampleKill` and `fittedKills` come
+  only after the end (`endReason`: solved, attempts, gave-up, abandoned, expired,
+  exhausted). Released clues stay released. Timed releases follow the service
+  clock (`TIMED_RELEASE_MS`, 30 s); the page polls after each release and the
+  service ends a Timed run with nothing left to release. Puzzles of runs ended
+  more than two days ago are pruned; an older run gets its puzzle on the next
+  visit. The page holds no answer: no local target cache, no zKill or dogma
+  lookups with the answer hull, nothing in localStorage. A guess is one round
+  trip; the page shows it as pending and accepts no next guess until the service
+  answered (no offline queueing of several guesses).
+- Run protocol: `/api/v1/online/*` requests carry `x-fitdle-run-protocol`
+  (`RUN_PROTOCOL_VERSION` in `js/run-sync.js`); another value gets 426
+  `client-outdated` and the page shows the reload screen. The room socket names
+  `PROTOCOL_VERSION` (`js/mp/protocol.js`) as `?v=`; another value gets an
+  `error client-outdated` message and close 1008 `client-outdated`. Bump the
+  matching version whenever the run or room messages change shape.
 - Room guesses go through `raceGuess {roundId, shipId}`; the server counts, judges
-  and keeps the Timed cooldown, and answers the player with `raceGuesses`.
-  `raceResult` only reports a Timed loss. Leaving for good (or the grace ending)
-  during a running round is a loss of that round; being kicked is not.
+  and keeps the Timed cooldown, and answers the player with `raceGuesses`
+  (guesses, status and that player's `board`; `target` once their part or the
+  round is decided). `endlessPrepare` carries neither target nor clues;
+  `endlessStart` carries each player's opening board; `raceBoard {roundId}` asks
+  for the board the Timed clock has reached and ends a part with nothing left to
+  release (`endReason: exhausted`). `raceResult` only reports a Timed give-up.
+  Leaving for good (or the grace ending) during a running round is a loss of that
+  round; being kicked is not.
 - Clients submit full hull names or ship ids. `js/ship-query.js` resolves
   abbreviations and partial names and asks when several hulls fit; the server never
   accepts abbreviations.
 - The room state API answers players of the room only. Scores reset only between
   matches. Seated players rejoin without the password; empty passwords are no guess.
 - Requests are limited per player (`server/src/limits.mjs`). Logs carry paths without
-  query strings, startup logs a few lines (`server/src/startup.mjs`): release, API and WebSocket protocol
+  query strings, startup logs a few lines (`server/src/startup.mjs`): release, API, run and WebSocket protocol
   versions, origin, data, sign-in flags, target and limit settings; yes/no for secrets, never values, and the SSO state is bound to the browser by a short-lived cookie.
 - `FITDLE_DEV_AUTH` is ignored in production unless `PUBLIC_ORIGIN` is loopback.
 - zKillboard killmails lose `attackers` on arrival (`js/killmail.js`); nothing uses it.
