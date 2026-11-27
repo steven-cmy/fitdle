@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildUserAgent, parseContact } from '../../js/user-agent.js';
 import { resolveGameDayStart } from '../../js/game.js';
-import { DEFAULT_GROUP_FACTORS, parseGroupFactors } from './selection.mjs';
+import crypto from 'node:crypto';
+import { DEFAULT_GROUP_FACTORS, normalizeUsage, parseGroupFactors } from './selection.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 try {
@@ -26,18 +27,26 @@ function intEnv(name, fallback) {
   return Number.isInteger(value) && value >= 0 ? value : fallback;
 }
 
-function boolEnv(name, fallback = false) {
-  const value = process.env[name];
-  if (value == null) return fallback;
-  return value === '1' || value.toLowerCase() === 'true';
-}
-
-/** true/false/1/0/yes/no in any case; null for anything else. */
+/** true/false/1/0/yes/no/on/off in any case; null for anything else. */
 export function parseFlag(value) {
   const text = String(value ?? '').trim().toLowerCase();
-  if (['true', '1', 'yes'].includes(text)) return true;
-  if (['false', '0', 'no'].includes(text)) return false;
+  if (['true', '1', 'yes', 'on'].includes(text)) return true;
+  if (['false', '0', 'no', 'off'].includes(text)) return false;
   return null;
+}
+
+const warnings = [];
+
+/** Boolean variable: unset or empty uses the fallback; an unrecognised value warns and uses the fallback. */
+function boolEnv(name, fallback = false) {
+  const raw = String(process.env[name] ?? '').trim();
+  if (!raw) return fallback;
+  const value = parseFlag(raw);
+  if (value === null) {
+    warnings.push(`${name}="${raw}" is not true/false/1/0/yes/no/on/off; ${fallback} is used`);
+    return fallback;
+  }
+  return value;
 }
 
 function boundedIntEnv(name, fallback, min, max) {
@@ -70,12 +79,8 @@ const allowedOrigins = publicOrigin && apiOrigin && publicOrigin !== apiOrigin ?
 const production = process.env.NODE_ENV === 'production';
 const loopback = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(publicOrigin ? new URL(publicOrigin).hostname : '');
 const devAuth = boolEnv('FITDLE_DEV_AUTH', false);
-const warnings = [];
 if (production && devAuth && !loopback) {
   warnings.push('FITDLE_DEV_AUTH is ignored: it would let anyone sign in as any pilot');
-}
-if (production && !String(process.env.SESSION_SECRET || '').trim()) {
-  warnings.push('SESSION_SECRET is not set: Daily targets can be predicted from the public default');
 }
 // Runtime setting: the served manifest and /api/v1/meta carry this value, so it
 // takes effect on restart without rebuilding the image.
@@ -85,11 +90,7 @@ const gameDayStart = resolveGameDayStart(
 );
 if (gameDayStart.warning) warnings.push(gameDayStart.warning);
 // Applies to Daily targets picked from now on; a day already pinned keeps its target.
-const dailyAllowEmptyRaw = String(process.env.FITDLE_DAILY_ALLOW_EMPTY ?? '').trim();
-const dailyAllowEmpty = parseFlag(dailyAllowEmptyRaw);
-if (dailyAllowEmptyRaw && dailyAllowEmpty === null) {
-  warnings.push(`FITDLE_DAILY_ALLOW_EMPTY="${dailyAllowEmptyRaw}" is not true/false/1/0/yes/no; empty hulls stay allowed`);
-}
+const dailyAllowEmpty = boolEnv('FITDLE_DAILY_ALLOW_EMPTY', true);
 // Per-killmail difficulty counters not played for this long are deleted.
 const statsKillRetentionDays = boundedIntEnv('FITDLE_STATS_KILL_RETENTION_DAYS', 60, 1, 3650);
 // Target selection: usage bonus, group factors and the prepared-target shelf.
@@ -108,7 +109,52 @@ const usageFile = [
   path.join(ROOT, 'data', 'ship-usage.json'),
   path.join(ROOT, '.cache', 'ship-usage.json'),
 ].filter(Boolean).find((file) => fs.existsSync(file));
-const shipUsage = usageFile ? readJson(usageFile, null) : null;
+const shipUsage = normalizeUsage(usageFile ? readJson(usageFile, null) : null);
+// The usage file is re-read from the data branch while the service runs.
+const usageUrlRaw = String(process.env.FITDLE_USAGE_URL || '').trim();
+let usageUrl = 'https://raw.githubusercontent.com/steven-cmy/fitdle/data/ship-usage.json';
+if (usageUrlRaw) {
+  if (/^https?:\/\//i.test(usageUrlRaw)) usageUrl = usageUrlRaw;
+  else warnings.push(`FITDLE_USAGE_URL="${usageUrlRaw}" is not an http(s) address; the default is used`);
+}
+let usageRefreshHours = 168;
+const usageRefreshRaw = process.env.FITDLE_USAGE_REFRESH_HOURS;
+if (usageRefreshRaw !== undefined) {
+  const text = String(usageRefreshRaw).trim();
+  const value = Number(text);
+  if (text === '' || text === '0') usageRefreshHours = 0;
+  else if (Number.isFinite(value) && value >= 1 && value <= 8760) usageRefreshHours = value;
+  else warnings.push(`FITDLE_USAGE_REFRESH_HOURS="${text}" must be 1..8760, or empty/0 to turn it off; 168 is used`);
+}
+const databasePath = path.resolve(process.env.DATABASE_PATH || path.join(ROOT, '.cache', 'fitdle-online.sqlite'));
+// Without SESSION_SECRET the Daily would follow from a public default, so a
+// private random one is kept next to the database. If that is not possible the
+// old behaviour (and its warning) stays: the service still starts.
+let sessionSecret = String(process.env.SESSION_SECRET || '').trim();
+let sessionSecretSource = sessionSecret ? 'environment' : 'none';
+if (!sessionSecret) {
+  const secretFile = path.join(path.dirname(databasePath), 'session-secret');
+  try {
+    sessionSecret = fs.readFileSync(secretFile, 'utf8').trim();
+    if (sessionSecret) sessionSecretSource = 'generated file';
+  } catch {
+    // Not there yet.
+  }
+  if (!sessionSecret) {
+    try {
+      fs.mkdirSync(path.dirname(secretFile), { recursive: true });
+      const fresh = crypto.randomBytes(32).toString('base64url');
+      fs.writeFileSync(secretFile, `${fresh}\n`, { mode: 0o600, flag: 'wx' });
+      sessionSecret = fresh;
+      sessionSecretSource = 'generated file';
+    } catch {
+      sessionSecret = '';
+    }
+  }
+}
+if (sessionSecretSource === 'none' && production) {
+  warnings.push('SESSION_SECRET is not set and no secret file could be written: Daily targets can be predicted from the public default');
+}
 const apiContact = parseContact(process.env.API_CONTACT);
 const roomArbitrationBigRounds = boundedIntEnv('ROOM_ARBITRATION_BIG_ROUNDS', 1, 1, 32);
 const roomArbitrationMaxBigRounds = boundedIntEnv('ROOM_ARBITRATION_MAX_BIG_ROUNDS', 5, 1, 32);
@@ -125,12 +171,13 @@ export const config = {
   root: ROOT,
   dataDir: path.join(ROOT, 'data'),
   staticDir: path.resolve(process.env.STATIC_DIR || path.join(ROOT, 'dist')),
-  databasePath: path.resolve(process.env.DATABASE_PATH || path.join(ROOT, '.cache', 'fitdle-online.sqlite')),
+  databasePath,
   host: process.env.HOST || '0.0.0.0',
   port: intEnv('PORT', 8787),
   publicOrigin,
   apiOrigin,
-  sessionSecret: process.env.SESSION_SECRET || '',
+  sessionSecret,
+  sessionSecretSource,
   cookieSecure: apiOrigin.startsWith('https://'),
   devAuth: devAuth && (!production || loopback),
   warnings,
@@ -138,7 +185,7 @@ export const config = {
   gameDayStartSource: process.env.FITDLE_GAME_DAY_START_UTC && !gameDayStart.warning ? 'FITDLE_GAME_DAY_START_UTC' : 'data manifest',
   version: String(readJson(path.join(ROOT, 'package.json'), {}).version || ''),
   algorithmVersion: 'online-v2',
-  dailyAllowEmpty: dailyAllowEmpty ?? true,
+  dailyAllowEmpty,
   statsKillRetentionDays,
   eve: {
     clientId: process.env.EVE_CLIENT_ID || '',
@@ -169,7 +216,11 @@ export const config = {
   usageWindowMonths: boundedIntEnv('FITDLE_USAGE_WINDOW_MONTHS', 3, 1, 12),
   // Monthly zKill usage and loss counts per hull; null means every hull weighs 1.
   shipUsageFile: usageFile || '',
-  shipUsage: shipUsage?.version === 1 && shipUsage.ships && typeof shipUsage.ships === 'object' ? shipUsage : null,
+  // Where the usage data in use came from: image, cache or remote.
+  shipUsageSource: usageFile ? 'image' : 'none',
+  usageUrl,
+  usageRefreshMs: usageRefreshHours * 60 * 60 * 1000,
+  shipUsage,
   noKillRetryMs: boundedIntEnv('FITDLE_NO_KILL_RETRY_HOURS', 24, 1, 720) * 60 * 60 * 1000,
   targetShelfSize: boundedIntEnv('TARGET_SHELF_SIZE', 150, 0, 1000),
   targetShelfTtlMs: boundedIntEnv('TARGET_SHELF_TTL_HOURS', 24, 1, 168) * 60 * 60 * 1000,

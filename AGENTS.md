@@ -310,7 +310,11 @@ used for target selection.
   gameplay. Rows whose `last_at` is older than `FITDLE_STATS_KILL_RETENTION_DAYS`
   (default 60) are deleted by the 10-minute cleanup, so the table stays bounded
   (about one row per distinct killmail played in the last 60 days; roughly 100
-  bytes each, so even 1000 daily players at 10 plays each stay near 60 MB).
+  bytes each, so even 1000 daily players at 10 plays each stay near 60 MB of row
+  data; with the primary key and the `last_at` index the worst case is about
+  100-150 MB. That is the upper bound where every play is a different killmail).
+  `first_at` and `last_at` are rounded down to the UTC day, so a row cannot be
+  matched to an exact time in other logs.
 - `ship_difficulty(ship_id, gameplay, ...same counters..., updated_at)`, one row
   per hull and gameplay, kept for good (a few hundred rows).
 - `gameplay` is `daily`, `standard`, `audit`, `timed` or `arbitration`. Solo
@@ -329,8 +333,15 @@ used for target selection.
   (leavers included) as `lost`. It has no guess or time sums, and it is a
   separate gameplay because the dealer chooses which clues are published, so it
   measures the dealer as much as the target. Do not mix it with the others when
-  choosing targets. A race session that ends mid-round (room closed) records
-  nothing for that round.
+  choosing targets. A race round that ends before it is settled records nothing
+  for that round, including players who had already won or lost in it: the host
+  ending the session, the last player leaving, or the room being closed. Rooms
+  are not restored after a restart, so a round running at that moment is never
+  recorded either. The single-player UPDATE and its counter write are not one
+  transaction, so a crash between the two loses that one play.
+- Writing statistics is best effort. A failing write (full disk, locked
+  database) is caught inside `stats.mjs`, logged as one warning without any id,
+  and the play is lost; it never stops a run, a round or a timer.
 - The older `target_exposures` and `target_stats` tables are no longer written;
   databases that have them keep them untouched.
 - Reading: `npm run stats:difficulty -- --by ship|kill --gameplay all|daily|
@@ -338,6 +349,9 @@ used for target selection.
   (`docker exec <container> node server/src/difficulty-report.mjs ...` on the
   deployment). It opens the database read-only, lists rows with at least `--min`
   won-or-lost plays, hardest first, and `all` sums the four player gameplays.
+  Averages only use plays that record the value: guesses skip arbitration, time
+  counts timed wins only (so `all` shows the timed average). Unknown options,
+  options without a value and `--k=v` mistakes are errors.
   `difficultyReport(db, options)` in `server/src/difficulty-report.mjs` is the
   same query for code. There is no public API or UI.
 
@@ -439,19 +453,30 @@ scores; `scripts/build-catalog.mjs` keeps building those pools from
 - Eligible: victim hull matches, date inside the period, fitted when empty hulls
   are off, not already played in that room. Page killmails are complete, so no
   `killID` request is needed.
-- A hull with no entry in the usage file (new in the SDE) uses its latest 200
-  losses (`.../page/1/`) until the next monthly refresh.
+- A hull the usage file cannot size (no entry because it is new in the SDE, or an
+  entry with no month) reads the first page of one of the last 12 complete
+  months, drawn by the same time weight, up to 3 requests. The newest unfiltered
+  page is never used: for a busy hull it is all this month, which is not eligible.
 
 ### Usage data
 
 - `data/ship-usage.json`: per hull `{ at, m: { YYYYMM: [shipsDestroyed, shipsLost] } }`
-  from the single-hull zKill statistics (`/api/stats/shipTypeID/{id}/`, `months`).
-  `shipsDestroyed` is the usage measure, `shipsLost` sizes the pages of a month.
+  from the single-hull zKill statistics (`/api/stats/shipTypeID/{id}/kills/`, the
+  path of the API catalog; without `/kills/` it redirects). `shipsDestroyed` is the
+  usage measure, `shipsLost` sizes the pages of a month. **The `months` field is
+  not documented by zKillboard**: it was found in real answers. The parser treats
+  a missing or odd field as "no data" instead of failing; the script refuses to
+  write when fewer than half of the answers have months, so if upstream drops the
+  field the workflow fails, the old file stays, and the data slowly ages (the
+  server warns at start). Only complete calendar months are kept: the script drops
+  the month it runs in, and the server drops, when it reads a file, every month
+  not yet over at the time that entry was fetched.
 - The workflow `.github/workflows/usage.yml` runs on the 2nd of every month (and
   manually, optionally only for hulls missing in the file), runs
   `scripts/build-ship-usage.mjs` (about 430 requests, one at a time, 1 s apart,
   generic User-Agent with the repository URL only, Retry-After honoured, previous
-  entries kept for failed hulls, refuses to write if the format looks wrong) and
+  entries kept for failed hulls, refuses to write if the format looks wrong, and a
+  401/403 stops the whole run at once without writing) and
   commits the result straight to the `data` branch (`ship-usage.json`). Main is not
   touched and no pull request is involved; the workflow needs `contents: write`.
   The server warns at start when the file is older than `FITDLE_USAGE_STALE_DAYS`
@@ -459,8 +484,19 @@ scores; `scripts/build-catalog.mjs` keeps building those pools from
 - The main CI downloads that file (`npm run fetch:usage`, never fails the build)
   into `.cache/ship-usage.json`; the Docker image copies it to
   `data/ship-usage.json` (or an empty placeholder). The server reads it at start
-  (`FITDLE_SHIP_USAGE_FILE` overrides the path). A new usage file therefore reaches
-  production with the next image build.
+  (`FITDLE_SHIP_USAGE_FILE` overrides the path).
+- Fresh data without a new image: `server/src/usage-refresh.mjs` loads a cached
+  copy (`ship-usage.cache.json` next to the database) at start when it is newer
+  than the image's file, then asks the data branch for the file at start and every
+  `FITDLE_USAGE_REFRESH_HOURS` (168; empty or 0 turns the refresh off). The
+  address is `FITDLE_USAGE_URL` (default: the raw `ship-usage.json` of this
+  repository's `data` branch). One request, generic User-Agent without personal
+  details, `If-None-Match` with the last ETag, 15 s timeout, no retry storm (after
+  a failure the next try is 6 h later at the earliest). The file is adopted only
+  if it parses, has the expected shape, a generation date and is newer than what
+  is loaded; then it is cached. Any failure keeps the data in use. The startup
+  log names the source (image, cache or remote) and its age; a remote refresh
+  after start is logged when it changes something.
 
 ### Shelf and rooms
 
@@ -491,11 +527,9 @@ scores; `scripts/build-catalog.mjs` keeps building those pools from
   entrypoint (`render-runtime-origin.mjs`) writes it into `dist/data/manifest.json`
   and its .br/.gz copies; the page prefers the meta value. So a runtime change
   needs no rebuild. Invalid values are logged and fall back to the build value.
-- The static build's Daily and Practice use the older client-side scan: latest
-  loss pages `/api/losses/shipTypeID/{id}/page/{page}/` until the sampled target
-  time is covered (`FITDLE_KB_MAX_SCAN_PAGES`), closest kill to a sampled time
-  (`FITDLE_KB_RECENCY_HALF_LIFE_DAYS`), empty hulls always allowed for the static
-  Daily. Practice respects the personal `allowEmptyKb` setting.
+- The static build has no Daily (offline turns it into a Standard run). Its
+  Practice uses the older client-side random pick and respects the personal
+  `allowEmptyKb` setting.
 - `FITDLE_KB_SELECTION_START_DATE` is a global lower bound for all modes.
   Explicit `?kb=` links bypass it.
 - Service targets use the complete killmail from the loss page; the browser uses
@@ -970,7 +1004,12 @@ test reads `dist/`.
 - The all-in-one `Dockerfile` builds SDE data and `dist/`, then runs
   `server/src/index.mjs` with `dist/`, `/api` and `/ws`. It needs `PUBLIC_ORIGIN`,
   `EVE_CLIENT_ID`, `EVE_CLIENT_SECRET` and `SESSION_SECRET` at runtime, plus a
-  persistent `/data` volume for SQLite.
+  persistent `/data` volume for SQLite. Without `SESSION_SECRET` the server
+  generates a random one in `session-secret` next to the database (mode 0600) and
+  keeps using it; only if that file cannot be written does it fall back to the
+  public default and warn.
+- Boolean variables accept `1/true/yes/on` and `0/false/no/off` (any case); an
+  unrecognised value warns at start and the default is used.
 - The runtime image carries only the `data/` files the server reads, and links
   `/app/vendor` to `dist/vendor` for the server-side dogma engine. Update the
   `COPY` list when the server starts reading another file.

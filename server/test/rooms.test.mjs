@@ -37,6 +37,8 @@ let failNext = false;
 // null: every loss is fitted; 'mixed': one fitted among empty hulls; 'empty': all empty.
 let upstreamEmpty = null;
 let pageRequests = 0;
+// A number: that many fixed killmails (same ids on every request) instead of fresh ones.
+let upstreamFixed = 0;
 let killSerial = 5000;
 const items = [[27, 2048], [19, 5973], [11, 519]].map(([flag, item_type_id]) => ({
   flag, item_type_id, quantity_destroyed: 1, quantity_dropped: 0,
@@ -49,6 +51,14 @@ globalThis.fetch = async (url, options) => {
   if (gate) await gate;
   if (failNext) return new Response('{}', { status: 404 });
   const cargo = [{ flag: 5, item_type_id: 34, quantity_destroyed: 1, quantity_dropped: 0 }];
+  if (upstreamFixed) {
+    return new Response(JSON.stringify(Array.from({ length: upstreamFixed }, (_, index) => ({
+      killmail_id: 7000 + index,
+      killmail_time: '2026-06-01T00:00:00Z',
+      zkb: { totalValue: 1000 },
+      victim: { ship_type_id: ship, items },
+    }))), { status: 200 });
+  }
   return new Response(JSON.stringify(Array.from({ length: 12 }, (_, index) => ({
     killmail_id: killSerial += 1,
     killmail_time: '2026-06-01T00:00:00Z',
@@ -927,4 +937,39 @@ test.after(async () => {
   for (const suffix of ['', '-wal', '-shm']) {
     try { fs.rmSync(`${dbFile}${suffix}`, { force: true }); } catch {}
   }
+});
+
+test('a room plays each killmail once, in race rounds and in arbitration', async () => {
+  const savedShips = config.catalogShips;
+  const { pilots, room, code } = await makeRoom(2);
+  config.catalogShips = [{ id: 587, groupID: 25 }];
+  upstreamFixed = 3;
+  try {
+    resetTargets();
+    const seen = [];
+    for (let round = 0; round < 3; round += 1) {
+      pilots[0].send({ t: 'start', gameplay: 'standard', settings: {} });
+      await until(() => room.match?.target, `target ${round}`);
+      seen.push(room.match.target.killId);
+      pilots[0].send({ t: 'end' });
+      await until(() => room.match === null, `ended ${round}`);
+    }
+    assert.equal(new Set(seen).size, 3, `three different killmails: ${seen}`);
+    // All three are used up: the hull is the same, the killmails are not.
+    pilots[0].send({ t: 'start', gameplay: 'standard', settings: {} });
+    await until(() => pilots[0].last('error')?.code === 'target', 'no fourth killmail', 15000);
+    assert.equal(room.phase, 'between_matches');
+    // Arbitration draws from the same room history.
+    resetTargets();
+    upstreamFixed = 4;
+    pilots[0].send({ t: 'start', gameplay: 'arbitration', settings: {} });
+    await until(() => room.match?.target, 'arbitration target');
+    assert.equal(seen.includes(room.match.target.killId), false, 'arbitration skips what the room played');
+    assert.equal(room.usedKillIds.has(room.match.target.killId), true);
+  } finally {
+    upstreamFixed = 0;
+    config.catalogShips = savedShips;
+    resetTargets();
+  }
+  await closeAll(pilots, code);
 });

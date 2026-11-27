@@ -176,3 +176,52 @@ export function eligibleKills(page, shipId, { earliestDate = '', latestDate = ''
   }
   return { kills: out, blocked };
 }
+
+const keyOfTime = (time) => {
+  const date = new Date(time);
+  return Number.isNaN(date.getTime()) ? '' : monthKey(date.getUTCFullYear(), date.getUTCMonth() + 1);
+};
+
+/**
+ * Checks and cleans a usage file. Returns null for anything that is not the
+ * expected format. Months not over yet when an entry was fetched are dropped: a
+ * month with one or two days of data must not count as a real month later.
+ */
+export function normalizeUsage(data) {
+  if (data?.version !== 1 || !data.ships || typeof data.ships !== 'object' || Array.isArray(data.ships)) return null;
+  const generated = Date.parse(data.generatedAt);
+  const ships = {};
+  for (const [id, entry] of Object.entries(data.ships)) {
+    if (!/^\d+$/.test(id) || !entry || typeof entry.m !== 'object' || Array.isArray(entry.m)) continue;
+    const cutoff = keyOfTime(Number(entry.at) || generated);
+    const m = {};
+    for (const [key, value] of Object.entries(entry.m)) {
+      if (!/^\d{6}$/.test(key) || !Array.isArray(value) || (cutoff && key >= cutoff)) continue;
+      m[key] = value;
+    }
+    ships[id] = { ...entry, m };
+  }
+  return { ...data, ships };
+}
+
+/**
+ * Stand-in months for a hull the usage file cannot size (new in the SDE, or no
+ * month in the file): the last `count` complete months up to `latestDate`, each
+ * read from its first page only, weighted by age like the real ones.
+ */
+export function fallbackMonths(earliestDate, latestDate, halfLifeDays = 365, count = 12) {
+  const latest = new Date(`${latestDate}T12:00:00Z`);
+  if (Number.isNaN(latest.getTime())) return [];
+  const m = {};
+  let year = latest.getUTCFullYear();
+  let month = latest.getUTCMonth() + 1;
+  for (let i = 0; i < count; i += 1) {
+    m[monthKey(year, month)] = [0, PAGE_SIZE];
+    month -= 1;
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    }
+  }
+  return monthCandidates({ m }, earliestDate, latestDate, halfLifeDays);
+}

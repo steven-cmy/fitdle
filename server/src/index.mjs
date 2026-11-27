@@ -14,6 +14,7 @@ import { pruneLimits } from './limits.mjs';
 import { evictExpiredRooms, registerRoomRoutes } from './rooms.mjs';
 import { pruneTargetCaches } from './targets.mjs';
 import { startupLines, startupWarnings } from './startup.mjs';
+import { loadUsageCache, startUsageRefresh } from './usage-refresh.mjs';
 
 /** Query strings may hold sign-in codes and room player ids: log the path only. */
 const logPath = (request) => String(request.url || '').split('?')[0];
@@ -154,18 +155,22 @@ const isMain = process.argv[1]
   && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (isMain || process.env.FITDLE_SERVER_MAIN === '1') {
   const app = await buildApp();
+  loadUsageCache();
   cleanupExpired();
   expireRuns();
+  let stopUsageRefresh = () => {};
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`FITDLE online service listening on ${config.host}:${config.port}`);
     for (const line of startupLines()) app.log.info(line);
     for (const warning of startupWarnings()) app.log.warn(warning);
+    stopUsageRefresh = startUsageRefresh({ log: app.log });
   } catch (error) {
     app.log.error(error);
     process.exit(1);
   }
   const shutdown = async () => {
+    stopUsageRefresh();
     try {
       await app.close();
     } finally {

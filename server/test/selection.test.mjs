@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  eligibleKills, makeRng, monthCandidates, pageCount, parseGroupFactors,
+  eligibleKills, fallbackMonths, makeRng, monthCandidates, normalizeUsage, pageCount, parseGroupFactors,
   pickWeighted, recentMonthKeys, shipWeights, weightedShipOrder,
 } from '../src/selection.mjs';
 
@@ -85,4 +85,48 @@ test('eligible killmails respect hull, period, fit and the room history', () => 
   const room = eligibleKills(page, 7, { ...base, exclude: new Set([1, 4]) });
   assert.deepEqual(room.kills, []);
   assert.equal(room.blocked, true);
+});
+
+test('a usage file is checked, and months not over when fetched are dropped', () => {
+  assert.equal(normalizeUsage(null), null);
+  assert.equal(normalizeUsage({ version: 2, ships: {} }), null);
+  assert.equal(normalizeUsage({ version: 1, ships: [] }), null);
+  const file = {
+    version: 1,
+    generatedAt: '2026-11-02T03:00:00Z',
+    ships: {
+      1: { at: Date.parse('2026-11-02T03:10:00Z'), m: { 202609: [5, 1], 202610: [6, 1], 202611: [2, 0], 202612: [1, 0] } },
+      // No fetch time of its own: the generation date counts.
+      2: { m: { 202610: [3, 0], 202611: [1, 0] } },
+      x: { m: {} },
+      3: { m: 'bad' },
+    },
+  };
+  const clean = normalizeUsage(file);
+  assert.deepEqual(Object.keys(clean.ships[1].m), ['202609', '202610']);
+  assert.deepEqual(Object.keys(clean.ships[2].m), ['202610']);
+  assert.deepEqual(Object.keys(clean.ships), ['1', '2'], 'entries in the wrong shape are left out');
+  // An older entry kept from an earlier run is cut at its own month.
+  const old = normalizeUsage({ version: 1, generatedAt: '2026-11-02T00:00:00Z', ships: { 5: { at: Date.parse('2026-08-02T00:00:00Z'), m: { 202607: [1, 0], 202608: [9, 0] } } } });
+  assert.deepEqual(Object.keys(old.ships[5].m), ['202607']);
+});
+
+test('stand-in months cover the last complete months, newest weighted most', () => {
+  const months = fallbackMonths('2012-05-22', '2026-10-31', 365, 12);
+  assert.equal(months.length, 12);
+  assert.deepEqual([months.at(0).key, months.at(-1).key], ['202511', '202610']);
+  assert.ok(months.every((month) => month.losses <= 200 && pageCount(month.losses) === 1), 'first page only');
+  assert.ok(months.at(-1).weight > months.at(0).weight);
+  assert.equal(fallbackMonths('2026-10-15', '2026-10-31', 365, 12).length, 1, 'the selection start date bounds them');
+  assert.deepEqual(fallbackMonths('', 'nope'), []);
+});
+
+test('empty hulls are left out of a page only when they are switched off', () => {
+  const fitted = { killmail_id: 1, killmail_time: '2026-01-01T00:00:00Z', victim: { ship_type_id: 5, items: [{ flag: 19, item_type_id: 1 }] } };
+  const empty = { killmail_id: 2, killmail_time: '2026-01-01T00:00:00Z', victim: { ship_type_id: 5, items: [{ flag: 5, item_type_id: 1 }] } };
+  const on = eligibleKills([fitted, empty], 5, { allowEmpty: true });
+  const off = eligibleKills([fitted, empty], 5, { allowEmpty: false });
+  assert.deepEqual(on.kills.map((kill) => kill.killmail_id), [1, 2]);
+  assert.deepEqual(off.kills.map((kill) => kill.killmail_id), [1]);
+  assert.equal(eligibleKills([empty], 5, { allowEmpty: false }).kills.length, 0);
 });

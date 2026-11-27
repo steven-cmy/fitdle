@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import zlib from 'node:zlib';
 import WebSocket from 'ws';
 
@@ -36,12 +37,14 @@ const {
   ROOMS, evictExpiredRooms, flushRooms, normalizeRoomSettings, nextBigRoundStep,
 } = await import('../src/rooms.mjs');
 const { zkill } = await import('../src/zkill.mjs');
-const { resetTargets, shelfIdle, getDailyTarget, getRandomTarget } = await import('../src/targets.mjs');
+const {
+  resetTargets, shelfIdle, getDailyTarget, getRandomTarget, loadDailyPin, currentWeights,
+} = await import('../src/targets.mjs');
 const { expireRuns = () => {} } = await import('../src/runs.mjs');
 const { buildApp } = await import('../src/index.mjs');
 const { db, cleanupExpired } = await import('../src/db.mjs');
 const { profileStats, recordPlay } = await import('../src/stats.mjs');
-const { difficultyReport } = await import('../src/difficulty-report.mjs');
+const { difficultyReport, parseArgs } = await import('../src/difficulty-report.mjs');
 const app = await buildApp();
 await app.ready();
 
@@ -420,7 +423,7 @@ test('room snapshots are coalesced and expired empty rooms are dropped', async (
 
 const realShips = config.catalogShips;
 
-/** Only these hulls are playable (without usage data, so the latest loss page is used); null restores the catalog. */
+/** Only these hulls are playable (without usage data: recent months, first page); null restores the catalog. */
 function usePool(ids) {
   config.catalogShips = ids ? ids.map((id) => ({ id, groupID: 25 })) : realShips;
   config.shipUsage = null;
@@ -437,7 +440,7 @@ async function withLossPages(makePage, run) {
     requests.push(pathname);
     const ship = Number(/shipTypeID\/(\d+)\//.exec(pathname)?.[1]);
     if (!ship) return new Response('[]', { status: 200 });
-    return new Response(JSON.stringify(makePage(ship)), { status: 200 });
+    return new Response(JSON.stringify(makePage(ship, pathname)), { status: 200 });
   };
   try {
     return await run(requests);
@@ -466,8 +469,9 @@ test('random targets come from the loss page without per-kill requests', async (
         assert.equal(target.killmail.killmail_id, target.killId);
         assert.equal(target.killmail.victim.items.length, 1);
       }
-      assert.equal(requests.length, 1, 'five targets share the cached page request');
-      assert.ok(requests.every((pathname) => pathname.startsWith('/api/losses/')));
+      // A hull without usage data is read month by month, never by the unfiltered newest page.
+      assert.ok(requests.length >= 1 && requests.length <= 5);
+      assert.ok(requests.every((pathname) => /^\/api\/losses\/shipTypeID\/900001\/year\/\d{4}\/month\/\d+\/page\/1\/$/.test(pathname)), requests.join());
     });
   } finally {
     usePool(null);
@@ -501,20 +505,24 @@ test('the queue falls through hulls without killmails and remembers them', async
     await withLossPages((ship) => (ship === 900103 ? lossPage(ship, [true, true]) : []), async (requests) => {
       const target = await getRandomTarget('standard');
       assert.equal(target.shipId, 900103, 'hulls without killmails are skipped');
-      assert.ok(requests.length <= 6);
+      assert.ok(requests.length <= 18);
     });
     usePool(Array.from({ length: 30 }, (_, index) => 900100 + index));
     // Every hull is empty: a pick gives up after twelve hulls, the next one skips them.
     await withLossPages(() => [], async (requests) => {
       await assert.rejects(getRandomTarget('standard'), /no usable killmail/);
-      assert.equal(requests.length, 12);
-      const first = new Set(requests);
+      const hulls = (list) => new Set(list.map((pathname) => /shipTypeID\/(\d+)\//.exec(pathname)[1]));
+      assert.equal(hulls(requests).size, 12);
+      const first = hulls(requests);
+      const firstCount = requests.length;
       requests.length = 0;
       await assert.rejects(getRandomTarget('standard'), /no usable killmail/);
-      assert.equal(requests.length, 12);
-      assert.equal(requests.some((pathname) => first.has(pathname)), false, 'remembered hulls are not asked again');
+      assert.equal(hulls(requests).size, 12);
+      assert.equal([...hulls(requests)].some((id) => first.has(id)), false, 'remembered hulls are not asked again');
+      const count = requests.length;
       await new Promise((resolve) => setTimeout(resolve, 30));
-      assert.equal(requests.length, 12, 'a failed pick starts no background requests');
+      assert.equal(requests.length, count, 'a failed pick starts no background requests');
+      assert.ok(firstCount >= 12);
     });
   } finally {
     usePool(null);
@@ -523,8 +531,10 @@ test('the queue falls through hulls without killmails and remembers them', async
 
 test('a room never gets the same killmail twice, but may get the same hull', async () => {
   usePool([900050]);
+  // The same five killmails whatever month is asked for.
+  const fixedPage = lossPage(900050, Array(5).fill(true));
   try {
-    await withLossPages((ship) => lossPage(ship, Array(5).fill(true)), async () => {
+    await withLossPages(() => fixedPage, async () => {
       const used = new Set();
       for (let i = 0; i < 5; i += 1) {
         const target = await getRandomTarget('standard', { excludeKillIds: used });
@@ -565,10 +575,13 @@ test('the shelf hands out prepared targets once and refills below half', async (
       } finally {
         globalThis.fetch = realFetch;
       }
-      // Entries expire.
+      // Entries expire: an old one is never handed out.
+      const stale = new Set(db.prepare('SELECT kill_id FROM target_shelf').all().map((row) => Number(row.kill_id)));
+      assert.ok(stale.size > 0);
       db.prepare('UPDATE target_shelf SET created_at = 1').run();
       const fresh = await getRandomTarget('standard');
       assert.ok(fresh.killId);
+      assert.equal(stale.has(fresh.killId), false, 'an expired shelf entry is not served');
       await shelfIdle();
       assert.equal(count() >= 2, true);
       // The empty-hull flag decides what a switched-off pick may take.
@@ -940,7 +953,7 @@ test('difficulty counters hold no player and ignore bad or custom input', () => 
     assert.equal(columns.some((name) => /name|player|user|room|run|session/i.test(name)), false, table);
   }
   const rows = () => db.prepare('SELECT COUNT(*) AS n FROM kill_difficulty WHERE kill_id IN (880001, 880002)').get().n;
-  const good = { killId: 880001, shipId: REAL_SHIP, gameplay: 'standard', outcome: 'won', attempts: 3 };
+  const good = { killId: 880001, shipId: REAL_SHIP, gameplay: 'standard', outcome: 'won', attempts: 3, elapsedMs: 9000 };
   recordPlay({ ...good, gameplay: 'custom' });
   recordPlay({ ...good, outcome: 'draw' });
   recordPlay({ ...good, killId: 0 });
@@ -1060,9 +1073,9 @@ test('opening Daily in two pages at once yields one run', async () => {
 
 test('the daily empty-hull setting parses flags and defaults to allowed', () => {
   assert.equal(config.dailyAllowEmpty, true);
-  for (const value of ['true', 'TRUE', '1', 'yes', ' Yes ']) assert.equal(parseFlag(value), true, value);
-  for (const value of ['false', 'False', '0', 'no', ' NO ']) assert.equal(parseFlag(value), false, value);
-  for (const value of [undefined, '', 'off', '2', 'nope']) assert.equal(parseFlag(value), null, String(value));
+  for (const value of ['true', 'TRUE', '1', 'yes', ' Yes ', 'on', 'ON']) assert.equal(parseFlag(value), true, value);
+  for (const value of ['false', 'False', '0', 'no', ' NO ', 'off', ' Off ']) assert.equal(parseFlag(value), false, value);
+  for (const value of [undefined, '', '2', 'nope']) assert.equal(parseFlag(value), null, String(value));
   const script = "const { config } = await import('./server/src/config.mjs');"
     + "console.log(JSON.stringify([config.dailyAllowEmpty, config.warnings.some((w) => w.includes('FITDLE_DAILY_ALLOW_EMPTY'))]));";
   const read = (value) => spawnSync(process.execPath, ['--input-type=module', '-e', script], {
@@ -1071,6 +1084,19 @@ test('the daily empty-hull setting parses flags and defaults to allowed', () => 
   assert.equal(read('no'), '[false,false]');
   assert.equal(read('1'), '[true,false]');
   assert.equal(read('maybe'), '[true,true]');
+});
+
+test('every boolean setting reads the same words and warns about others', () => {
+  const script = "const { config } = await import('./server/src/config.mjs');"
+    + "console.log(JSON.stringify([config.devAuth, config.warnings.filter((w) => w.includes('FITDLE_DEV_AUTH'))]));";
+  const read = (value) => JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: ROOT, encoding: 'utf8', env: { ...process.env, NODE_ENV: '', FITDLE_DEV_AUTH: value },
+  }).stdout);
+  for (const value of ['yes', 'on', ' TRUE ', '1']) assert.deepEqual(read(value), [true, []], value);
+  for (const value of ['no', 'off', '0', 'false', '']) assert.deepEqual(read(value), [false, []], value);
+  const [flag, warnings] = read('maybe');
+  assert.equal(flag, false);
+  assert.match(warnings[0], /FITDLE_DEV_AUTH="maybe" is not true\/false/);
 });
 
 test('the daily empty-hull setting decides which killmail is pinned', async () => {
@@ -1274,7 +1300,8 @@ test('development login needs a loopback origin in production', () => {
   assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'https://fitdle.test' }), [false, 1]);
   assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'http://127.0.0.1:8787' }), [true, 0]);
   assert.deepEqual(read({ NODE_ENV: '', PUBLIC_ORIGIN: 'https://fitdle.test' }), [true, 0]);
-  assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'http://127.0.0.1:8787', SESSION_SECRET: ' ' }), [true, 1]);
+  // A blank SESSION_SECRET gets a generated private one next to the database, so there is no warning.
+  assert.deepEqual(read({ NODE_ENV: 'production', PUBLIC_ORIGIN: 'http://127.0.0.1:8787', SESSION_SECRET: ' ' }), [true, 0]);
 });
 
 test('static assets are served precompressed with identical content', async () => {
@@ -1309,6 +1336,242 @@ test('static assets are served precompressed with identical content', async () =
   }
   const missing = await app.inject({ method: 'GET', url: '/js/nope.js', headers: { 'accept-encoding': 'br' } });
   assert.equal(missing.statusCode, 404);
+});
+
+test('a hull without usage data is read by month, so a busy hull still yields a killmail', async () => {
+  const { lastCompleteMonthEnd, utcDateKey } = await import('../../js/game.js');
+  const latest = lastCompleteMonthEnd(utcDateKey());
+  const thisMonth = `${utcDateKey().slice(0, 8)}05T10:00:00Z`;
+  usePool([900300]);
+  try {
+    // The newest page of a busy hull is all this month, which is never eligible.
+    const page = (ship, pathname) => {
+      const month = /year\/(\d+)\/month\/(\d+)\//.exec(pathname);
+      const time = month ? `${month[1]}-${String(month[2]).padStart(2, '0')}-15T10:00:00Z` : thisMonth;
+      return lossPage(ship, Array(10).fill(true)).map((kill) => ({ ...kill, killmail_time: time }));
+    };
+    await withLossPages(page, async (requests) => {
+      for (let i = 0; i < 12; i += 1) {
+        const target = await getRandomTarget('standard');
+        assert.ok(target.killmail.killmail_time.slice(0, 10) <= latest, target.killmail.killmail_time);
+      }
+      assert.ok(requests.every((pathname) => pathname.includes('/year/')), requests.join());
+    });
+  } finally {
+    usePool(null);
+  }
+});
+
+test('a page past the end of a month starts over at its first page', async () => {
+  usePool([900310]);
+  try {
+    // The usage file says 450 losses (three pages) but the month has only one page now.
+    await withLossPages((ship, pathname) => (/page\/1\/$/.test(pathname) ? lossPage(ship, Array(5).fill(true)) : []), async (requests) => {
+      for (let i = 0; i < 15; i += 1) {
+        resetTargets();
+        zkill.reset();
+        config.shipUsage = { version: 1, ships: { 900310: { m: { 202504: [0, 450] } } } };
+        assert.equal((await getRandomTarget('standard')).shipId, 900310);
+      }
+      const deeper = requests.findIndex((pathname) => /page\/[23]\/$/.test(pathname));
+      assert.ok(deeper >= 0, 'a later page was tried');
+      assert.match(requests[deeper + 1], /page\/1\/$/, 'and then the first one');
+    });
+  } finally {
+    usePool(null);
+  }
+});
+
+test('a hull whose months are all missing from the usage file falls back to recent months', async () => {
+  usePool([900320]);
+  config.shipUsage = { version: 1, ships: { 900320: { m: {} } } };
+  try {
+    await withLossPages((ship) => lossPage(ship, Array(5).fill(true)), async (requests) => {
+      assert.equal((await getRandomTarget('standard')).shipId, 900320);
+      assert.ok(requests.every((pathname) => pathname.includes('/year/')));
+    });
+  } finally {
+    usePool(null);
+  }
+});
+
+test('a Daily row already stored always wins over the pin just built', () => {
+  const day = '2031-09-09';
+  const insert = (id) => db.prepare(`INSERT INTO daily_pins(day, algorithm_version, data_version, seed, ship_id, kill_id, kill_hash, killmail_json, created_at)
+    VALUES (?, 'online-v2', '', '1', 587, ?, '', ?, ?)`).run(day, id, JSON.stringify({ killmail_id: id, victim: { ship_type_id: 587 } }), Date.now());
+  try {
+    insert(111);
+    const pin = loadDailyPin(day, { killmail: { killmail_id: 222 }, killId: 222 });
+    assert.deepEqual([pin.killId, pin.killmail.killmail_id], [111, 111], 'kill id and killmail agree, from the row');
+    assert.equal(loadDailyPin('2031-09-10', { killId: 5 }).killId, 5, 'no row: the fallback');
+  } finally {
+    db.prepare('DELETE FROM daily_pins WHERE day = ?').run(day);
+  }
+});
+
+test('a missing SESSION_SECRET gets a private generated one that survives restarts', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fitdle-secret-'));
+  const script = "const { config } = await import('./server/src/config.mjs');"
+    + "console.log(JSON.stringify([config.sessionSecretSource, config.sessionSecret.length, config.warnings.filter((w) => w.includes('SESSION_SECRET')).length]));";
+  const read = (databasePath) => {
+    // An empty value wins over any .env file and counts as not set.
+    const env = { ...process.env, NODE_ENV: 'production', DATABASE_PATH: databasePath, SESSION_SECRET: '' };
+    return JSON.parse(spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: ROOT, encoding: 'utf8', env }).stdout);
+  };
+  try {
+    const database = path.join(dir, 'x.sqlite');
+    assert.deepEqual(read(database), ['generated file', 43, 0]);
+    const first = fs.readFileSync(path.join(dir, 'session-secret'), 'utf8');
+    assert.deepEqual(read(database), ['generated file', 43, 0]);
+    assert.equal(fs.readFileSync(path.join(dir, 'session-secret'), 'utf8'), first, 'the same secret after a restart');
+    // A directory that cannot be written: the service still starts, with a warning.
+    const blocker = path.join(dir, 'file');
+    fs.writeFileSync(blocker, 'x');
+    assert.deepEqual(read(path.join(blocker, 'x.sqlite')), ['none', 0, 1]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the usage file of the data branch is adopted only when valid and newer', async () => {
+  const { refreshUsage, loadUsageCache, usageCacheFile } = await import('../src/usage-refresh.mjs');
+  const savedUsage = config.shipUsage;
+  const savedSource = config.shipUsageSource;
+  const savedUrl = config.usageUrl;
+  const file = (generatedAt, extra = {}) => JSON.stringify({
+    version: 1,
+    generatedAt,
+    ships: { 587: { at: Date.parse(generatedAt), m: { 202609: [10, 1], 202610: [20, 2], 202611: [3, 0] } } },
+    ...extra,
+  });
+  const answer = (body, init = {}) => async (url, options) => {
+    answer.calls.push({ url: String(url), headers: options.headers });
+    return new Response(body, { status: 200, ...init });
+  };
+  answer.calls = [];
+  const quiet = console.warn;
+  console.warn = () => {};
+  config.usageUrl = 'https://data.example.test/ship-usage.json';
+  config.shipUsage = { version: 1, generatedAt: '2026-10-02T00:00:00Z', ships: { 587: { at: 1, m: { 202509: [1, 1] } } } };
+  config.shipUsageSource = 'image';
+  try {
+    const first = answer.calls;
+    assert.equal(await refreshUsage({ fetchImpl: answer(file('2026-11-02T03:00:00Z'), { headers: { etag: '"v2"' } }) }), 'updated');
+    assert.equal(config.shipUsageSource, 'remote');
+    assert.equal(config.shipUsage.generatedAt, '2026-11-02T03:00:00Z');
+    assert.deepEqual(Object.keys(config.shipUsage.ships[587].m).sort(), ['202609', '202610'], 'the month still running is dropped');
+    assert.equal(first[0].url, config.usageUrl);
+    assert.match(first[0].headers['User-Agent'], /^FITDLE\/\S+ \(\+https:\/\/github\.com\//);
+    assert.equal(/@|ops@example/.test(JSON.stringify(first[0].headers)), false, 'no personal details');
+    assert.equal(first[0].headers['If-None-Match'], undefined);
+    // The ETag of that answer makes the next request conditional.
+    const unchanged = async (url, options) => {
+      assert.equal(options.headers['If-None-Match'], '"v2"');
+      return new Response(null, { status: 304 });
+    };
+    assert.equal(await refreshUsage({ fetchImpl: unchanged }), 'unchanged');
+    // Older, broken or unreachable answers change nothing.
+    assert.equal(await refreshUsage({ fetchImpl: answer(file('2026-10-02T00:00:00Z')) }), 'older');
+    assert.equal(await refreshUsage({ fetchImpl: answer('{"version":2}') }), 'failed');
+    assert.equal(await refreshUsage({ fetchImpl: answer(file('2026-11-09T00:00:00Z', { ships: [] })) }), 'failed');
+    assert.equal(await refreshUsage({ fetchImpl: answer('not json') }), 'failed');
+    assert.equal(await refreshUsage({ fetchImpl: answer('x', { status: 503 }) }), 'failed');
+    assert.equal(await refreshUsage({ fetchImpl: async () => { throw new Error('offline'); } }), 'failed');
+    assert.equal(config.shipUsage.generatedAt, '2026-11-02T03:00:00Z');
+    // After a restart the cached copy beats an older image file.
+    config.shipUsage = { version: 1, generatedAt: '2026-10-02T00:00:00Z', ships: { 587: { m: {} } } };
+    config.shipUsageSource = 'image';
+    loadUsageCache();
+    assert.equal(config.shipUsageSource, 'cache');
+    assert.equal(config.shipUsage.generatedAt, '2026-11-02T03:00:00Z');
+    // The weights follow the data in use.
+    config.catalogShips = [{ id: 587, groupID: 25 }, { id: 588, groupID: 25 }];
+    config.shipUsage = null;
+    const flat = currentWeights('2026-11-27').get(587);
+    loadUsageCache();
+    assert.ok(currentWeights('2026-11-27').get(587) > flat, 'a newly loaded file changes the weights at once');
+  } finally {
+    console.warn = quiet;
+    config.catalogShips = realShips;
+    config.shipUsage = savedUsage;
+    config.shipUsageSource = savedSource;
+    config.usageUrl = savedUrl;
+    fs.rmSync(usageCacheFile(), { force: true });
+    resetTargets();
+  }
+});
+
+test('difficulty counters are kept per day, count each gameplay and survive a failing write', async () => {
+  const kill = 880030;
+  recordPlay({ killId: kill, shipId: REAL_SHIP, gameplay: 'daily', outcome: 'won', attempts: 2 });
+  recordPlay({ killId: kill, shipId: REAL_SHIP, gameplay: 'daily', outcome: 'lost' });
+  const daily = difficultyOf(kill, REAL_SHIP, 'daily').kill;
+  assert.deepEqual([daily.won, daily.lost, daily.won_guesses_sum], [1, 1, 2], 'Daily is counted too');
+  assert.equal(daily.first_at % 86400000, 0, 'only the day is kept');
+  assert.equal(daily.last_at % 86400000, 0);
+  db.prepare('DELETE FROM kill_difficulty WHERE kill_id = ?').run(kill);
+
+  // A failing write is only a warning: a solo round still works.
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Statistics Failure Pilot');
+    const run = await pilot.start('standard');
+    const warnings = [];
+    const quiet = console.warn;
+    console.warn = (message) => warnings.push(String(message));
+    db.exec('ALTER TABLE kill_difficulty RENAME TO kill_difficulty_hidden');
+    try {
+      recordPlay({ killId: kill, shipId: REAL_SHIP, gameplay: 'standard', outcome: 'won' });
+      const won = await pilot.guess(run.runId, REAL_SHIP);
+      assert.deepEqual([won.status, won.body.status], [200, 'won']);
+      assert.ok(warnings.length >= 2 && warnings.every((line) => /not written/.test(line)));
+      assert.equal(warnings.some((line) => /\d{4,}/.test(line)), false, 'no ids in the warning');
+    } finally {
+      db.exec('ALTER TABLE kill_difficulty_hidden RENAME TO kill_difficulty');
+      console.warn = quiet;
+    }
+  });
+});
+
+test('a timed run that never started and was given up leaves no counter', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Unstarted Timed Pilot');
+    const run = await pilot.start('timed');
+    const change = await difficultyChange(run, 'timed', async () => {
+      await pilot.finish(run.runId, { status: 'lost' });
+    });
+    assert.deepEqual(change.kill, only());
+    const daily = await pilot.start('standard');
+    assert.deepEqual((await difficultyChange(daily, 'standard', async () => {
+      await pilot.guess(daily.runId, REAL_SHIP, { elapsedMs: 5000 });
+    })).kill, only({ won: 1, won_guesses_sum: 1 }), 'no time outside a timed round');
+  });
+});
+
+test('the report averages only over plays that record the value', () => {
+  const ids = [990011, 990012];
+  db.exec(`DELETE FROM ship_difficulty WHERE ship_id IN (${ids.join(',')})`);
+  const insert = db.prepare('INSERT INTO ship_difficulty(ship_id, gameplay, won, lost, abandoned, won_guesses_sum, won_ms_sum, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  const t = Date.now();
+  insert.run(990011, 'timed', 5, 0, 0, 10, 50000, t);
+  insert.run(990011, 'standard', 5, 0, 0, 20, 0, t);
+  insert.run(990012, 'arbitration', 6, 0, 0, 0, 0, t);
+  insert.run(990012, 'standard', 1, 0, 0, 0, 0, t);
+  const row = difficultyReport(db, { gameplay: 'all', minFinished: 1, limit: 1000 }).find((item) => item.shipId === 990011);
+  assert.equal(row.avgSecondsToWin, 10, 'timed wins only: 50 s over 5 wins');
+  assert.equal(row.avgGuessesToWin, 3, '30 guesses over 10 wins');
+  const arbitration = difficultyReport(db, { gameplay: 'arbitration', minFinished: 1, limit: 1000 }).find((item) => item.shipId === 990012);
+  assert.equal(arbitration.avgGuessesToWin, null, 'arbitration keeps no guesses');
+  assert.equal(arbitration.avgSecondsToWin, null);
+  db.exec(`DELETE FROM ship_difficulty WHERE ship_id IN (${ids.join(',')})`);
+});
+
+test('the report command line rejects what it does not know', () => {
+  assert.deepEqual(parseArgs(['--by=kill', '--gameplay', 'timed', '--json', '--min', '3']), { by: 'kill', gameplay: 'timed', json: true, min: '3' });
+  assert.throws(() => parseArgs(['--gamplay', 'timed']), /unknown option: --gamplay/);
+  assert.throws(() => parseArgs(['--min', '--json']), /--min needs a value/);
+  assert.throws(() => parseArgs(['--min']), /--min needs a value/);
+  assert.throws(() => parseArgs(['--json=1']), /takes no value/);
+  assert.throws(() => parseArgs(['ship']), /unexpected argument/);
 });
 
 test.after(async () => {

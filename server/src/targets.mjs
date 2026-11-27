@@ -9,6 +9,7 @@ import { config } from './config.mjs';
 import { now, statement } from './db.mjs';
 import {
   eligibleKills,
+  fallbackMonths,
   makeRng,
   monthCandidates,
   pageCount,
@@ -75,12 +76,14 @@ function halfLifeDays() {
 
 // ---------------------------------------------------------------- hull queue
 
-const weightCache = { day: '', weights: null };
+const weightCache = { day: '', usage: null, weights: null };
 
 /** Weight of every playable hull for today's usage window. */
 export function currentWeights(day = utcDateKey()) {
-  if (weightCache.day !== day || !weightCache.weights) {
+  // A newly adopted usage file is a new object, so it is picked up here.
+  if (weightCache.day !== day || weightCache.usage !== config.shipUsage || !weightCache.weights) {
     weightCache.day = day;
+    weightCache.usage = config.shipUsage;
     weightCache.weights = shipWeights({
       ships: config.catalogShips,
       usage: config.shipUsage,
@@ -111,9 +114,7 @@ function knownEmpty(shipId, allowEmpty) {
 
 async function lossPage(shipId, month, page, background) {
   if (background) await refillGate.take(config.targetRefillIntervalMs);
-  const pathname = month
-    ? `/api/losses/shipTypeID/${shipId}/year/${month.year}/month/${month.month}/page/${page}/`
-    : `/api/losses/shipTypeID/${shipId}/page/1/`;
+  const pathname = `/api/losses/shipTypeID/${shipId}/year/${month.year}/month/${month.month}/page/${page}/`;
   const { data } = await requestJson(pathname);
   if (!Array.isArray(data)) throw new TargetUnavailable('zkill', 'invalid loss page');
   return data;
@@ -121,22 +122,18 @@ async function lossPage(shipId, month, page, background) {
 
 /**
  * One killmail of a hull: a month by time weight, a page of that month by its
- * loss count, then one eligible killmail of the page. A hull without usage data
- * (new in the SDE) uses its latest 200 losses. Returns { kill, blocked }; blocked
- * means killmails were refused only because the room already used them.
+ * loss count, then one eligible killmail of the page. A hull the usage file
+ * cannot size (new in the SDE, or with no month in the file) reads the first
+ * page of a recent month; the newest unfiltered page would be all of this
+ * month, which is never eligible. Returns { kill, blocked }; blocked means
+ * killmails were refused only because the room already used them.
  */
 async function pickKillOfShip(shipId, { rng, allowEmpty, exclude, latestDate, background }) {
   const entry = config.shipUsage?.ships?.[String(shipId)];
   const filter = { earliestDate: earliestDate(), latestDate, allowEmpty, exclude };
   let blocked = false;
-  if (!entry) {
-    const result = eligibleKills(await lossPage(shipId, null, 1, background), shipId, filter);
-    return {
-      kill: result.kills.length ? result.kills[Math.floor(rng() * result.kills.length)] : null,
-      blocked: result.blocked,
-    };
-  }
-  const months = monthCandidates(entry, earliestDate(), latestDate, halfLifeDays());
+  let months = entry ? monthCandidates(entry, earliestDate(), latestDate, halfLifeDays()) : [];
+  if (!months.length) months = fallbackMonths(earliestDate(), latestDate, halfLifeDays());
   for (let attempt = 0; attempt < MAX_REQUESTS_PER_SHIP && months.length; attempt += 1) {
     const month = pickWeighted(months, rng);
     months.splice(months.indexOf(month), 1);
@@ -186,7 +183,7 @@ function latestTargetDate(day = utcDateKey()) {
 // ---------------------------------------------------------------- daily target
 
 function seedNumber(day) {
-  const secret = config.sessionSecret || 'fitdle-development-secret';
+  const secret = config.sessionSecret || 'fitdle-development-secret'; // config generates a private one when none is set
   const digest = crypto.createHmac('sha256', secret)
     .update(`fitdle:online:daily:${day}:${config.algorithmVersion}`)
     .digest('hex');
@@ -232,16 +229,15 @@ export async function getDailyTarget(day) {
   return promise;
 }
 
+/** The stored pin of a day; a row that is already there always wins over `fallback`. */
 export function loadDailyPin(day, fallback = null) {
   const row = statement('SELECT * FROM daily_pins WHERE day = ?').get(day);
   if (!row) return fallback;
-  let killmail = fallback?.killmail;
-  if (!killmail) {
-    try {
-      killmail = JSON.parse(row.killmail_json);
-    } catch {
-      killmail = null;
-    }
+  let killmail;
+  try {
+    killmail = JSON.parse(row.killmail_json);
+  } catch {
+    killmail = null;
   }
   if (!killmail) return fallback;
   return {
