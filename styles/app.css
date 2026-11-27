@@ -5964,6 +5964,11 @@ html[data-multiplayer="1"] .room-pilot small {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Every status of a seated pilot stays readable: wrap instead of cutting off. */
+html[data-multiplayer="1"] .room-pilot small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 html[data-multiplayer="1"] .room-score {
   flex: 0 0 auto;
   margin-left: auto;

@@ -390,7 +390,7 @@ export class RoomSurface {
         <div>
           <div class="mp-kicker">${esc(this.t('room.roomKicker', { code: room.code }))}</div>
           <h2>${esc(this.gameplayLabel(room.gameplay) || this.t('room.noGameplay'))}</h2>
-          <p class="room-subtitle">${esc(this.t('room.roomStatus', { active: activeCount, max: this.maxRoomPlayers() }))}</p>
+          <p class="room-subtitle">${esc(this.t('room.roomStatus', { count: this.int(room.players.length) }))}</p>
         </div>
         <div class="room-actions room-head-actions">
           <button type="button" class="button primary room-share" data-room-copy>${icon('share')} ${esc(this.t('room.share'))}</button>
@@ -423,7 +423,6 @@ export class RoomSurface {
         ${match ? `<span class="room-note">${esc(match.rule === 'endless'
           ? this.t('room.endlessRound', { round: match.roundNo || 1 })
           : this.t('room.round', { round: match.round || 1, total: match.totalRounds || 6 }))}</span>` : ''}
-        <span class="room-capacity">${this.int(room.players.filter((player) => player.connected).length)} / ${this.maxRoomPlayers()}</span>
       </div>`);
     this.setRegion(panel, 'error', this.errorHtml());
     this.setRegion(panel, 'notes', `
@@ -453,7 +452,6 @@ export class RoomSurface {
         <section class="room-list room-lobby-forms">
           <div class="room-list-head">
             <h3>${esc(this.t('room.createRoom'))} / ${esc(this.t('room.joinRoom'))}</h3>
-            <span class="room-capacity">${esc(this.t('room.capacity', { max: this.maxPlayers }))}</span>
           </div>
           <div class="room-lobby-grid">
             <form class="room-lobby-card" data-room-form="create">
@@ -594,12 +592,12 @@ export class RoomSurface {
 
   paintLocal(panel) {
     const room = this.room;
+    // Like EVE's Local: every seated pilot is counted and listed, spectators and reconnecting ones too.
     this.setRegion(panel, 'localHead', `
       <div>
         <span class="mp-kicker">${esc(this.t('room.localKicker'))}</span>
-        <strong>${esc(this.t('room.local'))} <em>#${esc(room.code)}</em></strong>
-      </div>
-      <span class="room-capacity">${room.players.length} / ${this.maxRoomPlayers()}</span>`);
+        <strong>${esc(this.t('room.local'))} [${this.int(room.players.length)}] <em>#${esc(room.code)}</em></strong>
+      </div>`);
     const list = panel.querySelector('[data-local-list]');
     if (list) this.paintPlayers(list);
     this.setRegion(panel, 'chatState', !this.connected
@@ -919,9 +917,11 @@ export class RoomSurface {
     const allowEmpty = this.owner() && !this.room.gameplay && this.draftAllowEmpty != null
       ? this.draftAllowEmpty
       : settings.allowEmpty !== false;
+    const capacity = `<span class="room-capacity">${esc(this.t('room.capacity', { max: this.int(this.maxRoomPlayers()) }))}</span>`;
     if (!this.owner()) {
       return `<p class="room-note">${esc(this.t('room.waitingHost'))}</p>
-      <p class="room-note">${esc(this.t(allowEmpty ? 'room.allowEmptyOn' : 'room.allowEmptyOff'))}</p>`;
+      <p class="room-note">${esc(this.t(allowEmpty ? 'room.allowEmptyOn' : 'room.allowEmptyOff'))}</p>
+      <p>${capacity}</p>`;
     }
     const arbitration = this.room.gameplay === 'arbitration';
     const timed = this.room.gameplay === 'timed';
@@ -935,6 +935,7 @@ export class RoomSurface {
         <div class="room-settings-head">
           <div>
             <h3>${esc(this.t('room.matchSettings'))}</h3>
+            ${capacity}
           </div>
           <span class="room-note" data-settings-hint ${this.room.gameplay ? 'hidden' : ''}>${esc(this.t('room.chooseFirst'))}</span>
         </div>

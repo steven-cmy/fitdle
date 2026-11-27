@@ -365,7 +365,7 @@ export default {
   'room.join': 'JOIN',
   'room.roomKicker': 'LOCAL // {code}',
   'room.noGameplay': 'NO GAMEPLAY SELECTED',
-  'room.roomStatus': 'PILOTS {active} / {max}',
+  'room.roomStatus': 'PILOTS {count}',
   'room.share': 'SHARE ROOM',
   'room.leave': 'BACK TO LOBBY',
   'room.round': 'ROUND {round} / {total}',

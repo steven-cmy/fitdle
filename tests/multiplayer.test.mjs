@@ -503,3 +503,38 @@ test('room panels keep their chat input and ignore replaced sockets', () => {
   assert.match(rooms, /!button\.isConnected/);
   assert.match(rooms, /t: 'ping'/);
 });
+
+test('Local counts and lists every seated pilot, and only settings show the seat limit', () => {
+  const players = [
+    { id: 'a1', name: 'Host', connected: true, spectator: false, score: 0 },
+    { id: 'b2', name: 'Watcher', connected: true, spectator: true, score: 0 },
+    { id: 'c3', name: 'Away', connected: false, spectator: true, score: 0 },
+  ];
+  for (const locale of Object.keys(MESSAGES)) {
+    const t = (key, vars = {}) => String(MESSAGES[locale][key] ?? key)
+      .replace(/\{(\w+)\}/g, (match, name) => vars[name] ?? match);
+    const regions = {};
+    const surface = Object.assign(Object.create(RoomSurface.prototype), {
+      t, int: String, playerId: 'a1', maxPlayers: 8, connected: true, imagesBase: '', roomLimits: {},
+      room: { code: 'ABC123', ownerId: 'a1', phase: 'playing', gameplay: 'timed', maxPlayers: 8, players, match: null },
+      skeleton() {}, syncStartButton() {}, paintPlayers() {}, paintChat() {}, errorHtml: () => '',
+      setRegion(panel, name, html) { regions[name] = html; },
+    });
+    const panel = { querySelector: (selector) => (selector === '[data-matchbar]' ? { style: {} } : null) };
+
+    surface.paintRoom(panel);
+    assert.ok(regions.localHead.includes(`${t('room.local')} [3] <em>#ABC123</em>`), locale);
+    assert.ok(regions.head.includes(t('room.roomStatus', { count: 3 })), locale);
+    for (const html of [regions.localHead, regions.head]) assert.doesNotMatch(html, /\/ ?8\b/, locale);
+    surface.paintRail(panel);
+    assert.doesNotMatch(regions.head, /\/ ?8\b|room-capacity/, locale);
+    for (const playerId of ['a1', 'b2']) {
+      surface.playerId = playerId;
+      assert.ok(surface.renderSettings().includes(t('room.capacity', { max: 8 })), `${locale} ${playerId}`);
+    }
+
+    assert.equal(surface.localPlayers().length, 3);
+    const away = surface.playerRow(players[2]).html;
+    assert.ok(away.includes(t('room.spectator')) && away.includes(t('room.reconnecting')), locale);
+  }
+});

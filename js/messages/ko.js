@@ -365,7 +365,7 @@ export default {
   'room.join': '참가',
   'room.roomKicker': '지역 // {code}',
   'room.noGameplay': '게임플레이 미선택',
-  'room.roomStatus': '파일럿 {active} / {max}',
+  'room.roomStatus': '파일럿 {count}',
   'room.share': '룸 공유',
   'room.leave': '로비로 돌아가기',
   'room.round': '{round} / {total} 라운드',

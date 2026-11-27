@@ -365,7 +365,7 @@ export default {
   'room.join': 'ВОЙТИ',
   'room.roomKicker': 'ЛОКАЛЬНЫЙ // {code}',
   'room.noGameplay': 'РЕЖИМ НЕ ВЫБРАН',
-  'room.roomStatus': 'ПИЛОТЫ {active} / {max}',
+  'room.roomStatus': 'ПИЛОТЫ {count}',
   'room.share': 'ПОДЕЛИТЬСЯ КОМНАТОЙ',
   'room.leave': 'В ЛОББИ',
   'room.round': 'РАУНД {round} / {total}',

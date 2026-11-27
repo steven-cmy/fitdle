@@ -365,7 +365,7 @@ export default {
   'room.join': '参加',
   'room.roomKicker': 'ローカル // {code}',
   'room.noGameplay': 'ゲームプレイ未選択',
-  'room.roomStatus': 'パイロット {active} / {max}',
+  'room.roomStatus': 'パイロット {count}',
   'room.share': 'ルームを共有',
   'room.leave': 'ロビーに戻る',
   'room.round': 'ラウンド {round} / {total}',

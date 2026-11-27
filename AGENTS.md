@@ -293,6 +293,10 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - `ROOM_MAX_PLAYERS` controls total room seats (default 8, allowed 2..32,
   including spectators/offline seats). Existing names rejoin without consuming
   a new seat.
+- The Local panel title is EVE style, `<room.local> [n]`, where n is every seated
+  player (spectators and reconnecting players included); the list shows all of
+  them with their status. Other room counts use the same number. The seat limit
+  is shown only in the match settings area.
 - `ROOM_ARBITRATION_BIG_ROUNDS` / `ROOM_ARBITRATION_MAX_BIG_ROUNDS` define the Arbitration default and
   host limit for big rounds. `ROOM_TIMED_DURATION_MINUTES` /
   `ROOM_TIMED_MAX_DURATION_MINUTES` do the same for Timed room duration.

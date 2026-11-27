@@ -365,7 +365,7 @@ export default {
   'room.join': '加入',
   'room.roomKicker': '本地 // {code}',
   'room.noGameplay': '未选择玩法',
-  'room.roomStatus': '在线 {active} / {max}',
+  'room.roomStatus': '飞行员 {count}',
   'room.share': '分享房间',
   'room.leave': '返回大厅',
   'room.round': '第 {round} / {total} 回合',
