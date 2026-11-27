@@ -1024,40 +1024,6 @@ test('a run left unfinished for a day after its first guess is lost', async () =
   });
 });
 
-test('custom killmails are playable and resumable but never counted', async () => {
-  await withSoloPool(async () => {
-    const pages = globalThis.fetch;
-    globalThis.fetch = async (url) => (/killID/.test(String(url))
-      ? new Response(JSON.stringify([{ ...lossPage(REAL_SHIP, [true])[0], killmail_id: 777001 }]))
-      : pages(url));
-    try {
-      const pilot = await soloPilot('Solo Custom Pilot');
-      const statRows = () => db.prepare('SELECT COUNT(*) AS n FROM kill_difficulty WHERE kill_id = 777001').get().n;
-      const run = (await pilot.custom('standard', 777001)).body;
-      await pilot.guess(run.runId, OTHER_SHIPS[0]);
-      const resumed = (await pilot.custom('standard', 777001)).body;
-      assert.deepEqual([resumed.runId, resumed.guesses], [run.runId, [OTHER_SHIPS[0]]]);
-      assert.equal((await pilot.guess(run.runId, REAL_SHIP)).body.status, 'won');
-      const random = await pilot.start('standard');
-      await pilot.guess(random.runId, REAL_SHIP);
-      const replay = (await pilot.custom('standard', 777001)).body;
-      assert.notEqual(replay.runId, run.runId);
-      for (const ship of OTHER_SHIPS.slice(0, 6)) await pilot.guess(replay.runId, ship);
-      const stats = await pilot.stats();
-      assert.equal(stats.streaks.standard, 1, 'neither the win nor the loss of a custom killmail counts');
-      assert.equal(stats.winStreak, 1);
-      assert.equal(statRows(), 0);
-      // A custom win alone is no winning day either.
-      const other = await soloPilot('Solo Custom Only Pilot');
-      const only = (await other.custom('standard', 777001)).body;
-      await other.guess(only.runId, REAL_SHIP);
-      assert.equal((await other.stats()).winStreak, 0);
-    } finally {
-      globalThis.fetch = pages;
-    }
-  });
-});
-
 /** The counters of one killmail and its hull in a gameplay, zero when nothing is recorded. */
 function difficultyOf(killId, shipId, gameplay) {
   const zero = { won: 0, lost: 0, abandoned: 0, won_guesses_sum: 0, won_ms_sum: 0 };
@@ -1128,6 +1094,28 @@ test('solo runs add anonymous difficulty counters once they end', async () => {
       db.prepare('UPDATE online_runs SET started_at = ? WHERE id = ?').run(Date.now() - 25 * 3600e3, expired.runId);
       expireRuns();
     })).kill, only({ abandoned: 1 }));
+  });
+});
+
+test('the service opens no run for a chosen killmail and never counts old custom runs', async () => {
+  await withSoloPool(async () => {
+    const pilot = await soloPilot('Solo Chosen Pilot');
+    const cookie = await login('Solo Chosen Pilot');
+    const response = await app.inject({
+      method: 'POST', url: '/api/v1/online/custom',
+      headers: { cookie, ...RUN_HEADERS, 'content-type': 'application/json' }, payload: { gameplay: 'standard', kb: '777001' },
+    });
+    assert.equal(response.statusCode, 404);
+    // Rows of earlier releases stay out of every record.
+    const asCustom = (runId) => db.prepare("UPDATE online_runs SET kind = 'custom' WHERE id = ?").run(runId);
+    const counters = () => db.prepare('SELECT COALESCE(SUM(won + lost + abandoned), 0) AS n FROM kill_difficulty').get().n;
+    const before = counters();
+    const old = await pilot.start('standard');
+    asCustom(old.runId);
+    assert.equal((await pilot.guess(old.runId, REAL_SHIP)).body.status, 'won');
+    const stats = await pilot.stats();
+    assert.deepEqual([stats.winStreak, stats.streaks.standard], [0, 0]);
+    assert.equal(counters(), before);
   });
 });
 
@@ -1218,21 +1206,6 @@ test('only files of the current release are cached for long', async () => {
   for (const url of ['/', '/js/main.js', '/js/main.js?v=0.0.1-aaaa', `/data/manifest.json?v=${version}`, `/js/none.js?v=${version}`]) {
     assert.equal(/immutable/.test(await cache(url) || ''), false, url);
   }
-});
-
-test('a killmail this service knows opens although zKillboard finds nothing', async () => {
-  await withSoloPool(async (requests) => {
-    const pilot = await soloPilot('Solo Stored Pilot');
-    const run = await pilot.start('standard');
-    const { killId } = truthOf(run.runId);
-    const before = requests.length;
-    const other = await soloPilot('Solo Stored Friend');
-    const custom = await other.custom('audit', killId);
-    assert.deepEqual([custom.status, custom.body.kind, custom.body.target], [200, 'custom', null]);
-    assert.equal(truthOf(custom.body.runId).killId, killId);
-    assert.deepEqual(requests.slice(before).filter((url) => !url.startsWith('/api/stats/')), [], 'no killmail request');
-    assert.equal((await other.custom('audit', 123456789)).status, 503);
-  });
 });
 
 test('opening Daily in two pages at once yields one run', async () => {

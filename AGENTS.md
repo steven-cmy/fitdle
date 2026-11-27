@@ -202,9 +202,8 @@ translation [README.zh-CN.md](README.zh-CN.md).
   Practice; logged-in is Online. Mode is not a manual toggle. Practice provides
   Standard/Audit/Timed, random or explicit KB, no scoring. Daily is online-only.
 - Online Daily is pinned once per game day and cached in SQLite. Online
-  Standard/Audit/Timed get a server-issued random target per run. A current KB
-  entered from a share link becomes an online custom run when logged in; custom
-  runs can be played and resumed but never enter streaks, win days or difficulty counters.
+  Standard/Audit/Timed get a server-issued random target per run. A chosen
+  killmail is no online run (see *Chosen killmails*).
 - The service records solo guesses: `POST /online/runs/:id/guess {shipId}` counts,
   deduplicates and judges them; `finish` only accepts a Timed loss. A run counts
   from its first guess, a Timed run from starting the clock (`begin`). `start` returns the player's open run of that gameplay, so a
@@ -215,7 +214,7 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - `js/run-sync.js` delivers solo guesses in order, keeps unsent ones in
   `fitdle:v1:pending-runs` and retries; resending is harmless.
 - **The answer stays on the service until the run ends** (online Daily, random
-  Standard/Audit/Timed and race rooms; not Arbitration, explicit KB runs or
+  Standard/Audit/Timed and race rooms; not Arbitration, chosen killmails or
   Practice). `server/src/puzzle.mjs` builds the puzzle once at the start (clue set,
   reveal plan, a snapshot of the live zKill statistics, Audit/Timed dogma) and
   stores it in `online_runs.puzzle_json`; rooms keep it in memory per round. A
@@ -583,6 +582,20 @@ and goes on.
 - There is no archive mode; historical-day consistency is intentionally not
   supported. Only the current game day is synchronized.
 
+## Chosen killmails
+
+- A chosen killmail (`?kb=` link, or a kill number / zKillboard link typed into the
+  dock's picker, parsed by `parseKillId`) is a feature for sharing between friends:
+  no score, no anti-cheat. It runs wholly in the page (`resolvePracticeTarget`),
+  logged in or not, and also in the static build while zKillboard is reachable.
+- The service has no route for it: no run, no stats, no difficulty counters.
+  Progress is not stored; a reload starts the file again. Databases may hold
+  `custom` runs of earlier releases; records keep excluding them.
+- Online Daily ignores `kb`; choosing Daily removes it. A `kb` link without
+  `claim` is Standard. Rooms cannot choose a killmail.
+- Failures are told apart: unreadable link or number, killmail not found (zKillboard
+  answers an empty list, which is not cached by the page), zKillboard unavailable.
+
 ## Reveal rules
 
 - Every answer builds one immutable `revealPlan` at `buildAnswerData()` time:
@@ -812,7 +825,7 @@ and goes on.
 ## Stats and reset
 
 - The profile record comes from the service; practice has no record.
-- A run is counted from the first guess, or on starting a Timed run. Free and custom runs never affect stats.
+- A run is counted from the first guess, or on starting a Timed run. Free targets and chosen killmails never affect stats.
 - Streak is measured in consecutive successful days. Any gameplay win counts
   that day once; a missed day or a day with no win resets it.
 - Personal progress reset is intentionally unavailable in the current UI; there
@@ -906,9 +919,9 @@ container follows the same order.
 
 ## Sharing
 
-- Online Standard, Audit and Timed (including custom killmails) are not shared: their
-  debrief has no share button or box. Online Daily, practice killmails and room
-  invites are shared.
+- Random online Standard, Audit and Timed targets are not shared: their debrief
+  has no share button or box. Online Daily, practice killmails, chosen killmails
+  and room invites are shared.
 - Non-free share URL: `share/{1..6|lost}/{lang}.html` with optional `rule=audit`/`rule=timed`
   (no `kb`, `d`, `mode`, `timer` or `lang` query; the path locale controls preview
   language and is stored locally). Daily shares must not carry a reversible kill token.
@@ -916,9 +929,8 @@ container follows the same order.
   The preview redirects to the app without forcing a language.
 - Timed share URL: `share/timed/{lang}.html?t=<seconds>&rule=timed`; Free Timed
   additionally carries `kb=...`.
-- Opening a `kb` link compares its killmail with the current Daily target for the
-  selected gameplay mode. On a match it enters Daily (restoring completed
-  progress); otherwise it stays in Free mode.
+- A `kb` link is never compared with the Daily target; it always opens as a
+  chosen killmail.
 - Static pages are generated per locale by `build-dist`; metadata is localized and
   contains only score/attempts, never the answer. The page stores its path locale
   locally before redirecting.

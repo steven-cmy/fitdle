@@ -5921,6 +5921,8 @@ html[data-multiplayer="1"] .room-chat-log {
 }
 html.is-in-room .new-target-cta,
 html.is-in-room .daily-reset-cta,
+html.is-in-room .kill-open-cta,
+#main.is-in-room .kill-open-cta,
 #main.is-in-room .new-target-cta,
 #main.is-in-room .daily-reset-cta {
   display: none !important;

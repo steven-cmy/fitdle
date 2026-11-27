@@ -14,7 +14,7 @@ The interface is available in English, German, Spanish, French, Japanese, Korean
 - **Fitting Audit**: stats are calculated from the actual fit with all skills at V (using [dogma-engine](https://github.com/EVEShipFit/dogma-engine)). Your guesses don't show shared stats, and rarer hulls come up more often. Harder.
 - **Timed**: clues come out on a clock, no matter how many guesses you make.
 
-Log in with EVE SSO to play the daily puzzle (the same for everyone). Random targets you play while logged in are recorded too, in your record, stats and streak. Without logging in you play as a trainee: as much as you like, nothing is scored. A killmail opened from a shared killboard link is never scored.
+Log in with EVE SSO to play the daily puzzle (the same for everyone). Random targets you play while logged in are recorded too, in your record, stats and streak. Without logging in you play as a trainee: as much as you like, nothing is scored. You can also pick a killmail yourself, signed in or not: press CHOOSE KILLMAIL and paste a zKillboard link or a killID. A chosen or shared killmail is never scored.
 
 Multiplayer rooms support all three modes, plus Arbitration Review, where players take turns as the dealer.
 

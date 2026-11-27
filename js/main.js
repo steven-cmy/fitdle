@@ -5,6 +5,7 @@ import {
   claimCaseNumber,
   ycDateLabel,
   freeKillIdFromToken,
+  parseKillId,
   formatGameDayStart,
   formatMass,
   freeKillToken,
@@ -450,9 +451,9 @@ function claimDebriefForStatus() {
   return pickClaimDebrief(state.claimDepartment, state.status, currentClaimSeed());
 }
 
-/** Custom killmails are played online but never recorded. */
+/** A chosen or practice killmail is played in the page and never recorded. */
 function isScored() {
-  return state.appMode === 'online' && state.onlineRun?.kind !== 'custom';
+  return state.appMode === 'online' && !isFree();
 }
 
 function isFree() {
@@ -537,6 +538,8 @@ function cacheCurrentTarget() {
   // The service keeps an open masked run itself; the page has no target to keep.
   if (isMasked()) return;
   if (!state.answerKillmail || !state.answerKillId || state.roomCode || state.roomRequest) return;
+  // A linked killmail comes from the address, never from the cache.
+  if (new URL(location.href).searchParams.has('kb')) return;
   if (state.guesses.length || state.timerStarted || state.onlineFinished) return;
   const data = readTargetCache() || {
     dataVersion: state.dataVersionKey,
@@ -1414,7 +1417,8 @@ async function fetchZkill(path, cache = null) {
         throw lastError;
       }
       const data = slimKillmails(await response.json());
-      if (cache?.key && cache?.ttlMs) writeTimedCache(cache.key, data, cache.ttlMs);
+      const keep = cache?.keepEmpty !== false || !Array.isArray(data) || data.length > 0;
+      if (cache?.key && cache?.ttlMs && keep) writeTimedCache(cache.key, data, cache.ttlMs);
       return data;
     } catch (error) {
       lastError = error;
@@ -2403,6 +2407,10 @@ function renderShell() {
           <strong>${esc(tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase()))}</strong>
         </div>
         <button id="room-action-button" class="button primary" type="button" data-action="room-action" hidden></button>
+        <button class="button ghost kill-open-cta" type="button" data-action="open-kill" aria-haspopup="dialog">
+          ${icon('external')}
+          <span>${esc(t('custom.open'))}</span>
+        </button>
         ${state.appMode === 'online' && state.gameplay === 'daily'
           ? `<button class="button daily-reset-cta${dailyResetReady() ? ' is-ready' : ''}" type="button"
               data-action="play-today"
@@ -4427,8 +4435,8 @@ function renderDebrief() {
   const ship = state.answerShip;
   const total = state.answerData.clues.length;
   const free = isFree();
-  // Online targets other than Daily are not shared; practice killmails are.
-  const shareable = state.appMode !== 'online' || state.gameplay === 'daily';
+  // Random online targets are not shared; Daily and killmails played in the page are.
+  const shareable = free || state.appMode !== 'online' || state.gameplay === 'daily';
   const sampleKill = state.answerData.sampleKill;
   const payout = debriefPayoutAmount();
   const description = (state.answerData.description || '').split(/\n{2,}/).filter(Boolean);
@@ -4998,6 +5006,7 @@ document.addEventListener('click', (event) => {
     if (action === 'set-gameplay') { setGameplay(actionEl.dataset.gameplay); return; }
     if (action === 'new-target') { void requestNewTarget(); return; }
     if (action === 'abandon-target') { closeModal(); void takeNewTarget(); return; }
+    if (action === 'open-kill') { renderKillPicker(); return; }
     if (action === 'rooms') { openRooms(); return; }
     if (action === 'room-action') { handleRoomAction(); return; }
     if (action === 'leave-room') { leaveRoomAndRestore(); return; }
@@ -5112,6 +5121,17 @@ document.addEventListener('change', (event) => {
   if (event.target.id === 'lang-select') changeLocale(event.target.value);
 });
 
+document.addEventListener('submit', (event) => {
+  const form = event.target.closest?.('[data-kill-form]');
+  if (!form) return;
+  event.preventDefault();
+  const input = form.querySelector('input');
+  if (openKillmail(input.value)) return;
+  form.querySelector('.mode-modal-error').textContent = t('custom.invalid');
+  input.setAttribute('aria-invalid', 'true');
+  input.focus();
+});
+
 document.addEventListener('focusin', (event) => {
   if (event.target.id === 'ship-input' && state.inputValue.trim()) renderSuggestions();
 });
@@ -5146,6 +5166,22 @@ class UnknownHullError extends Error {
     this.name = 'UnknownHullError';
   }
 }
+
+/** A linked killmail that cannot be opened: invalid, missing or unavailable. */
+class KillLinkError extends Error {
+  constructor(reason, cause = null) {
+    super(`kill-link-${reason}`);
+    this.name = 'KillLinkError';
+    this.reason = reason;
+    this.cause = cause;
+  }
+}
+
+const KILL_LINK_COPY = {
+  invalid: { code: 'error.killInvalidCode', lore: 'error.killInvalidLore', body: 'custom.invalid' },
+  missing: { code: 'error.killMissingCode', lore: 'error.killMissingLore', body: 'error.killMissingBody' },
+  unavailable: { code: 'error.killOfflineCode', lore: 'error.zkillLore', body: 'error.killOfflineBody' },
+};
 
 class DailyUnavailableError extends Error {
   constructor(reason, cause = null) {
@@ -5193,6 +5229,23 @@ function showFatal(error) {
   });
   const app = $('#app');
   if (!app) return;
+  if (error instanceof KillLinkError) {
+    const copy = KILL_LINK_COPY[error.reason];
+    // An unreachable zKillboard is worth another try; a wrong link needs another one.
+    const retry = error.reason === 'unavailable';
+    app.innerHTML = `<div class="fatal-screen">
+      <div class="fatal-glyph">${icon(retry ? 'radar' : 'alert')}</div>
+      <div class="fatal-code">${esc(t(copy.code))}</div>
+      <h1>${esc(t(copy.lore))}</h1>
+      <p>${esc(t(copy.body))}</p>
+      ${retry ? '' : killFormHtml()}
+      <div class="fatal-actions">
+        ${retry ? `<button class="button primary" type="button" onclick="location.reload()">${icon('refresh')} ${esc(t('error.retry'))}</button>` : ''}
+        <button class="button" type="button" data-action="new-target">${icon('radar')} ${esc(tl('online.newTarget', 'NEW TARGET'))}</button>
+      </div>
+    </div>`;
+    return;
+  }
   if (error instanceof DailyUnavailableError) {
     const copy = dailyErrorCopy(error.reason);
     app.innerHTML = `<div class="fatal-screen">
@@ -5273,10 +5326,12 @@ function applyGameplay(gameplay) {
 
 function parseAppRoute() {
   const params = new URLSearchParams(location.search);
+  const kb = params.get('kb') || '';
   return {
     mode: params.get('mode') || '',
-    gameplay: routeGameplay(params.get('claim') || 'daily'),
-    kb: params.get('kb') || '',
+    // A killmail link without a claim is a Standard one, not today's Daily.
+    gameplay: routeGameplay(params.get('claim') || (kb ? 'standard' : 'daily')),
+    kb,
     room: params.get('room') || '',
   };
 }
@@ -5289,6 +5344,7 @@ function setGameplay(gameplay) {
   url.searchParams.delete('gameplay');
   url.searchParams.delete('rule');
   url.searchParams.set('claim', next);
+  if (next === 'daily') url.searchParams.delete('kb');
   url.searchParams.delete('mode');
   url.searchParams.delete('room');
   if (state.appMode === 'online') url.searchParams.set('mode', 'online');
@@ -5386,13 +5442,25 @@ function installPlaceholder() {
   state.liveFetched = true;
 }
 
+/** The killmail a link names, straight from zKillboard. */
+async function fetchLinkedKill(killId) {
+  let data;
+  try {
+    data = await fetchZkill(`/api/killID/${killId}/`, { key: `kill:${killId}`, ttlMs: 3600000, keepEmpty: false });
+  } catch (error) {
+    throw new KillLinkError('unavailable', error);
+  }
+  // zKillboard answers an unknown kill with an empty list.
+  if (!Array.isArray(data)) throw new KillLinkError('unavailable');
+  if (!data[0]?.victim?.ship_type_id) throw new KillLinkError('missing');
+  return data[0];
+}
+
 async function resolvePracticeTarget(route) {
   if (route.kb) {
     const killId = Number(freeKillIdFromToken(route.kb));
-    if (!Number.isInteger(killId) || killId <= 0) throw new UnknownHullError();
-    const data = await fetchZkill(`/api/killID/${killId}/`, { key: `kill:${killId}`, ttlMs: 3600000 });
-    const killmail = Array.isArray(data) ? data[0] : null;
-    if (!killmail?.victim?.ship_type_id) throw new DailyUnavailableError('kb-unavailable');
+    if (!Number.isInteger(killId) || killId <= 0) throw new KillLinkError('invalid');
+    const killmail = await fetchLinkedKill(killId);
     installTarget({ killmail, shipId: killmail.victim.ship_type_id, killId, source: 'practice', free: true, cacheable: false });
     return;
   }
@@ -5413,8 +5481,6 @@ async function resolveOnlineTarget(route) {
   let run;
   if (route.gameplay === 'daily') {
     run = await api.daily();
-  } else if (route.kb) {
-    run = await api.custom(route.gameplay, route.kb);
   } else {
     run = await api.start(route.gameplay, state.allowEmptyKb);
   }
@@ -5432,7 +5498,6 @@ async function resolveOnlineTarget(route) {
     run,
     source: 'online',
     free: false,
-    cacheable: !route.kb,
   });
 }
 
@@ -5459,11 +5524,14 @@ async function prepareAppTarget(route) {
     return;
   }
   applyGameplay(state.gameplay);
-  // Online, the service simulates fits; the engine is only needed for practice.
-  if (usesSimulatedFit() && !online) preloadDogma();
+  // A linked killmail is played in the page, signed in or not. Daily has no link.
+  const linked = Boolean(route.kb) && !(online && route.gameplay === 'daily');
+  const served = online && !linked;
+  // For its own targets the service simulates fits; the page only needs the engine otherwise.
+  if (usesSimulatedFit() && !served) preloadDogma();
   if (online && runSync?.runs.size) await runSync.flush();
-  if (!route.kb && await restoreCachedTarget(state.gameplay)) return;
-  if (online) {
+  if (!linked && await restoreCachedTarget(state.gameplay)) return;
+  if (served) {
     try {
       await resolveOnlineTarget(route);
       return;
@@ -5694,6 +5762,45 @@ async function takeNewTarget() {
   url.searchParams.set('claim', state.gameplay);
   if (state.appMode === 'online') url.searchParams.set('mode', 'online');
   location.assign(url.toString());
+}
+
+/** Opens the typed kill number or killboard link; false when there is none. */
+function openKillmail(raw) {
+  const killId = parseKillId(raw);
+  if (!killId) return false;
+  cacheCurrentTarget();
+  const url = new URL(location.href);
+  for (const key of ['mode', 'room', 'rule']) url.searchParams.delete(key);
+  url.searchParams.set('claim', state.gameplay === 'daily' ? 'standard' : state.gameplay);
+  url.searchParams.set('kb', freeKillToken(killId));
+  if (state.appMode === 'online') url.searchParams.set('mode', 'online');
+  location.assign(url.toString());
+  return true;
+}
+
+function killFormHtml() {
+  const base = String(state.manifest?.zkillboard?.baseUrl || '').replace(/\/$/, '');
+  return `<form class="kill-form" data-kill-form novalidate>
+    <label class="mode-modal-label" for="kill-input">${esc(t('custom.label'))}</label>
+    <input id="kill-input" class="mode-modal-input" type="text" autocomplete="off" spellcheck="false"
+      placeholder="${esc(base ? `${base}/kill/…/` : '')}" aria-describedby="kill-error" data-autofocus>
+    <p class="mode-modal-error" id="kill-error" role="alert"></p>
+    <div class="mode-modal-actions">
+      <button type="submit" class="button primary">${esc(t('custom.submit'))}</button>
+    </div>
+  </form>`;
+}
+
+function renderKillPicker() {
+  openModal(`
+    <div class="modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="kill-title" data-kind="kill">
+      <button type="button" class="modal-close" data-action="close-modal" aria-label="${esc(t('common.close'))}">${icon('close')}</button>
+      <div class="panel-kicker">${icon('external')} // ${esc(t('free.badge'))}</div>
+      <h2 id="kill-title">${esc(t('custom.title'))}</h2>
+      <p class="mode-modal-body">${esc(t('custom.body'))}</p>
+      ${killFormHtml()}
+    </div>
+  `, 'kill');
 }
 
 async function refreshProfileStats() {
@@ -6071,6 +6178,13 @@ function handleRoomAction() {
 function openRooms() {
   if (!state.auth.loggedIn) {
     showAuthGate();
+    return;
+  }
+  // Rooms start from a clean page, not from the board of a killmail played here.
+  if (!state.roomSurface && isFree()) {
+    const url = new URL(location.href);
+    url.searchParams.set('mode', 'multiplayer');
+    location.assign(url.toString());
     return;
   }
   if (state.roomSurface) {

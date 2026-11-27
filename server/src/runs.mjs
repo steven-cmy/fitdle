@@ -4,7 +4,7 @@ import { config } from './config.mjs';
 import { getSessionUser } from './auth.mjs';
 import { now, statement } from './db.mjs';
 import { withinLimit } from './limits.mjs';
-import { getCustomTarget, getDailyTarget, getRandomTarget, TargetUnavailable } from './targets.mjs';
+import { getDailyTarget, getRandomTarget, TargetUnavailable } from './targets.mjs';
 import { recordPlay, profileStats } from './stats.mjs';
 import {
   boardView, buildPuzzle, guessFeedback, markShown, parsePuzzle, releasedClues, TIMED_RELEASE_MS, timedExhaustedAt,
@@ -164,7 +164,7 @@ function settleRun(row, status, { elapsedMs = Number(row.elapsed_ms) || 0, finis
     WHERE id = ? AND status = 'playing'`)
     .run(status, elapsedMs, status === 'won' ? Number(row.target_ship_id) : null, finishedAt, reason, row.id);
   const settled = runRow(row.id);
-  // A custom killmail is chosen by the player, so it never enters any record.
+  // Databases may still hold custom runs of earlier releases; they never count.
   if (changes && settled.kind !== 'custom' && isStarted(settled)) {
     recordPlay({
       killId: settled.target_kill_id,
@@ -240,14 +240,6 @@ function openRandomRun(nameKey, gameplay, allowEmpty) {
   if (isStarted(row)) return row;
   if (Number(row.started_at) + RUN_LIFETIME_MS <= now()) return null;
   return allowEmpty || killHasFittedModules(target.killmail) ? row : null;
-}
-
-function openCustomRun(nameKey, gameplay, killId) {
-  const row = statement(`SELECT * FROM online_runs
-    WHERE name_key = ? AND kind = 'custom' AND gameplay = ? AND target_kill_id = ? AND status = 'playing'
-    ORDER BY started_at DESC, rowid DESC LIMIT 1`).get(nameKey, gameplay, Number(killId));
-  const open = row && settleIfExpired(row);
-  return open?.status === 'playing' ? open : null;
 }
 
 /** Play time reported by the client, never longer than the run exists. */
@@ -384,31 +376,6 @@ export function registerRunRoutes(app) {
       }));
     } catch (error) {
       request.log?.error?.({ err: error }, 'online start failed');
-      errorReply(reply, error);
-    }
-  });
-
-  app.post('/api/v1/online/custom', async (request, reply) => {
-    const user = requireUser(request, reply);
-    if (!user) return;
-    const gameplay = String(request.body?.gameplay || '');
-    const kb = String(request.body?.kb || '');
-    if (!GAMEPLAYS.has(gameplay) || !kb) {
-      reply.code(400).send({ error: 'invalid-custom-run' });
-      return;
-    }
-    if (!startAllowed(user, reply)) return;
-    try {
-      const target = await getCustomTarget(kb);
-      const open = openCustomRun(user.name_key, gameplay, target.killId);
-      return await runResponse(open ? await syncRun(open) : await insertRun({
-        nameKey: user.name_key,
-        kind: 'custom',
-        gameplay,
-        gameDay: currentDay(),
-        target,
-      }));
-    } catch (error) {
       errorReply(reply, error);
     }
   });

@@ -327,7 +327,14 @@ export function freeKillIdFromToken(raw) {
   return (mixed ^ FREE_KILL_SALT) >>> 0;
 }
 
+/** The kill number in a typed number or killboard link; null when there is none. */
 export function parseKillId(raw) {
+  const id = findKillId(raw);
+  // Link tokens hold 32 bits; a longer number would silently name another kill.
+  return id > 0 && id <= 0xffffffff ? id : null;
+}
+
+function findKillId(raw) {
   const value = String(raw || '').trim();
   if (/^\d+$/.test(value) && Number(value) > 0) return Number(value);
   const bare = value.match(/(?:zkillboard\.com\/)?(?:api\/)?kill(?:ID)?\/(\d+)/i);
