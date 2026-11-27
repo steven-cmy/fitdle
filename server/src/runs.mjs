@@ -142,10 +142,18 @@ async function runResponse(row) {
   };
 }
 
-async function insertRun({ nameKey, kind, gameplay, gameDay, target }) {
+/** The account of a request ended while the request was being served. */
+class SessionEnded extends Error {}
+
+function assertSignedIn(request, nameKey) {
+  if (getSessionUser(request)?.name_key !== nameKey) throw new SessionEnded();
+}
+
+async function insertRun({ request, nameKey, kind, gameplay, gameDay, target }) {
   const id = crypto.randomUUID();
   // The puzzle is made before the run exists, so no answer is ever sent without it.
   const puzzle = MASKED_GAMEPLAYS.has(gameplay) ? JSON.stringify(await buildPuzzle({ target, gameplay, gameDay })) : null;
+  assertSignedIn(request, nameKey);
   statement(`INSERT INTO online_runs(id, name_key, kind, gameplay, game_day, target_kill_id, target_ship_id, target_json, status, attempts, elapsed_ms, guesses_json, started_at, puzzle_json)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'playing', 0, 0, '[]', ?, ?)
     ON CONFLICT DO NOTHING`)
@@ -281,6 +289,10 @@ function guessRun(row, shipId, body) {
 }
 
 function errorReply(reply, error) {
+  if (error instanceof SessionEnded) {
+    reply.code(401).send({ error: 'login-required' });
+    return;
+  }
   if (error instanceof TargetUnavailable) {
     reply.code(503).send({ error: 'target-unavailable', reason: error.reason });
     return;
@@ -329,6 +341,7 @@ export function registerRunRoutes(app) {
       const target = await getDailyTarget(day);
       // Another page of the same player may have created the run meanwhile.
       const run = await insertRun({
+        request,
         nameKey: user.name_key,
         kind: 'daily',
         gameplay: 'daily',
@@ -368,6 +381,7 @@ export function registerRunRoutes(app) {
       if (raced) return await runResponse(raced);
       dropUnstartedRuns(user.name_key, gameplay);
       return await runResponse(await insertRun({
+        request,
         nameKey: user.name_key,
         kind: 'random',
         gameplay,
@@ -395,7 +409,12 @@ export function registerRunRoutes(app) {
       reply.code(404).send({ error: 'run-not-found' });
       return null;
     }
-    return syncRun(row);
+    const synced = await syncRun(row);
+    if (getSessionUser(request)?.name_key !== user.name_key) {
+      reply.code(401).send({ error: 'login-required' });
+      return null;
+    }
+    return synced;
   };
 
   app.post('/api/v1/online/runs/:id/begin', async (request, reply) => {

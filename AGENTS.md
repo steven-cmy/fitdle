@@ -192,13 +192,22 @@ translation [README.zh-CN.md](README.zh-CN.md).
   `@fastify/static` + `jose` + built-in `node:sqlite`. It serves `dist/`, `/api`
   and `/ws`; a split deployment sets `API_ORIGIN` and derives CORS/callback.
 - EVE SSO is authorization-code + PKCE, state/JWKS validation, minimal
-  `publicData` scope. Only the `name` and character-id (`sub`) claims are used.
+  `publicData` scope. Only the `name`, character-id (`sub`) and `owner` claims are used.
   Accounts are keyed by
   normalized character name; alts are separate; character rename creates a new
-  account. The character ID is stored only to render the official EVE portrait;
-  no corporation, alliance, avatar image or other identity data is stored.
+  account. The character ID renders the official EVE portrait; it and a SHA-256
+  of the token's `owner` claim tell whether a name still means the same account.
+  No corporation, alliance, avatar image or other identity data is stored.
   The token endpoint is read from the SSO metadata document; the client secret stays
   server-side and the callback is `${API_ORIGIN || PUBLIC_ORIGIN}/api/v1/auth/eve/callback`.
+- A transferred character is a new account. A sign-in whose owner hash or
+  character ID differs from the stored one archives the old account (its rows
+  move to a random-suffixed key, never deleted), ends its sessions and room
+  seats and starts empty, in one database transaction (`signInUser`). A missing
+  value proves nothing and never overwrites a stored one; accounts of earlier
+  releases only learn their hash at the next sign-in. A failed sign-in changes
+  nothing. CCP's current documentation does not define `owner`. Never log or
+  send it or its hash. Sessions last 7 days because only a sign-in checks it.
 - Modes are determined by auth/back-end availability: guest or service failure is
   Practice; logged-in is Online. Mode is not a manual toggle. Practice provides
   Standard/Audit/Timed, random or explicit KB, no scoring. Daily is online-only.

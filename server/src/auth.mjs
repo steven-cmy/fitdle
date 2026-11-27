@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { config, ssoConfigured } from './config.mjs';
-import { getUser, now, statement, upsertUser } from './db.mjs';
+import { getUser, now, signInUser, statement } from './db.mjs';
 
 export const SESSION_COOKIE = 'fitdle_session';
 // Binds a login to the browser that started it; several tabs may log in at once.
@@ -91,9 +91,26 @@ async function verifyAccessToken(token) {
   if (!audiences.includes('EVE Online') || !audiences.includes(config.eve.clientId)) {
     throw new Error('SSO token audience mismatch');
   }
+  return identityFromClaims(payload);
+}
+
+/**
+ * What a verified token says about the pilot. `owner` changes when the character
+ * moves to another EVE account; only its hash leaves this function.
+ */
+export function identityFromClaims(payload) {
   const name = String(payload?.name || '').trim();
   if (!name) throw new Error('SSO token has no name');
-  return { name, characterId: characterIdFromSubject(payload?.sub) };
+  return {
+    name,
+    characterId: characterIdFromSubject(payload?.sub),
+    ownerHash: ownerHashOf(payload?.owner),
+  };
+}
+
+function ownerHashOf(owner) {
+  const value = typeof owner === 'string' ? owner.trim() : '';
+  return value ? hashToken(value) : null;
 }
 
 export function createSession(name, reply) {
@@ -144,7 +161,14 @@ function loginFailed(reply, reason) {
   return reply.redirect(`${config.publicOrigin}/?auth_error=${reason}`);
 }
 
-export function registerAuthRoutes(app) {
+/** `onAccountReplaced(nameKey)` runs when a sign-in starts a name over. */
+export function registerAuthRoutes(app, { onAccountReplaced = null } = {}) {
+  const signIn = ({ name, characterId, ownerHash }) => signInUser(nameKey(name), name, {
+    characterId,
+    ownerHash,
+    onReplace: onAccountReplaced,
+  });
+
   app.get('/api/v1/auth/me', async (request) => {
     const user = getSessionUser(request);
     return user
@@ -208,7 +232,7 @@ export function registerAuthRoutes(app) {
       const metadata = await getMetadata();
       const token = await exchangeCode(metadata, code, row.verifier);
       const identity = await verifyAccessToken(token.access_token);
-      const user = upsertUser(nameKey(identity.name), identity.name, identity.characterId);
+      const user = signIn(identity);
       createSession(user.display_name, reply);
       const target = safeReturn(row.return_to);
       const redirect = config.publicOrigin ? `${config.publicOrigin}${target}` : target;
@@ -234,7 +258,7 @@ export function registerAuthRoutes(app) {
         reply.code(400).send({ error: 'invalid-character-id' });
         return;
       }
-      const user = upsertUser(nameKey(name), name, characterId);
+      const user = signIn({ name, characterId, ownerHash: ownerHashOf(request.query?.owner) });
       createSession(user.display_name, reply);
       return { ok: true, name: user.display_name, characterId: user.character_id ?? null };
     });

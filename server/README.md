@@ -31,7 +31,11 @@ ${API_ORIGIN || PUBLIC_ORIGIN}/api/v1/auth/eve/callback
 ```
 
 The app requests only `publicData`, keeps the client secret server-side, and
-validates the SSO issuer/audience and JWT expiry. `FITDLE_DEV_AUTH=1` enables the
+validates the SSO issuer/audience and JWT expiry. From the token it keeps the
+character name, the character ID and a SHA-256 of the `owner` claim. When the ID
+or the hash of a name changes (a transferred character, or another character
+holding the name), the old records are archived and the name starts as a new
+account. Sessions last 7 days. `FITDLE_DEV_AUTH=1` enables the
 local `/api/v1/auth/dev` helper and must never be enabled in production.
 
 The service uses SQLite through `node:sqlite`; no second runtime database is

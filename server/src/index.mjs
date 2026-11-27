@@ -12,7 +12,7 @@ import { registerAuthRoutes } from './auth.mjs';
 import { expireRuns, registerRunRoutes } from './runs.mjs';
 import { RUN_PROTOCOL_HEADER, RUN_PROTOCOL_VERSION } from '../../js/run-sync.js';
 import { pruneLimits } from './limits.mjs';
-import { evictExpiredRooms, registerRoomRoutes } from './rooms.mjs';
+import { evictExpiredRooms, registerRoomRoutes, releaseSeats } from './rooms.mjs';
 import { pruneTargetCaches } from './targets.mjs';
 import { sessionSecretWarnings, startupLines, startupWarnings } from './startup.mjs';
 import { loadUsageCache, startUsageRefresh } from './usage-refresh.mjs';
@@ -107,7 +107,7 @@ export async function buildApp({ logStream = null } = {}) {
   });
 
   for (const warning of config.warnings) app.log.warn(warning);
-  registerAuthRoutes(app);
+  registerAuthRoutes(app, { onAccountReplaced: releaseSeats });
   registerRunRoutes(app);
   registerRoomRoutes(app);
 
