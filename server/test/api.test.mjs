@@ -1327,6 +1327,45 @@ test('logs carry paths without query strings', async () => {
   assert.equal(/SECRET|ops@example/.test(text), false);
 });
 
+test('only failed health checks are written to the request log', async () => {
+  const lines = [];
+  const logged = await buildApp({ logStream: { write: (line) => lines.push(JSON.parse(line)) } });
+  const requestLines = async (options) => {
+    lines.length = 0;
+    const response = await logged.inject({ method: 'GET', ...options });
+    await new Promise((resolve) => setImmediate(resolve));
+    return {
+      status: response.statusCode,
+      messages: lines.filter((line) => line.reqId).map((line) => line.msg),
+      lines: [...lines],
+    };
+  };
+  for (const options of [{ url: '/api/v1/health' }, { url: '/api/v1/health?x=1' }, { method: 'HEAD', url: '/api/v1/health' }]) {
+    const quiet = await requestLines(options);
+    assert.equal(quiet.status, 200);
+    assert.deepEqual(quiet.messages, [], options.url);
+  }
+  const other = await requestLines({ url: '/api/v1/meta' });
+  assert.deepEqual(other.messages, ['incoming request', 'request completed']);
+
+  const allowed = config.allowedOrigins;
+  config.allowedOrigins = ['https://allowed.example'];
+  try {
+    const refused = await requestLines({
+      url: '/api/v1/health?x=SECRETQUERY',
+      headers: { origin: 'https://other.example' },
+    });
+    assert.equal(refused.status, 403);
+    assert.deepEqual(refused.messages, ['incoming request', 'request completed']);
+    assert.equal(refused.lines[0].req.url, '/api/v1/health');
+    assert.equal(refused.lines[1].res.statusCode, 403);
+    assert.equal(JSON.stringify(refused.lines).includes('SECRET'), false);
+  } finally {
+    config.allowedOrigins = allowed;
+    await logged.close();
+  }
+});
+
 test('startup lines summarise settings without secrets', async () => {
   const { startupLines } = await import('../src/startup.mjs');
   const text = startupLines({

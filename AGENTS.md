@@ -278,6 +278,8 @@ translation [README.zh-CN.md](README.zh-CN.md).
   terminal outside production; `LOG_FORMAT=json|pretty` overrides. The readable
   form rewrites the serialized JSON, so redaction is the same. Startup lines stay
   ASCII (Windows code pages) and Fastify's per-interface listening lines are muted.
+- A `/api/v1/health` request that answers 2xx writes no request lines (the
+  container checks every 30 s). A failed one writes both lines when it completes.
 - `FITDLE_DEV_AUTH` is ignored in production unless `PUBLIC_ORIGIN` is loopback.
 - zKillboard killmails lose `attackers` on arrival (`js/killmail.js`); nothing uses it.
 - `multiplayer` is a separate room surface behind login. A room has no default

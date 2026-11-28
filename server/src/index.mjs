@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import websocket from '@fastify/websocket';
@@ -39,6 +39,27 @@ function loggerOptions(logStream) {
   };
 }
 
+const HEALTH_PATH = '/api/v1/health';
+
+/**
+ * The container health check asks every 30 seconds: its request lines are left
+ * out while it succeeds. The first line is written before the outcome is known,
+ * so a failed check writes both lines when it completes.
+ */
+class QuietHealthLogController extends LogController {
+  incomingRequest(request, reply, metadata) {
+    if (request.routeOptions.url !== HEALTH_PATH) super.incomingRequest(request, reply, metadata);
+  }
+
+  requestCompleted(error, request, reply, metadata) {
+    if (request.routeOptions.url === HEALTH_PATH) {
+      if (!error && reply.statusCode >= 200 && reply.statusCode < 300) return;
+      super.incomingRequest(request, reply, metadata);
+    }
+    super.requestCompleted(error, request, reply, metadata);
+  }
+}
+
 /**
  * Fastify logs one "Server listening at" line per network interface and has no
  * switch for it; the service writes its own single line instead.
@@ -68,6 +89,7 @@ function assetVersion() {
 export async function buildApp({ logStream = null } = {}) {
   const app = Fastify({
     logger: loggerOptions(logStream),
+    logController: new QuietHealthLogController(),
     trustProxy: true,
     bodyLimit: 256 * 1024,
   });
@@ -98,7 +120,7 @@ export async function buildApp({ logStream = null } = {}) {
     }
   });
 
-  app.get('/api/v1/health', async () => ({ ok: true, now: Date.now() }));
+  app.get(HEALTH_PATH, async () => ({ ok: true, now: Date.now() }));
   app.get('/api/v1/meta', async () => {
     const now = new Date();
     const day = gameDateKey(now, config.gameDayStartMinutes);
