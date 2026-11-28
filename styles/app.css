@@ -591,6 +591,16 @@ select {
 .fatal-screen {
   gap: 14px;
 }
+/* Long German and Russian heading words break inside a narrow screen. */
+.fatal-screen > * {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+.fatal-actions .button {
+  max-width: 100%;
+  white-space: normal;
+}
 .fatal-actions {
   display: flex;
   flex-wrap: wrap;
@@ -686,9 +696,9 @@ select {
 .brand-sub {
   margin-top: 5px;
   color: var(--muted);
-  font: 500 0.6071rem/1 var(--font-mono);
+  font: 500 0.6071rem/1.3 var(--font-mono);
   letter-spacing: 0.19em;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .topbar-center {
@@ -740,6 +750,8 @@ select {
 
 .topbar-actions {
   display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 9px;
@@ -1678,7 +1690,7 @@ html[data-game-mode="audit"] {
 .attempt {
   position: relative;
   display: grid;
-  grid-template-columns: 42px 42px minmax(0, 1fr) auto;
+  grid-template-columns: 42px 42px minmax(0, 1fr) fit-content(45%);
   align-items: center;
   gap: 10px;
   min-height: 66px;
@@ -1735,15 +1747,15 @@ html[data-game-mode="audit"] {
 }
 .attempt-name {
   display: block;
-  overflow: hidden;
+  overflow-wrap: break-word;
   color: var(--text);
   font: 600 1rem/1.2 var(--font-ui);
   letter-spacing: 0.02em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .attempt-meta {
   display: flex;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
   align-items: center;
   gap: 7px;
   margin-top: 4px;
@@ -1780,8 +1792,20 @@ html[data-game-mode="audit"] {
 
 .attempt-status {
   min-width: 84px;
+  overflow-wrap: anywhere;
+  hyphens: auto;
   text-align: right;
 }
+
+/* The counter moves under a title that leaves no room beside it. */
+.board-panel > .panel-head:not(.is-timed) {
+  flex-wrap: wrap;
+}
+.board-panel > .panel-head:not(.is-timed) > div:first-child {
+  flex: 1 1 0;
+  min-width: min-content;
+}
+
 .attempt-status strong {
   display: block;
   color: var(--red);
@@ -1838,7 +1862,7 @@ html[data-game-mode="audit"] {
 .attempt.is-active .attempt-name {
   color: var(--amber);
   letter-spacing: 0.12em;
-  font: 600 0.6429rem/1 var(--font-mono);
+  font: 600 0.6429rem/1.3 var(--font-mono);
 }
 .attempt.is-active .attempt-meta {
   color: var(--dim);
@@ -2221,9 +2245,10 @@ html[data-game-mode="audit"] {
   flex: 0 0 auto;
 }
 .group-title span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  line-height: 1.3;
 }
 .group-progress {
   flex: 1 1 auto;
@@ -2323,10 +2348,11 @@ html[data-game-mode="audit"] {
 .attr-label {
   min-width: 0;
   overflow: hidden;
+  overflow-wrap: break-word;
+  hyphens: auto;
   color: var(--muted);
   font: 500 0.6786rem/1.4 var(--font-mono);
   letter-spacing: 0.055em;
-  text-overflow: ellipsis;
   text-transform: uppercase;
 }
 .attr-value {
@@ -2625,6 +2651,9 @@ html[data-game-mode="audit"] {
   letter-spacing: 0.06em;
 }
 
+.attr-value:has(> .resist-cells) {
+  container-type: inline-size;
+}
 .resist-cells {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2665,12 +2694,22 @@ html[data-game-mode="audit"] {
   white-space: nowrap;
 }
 .resist-cell small {
-  overflow: hidden;
+  overflow-wrap: anywhere;
+  hyphens: auto;
   color: color-mix(in srgb, var(--c) 60%, var(--muted));
   font-size: 0.6429rem;
   letter-spacing: 0.03em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+@container (max-width: 17rem) {
+  .resist-cells {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .resist-cell {
+    padding-inline: 3px;
+  }
+  .resist-cells .resist-cell b {
+    font-size: min(0.9286rem, 11cqi);
+  }
 }
 .sensor-list {
   display: flex;
@@ -2990,6 +3029,7 @@ html[data-game-mode="audit"] {
 
 .answer-banner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
@@ -2999,8 +3039,9 @@ html[data-game-mode="audit"] {
   background: linear-gradient(90deg, rgba(99, 245, 166, 0.08), transparent 70%);
   clip-path: var(--clip-sm);
 }
+/* The hull name keeps its width; the victim and button wrap below it. */
 .answer-ship {
-  min-width: 0;
+  min-width: min-content;
 }
 .answer-banner > button {
   flex: 0 0 auto;
@@ -3694,6 +3735,8 @@ html[data-game-mode="audit"] {
 }
 .debrief-main h2 {
   margin-top: 11px;
+  overflow-wrap: break-word;
+  hyphens: auto;
   color: #f2fdff;
   font: 700 clamp(2.2143rem, 4.2vw, 3.3571rem)/0.98 var(--font-ui);
   letter-spacing: 0.055em;
@@ -3783,6 +3826,8 @@ html[data-game-mode="audit"] {
 }
 .debrief-stat span {
   display: block;
+  overflow-wrap: anywhere;
+  hyphens: auto;
   color: var(--muted);
   font: 500 0.6071rem/1.2 var(--font-mono);
   letter-spacing: 0.08em;
@@ -4439,7 +4484,7 @@ html[data-game-mode="audit"] {
 
 @media (max-width: 1120px) {
   .topbar {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(min(17rem, 40%), 1fr) minmax(0, auto);
     row-gap: 8px;
   }
   .topbar .brand {
@@ -4501,6 +4546,16 @@ html[data-game-mode="audit"] {
 @media (min-width: 861px) and (max-width: 960px) {
   .hero h1:lang(ru) {
     font-size: min(calc(6.4vw + 0.8rem), 7.8vw);
+  }
+}
+
+/* "SCHIEDSVERFAHREN" has to fit its column at every width and font size. */
+@media (min-width: 601px) {
+  .hero-copy:lang(de) {
+    container-type: inline-size;
+  }
+  .hero h1:lang(de) {
+    font-size: min(clamp(2.7143rem, calc(6.4vw + 0.8rem), 6rem), 10cqi);
   }
 }
 
@@ -4713,14 +4768,6 @@ html[data-game-mode="audit"] {
     padding: 17px 15px 14px;
     gap: 10px;
   }
-  /* The counter moves under a title that leaves no room beside it. */
-  .board-panel > .panel-head:not(.is-timed) {
-    flex-wrap: wrap;
-  }
-  .board-panel > .panel-head:not(.is-timed) > div:first-child {
-    flex: 1 1 0;
-    min-width: min-content;
-  }
   .panel-sub {
     display: none;
   }
@@ -4735,7 +4782,7 @@ html[data-game-mode="audit"] {
     padding: 4px 0;
   }
   .attempt {
-    grid-template-columns: 31px 34px minmax(0, 1fr) auto;
+    grid-template-columns: 31px 34px minmax(0, 1fr) fit-content(45%);
     gap: 7px;
     min-height: 59px;
     padding: 7px 11px 7px 8px;
@@ -4808,6 +4855,10 @@ html[data-game-mode="audit"] {
     gap: 8px;
     padding: 0.5rem 9px;
   }
+  /* A sealed row only holds a question mark, so its label takes the room. */
+  .attr-row.equipment-sealed {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
   .attr-label {
     font-size: 0.5rem;
     letter-spacing: 0.035em;
@@ -4850,9 +4901,6 @@ html[data-game-mode="audit"] {
   .complete-block .link-button {
     width: 100%;
     justify-content: center;
-  }
-  .answer-banner {
-    flex-wrap: wrap;
   }
   .answer-banner button {
     width: 100%;
@@ -5029,11 +5077,6 @@ html[data-game-mode="audit"] {
   }
   .attempt-status {
     display: none;
-  }
-  .attempt-meta {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
 }
 
@@ -6149,7 +6192,12 @@ html[data-multiplayer="1"] .dossier-turn-lock strong {
   font: 600 1.2rem/1.15 var(--font-ui);
   letter-spacing: .06em;
 }
+.room-loading-copy { min-width: 0; overflow-wrap: break-word; }
 .room-loading-copy p { color: var(--text-soft); }
+/* Below this width the radar sits above the text. */
+@media (max-width: 520px) {
+  .room-loading-panel { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 20px 16px; }
+}
 .room-loading-bar {
   width: min(420px, 100%);
   height: 3px;
