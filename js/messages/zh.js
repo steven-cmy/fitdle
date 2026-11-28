@@ -105,6 +105,7 @@ export default {
   'help.sourceBody': '舰船数据：EVE 静态数据导出。损失、装配与 ISK 记录：zKillboard。彭德保险是 EVE Online 的 NPC 军团。FITDLE 是非官方粉丝模拟项目，不隶属于 Fenris Creations。',
   'help.statsTitle': '评估员记录',
   'help.statStreak': '当前连续通过',
+  'help.modeStreaks': '各玩法连胜',
 
   'error.title': '理赔网络不可用',
   'error.body': '无法获取损失案卷。请检查连接后重试。',

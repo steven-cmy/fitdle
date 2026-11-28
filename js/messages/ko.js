@@ -105,6 +105,7 @@ export default {
   'help.sourceBody': '함선 데이터: EVE Static Data Export. 손실·피팅·ISK 기록: zKillboard. 펜드 보험사는 EVE Online의 NPC 코퍼레이션입니다. FITDLE은 비공식 팬 시뮬레이션이며 Fenris Creations와 무관합니다.',
   'help.statsTitle': '평가 기록',
   'help.statStreak': '현재 연속 승인',
+  'help.modeStreaks': '모드별 연속 승인',
 
   'error.title': '손해사정 네트워크 사용 불가',
   'error.body': '손실 파일을 가져오지 못했습니다. 연결을 확인하고 다시 시도하십시오.',

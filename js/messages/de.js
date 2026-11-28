@@ -105,6 +105,7 @@ export default {
   'help.sourceBody': 'Schiffsdaten: EVE Static Data Export. Verlust-, Ausrüstungs- und ISK-Daten: zKillboard. Pend Insurance ist eine NPC-Corporation in EVE Online. FITDLE ist eine inoffizielle Fan-Simulation und nicht mit Fenris Creations verbunden.',
   'help.statsTitle': 'AKTE DES SACHBEARBEITERS',
   'help.statStreak': 'Aktuelle Serie',
+  'help.modeStreaks': 'Serie je Spielweise',
 
   'error.title': 'SCHADENSNETZ NICHT VERFÜGBAR',
   'error.body': 'Die Schadensakte konnte nicht geladen werden. Verbindung prüfen und erneut versuchen.',

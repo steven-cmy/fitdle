@@ -105,6 +105,7 @@ export default {
   'help.sourceBody': '艦船データ：EVE Static Data Export。損失・装備・ISK 記録：zKillboard。ペンド保険会社は EVE Online の NPC コーポレーションです。FITDLE は非公式ファンシミュレーションであり、Fenris Creations とは無関係です。',
   'help.statsTitle': '査定記録',
   'help.statStreak': '現在の連続承認日数',
+  'help.modeStreaks': 'モード別の連続承認数',
 
   'error.title': '査定ネットワーク利用不可',
   'error.body': '損失ファイルを取得できませんでした。接続を確認して再試行してください。',

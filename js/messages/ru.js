@@ -105,6 +105,7 @@ export default {
   'help.sourceBody': 'Данные кораблей: EVE Static Data Export. Потери, оснащение и ISK: zKillboard. Pend Insurance — NPC-корпорация EVE Online. FITDLE — неофициальная фанатская симуляция, не связанная с Fenris Creations.',
   'help.statsTitle': 'ПОСЛУЖНОЙ СПИСОК ОЦЕНЩИКА',
   'help.statStreak': 'Текущая серия',
+  'help.modeStreaks': 'Серия по режимам',
 
   'error.title': 'СЕТЬ УБЫТКОВ НЕДОСТУПНА',
   'error.body': 'Не удалось получить дело. Проверьте соединение и повторите.',

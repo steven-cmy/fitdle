@@ -2185,7 +2185,8 @@ function pilotStatsHtml() {
         <dl class="pilot-menu-totals">
           ${totals.map(([value, label]) => cell(label, value)).join('')}
         </dl>
-        <dl class="pilot-menu-modes">
+        <div class="pilot-menu-modes-title" id="pilot-modes-title">${esc(t('help.modeStreaks'))}</div>
+        <dl class="pilot-menu-modes" aria-labelledby="pilot-modes-title">
           ${modes.map(([mode, label]) => cell(label, streaks[mode])).join('')}
         </dl>
       </div>

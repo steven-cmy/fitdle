@@ -105,6 +105,7 @@ export default {
   'help.sourceBody': 'Ship data: EVE Static Data Export. Loss, fitting and ISK records: zKillboard. Pend Insurance is an EVE Online NPC corporation. FITDLE is an unofficial fan simulation, not affiliated with Fenris Creations.',
   'help.statsTitle': 'ASSESSOR RECORD',
   'help.statStreak': 'Current clean streak',
+  'help.modeStreaks': 'Streak by gameplay',
 
   'error.title': 'CLAIMS NETWORK UNAVAILABLE',
   'error.body': 'The loss file could not be retrieved. Check the connection and try again.',
