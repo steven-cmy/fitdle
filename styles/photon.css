@@ -1651,48 +1651,66 @@ a:focus-visible {
   padding: 9px 0;
 }
 
-.pilot-menu-modes {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
+.pilot-menu-ledger {
   margin-top: 6px;
-}
-
-.pilot-menu-modes > div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding: 6px;
   border: 1px solid var(--photon-line);
   background: #071019;
 }
 
-.pilot-menu-modes span {
-  overflow: hidden;
-  color: var(--photon-muted);
-  font-size: .55rem;
-  letter-spacing: .05em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
+.pilot-menu-ledger dl {
+  display: grid;
+  margin: 0;
 }
 
-.pilot-menu-modes strong {
-  color: var(--photon-accent);
-  font-size: .88rem;
+.pilot-menu-ledger dl > div {
+  display: grid;
+  /* Numbers stay on one line when a neighbouring label wraps. */
+  grid-template-rows: 1fr auto;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 8px;
 }
 
-.pilot-menu-streak {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 7px;
+.pilot-menu-ledger dl > div + div {
+  border-left: 1px solid var(--photon-line);
+}
+
+.pilot-menu-ledger dt {
   color: var(--photon-muted);
   font-size: .62rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-.pilot-menu-streak b {
+.pilot-menu-ledger dd {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pilot-menu-totals {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pilot-menu-totals dd {
+  color: var(--photon-accent);
+  font-size: 1.55rem;
+}
+
+.pilot-menu-modes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--photon-line);
+}
+
+.pilot-menu-modes dt {
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.pilot-menu-modes dd {
   color: var(--photon-text);
+  font-size: .95rem;
 }
 
 .pilot-menu-empty {
@@ -1706,6 +1724,19 @@ a:focus-visible {
   height: 2.15rem;
   justify-content: center;
   margin-top: 2px;
+}
+
+/* The pilot button moves as the topbar wraps, so on narrow screens the menu
+   hangs from the topbar edge to stay inside the screen. */
+@media (max-width: 960px) {
+  .pilot-wrap {
+    position: static;
+  }
+
+  .pilot-menu {
+    top: 100%;
+    right: 12px;
+  }
 }
 
 .appearance-menu {
@@ -1816,16 +1847,6 @@ a:focus-visible {
 
   .room-head-actions .button {
     flex: 1;
-  }
-
-  .pilot-menu,
-  .appearance-menu {
-    right: -4px;
-  }
-
-  .pilot-menu {
-    left: 0;
-    right: auto;
   }
 
   .appearance-menu {

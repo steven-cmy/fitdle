@@ -2168,23 +2168,26 @@ function copyrightHtml() {
 function pilotStatsHtml() {
   const stats = state.profileStats || { dailyWins: 0, winStreak: 0, streaks: {} };
   const streaks = stats.streaks || {};
+  const totals = [
+    [stats.dailyWins, t('help.dailyWins')],
+    [stats.winStreak, t('help.statStreak')],
+  ];
   const modes = [
     ['standard', t('mode.standard')],
     ['audit', t('mode.audit')],
     ['timed', t('mode.timed')],
   ];
+  const cell = (label, value) => `<div><dt>${esc(label)}</dt><dd>${Number(value) || 0}</dd></div>`;
   return `
     <div class="pilot-menu-record">
       <div class="pilot-menu-kicker">${esc(t('help.statsTitle'))}</div>
-      <div class="pilot-menu-streak">
-        <span>${esc(t('help.dailyWins'))} <b>${Number(stats.dailyWins) || 0}</b></span>
-        <span>${esc(t('help.statStreak'))} <b>${Number(stats.winStreak) || 0}</b></span>
-      </div>
-      <div class="pilot-menu-modes">
-        ${modes.map(([mode, label]) => `<div>
-          <span>${esc(label)}</span>
-          <strong>${Number(streaks[mode]) || 0}</strong>
-        </div>`).join('')}
+      <div class="pilot-menu-ledger">
+        <dl class="pilot-menu-totals">
+          ${totals.map(([value, label]) => cell(label, value)).join('')}
+        </dl>
+        <dl class="pilot-menu-modes">
+          ${modes.map(([mode, label]) => cell(label, streaks[mode])).join('')}
+        </dl>
       </div>
     </div>`;
 }
