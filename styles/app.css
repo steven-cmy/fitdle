@@ -832,7 +832,6 @@ select {
 
 .lang-select {
   height: var(--topbar-control-height);
-  max-width: 150px;
   padding: 0 28px 0 11px;
   color: var(--text-soft);
   border: 1px solid var(--line);
@@ -1735,6 +1734,7 @@ html[data-game-mode="audit"] {
   min-width: 0;
 }
 .attempt-name {
+  display: block;
   overflow: hidden;
   color: var(--text);
   font: 600 1rem/1.2 var(--font-ui);
@@ -4470,6 +4470,13 @@ html[data-game-mode="audit"] {
   .hero-radar {
     min-height: 300px;
   }
+  .dossier-panel .panel-head {
+    flex-wrap: wrap;
+  }
+  .dossier-panel .panel-head > div:first-child {
+    flex: 1 1 0;
+    min-width: min-content;
+  }
   .console {
     grid-template-columns: minmax(330px, 390px) minmax(0, 1fr);
   }
@@ -4487,6 +4494,13 @@ html[data-game-mode="audit"] {
   }
   .debrief-stats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Beside the radar, the longest Russian title word needs a smaller size. */
+@media (min-width: 861px) and (max-width: 960px) {
+  .hero h1:lang(ru) {
+    font-size: min(calc(6.4vw + 0.8rem), 7.8vw);
   }
 }
 
@@ -4521,11 +4535,8 @@ html[data-game-mode="audit"] {
     width: 36px;
     padding: 0;
   }
-  .lang-select {
-    max-width: 122px;
-  }
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     padding: 32px 0 28px;
   }
   .hero-radar {
@@ -4544,7 +4555,7 @@ html[data-game-mode="audit"] {
     max-width: 620px;
   }
   .console {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     padding-top: 18px;
   }
   .board-panel {
@@ -4659,7 +4670,6 @@ html[data-game-mode="audit"] {
     color: var(--violet);
   }
   .lang-select {
-    max-width: 102px;
     padding-left: 8px;
     font-size: 0.5714rem;
   }
@@ -4669,6 +4679,11 @@ html[data-game-mode="audit"] {
   .hero h1 {
     font-size: 3.4286rem;
     letter-spacing: 0.035em;
+    overflow-wrap: break-word;
+  }
+  /* The longest Russian title word has to fit the screen at every font size. */
+  .hero h1:lang(ru) {
+    font-size: min(3.4286rem, 13vw);
   }
   .hero-body {
     margin-top: 16px;
@@ -4679,7 +4694,7 @@ html[data-game-mode="audit"] {
     margin-top: 20px;
   }
   .hero-stat {
-    min-width: 0;
+    min-width: min-content;
     flex: 1 1 0;
     padding: 9px 10px 9px 0;
     margin-right: 10px;
@@ -4697,6 +4712,14 @@ html[data-game-mode="audit"] {
   .panel-head {
     padding: 17px 15px 14px;
     gap: 10px;
+  }
+  /* The counter moves under a title that leaves no room beside it. */
+  .board-panel > .panel-head:not(.is-timed) {
+    flex-wrap: wrap;
+  }
+  .board-panel > .panel-head:not(.is-timed) > div:first-child {
+    flex: 1 1 0;
+    min-width: min-content;
   }
   .panel-sub {
     display: none;
@@ -4917,13 +4940,25 @@ html[data-game-mode="audit"] {
 
 @media (min-width: 381px) and (max-width: 430px) {
   .lang-select {
-    max-width: 66px;
     padding-left: 6px;
     font-size: 0.5rem;
   }
 }
 
 @media (max-width: 430px) {
+  .attempt-name {
+    overflow-wrap: break-word;
+    white-space: normal;
+  }
+  /* Long one-word titles shrink to the dialog. */
+  .mode-modal h2 {
+    overflow-wrap: break-word;
+    font-size: min(1.8571rem, 8vw);
+  }
+  .manual-head h2 {
+    overflow-wrap: break-word;
+    font-size: min(2.0714rem, 8.5vw);
+  }
   .dossier-panel .panel-head {
     flex-wrap: wrap;
   }
@@ -4937,6 +4972,11 @@ html[data-game-mode="audit"] {
 }
 
 @media (max-width: 380px) {
+  /* The font button in the display menu keeps its name. */
+  .appearance-menu .font-toggle-value {
+    display: inline;
+    font-size: 0.5rem;
+  }
   .topbar {
     gap: 8px;
   }
@@ -4960,7 +5000,6 @@ html[data-game-mode="audit"] {
     height: var(--topbar-control-height);
   }
   .lang-select {
-    max-width: 86px;
     height: var(--topbar-control-height);
     padding-left: 6px;
     font-size: 0.5rem;
@@ -6201,6 +6240,7 @@ html[data-multiplayer="1"] .attr-row.is-dealer-published {
   overflow: auto;
 }
 .room-manual.manual-section h3 {
+  overflow-wrap: anywhere;
   margin-bottom: 10px;
 }
 .room-manual.manual-section > p {

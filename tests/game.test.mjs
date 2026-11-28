@@ -3063,6 +3063,17 @@ test('an online run keeps its answer on the service until it ends', () => {
   assert.ok(giveUp.indexOf('state.pendingEnd = true;') < giveUp.indexOf("state.status = 'lost';"));
 });
 
+test('the Daily offers no killmail picker and drops a chosen one', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+  // The dock renders its only picker button for every gameplay but the Daily.
+  assert.equal(main.match(/data-action="open-kill"/g).length, 1);
+  assert.match(main, /\$\{state\.gameplay === 'daily' \? '' : `<button[^>]*data-action="open-kill"/);
+  // Choosing the Daily leaves the chosen killmail behind, and an old link cannot bring it back.
+  const setGameplay = main.slice(main.indexOf('function setGameplay('), main.indexOf('async function resolveSession('));
+  assert.match(setGameplay, /if \(next === 'daily'\) url\.searchParams\.delete\('kb'\);/);
+  assert.match(main, /const linked = Boolean\(route\.kb\) && !\(online && route\.gameplay === 'daily'\)/);
+});
+
 test('a chosen killmail is played in the page, unscored, signed in or not', () => {
   const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
   const api = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');

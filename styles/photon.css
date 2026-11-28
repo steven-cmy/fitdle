@@ -130,6 +130,7 @@ body {
 
 .claim-mail-brand {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
@@ -161,8 +162,11 @@ body {
   font: 600 0.6429rem/1 var(--font-mono);
 }
 
+/* Goes under the logos when its longest word does not fit beside them. */
 .claim-mail-brand-copy {
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: min-content;
+  overflow-wrap: break-word;
 }
 
 .claim-mail-system {
@@ -637,7 +641,7 @@ a:focus-visible {
 
 @media (max-width: 980px) {
   .room-grid.room-grid-lobby {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .room-grid-lobby > aside {
@@ -830,9 +834,11 @@ a:focus-visible {
 }
 
 .new-target-cta {
+  height: auto;
   min-height: 44px;
   padding: 9px 16px;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 9px;
@@ -1734,21 +1740,23 @@ a:focus-visible {
   margin-top: 2px;
 }
 
-/* The pilot button moves as the topbar wraps, so on narrow screens the menu
-   hangs from the topbar edge to stay inside the screen. */
+/* The topbar buttons move as it wraps, so on narrow screens their menus hang
+   from the topbar edge to stay inside the screen. */
 @media (max-width: 960px) {
-  .pilot-wrap {
+  .pilot-wrap,
+  .appearance-wrap {
     position: static;
   }
 
-  .pilot-menu {
+  .pilot-menu,
+  .appearance-menu {
     top: 100%;
     right: 12px;
   }
 }
 
 .appearance-menu {
-  width: 18rem;
+  width: min(18rem, calc(100vw - 24px));
 }
 
 .appearance-menu-head {
@@ -1855,11 +1863,6 @@ a:focus-visible {
 
   .room-head-actions .button {
     flex: 1;
-  }
-
-  .appearance-menu {
-    right: 0;
-    left: auto;
   }
 
   .manual > .manual-legal {
