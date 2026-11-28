@@ -4,6 +4,7 @@ import { buildUserAgent, parseContact } from '../../js/user-agent.js';
 import { resolveGameDayStart } from '../../js/game.js';
 import crypto from 'node:crypto';
 import { DEFAULT_GROUP_FACTORS, normalizeUsage, parseGroupFactors } from './selection.mjs';
+import { resolveLogFormat } from './log-format.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 try {
@@ -72,6 +73,8 @@ function originEnv(name) {
   return url.origin;
 }
 
+const logFormat = resolveLogFormat();
+if (logFormat.warning) warnings.push(logFormat.warning);
 const publicOrigin = originEnv('PUBLIC_ORIGIN');
 const apiOrigin = originEnv('API_ORIGIN') || publicOrigin;
 const redirectUri = apiOrigin ? `${apiOrigin}/api/v1/auth/eve/callback` : '';
@@ -159,6 +162,7 @@ export const config = {
   cookieSecure: apiOrigin.startsWith('https://'),
   devAuth: devAuth && (!production || loopback),
   warnings,
+  logFormat: logFormat.format,
   gameDayStartMinutes: gameDayStart.minutes,
   gameDayStartSource: process.env.FITDLE_GAME_DAY_START_UTC && !gameDayStart.warning ? 'FITDLE_GAME_DAY_START_UTC' : 'data manifest',
   version: String(readJson(path.join(ROOT, 'package.json'), {}).version || ''),

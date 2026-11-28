@@ -274,6 +274,10 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Requests are limited per player (`server/src/limits.mjs`). Logs carry paths without
   query strings, startup logs a few lines (`server/src/startup.mjs`): release, API, run and WebSocket protocol
   versions, origin, data, sign-in flags, target and limit settings; yes/no for secrets, never values, and the SSO state is bound to the browser by a short-lived cookie.
+- Log format (`server/src/log-format.mjs`): pino JSON, or readable lines on a
+  terminal outside production; `LOG_FORMAT=json|pretty` overrides. The readable
+  form rewrites the serialized JSON, so redaction is the same. Startup lines stay
+  ASCII (Windows code pages) and Fastify's per-interface listening lines are muted.
 - `FITDLE_DEV_AUTH` is ignored in production unless `PUBLIC_ORIGIN` is loopback.
 - zKillboard killmails lose `attackers` on arrival (`js/killmail.js`); nothing uses it.
 - `multiplayer` is a separate room surface behind login. A room has no default

@@ -1335,16 +1335,50 @@ test('startup lines summarise settings without secrets', async () => {
     eve: { ...config.eve, clientSecret: 'SECRETCLIENT' },
     publicOrigin: 'https://fitdle.example',
   }).join('\n');
-  assert.match(text, /^FITDLE \S+ · API v1 · run protocol v2 · WebSocket protocol v2 · algorithm online-v2 · Node v/);
+  assert.match(text, /^FITDLE \S+ \| API v1 \| run protocol v2 \| WebSocket protocol v2 \| algorithm online-v2 \| Node v/);
   assert.ok(text.includes(config.version));
   assert.match(text, /Origin https:\/\/fitdle\.example/);
   assert.match(text, /session secret configured/);
-  assert.match(text, /group factors g29×0\.2 g31×0\.3 g237×0\.5/);
+  assert.match(text, /group factors g29x0\.2 g31x0\.3 g237x0\.5/);
+  assert.match(text, /^[\x20-\x7e\n]+$/, 'ASCII only');
   assert.equal(/SECRET/.test(text), false);
   const bare = startupLines({ ...config, publicOrigin: '', sessionSecret: '', shipUsage: null }).join('\n');
   assert.match(bare, /PUBLIC_ORIGIN not set/);
   assert.match(bare, /session secret NOT SET/);
   assert.match(bare, /every hull weighs 1/);
+});
+
+test('the log is JSON unless a terminal outside production asks for readable lines', async () => {
+  const { resolveLogFormat } = await import('../src/log-format.mjs');
+  assert.equal(resolveLogFormat({}, true).format, 'pretty');
+  assert.equal(resolveLogFormat({}, false).format, 'json');
+  assert.equal(resolveLogFormat({ NODE_ENV: 'production' }, true).format, 'json');
+  assert.equal(resolveLogFormat({ LOG_FORMAT: ' Pretty ', NODE_ENV: 'production' }, false).format, 'pretty');
+  assert.equal(resolveLogFormat({ LOG_FORMAT: 'json' }, true).format, 'json');
+  const wrong = resolveLogFormat({ LOG_FORMAT: 'xml' }, false);
+  assert.equal(wrong.format, 'json');
+  assert.match(wrong.warning, /LOG_FORMAT="xml"/);
+});
+
+test('readable log lines keep redaction and one line per entry', async () => {
+  const { prettyStream } = await import('../src/log-format.mjs');
+  const { listenQuietly } = await import('../src/index.mjs');
+  const out = [];
+  const logged = await buildApp({ logStream: prettyStream({ write: (text) => out.push(text) }) });
+  await listenQuietly(logged, { host: '127.0.0.1', port: 0 });
+  logged.log.info('after listen');
+  await logged.inject({ method: 'GET', url: '/api/v1/auth/eve/callback?code=SECRETCODE&state=SECRETSTATE' });
+  await logged.inject({ method: 'GET', url: '/api/v1/rooms/ABCD2345/ws?player=SECRETPLAYER' });
+  logged.log.warn({ detail: 'a\u001b[2J\nb' }, 'odd value');
+  logged.log.error(new Error('boom'));
+  await logged.close();
+  const text = out.join('');
+  assert.equal(/Server listening|SECRET|"level"|\u001b/.test(text), false);
+  assert.match(text, /^\d\d:\d\d:\d\d INFO  after listen$/m);
+  assert.match(text, /INFO  \[req-\w+\] incoming request: GET \/api\/v1\/auth\/eve\/callback from 127\.0\.0\.1$/m);
+  assert.match(text, /request completed: status=\d{3} \d+\.\dms$/m);
+  assert.match(text, /WARN  odd value: detail=a \[2J b$/m);
+  assert.match(text, /ERROR boom\n    Error: boom\n {4,}at /);
 });
 
 test('startup warns when the usage file is stale or undated', async () => {

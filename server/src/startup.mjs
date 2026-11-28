@@ -10,8 +10,9 @@ const clock = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}
 /** Warnings that depend on the clock; the settings warnings live in `config.warnings`. */
 const red = (text, color) => (color ? `\u001b[1;31m${text}\u001b[0m` : text);
 
-/** Red on a terminal, plain text in files and pipes (or with NO_COLOR). */
-const wantsColor = () => Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
+/** Red in the readable log on a terminal; plain text in JSON, files and pipes (or with NO_COLOR). */
+const wantsColor = () => defaultConfig.logFormat === 'pretty'
+  && Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
 
 /** Why a random session secret matters. Never contains the secret itself. */
 export function sessionSecretWarnings(config = defaultConfig, { color = wantsColor() } = {}) {
@@ -36,6 +37,7 @@ export function startupWarnings(config = defaultConfig, { now = new Date() } = {
 /**
  * Startup summary, one short line per group. Only effective values and yes/no
  * flags: never secrets, tokens, sign-in codes, player ids or credentials.
+ * ASCII only, so that consoles without UTF-8 (Windows code pages) show it as is.
  */
 export function startupLines(config = defaultConfig, { node = process.version, now = new Date() } = {}) {
   const usage = config.shipUsage;
@@ -49,15 +51,15 @@ export function startupLines(config = defaultConfig, { node = process.version, n
     const refresh = config.usageRefreshMs ? `refreshed every ${config.usageRefreshMs / 3600000} h` : 'refresh off';
     usageText = `${hulls} hulls from ${config.shipUsageSource || 'image'} (${age}), window ${config.usageWindowMonths} months, ${refresh}`;
   }
-  const factors = [...(config.groupFactors || new Map())].map(([group, factor]) => `g${group}×${factor}`).join(' ') || 'none';
-  const apiOrigin = config.apiOrigin && config.apiOrigin !== config.publicOrigin ? ` · API origin ${config.apiOrigin}` : '';
+  const factors = [...(config.groupFactors || new Map())].map(([group, factor]) => `g${group}x${factor}`).join(' ') || 'none';
+  const apiOrigin = config.apiOrigin && config.apiOrigin !== config.publicOrigin ? ` | API origin ${config.apiOrigin}` : '';
   return [
-    `FITDLE ${config.version || 'unknown'} · API v${API_VERSION} · run protocol v${RUN_PROTOCOL_VERSION} · WebSocket protocol v${PROTOCOL_VERSION} · algorithm ${config.algorithmVersion} · Node ${node}`,
-    `Origin ${config.publicOrigin || 'PUBLIC_ORIGIN not set'}${apiOrigin} · listen ${config.host}:${config.port} · proxy headers trusted`,
-    `Data ${String(config.manifest?.dataVersion || 'unknown')} · database ${config.databasePath} · static ${config.staticDir}`,
+    `FITDLE ${config.version || 'unknown'} | API v${API_VERSION} | run protocol v${RUN_PROTOCOL_VERSION} | WebSocket protocol v${PROTOCOL_VERSION} | algorithm ${config.algorithmVersion} | Node ${node}`,
+    `Origin ${config.publicOrigin || 'PUBLIC_ORIGIN not set'}${apiOrigin} | listen ${config.host}:${config.port} | proxy headers trusted`,
+    `Data ${String(config.manifest?.dataVersion || 'unknown')} | database ${config.databasePath} | static ${config.staticDir}`,
     `Game day starts ${clock(config.gameDayStartMinutes)} UTC (${config.gameDayStartSource})`,
-    `Sign-in: SSO ${ssoConfigured() ? 'configured' : 'not configured'} · session secret ${config.sessionSecret ? (config.sessionSecretSource === 'random' ? 'RANDOM, valid until restart' : 'configured') : 'NOT SET (public default)'} · dev sign-in ${config.devAuth ? 'ON' : 'off'}`,
-    `Targets: daily empty hulls ${config.dailyAllowEmpty ? 'allowed' : 'excluded'} · usage ${usageText} · max usage ratio ${config.usageMaxRatio} · group factors ${factors} · shelf ${config.targetShelfSize} entries, ttl ${config.targetShelfTtlMs / 3600000} h`,
-    `Limits: ${config.roomMaxPlayers} players a room · zKill spacing ${config.zkillMinIntervalMs} ms · shelf refill every ${config.targetRefillIntervalMs} ms · difficulty stats kept ${config.statsKillRetentionDays} days`,
+    `Sign-in: SSO ${ssoConfigured() ? 'configured' : 'not configured'} | session secret ${config.sessionSecret ? (config.sessionSecretSource === 'random' ? 'RANDOM, valid until restart' : 'configured') : 'NOT SET (public default)'} | dev sign-in ${config.devAuth ? 'ON' : 'off'}`,
+    `Targets: daily empty hulls ${config.dailyAllowEmpty ? 'allowed' : 'excluded'} | usage ${usageText} | max usage ratio ${config.usageMaxRatio} | group factors ${factors} | shelf ${config.targetShelfSize} entries, ttl ${config.targetShelfTtlMs / 3600000} h`,
+    `Limits: ${config.roomMaxPlayers} players a room | zKill spacing ${config.zkillMinIntervalMs} ms | shelf refill every ${config.targetRefillIntervalMs} ms | difficulty stats kept ${config.statsKillRetentionDays} days`,
   ];
 }
