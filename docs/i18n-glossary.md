@@ -105,12 +105,13 @@ Read from CCP's Static Data Export (build 3724492 and the release of 2026-11-24)
 | Subspace Communication Beacon | 亚空间通讯信标 | Subraum-Kommunikationsbake | baliza de comunicaciones subespaciales | balise de communication subspatiale | サブスペース通信ビーコン | 아공간 통신 비컨 | маяк подпространственной связи | client message for wormhole Local; wording approved by the project |
 | SRP, FC, doctrine, fit, ping, TiDi, KB | SRP、FC、制式、装配、集结令、时间膨胀、KB | SRP, FC, Doktrin, Fit, Ping, TiDi, KB | SRP, FC, doctrina, ping, TiDi, KB | SRP, FC, doctrine, ping, TiDi, KB | SRP、FC、ドクトリン、TiDi、KB | SRP, FC, 독트린, 핑, TiDi, KB | SRP, ФК, доктрина, фит, пинг, TiDi, KB | community usage |
 | Drake (SRP memos) | 幼龙 | Drake | Drake | Drake | ドレイク | 드레이크 | Drake | zh community short form; the ship name elsewhere is 幼龙级 |
-| Host / Dealer / Spectator | 房主 / 庄家 / 观战 | Host / Geber / Zuschauer | anfitrión / repartidor / espectador | hôte / donneur / spectateur | ホスト / ディーラー / 観戦者 | 호스트 / 딜러 / 관전자 | хост / дилер / наблюдатель | room roles, own wording |
+| Host / Clue Giver / Spectator | 房主 / 出题人 / 观战 | Host / Hinweisgeber / Zuschauer | anfitrión / presentador / espectador | hôte / meneur / spectateur | ホスト / 出題者 / 観戦者 | 호스트 / 출제자 / 관전자 | хост / ведущий / наблюдатель | room roles, party game usage; code calls the Clue Giver `dealer` |
 | Standard / Audit / Timed / Arbitration | 标准 / 审计 / 计时 / 仲裁复核 | Standard / Audit / Zeit / Schiedsverfahren | estándar / auditoría / crono / arbitraje | standard / audit / chrono / arbitrage | 標準 / 監査 / タイム / 仲裁 | 표준 / 감사 / 타임 / 중재 | стандарт / аудит / на время / арбитраж | gameplay names, own wording |
 | Trainee review (practice) | 见习评估 | Praktikum | prácticas | entraînement | 研修査定 | 수습 검토 | стажировка | own wording |
-| Rotation (Arbitration: everyone deals once) | 大轮 | Durchgang | vuelta | tour de table | 周回（一周） | 바퀴 | круг | card and party game usage |
-| Turn (Arbitration: one dealer, up to six rounds) | 庄 | Zug | turno | donne | ターン | 턴 | раздача | card and party game usage |
-| Round (Arbitration: one publish and guess) | 小轮 / 回合 | Runde | ronda | manche | ラウンド | 라운드 | раунд | same word as the interface counter |
+| Rotation (Arbitration: everyone is Clue Giver once) | 圈 | Durchgang | vuelta | tour de table | 周回（一周） | 바퀴 | круг | card and party game usage |
+| Turn (Arbitration: one Clue Giver, up to six rounds) | 题 | Zug | turno | tour | ターン | 턴 | ход | card and party game usage |
+| Round (Arbitration: one publish and guess) | 回合 | Runde | ronda | manche | ラウンド | 라운드 | раунд | same word as the interface counter |
+| Evidence / weight (en, zh) | 证据 / 权重 | | | | | | | one word for what code calls a clue; Clue Giver keeps its name |
 
 ## Ambiguous or deliberate
 
