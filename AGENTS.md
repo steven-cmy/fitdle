@@ -284,7 +284,9 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Arbitration is dealer-rotation: six small rounds per dealer stint, no timer. An Arbitration
   room can run 1..N **big rounds**, where one big round is one pass through the
   active dealer order. The small-round rules are fixed; only the big-round count
-  is host-configurable. The dealer publishes at least one unpublished clue per
+  is host-configurable. Code and these notes say big round, stint and small round;
+  the interface calls them rotation, turn and round (Chinese keeps 大轮, 庄 and
+  小轮/回合; see the glossary). The dealer publishes at least one unpublished clue per
   round (or all), and at least one with weight while any weighted clue is still
   selectable (`clue-weight-required`); active players guess once. If every clue
   is published, players keep guessing each round. The stint ends after six

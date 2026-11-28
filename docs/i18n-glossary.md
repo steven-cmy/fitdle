@@ -108,6 +108,9 @@ Read from CCP's Static Data Export (build 3724492 and the release of 2026-11-24)
 | Host / Dealer / Spectator | 房主 / 庄家 / 观战 | Host / Geber / Zuschauer | anfitrión / repartidor / espectador | hôte / donneur / spectateur | ホスト / ディーラー / 観戦者 | 호스트 / 딜러 / 관전자 | хост / дилер / наблюдатель | room roles, own wording |
 | Standard / Audit / Timed / Arbitration | 标准 / 审计 / 计时 / 仲裁复核 | Standard / Audit / Zeit / Schiedsverfahren | estándar / auditoría / crono / arbitraje | standard / audit / chrono / arbitrage | 標準 / 監査 / タイム / 仲裁 | 표준 / 감사 / 타임 / 중재 | стандарт / аудит / на время / арбитраж | gameplay names, own wording |
 | Trainee review (practice) | 见习评估 | Praktikum | prácticas | entraînement | 研修査定 | 수습 검토 | стажировка | own wording |
+| Rotation (Arbitration: everyone deals once) | 大轮 | Durchgang | vuelta | tour de table | 周回（一周） | 바퀴 | круг | card and party game usage |
+| Turn (Arbitration: one dealer, up to six rounds) | 庄 | Zug | turno | donne | ターン | 턴 | раздача | card and party game usage |
+| Round (Arbitration: one publish and guess) | 小轮 / 回合 | Runde | ronda | manche | ラウンド | 라운드 | раунд | same word as the interface counter |
 
 ## Ambiguous or deliberate
 
