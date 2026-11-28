@@ -618,8 +618,9 @@ and goes on.
 - The service has no route for it: no run, no stats, no difficulty counters.
   Progress is not stored; a reload starts the file again. Databases may hold
   `custom` runs of earlier releases; records keep excluding them.
-- Online Daily ignores `kb`; choosing Daily removes it. A `kb` link without
-  `claim` is Standard. Rooms cannot choose a killmail.
+- Online Daily ignores `kb`; choosing Daily removes it, and the Daily dock shows
+  no killmail picker. A `kb` link without `claim` is Standard. Rooms cannot
+  choose a killmail.
 - Failures are told apart: unreadable link or number, killmail not found (zKillboard
   answers an empty list, which is not cached by the page), zKillboard unavailable.
 

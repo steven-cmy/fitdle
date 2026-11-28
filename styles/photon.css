@@ -130,6 +130,7 @@ body {
 
 .claim-mail-brand {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
@@ -161,8 +162,11 @@ body {
   font: 600 0.6429rem/1 var(--font-mono);
 }
 
+/* Goes under the logos when its longest word does not fit beside them. */
 .claim-mail-brand-copy {
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: min-content;
+  overflow-wrap: break-word;
 }
 
 .claim-mail-system {
@@ -214,8 +218,8 @@ body {
   overflow: hidden;
   color: var(--photon-text);
   font-size: .72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .claim-mail-meta .claim-status {
@@ -617,7 +621,7 @@ a:focus-visible {
 
 @media (max-width: 860px) {
   .room-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -637,7 +641,7 @@ a:focus-visible {
 
 @media (max-width: 980px) {
   .room-grid.room-grid-lobby {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .room-grid-lobby > aside {
@@ -830,9 +834,11 @@ a:focus-visible {
 }
 
 .new-target-cta {
+  height: auto;
   min-height: 44px;
   padding: 9px 16px;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 9px;
@@ -1132,6 +1138,7 @@ a:focus-visible {
 
 .room-chat-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -1194,6 +1201,7 @@ a:focus-visible {
 
 .room-chat {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 6px;
   margin-top: 8px;
@@ -1201,7 +1209,7 @@ a:focus-visible {
 
 .room-chat textarea {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 9rem;
   min-height: 38px;
   max-height: 96px;
   resize: none;
@@ -1335,6 +1343,11 @@ a:focus-visible {
   gap: 8px;
 }
 
+.room-settings-actions .button {
+  max-width: 100%;
+  white-space: normal;
+}
+
 .room-settings-actions .room-note {
   margin: 0;
 }
@@ -1379,6 +1392,11 @@ a:focus-visible {
 .room-score-table {
   width: 100%;
   border-collapse: collapse;
+}
+
+/* Pilot names are one long word at worst and must not widen the page. */
+.room-score-table td:first-child {
+  overflow-wrap: anywhere;
 }
 
 .room-score-table th,
@@ -1432,8 +1450,10 @@ a:focus-visible {
 }
 
 .room-head-actions .button {
-  height: 2.15rem;
+  max-width: 100%;
+  min-height: 2.15rem;
   padding: 0 .7rem;
+  white-space: normal;
   font-size: .72rem;
 }
 
@@ -1734,21 +1754,23 @@ a:focus-visible {
   margin-top: 2px;
 }
 
-/* The pilot button moves as the topbar wraps, so on narrow screens the menu
-   hangs from the topbar edge to stay inside the screen. */
+/* The topbar buttons move as it wraps, so on narrow screens their menus hang
+   from the topbar edge to stay inside the screen. */
 @media (max-width: 960px) {
-  .pilot-wrap {
+  .pilot-wrap,
+  .appearance-wrap {
     position: static;
   }
 
-  .pilot-menu {
+  .pilot-menu,
+  .appearance-menu {
     top: 100%;
     right: 12px;
   }
 }
 
 .appearance-menu {
-  width: 18rem;
+  width: min(18rem, calc(100vw - 24px));
 }
 
 .appearance-menu-head {
@@ -1857,11 +1879,6 @@ a:focus-visible {
     flex: 1;
   }
 
-  .appearance-menu {
-    right: 0;
-    left: auto;
-  }
-
   .manual > .manual-legal {
     padding: 18px;
   }
@@ -1891,7 +1908,8 @@ a:focus-visible {
 
 #main.is-room-loading #hero,
 #main.is-room-loading .console { display: none; }
-#room-action-button { margin-left: auto; }
+#room-action-button { max-width: 100%; margin-left: auto; white-space: normal; }
+#room-action-button[hidden] { display: none; }
 .room-clue-score { display: inline-flex; min-width: 2ch; justify-content: center; color: var(--photon-accent); font-weight: 600; }
 .attr-row.is-selectable { cursor: pointer; }
 .attr-row.is-selected { outline: 1px solid var(--photon-accent); outline-offset: -1px; background: rgba(86, 182, 255, .12); }

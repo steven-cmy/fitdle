@@ -1,6 +1,6 @@
 {
   "name": "fitdle",
-  "version": "1.1.6",
+  "version": "1.1.8",
   "private": true,
   "type": "module",
   "description": "EVE Online killboard puzzle with a lightweight online service, EVE SSO, authoritative rooms, and a practice fallback.",

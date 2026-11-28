@@ -2416,10 +2416,10 @@ function renderShell() {
           <strong>${esc(tl(`gameplay.${state.gameplay}`, state.gameplay.toUpperCase()))}</strong>
         </div>
         <button id="room-action-button" class="button primary" type="button" data-action="room-action" hidden></button>
-        <button class="button ghost kill-open-cta" type="button" data-action="open-kill" aria-haspopup="dialog">
+        ${state.gameplay === 'daily' ? '' : `<button class="button ghost kill-open-cta" type="button" data-action="open-kill" aria-haspopup="dialog">
           ${icon('external')}
           <span>${esc(t('custom.open'))}</span>
-        </button>
+        </button>`}
         ${state.appMode === 'online' && state.gameplay === 'daily'
           ? `<button class="button daily-reset-cta${dailyResetReady() ? ' is-ready' : ''}" type="button"
               data-action="play-today"
