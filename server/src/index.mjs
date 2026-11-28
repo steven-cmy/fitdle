@@ -12,6 +12,7 @@ import { registerAuthRoutes } from './auth.mjs';
 import { expireRuns, registerRunRoutes } from './runs.mjs';
 import { RUN_PROTOCOL_HEADER, RUN_PROTOCOL_VERSION } from '../../js/run-sync.js';
 import { pruneLimits } from './limits.mjs';
+import { prettyStream } from './log-format.mjs';
 import { evictExpiredRooms, registerRoomRoutes, releaseSeats } from './rooms.mjs';
 import { pruneTargetCaches } from './targets.mjs';
 import { sessionSecretWarnings, startupLines, startupWarnings } from './startup.mjs';
@@ -22,6 +23,8 @@ const logPath = (request) => String(request.url || '').split('?')[0];
 
 function loggerOptions(logStream) {
   if (process.env.NODE_ENV === 'test' && !logStream) return false;
+  const color = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
+  const stream = logStream || (config.logFormat === 'pretty' ? prettyStream(process.stdout, { color }) : null);
   return {
     level: process.env.LOG_LEVEL || 'info',
     serializers: {
@@ -32,8 +35,24 @@ function loggerOptions(logStream) {
         remoteAddress: request.ip,
       }),
     },
-    ...(logStream ? { stream: logStream } : {}),
+    ...(stream ? { stream } : {}),
   };
+}
+
+/**
+ * Fastify logs one "Server listening at" line per network interface and has no
+ * switch for it; the service writes its own single line instead.
+ */
+export async function listenQuietly(app, options) {
+  await app.ready();
+  const { level } = app.log;
+  const muted = Boolean(app.log.isLevelEnabled?.('info'));
+  if (muted) app.log.level = 'warn';
+  try {
+    return await app.listen(options);
+  } finally {
+    if (muted) app.log.level = level;
+  }
 }
 
 /** Version query of the served release, written by build-dist into index.html. */
@@ -134,8 +153,8 @@ export async function buildApp({ logStream = null } = {}) {
       cacheControl: true,
       maxAge: 0,
       // build-dist writes .br/.gz siblings; HTML has none and is served as is.
+      // The plugin adds Accept-Encoding to Vary without dropping the CORS Origin.
       preCompressed: true,
-      setHeaders: (response) => response.setHeader('Vary', 'Accept-Encoding'),
     });
   } else {
     app.log.warn(`static directory not found: ${config.staticDir}`);
@@ -162,7 +181,7 @@ if (isMain || process.env.FITDLE_SERVER_MAIN === '1') {
   expireRuns();
   let stopUsageRefresh = () => {};
   try {
-    await app.listen({ host: config.host, port: config.port });
+    await listenQuietly(app, { host: config.host, port: config.port });
     app.log.info(`FITDLE online service listening on ${config.host}:${config.port}`);
     for (const line of startupLines()) app.log.info(line);
     for (const warning of [...sessionSecretWarnings(), ...startupWarnings()]) app.log.warn(warning);

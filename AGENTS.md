@@ -23,20 +23,21 @@ translation [README.zh-CN.md](README.zh-CN.md).
   any token. `API_CONTACT` and SSO secrets are runtime-only.
 
 **Versioning and release**
-- Every code change gets a **patch** bump (the pre-commit hook does it). Never
-  bump `minor`/`major` unless the owner asks. Docs/CI-only commits may skip it
-  (`VERSION_BUMP=none` or `--no-verify`).
+- Versions follow semantic versioning, one per merged program change. The number
+  is raised only while a change is merged into the local `dev`, never in the
+  directory where the change is made. See *Version numbers*.
 - Before every commit run `npm test` and `npm run test:server` (run
   `npm install --prefix server` first) and make sure they pass. Before opening a
   release PR also run the full build (`npm run build`) and both suites. If the
   environment cannot run something, say exactly which checks did not run in the
   report so the owner can run them locally; never claim untested work passes.
-- Work happens on the local `dev` branch. Ordinary commits may be pushed to
-  `github/dev` (no CI runs there). Open/merge PRs into `main`, tag, release,
-  publish Pages or images only on an explicit request. Never commit on `main`.
-- `CHANGELOG.md` is written (in Chinese) only at a release. A release merges
-  `dev` into `main` with a merge commit, so every `dev` commit becomes part of
-  `main`'s history. See *Release notes*.
+- Each change is made in its own directory and then merged into the local `dev`
+  branch, which is pushed to `github/dev` (no CI runs there). Open/merge PRs
+  into `main`, tag, release, publish Pages or images only on an explicit request.
+  Never commit on `main`.
+- `CHANGELOG.md` is written (in Chinese) only at a release, as one section. A
+  release merges `dev` into `main` with a merge commit, so every `dev` commit
+  becomes part of `main`'s history. See *Release notes*.
 - A merge with no program change (documentation or GitHub configuration only)
   needs no new version and no CHANGELOG section. See *Release notes*.
 - Nothing published may refer to the AI assistant or tool that helped write it:
@@ -273,6 +274,10 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Requests are limited per player (`server/src/limits.mjs`). Logs carry paths without
   query strings, startup logs a few lines (`server/src/startup.mjs`): release, API, run and WebSocket protocol
   versions, origin, data, sign-in flags, target and limit settings; yes/no for secrets, never values, and the SSO state is bound to the browser by a short-lived cookie.
+- Log format (`server/src/log-format.mjs`): pino JSON, or readable lines on a
+  terminal outside production; `LOG_FORMAT=json|pretty` overrides. The readable
+  form rewrites the serialized JSON, so redaction is the same. Startup lines stay
+  ASCII (Windows code pages) and Fastify's per-interface listening lines are muted.
 - `FITDLE_DEV_AUTH` is ignored in production unless `PUBLIC_ORIGIN` is loopback.
 - zKillboard killmails lose `attackers` on arrival (`js/killmail.js`); nothing uses it.
 - `multiplayer` is a separate room surface behind login. A room has no default
@@ -283,7 +288,11 @@ translation [README.zh-CN.md](README.zh-CN.md).
 - Arbitration is dealer-rotation: six small rounds per dealer stint, no timer. An Arbitration
   room can run 1..N **big rounds**, where one big round is one pass through the
   active dealer order. The small-round rules are fixed; only the big-round count
-  is host-configurable. The dealer publishes at least one unpublished clue per
+  is host-configurable. Code and these notes say dealer, big round, stint and
+  small round; players read Clue Giver, rotation, turn and round (Chinese: 出题人,
+  圈, 题 and 回合; every language is in the glossary). Player copy says evidence
+  and weight (证据、权重), never clue or intel. The dealer
+  publishes at least one unpublished clue per
   round (or all), and at least one with weight while any weighted clue is still
   selectable (`clue-weight-required`); active players guess once. If every clue
   is published, players keep guessing each round. The stint ends after six
@@ -426,7 +435,7 @@ used for target selection.
 - `js/avatar.js` — official EVE portrait URL and initials fallback markup shared
   by the header and room Local list.
 - `scripts/sde-api.mjs` — SDE HTTP API latest/release/table downloader.
-- `scripts/*` — SDE, killpool, ship weights, dogma, catalog, dist, version hooks.
+- `scripts/*` — SDE, killpool, ship weights, dogma, catalog, dist, versioning.
 - Ship bonus extraction preserves every localized SDE bonus line; never truncate
   to a fixed count. Some hulls exceed four bonuses (Naga Navy Issue has five,
   including its max-velocity bonus; Python has many role bonuses).
@@ -776,18 +785,24 @@ and goes on.
 - Everything else is a program change and needs a newer version and a changelog
   section, including `js/`, `server/`, all other `scripts/`, `vendor/` (its
   Markdown too), `tests/`, `styles/`, `assets/`, `data/`, `index.html`, package
-  files, `Dockerfile`, `docker/`, compose and env examples, `.githooks/`, Git and
-  Docker ignore files and `.gitlab-ci.yml`. One such file in a PR is enough, and
+  files, `Dockerfile`, `docker/`, compose and env examples, Git and Docker ignore
+  files and `.gitlab-ci.yml`. One such file in a PR is enough, and
   so is moving or deleting one. Extend the list only when the owner asks.
 - After a merge without a new version, `pages` deploys, `release` skips the
   existing Release and `image` pushes nothing. If the version has no Release yet
   (a failed publish), `image` pushes again and `release` creates it.
 - Every release must include a changelog covering changes from the previous
   released version to the new one.
-- At release, add the CHANGELOG section (and the final version) on `dev`, open a
-  PR `dev` -> `main` titled `Release <version>: <summary>`, and once CI passes
-  merge it with **Create a merge commit** (never squash or rebase); the merge
-  commit is the release commit. Merging publishes. PRs without a release are
+- A release publishes the latest version on `dev`; releasing raises no number.
+  Write exactly one section, `## v<that version>`, that sums up everything since
+  the last release by what changed for players and deployers, not patch by patch.
+  The versions in between get no section, tag or Release.
+  `scripts/check-release.mjs` requires a version newer than `main`'s with that
+  section, and rejects sections for other versions newer than `main`'s.
+- At release, add that CHANGELOG section on `dev`, open a PR `dev` -> `main`
+  titled `Release <version>: <summary>`, and once CI passes merge it with
+  **Create a merge commit** (never squash or rebase); the merge commit is the
+  release commit. Merging publishes. PRs without a release are
   merged the same way.
 - Write the changelog in Chinese.
 - Write only player-visible changes and behavior changes. Do not include numeric
@@ -875,26 +890,34 @@ npm run build:killpool    # fallback KB pool + zKill server date
 npm run fetch:usage       # ship usage file from the data branch
 npm run build             # data + dist
 npm run update:dogma      # vendor latest EVE Ship Fit engine/SDE
-npm run hooks:install     # enable shared Git hooks
 ```
 
 `build:killpool` reads the catalog, so on a fresh checkout run `prepare:sde`,
 `fetch:usage` and `build:catalog` before it, then `build`. The all-in-one
 container follows the same order.
 
-## Version bump
+## Version numbers
 
-- `.githooks/pre-commit` runs `scripts/bump-version.mjs` (enable with
-  `npm run hooks:install`). It defaults to patch; `VERSION_BUMP=minor|major|none`
-  overrides it.
+- Semantic versioning, judged by the content of the change: fixes only raise
+  `patch`; a new feature users can see raises `minor`; an incompatible change
+  raises `major`.
+- Where the change is made (its own directory and branch), leave the version
+  files alone, so parallel changes never conflict on them.
+- The number is raised while merging into the local `dev`, one change at a time.
+  Check that `dev` is clean and fetched, bring the change's commits in, then for a
+  program change (see *Release notes*) run
+  `node scripts/bump-version.mjs <patch|minor|major>` and commit the result as
+  `版本改为 <version>`. Run both test suites, then push.
+- Every merged program change gets its own number; do not cover several changes
+  with one bump. A change to documentation or GitHub configuration gets none.
+- So `dev` may run several versions ahead of `main`. A release publishes only the
+  latest one.
 - The script changes only `package.json`, `server/package.json` and
-  `server/package-lock.json`, which must share one version. Do not put a version
-  string in `README.md`.
-- Where Git shell hooks cannot run (some Windows sandboxes), run
-  `node scripts/bump-version.mjs` by hand, then `git commit --no-verify`.
+  `server/package-lock.json`, which must share one version, and refuses to run
+  again before the previous bump is committed. No Git hook changes versions.
+  Do not put a version string in `README.md`.
 - `dev` is the working branch, `main` the release branch (only changed by
-  PRs merged with a merge commit). The hook runs only on local commits, so the
-  merge on GitHub never bumps again.
+  PRs merged with a merge commit). Merging on GitHub changes no version.
 - `dev` is never reset or deleted after a merge: work goes on from where it is,
   including commits pushed while the PR was open. `main` is then ahead of `dev`
   only by merge commits, which the next PR does not need. Keep GitHub's automatic
@@ -902,7 +925,7 @@ container follows the same order.
 - If `main` ever gets a change that did not come from `dev`, merge it back
   before the next PR:
   `git fetch github && git switch dev && git merge github/main`. Such a merge is
-  not a version change; if it needs a manual commit, use `VERSION_BUMP=none`.
+  not a version change.
 - Authority: the owner has delegated local tests, local git steps and plain
   `git push github dev` (never a force push). Never push `main`. Opening or
   merging the PR into `main`, releasing, and changing GitHub settings stay with
@@ -1042,7 +1065,8 @@ test reads `dist/`.
   `.github/workflows/ci.yml` with jobs `sde-check`, `build`, `image`, `release`,
   `pages-build` (uploads the Pages artifact), `pages` (deploys it). Pull requests into `main` run `sde-check`, `build` (all tests), `image-check` and
   `release-check` (`scripts/check-release.mjs`: for program changes, version newer
-  than main and non-empty CHANGELOG section; see *Release notes*) only. `image`, `release`, `pages-build` and `pages` run only after a push to
+  than main and a single CHANGELOG section for it; see *Release notes*) only.
+  `image`, `release`, `pages-build` and `pages` run only after a push to
   `main` (or a manual run on `main`); pushes to `dev` trigger nothing. No workflow
   changes `dev`.
 - `image-check` (pull requests only, after `build`) builds the all-in-one image

@@ -1,6 +1,6 @@
 {
   "name": "fitdle",
-  "version": "1.1.0",
+  "version": "1.1.6",
   "private": true,
   "type": "module",
   "description": "EVE Online killboard puzzle with a lightweight online service, EVE SSO, authoritative rooms, and a practice fallback.",
@@ -19,9 +19,8 @@
     "serve:source": "node scripts/serve.mjs --root .",
     "server:start": "node server/src/index.mjs",
     "stats:difficulty": "node server/src/difficulty-report.mjs",
-    "test": "node tests/game.test.mjs && node tests/multiplayer.test.mjs && node tests/sde-api.test.mjs && node tests/run-sync.test.mjs && node tests/ship-query.test.mjs && node tests/ship-usage.test.mjs",
-    "test:server": "npm test --prefix server",
-    "hooks:install": "node scripts/install-git-hooks.mjs"
+    "test": "node tests/game.test.mjs && node tests/multiplayer.test.mjs && node tests/sde-api.test.mjs && node tests/run-sync.test.mjs && node tests/ship-query.test.mjs && node tests/ship-usage.test.mjs && node tests/release.test.mjs",
+    "test:server": "npm test --prefix server"
   },
   "engines": {
     "node": ">=24"

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
- * Bump the package version. Called by .githooks/pre-commit.
+ * Bump the package version. Run by hand when a program change is merged into
+ * the local dev branch (see AGENTS.md, Version numbers); nothing runs it on its
+ * own.
  *
- * Default: patch. Set VERSION_BUMP=minor|major|none to override.
+ * Usage: node scripts/bump-version.mjs <patch|minor|major>
+ *
  * server/package.json and its lockfile follow the root version, because the
  * test suite requires them to be identical.
  */
@@ -15,30 +18,23 @@ const pkgFile = path.join(ROOT, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'));
 const current = String(pkg.version || '0.0.0');
 const [major, minor, patch] = current.split('.').map((part) => Number(part) || 0);
-const bump = String(process.env.VERSION_BUMP || 'patch').toLowerCase();
-
-if (bump === 'none') {
-  console.log('Version bump skipped (VERSION_BUMP=none).');
-  process.exit(0);
-}
+const level = process.argv[2];
 
 let next;
-if (bump === 'major') next = `${major + 1}.0.0`;
-else if (bump === 'minor') next = `${major}.${minor + 1}.0`;
-else if (bump === 'patch') next = `${major}.${minor}.${patch + 1}`;
+if (level === 'major') next = `${major + 1}.0.0`;
+else if (level === 'minor') next = `${major}.${minor + 1}.0`;
+else if (level === 'patch') next = `${major}.${minor}.${patch + 1}`;
 else {
-  console.error(`Unknown VERSION_BUMP=${bump}; use patch, minor, major or none.`);
+  console.error('Usage: node scripts/bump-version.mjs <patch|minor|major>');
   process.exit(1);
 }
 
-// A release commit that already changes package.json owns its version.
-const staged = spawnSync('git', ['diff', '--cached', '--quiet', '--', 'package.json'], {
-  cwd: ROOT,
-  stdio: 'ignore',
-});
-if (staged.status === 1) {
-  console.log('Version bump skipped: package.json is already staged.');
-  process.exit(0);
+// One change gets one version: refuse while an earlier bump is uncommitted.
+const head = spawnSync('git', ['show', 'HEAD:package.json'], { cwd: ROOT, encoding: 'utf8' });
+const committed = head.status === 0 ? JSON.parse(head.stdout).version : current;
+if (committed !== current) {
+  console.error(`The version already differs from HEAD (${committed} -> ${current}); commit it first.`);
+  process.exit(1);
 }
 
 pkg.version = next;

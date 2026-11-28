@@ -477,7 +477,7 @@ test('room UI is embedded and arbitration reuses the single-player dossier', () 
   assert.match(main, /renderArbitrationDossier/);
   assert.match(main, /state\.roomArbitration/);
   assert.match(MESSAGES.zh['room.kicked'], /房主/);
-  assert.match(MESSAGES.en['room.arbitration.dealerPublish'], /clue/i);
+  assert.match(MESSAGES.en['room.arbitration.dealerPublish'], /evidence/i);
 });
 
 test('room accents never use the black background fallback as a text color', () => {

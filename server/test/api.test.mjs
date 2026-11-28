@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
+import http from 'node:http';
 import zlib from 'node:zlib';
 import WebSocket from 'ws';
 
@@ -1334,16 +1335,50 @@ test('startup lines summarise settings without secrets', async () => {
     eve: { ...config.eve, clientSecret: 'SECRETCLIENT' },
     publicOrigin: 'https://fitdle.example',
   }).join('\n');
-  assert.match(text, /^FITDLE \S+ · API v1 · run protocol v2 · WebSocket protocol v2 · algorithm online-v2 · Node v/);
+  assert.match(text, /^FITDLE \S+ \| API v1 \| run protocol v2 \| WebSocket protocol v2 \| algorithm online-v2 \| Node v/);
   assert.ok(text.includes(config.version));
   assert.match(text, /Origin https:\/\/fitdle\.example/);
   assert.match(text, /session secret configured/);
-  assert.match(text, /group factors g29×0\.2 g31×0\.3 g237×0\.5/);
+  assert.match(text, /group factors g29x0\.2 g31x0\.3 g237x0\.5/);
+  assert.match(text, /^[\x20-\x7e\n]+$/, 'ASCII only');
   assert.equal(/SECRET/.test(text), false);
   const bare = startupLines({ ...config, publicOrigin: '', sessionSecret: '', shipUsage: null }).join('\n');
   assert.match(bare, /PUBLIC_ORIGIN not set/);
   assert.match(bare, /session secret NOT SET/);
   assert.match(bare, /every hull weighs 1/);
+});
+
+test('the log is JSON unless a terminal outside production asks for readable lines', async () => {
+  const { resolveLogFormat } = await import('../src/log-format.mjs');
+  assert.equal(resolveLogFormat({}, true).format, 'pretty');
+  assert.equal(resolveLogFormat({}, false).format, 'json');
+  assert.equal(resolveLogFormat({ NODE_ENV: 'production' }, true).format, 'json');
+  assert.equal(resolveLogFormat({ LOG_FORMAT: ' Pretty ', NODE_ENV: 'production' }, false).format, 'pretty');
+  assert.equal(resolveLogFormat({ LOG_FORMAT: 'json' }, true).format, 'json');
+  const wrong = resolveLogFormat({ LOG_FORMAT: 'xml' }, false);
+  assert.equal(wrong.format, 'json');
+  assert.match(wrong.warning, /LOG_FORMAT="xml"/);
+});
+
+test('readable log lines keep redaction and one line per entry', async () => {
+  const { prettyStream } = await import('../src/log-format.mjs');
+  const { listenQuietly } = await import('../src/index.mjs');
+  const out = [];
+  const logged = await buildApp({ logStream: prettyStream({ write: (text) => out.push(text) }) });
+  await listenQuietly(logged, { host: '127.0.0.1', port: 0 });
+  logged.log.info('after listen');
+  await logged.inject({ method: 'GET', url: '/api/v1/auth/eve/callback?code=SECRETCODE&state=SECRETSTATE' });
+  await logged.inject({ method: 'GET', url: '/api/v1/rooms/ABCD2345/ws?player=SECRETPLAYER' });
+  logged.log.warn({ detail: 'a\u001b[2J\nb' }, 'odd value');
+  logged.log.error(new Error('boom'));
+  await logged.close();
+  const text = out.join('');
+  assert.equal(/Server listening|SECRET|"level"|\u001b/.test(text), false);
+  assert.match(text, /^\d\d:\d\d:\d\d INFO  after listen$/m);
+  assert.match(text, /INFO  \[req-\w+\] incoming request: GET \/api\/v1\/auth\/eve\/callback from 127\.0\.0\.1$/m);
+  assert.match(text, /request completed: status=\d{3} \d+\.\dms$/m);
+  assert.match(text, /WARN  odd value: detail=a \[2J b$/m);
+  assert.match(text, /ERROR boom\n    Error: boom\n {4,}at /);
 });
 
 test('startup warns when the usage file is stale or undated', async () => {
@@ -1477,7 +1512,7 @@ test('static assets are served precompressed with identical content', async () =
       const packed = await get(encoding);
       assert.equal(packed.headers['content-encoding'], encoding, url);
       assert.match(packed.headers['content-type'], type);
-      assert.match(packed.headers.vary, /Accept-Encoding/);
+      assert.match(packed.headers.vary, /Accept-Encoding/i);
       assert.ok(packed.rawPayload.length < plain.rawPayload.length);
       assert.ok(decode(packed.rawPayload).equals(plain.rawPayload), `${url} ${encoding}`);
       const cached = await app.inject({
@@ -1923,5 +1958,53 @@ test('a request still waiting for its target gives a replaced account nothing', 
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM online_runs WHERE name_key = 'waiting pilot'").get().count, 0);
   } finally {
     usePool(null);
+  }
+});
+
+test('static files never leave the static root and only canonical paths are served', async () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'fitdle-static-'));
+  const root = path.join(base, 'root');
+  fs.mkdirSync(path.join(root, 'js'), { recursive: true });
+  fs.writeFileSync(path.join(base, 'secret.txt'), 'OUTSIDE-THE-ROOT');
+  fs.writeFileSync(path.join(root, 'index.html'), 'home');
+  fs.writeFileSync(path.join(root, 'js', 'main.js'), 'inside');
+  const previous = { staticDir: config.staticDir, allowedOrigins: config.allowedOrigins };
+  config.staticDir = root;
+  config.allowedOrigins = ['http://site.test'];
+  const site = await buildApp();
+  try {
+    await site.listen({ host: '127.0.0.1', port: 0 });
+    // A real request: inject() and fetch() would resolve the dot segments before sending.
+    const get = (url, headers = {}) => new Promise((resolve, reject) => {
+      http.get({ host: '127.0.0.1', port: site.server.address().port, path: url, headers }, (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => { body += chunk; });
+        response.on('end', () => resolve({ status: response.statusCode, headers: response.headers, body }));
+      }).on('error', reject);
+    });
+    for (const url of [
+      '/../secret.txt', '/js/../../secret.txt', '//../secret.txt', '/./../secret.txt', '/....//secret.txt',
+      '/%2e%2e/secret.txt', '/%2E%2E%2Fsecret.txt', '/..%2fsecret.txt', '/js/%2e%2e/%2e%2e/secret.txt',
+      '/js/..%2f..%2fsecret.txt', '/..%5csecret.txt', '/%2e%2e%5csecret.txt', '/..\\secret.txt',
+      '/%252e%252e/secret.txt', '/%252e%252e%252fsecret.txt', '/..%252fsecret.txt',
+      `/${encodeURIComponent(path.join(base, 'secret.txt'))}`,
+      // Other spellings of a served file are refused too.
+      '//js/main.js', '/js//main.js', '/js/./main.js', '/js/../js/main.js', '/js%2Fmain.js', '/js%5Cmain.js',
+    ]) {
+      const response = await get(url);
+      assert.ok([403, 404].includes(response.status), `${url} answered ${response.status}`);
+      assert.equal(/OUTSIDE-THE-ROOT|inside/.test(response.body), false, url);
+    }
+    assert.equal((await get('/js/main.js?v=1')).body, 'inside');
+    assert.equal((await get('/')).body, 'home');
+    // Caches must keep apart both the encoding and the allowed origin.
+    const { headers } = await get('/js/main.js', { origin: 'http://site.test' });
+    assert.match(headers.vary, /Origin/);
+    assert.match(headers.vary, /Accept-Encoding/i);
+  } finally {
+    Object.assign(config, previous);
+    await site.close();
+    fs.rmSync(base, { recursive: true, force: true });
   }
 });
